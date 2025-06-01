@@ -16,5 +16,5 @@ func PrivateRoutes(app *fiber.App) {
 	elementHandler := handlers.NewHandler()
 
 	group := app.Group("/api/v1")
-	group.Get("/elements", elementHandler.GetElements)
+	group.Get("/elements/:projectid", elementHandler.GetElements)
 }
