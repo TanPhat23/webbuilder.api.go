@@ -1,14 +1,12 @@
 package models
 
-import "encoding/json"
-
 type Element struct {
     Type           string                 `json:"type" db:"type"`
     ID             string                 `json:"id" db:"id"`
     Content        string                 `json:"content" db:"content"`
     IsSelected     bool                   `json:"isSelected" db:"is_selected"`
     Name           *string                `json:"name,omitempty" db:"name"`
-    Styles         json.RawMessage			`json:"styles,omitempty" db:"styles"`
+    Styles         map[string]interface{}			`json:"styles,omitempty" db:"styles"`
     TailwindStyles *string                `json:"tailwindStyles,omitempty" db:"tailwind_styles"`
     X              float64                `json:"x" db:"x"`
     Y              float64                `json:"y" db:"y"`
@@ -17,6 +15,11 @@ type Element struct {
     ParentID       *string                `json:"parentId,omitempty" db:"parent_id"`
     ProjectID      *string                `json:"projectId,omitempty" db:"project_id"`
     Order          *int                   `json:"order,omitempty" db:"order"`
+}
+
+type SectionElement struct {
+    Element
+    Elements []interface{} `json:"elements" db:"-"`
 }
 
 // FrameElement extends Element

@@ -2,6 +2,9 @@ package routes
 
 import (
 	"my-go-app/internal/handlers"
+	"my-go-app/pkg/middleware"
+
+	// "my-go-app/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -13,8 +16,13 @@ func PrivateRoutes(app *fiber.App) {
 	// 	return c.SendString("This is a private route")
 	// })
 
-	elementHandler := handlers.NewHandler()
-
+	elementHandler := handlers.NewElementHandler()
+	projectHandler := handlers.NewProjectHandler()
 	group := app.Group("/api/v1")
-	group.Get("/elements/:projectid", elementHandler.GetElements)
+
+	group.Get("/elements/:projectid", middleware.AuthenticateMiddleware, elementHandler.GetElements)
+
+	group.Get("/projects/user", middleware.AuthenticateMiddleware, projectHandler.GetProjectByUserID)
+	group.Get("/projects/project/:projectid", middleware.AuthenticateMiddleware, projectHandler.GetProjectByID)
+
 }

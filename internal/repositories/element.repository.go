@@ -28,14 +28,14 @@ func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElemen
 		return nil, err
 	}
 	defer rows.Close()
-	
-	var elements []models.EditorElement
 
+	var elements []models.EditorElement
 
 	for rows.Next() {
 		element := &models.Element{}
 		var settings *string
 		var stylesJSON string
+		var tailwindStylesStr *string
 
 		err := rows.Scan(
 			&element.ID,
@@ -51,24 +51,38 @@ func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElemen
 			&element.ParentID,
 			&element.ProjectID,
 			&element.Name,
-			&element.TailwindStyles,
+			&tailwindStylesStr,
 			&settings,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Parse styles JSON
+		if stylesJSON != "" {
+			var styles map[string]interface{}
+			err = json.Unmarshal([]byte(stylesJSON), &styles)
+			if err != nil {
+				return nil, err
+			}
+			element.Styles = styles
+		}
+		// Set TailwindStyles (this is a string, not JSON)
+		element.TailwindStyles = tailwindStylesStr
+
+		// Parse settings JSON if present
 		var settingsMap map[string]interface{}
-		if settings != nil {
+		if settings != nil && *settings != "" {
 			err = json.Unmarshal([]byte(*settings), &settingsMap)
 			if err != nil {
 				return nil, err
 			}
-			elementWithSettings := utils.ApplyElementSetting(element , settingsMap )
+			elementWithSettings := utils.ApplyElementSetting(element, settingsMap)
 			elements = append(elements, elementWithSettings)
-		}else{
+		} else {
 			elements = append(elements, element)
 		}
-		
+
 	}
 
 	if err = rows.Err(); err != nil {

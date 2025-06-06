@@ -7,14 +7,14 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type Handler struct {
+type ElmentHandler struct {
 }
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewElementHandler() *ElmentHandler {
+	return &ElmentHandler{}
 }
 
-func (h *Handler) GetElements(c *fiber.Ctx) error {
+func (h *ElmentHandler) GetElements(c *fiber.Ctx) error {
 	projectID := c.Params("projectid")
 	repo := database.GetRepositories()
 
