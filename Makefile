@@ -2,7 +2,7 @@
 APP_NAME := webbuilder-api
 MAIN_PATH := ./cmd/main.go
 BUILD_DIR := ./bin
-GO_VERSION := 1.23
+GO_VERSION := 1.24
 
 # Default target
 .PHONY: help

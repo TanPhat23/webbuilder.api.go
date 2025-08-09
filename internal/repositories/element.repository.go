@@ -60,7 +60,7 @@ func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElemen
 
 		// Parse styles JSON
 		if stylesJSON != "" {
-			var styles map[string]interface{}
+			var styles map[string]any
 			err = json.Unmarshal([]byte(stylesJSON), &styles)
 			if err != nil {
 				return nil, err
@@ -71,7 +71,7 @@ func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElemen
 		element.TailwindStyles = tailwindStylesStr
 
 		// Parse settings JSON if present
-		var settingsMap map[string]interface{}
+		var settingsMap map[string]any
 		if settings != nil && *settings != "" {
 			err = json.Unmarshal([]byte(*settings), &settingsMap)
 			if err != nil {

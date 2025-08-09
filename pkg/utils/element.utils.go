@@ -106,41 +106,25 @@ func buildElementWithChildren(element models.EditorElement, childrenMap map[stri
 }
 
 func ApplyElementSetting(element *models.Element, settings map[string]interface{}) models.EditorElement {
-	if settings == nil {
-		return element // Element implements EditorElement interface
-	}
+    if settings == nil {
+        return element
+    }
 
-	// Apply settings based on element type
-	switch element.Type {
-	case "Carousel":
-		carouselElement := &models.CarouselElement{Element: *element}
-		carouselElement.CarouselSettings = settings
-		return carouselElement
-
-	case "Input":
-		inputElement := &models.InputElement{Element: *element}
-		inputElement.InputSettings = settings
-		return inputElement
-
-	case "Select":
-		selectElement := &models.SelectElement{Element: *element}
-		selectElement.SelectSettings = settings
-		return selectElement
-
-	case "Form":
-		formElement := &models.FormElement{Element: *element}
-		formElement.FormSettings = settings
-		return formElement
-
-	case "Frame":
-		frameElement := &models.FrameElement{Element: *element}
-		return frameElement
-
-	case "List":
-		listElement := &models.ListElement{Element: *element}
-		return listElement
-
-	default:
-		return element
-	}
+    switch element.Type {
+    case "Carousel":
+        return &models.CarouselElement{Element: *element, Settings: settings}
+    case "Input":
+        return &models.InputElement{Element: *element, Settings: settings}
+    case "Select":
+        return &models.SelectElement{Element: *element, Settings: settings}
+    case "Form":
+        return &models.FormElement{Element: *element, Settings: settings}
+    case "Frame":
+        return &models.FrameElement{Element: *element}
+    case "List":
+        return &models.ListElement{Element: *element}
+    default:
+        return element
+    }
 }
+

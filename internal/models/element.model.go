@@ -6,7 +6,7 @@ type Element struct {
     Content        string                 `json:"content" db:"content"`
     IsSelected     bool                   `json:"isSelected" db:"is_selected"`
     Name           *string                `json:"name,omitempty" db:"name"`
-    Styles         map[string]interface{}			`json:"styles,omitempty" db:"styles"`
+    Styles         map[string]any			`json:"styles,omitempty" db:"styles"`
     TailwindStyles *string                `json:"tailwindStyles,omitempty" db:"tailwind_styles"`
     X              float64                `json:"x" db:"x"`
     Y              float64                `json:"y" db:"y"`
@@ -19,20 +19,20 @@ type Element struct {
 
 type SectionElement struct {
     Element
-    Elements []interface{} `json:"elements" db:"-"`
+    Elements []any `json:"elements" db:"-"`
 }
 
 // FrameElement extends Element
 type FrameElement struct {
     Element
-    Elements []interface{} `json:"elements" db:"-"`
+    Elements []any `json:"elements" db:"-"`
 }
 
 // CarouselElement extends Element
 type CarouselElement struct {
     Element
-    CarouselSettings map[string]interface{} `json:"carouselSettings" db:"carousel_settings"`
-    Elements         []interface{}          `json:"elements" db:"-"`
+    Settings map[string]any `json:"settings" db:"carousel_settings"`
+    Elements []any          `json:"elements" db:"-"`
 }
 
 // ButtonElement extends Element
@@ -45,28 +45,28 @@ type ButtonElement struct {
 // InputElement extends Element
 type InputElement struct {
     Element
-    InputSettings map[string]interface{} `json:"inputSettings" db:"input_settings"`
+    Settings map[string]any `json:"settings" db:"carousel_settings"`
 }
 
 // ListElement extends Element
 type ListElement struct {
     Element
-    Elements []interface{} `json:"elements" db:"-"`
+    Elements []any `json:"elements" db:"-"`
 }
 
 // SelectElement extends Element
 type SelectElement struct {
     Element
-    Options       []map[string]interface{} `json:"options" db:"options"`
-    SelectSettings map[string]interface{}   `json:"selectSettings,omitempty" db:"select_settings"`
+    Options  []map[string]any `json:"options" db:"options"`
+    Settings map[string]any   `json:"settings,omitempty" db:"carousel_settings"`
 }
 
 // ChartDataset for chart elements
 type ChartDataset struct {
     Label           string      `json:"label"`
     Data            []float64   `json:"data"`
-    BackgroundColor interface{} `json:"backgroundColor,omitempty"`
-    BorderColor     interface{} `json:"borderColor,omitempty"`
+    BackgroundColor any `json:"backgroundColor,omitempty"`
+    BorderColor     any `json:"borderColor,omitempty"`
     BorderWidth     *int        `json:"borderWidth,omitempty"`
     Fill            *bool       `json:"fill,omitempty"`
 }
@@ -75,8 +75,8 @@ type ChartDataset struct {
 // FormElement extends Element
 type FormElement struct {
     Element
-    Elements     []interface{}          `json:"elements" db:"-"`
-    FormSettings map[string]interface{} `json:"formSettings,omitempty" db:"form_settings"`
+    Elements []any           `json:"elements" db:"-"`
+    Settings map[string]any  `json:"settings,omitempty" db:"carousel_settings"`
 }
 
 type EditorElement interface {
