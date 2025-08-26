@@ -1,125 +1,52 @@
 package repositories
 
 import (
-	"database/sql"
-	"encoding/json"
 	"my-go-app/internal/models"
+
+	"gorm.io/gorm"
 )
 
 type ProjectRepository struct {
-	*sql.DB
+	DB *gorm.DB
 }
 
 func (r *ProjectRepository) GetProjects() ([]models.Project, error) {
-	const query = `
-	SELECT
-		p."Id", p."Name", p."Description", p."Styles", p."published", p."subdomain"
-	FROM public."Projects" p
-	ORDER BY p."Name"
-	`
-	rows, err := r.Query(query)
-	if err != nil {
+	var projects []models.Project
+	if err := r.DB.Table((models.Project{}).GetTable()).Find(&projects).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var projects []models.Project
-
-	for rows.Next() {
-		project := models.Project{}
-		var projectStyles string
-		err := rows.Scan(
-			&project.ID,
-			&project.Name,
-			&project.Description,
-			&projectStyles,
-			&project.Published,
-			&project.Subdomain,
-		)
-		if err != nil {
-			return nil, err
-		}
-		if projectStyles != "" {
-			err = json.Unmarshal([]byte(projectStyles), &project.Styles)
-			if err != nil {
-				return nil, err // Handle JSON unmarshal error
-			}
-		}
-		projects = append(projects, project)
-	}
-
 	return projects, nil
 }
 
 func (r *ProjectRepository) GetProjectByID(projectID string, userId string) (*models.Project, error) {
-	const query = `
-	SELECT
-		p."Id", p."Name", p."Description", p."Styles", p."published", p."subdomain"
-	FROM public."Projects" p
-	WHERE p."Id" = $1 AND p."OwnerId" = $2
-	`
-	row := r.QueryRow(query, projectID, userId)
-
-	project := &models.Project{}
-	var projectStyles string
-	err := row.Scan(
-		&project.ID,
-		&project.Name,
-		&project.Description,
-		&projectStyles,
-		&project.Published,
-		&project.Subdomain,
-	)
-	if projectStyles != "" {
-		err = json.Unmarshal([]byte(projectStyles), &project.Styles)
-	}
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // No project found
+	var project models.Project
+	if err := r.DB.Table((models.Project{}).GetTable()).Where(`"Id" = ? AND "OwnerId" = ?`, projectID, userId).First(&project).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
 		}
-		return nil, err // Other error
+		return nil, err
 	}
-
-	return project, nil
+	return &project, nil
 }
+
 func (r *ProjectRepository) GetProjectsByUserID(userID string) ([]models.Project, error) {
-	const query = `
-	SELECT
-		p."Id", p."Name", p."Description", p."Styles", p."published", p."subdomain"
-	FROM public."Projects" p
-	WHERE p."OwnerId" = $1
-	ORDER BY p."Name"
-	`
-	rows, err := r.Query(query, userID)
+	var projects []models.Project
+	if err := r.DB.Table((models.Project{}).GetTable()).Where(`"OwnerId" = ? AND "DeletedAt" IS NULL`, userID).Find(&projects).Error; err != nil {
+		return nil, err
+	}
+	return projects, nil
+}
+
+func (r *ProjectRepository) GetProjectPages(projectID string, userId string) ([]models.Page, error) {
+	var pages []models.Page
+
+	err := r.DB.Table(`public."Page" AS p`).
+		Joins(`LEFT JOIN public."Project" AS pr ON p."ProjectId" = pr."Id"`).
+		Where(`p."ProjectId" = ? AND pr."OwnerId" = ? `, projectID, userId).
+		Find(&pages).Error
+
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var projects []models.Project
-
-	for rows.Next() {
-		project := models.Project{}
-		var projectStyles string
-		err := rows.Scan(
-			&project.ID,
-			&project.Name,
-			&project.Description,
-			&projectStyles,
-			&project.Published,
-			&project.Subdomain,
-		)
-		if err != nil {
-			return nil, err
-		}
-		if projectStyles != "" {
-			err = json.Unmarshal([]byte(projectStyles), &project.Styles)
-			if err != nil {
-				return nil, err // Handle JSON unmarshal error
-			}
-		}
-		projects = append(projects, project)
-	}
-
-	return projects, nil
+	return pages, nil
 }

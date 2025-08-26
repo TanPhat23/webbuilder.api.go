@@ -1,11 +1,20 @@
 package models
 
+import "time"
+
 type Project struct {
-	ID          string                 `json:"id" bson:"_id"`
-	Name        string                 `json:"name" bson:"name"`
-	Description *string                 `json:"description" bson:"description"`
-	Styles      map[string]any `json:"styles" bson:"styles"`
-	Published   bool                   `json:"published" bson:"published" `
-	Subdomain   *string                 `json:"subdomain" bson:"subdomain"`
-	UserId      string                 `json:"userId" bson:"userId"`
+	ID          string         `gorm:"primaryKey;column:Id;type:uuid" json:"id"`
+	Name        string     `gorm:"column:Name;type:varchar(255);not null" json:"name"`
+	Description *string    `gorm:"column:Description;type:text" json:"description,omitempty"`
+	Styles      string     `gorm:"column:Styles;type:text" json:"styles"`
+	Published   bool       `gorm:"column:Published;not null;default:false" json:"published"`
+	Subdomain   *string    `gorm:"column:Subdomain;type:varchar(255)" json:"subdomain,omitempty"`
+	OwnerId     string     `gorm:"column:OwnerId;type:varchar(255);not null" json:"ownerId"`
+	CreatedAt   time.Time  `gorm:"column:CreatedAt" json:"createdAt,omitempty"`
+	UpdatedAt   time.Time  `gorm:"column:UpdatedAt" json:"updatedAt,omitempty"`
+	DeletedAt   *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
+}
+
+func (Project) GetTable() string {
+	return `public."Project"`
 }

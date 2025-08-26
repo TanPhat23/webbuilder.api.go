@@ -1,92 +1,42 @@
 package repositories
 
 import (
-	"database/sql"
 	"encoding/json"
 	"my-go-app/internal/models"
 	"my-go-app/pkg/utils"
+
+	"gorm.io/gorm"
 )
 
 type ElementRepository struct {
-	*sql.DB
+	DB *gorm.DB
 }
 
 func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElement, error) {
-	const query = `
-    SELECT
-        e."Id", e."Type", e."Content", e."IsSelected",
-        e."Styles", e."X", e."Y", e."Src", e."Href", e."Order",
-        e."ParentId", e."ProjectId", e."Name", e."TailwindStyles",
-        s."Settings"
-    FROM public."Elements" e
-    LEFT JOIN public."Settings" s ON e."Id" = s."ElementId"
-    WHERE e."ProjectId" = $1
-    ORDER BY e."Order"
-    `
-	rows, err := r.Query(query, projectID)
+	type elementWithSettings struct {
+		models.Element
+		Settings json.RawMessage `gorm:"column:Settings"`
+	}
+
+	var rows []elementWithSettings
+
+	err := r.DB.Table((models.Element{}).TableName() + " as e").
+		Joins(`LEFT JOIN public."Setting" as s ON e."Id" = s."ElementId"`).
+		Where(`e."ProjectId" = ?`, projectID).
+		Order(`e."Order"`).
+		Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var elements []models.EditorElement
 
-	for rows.Next() {
-		element := &models.Element{}
-		var settings *string
-		var stylesJSON string
-		var tailwindStylesStr *string
-
-		err := rows.Scan(
-			&element.ID,
-			&element.Type,
-			&element.Content,
-			&element.IsSelected,
-			&stylesJSON,
-			&element.X,
-			&element.Y,
-			&element.Src,
-			&element.Href,
-			&element.Order,
-			&element.ParentID,
-			&element.ProjectID,
-			&element.Name,
-			&tailwindStylesStr,
-			&settings,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		// Parse styles JSON
-		if stylesJSON != "" {
-			var styles map[string]any
-			err = json.Unmarshal([]byte(stylesJSON), &styles)
-			if err != nil {
-				return nil, err
-			}
-			element.Styles = styles
-		}
-		// Set TailwindStyles (this is a string, not JSON)
-		element.TailwindStyles = tailwindStylesStr
-
-		// Parse settings JSON if present
-		var settingsMap map[string]any
-		if settings != nil && *settings != "" {
-			err = json.Unmarshal([]byte(*settings), &settingsMap)
-			if err != nil {
-				return nil, err
-			}
-			elementWithSettings := utils.ApplyElementSetting(element, settingsMap)
-			elements = append(elements, elementWithSettings)
-		} else {
-			elements = append(elements, element)
-		}
-
+	for _, row := range rows {
+		element := &row.Element
+		elements = append(elements, element)
 	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
+	if len(elements) == 0 {
+		return elements, nil
 	}
 	return utils.BuildElementTree(elements), nil
 }

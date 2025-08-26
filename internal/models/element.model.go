@@ -1,20 +1,21 @@
 package models
 
+import "encoding/json"
+
 type Element struct {
-    Type           string                 `json:"type" db:"type"`
-    ID             string                 `json:"id" db:"id"`
-    Content        string                 `json:"content" db:"content"`
-    IsSelected     bool                   `json:"isSelected" db:"is_selected"`
-    Name           *string                `json:"name,omitempty" db:"name"`
-    Styles         map[string]any			`json:"styles,omitempty" db:"styles"`
-    TailwindStyles *string                `json:"tailwindStyles,omitempty" db:"tailwind_styles"`
-    X              float64                `json:"x" db:"x"`
-    Y              float64                `json:"y" db:"y"`
-    Src            *string                `json:"src,omitempty" db:"src"`
-    Href           *string                `json:"href,omitempty" db:"href"`
-    ParentID       *string                `json:"parentId,omitempty" db:"parent_id"`
-    ProjectID      *string                `json:"projectId,omitempty" db:"project_id"`
-    Order          *int                   `json:"order,omitempty" db:"order"`
+	Id             string          `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	Type           string          `gorm:"column:Type;type:varchar(32)" json:"type"`
+	Content        *string         `gorm:"column:Content;type:text" json:"content,omitempty"`
+	Name           *string         `gorm:"column:Name;type:varchar(255)" json:"name,omitempty"`
+	Styles         json.RawMessage `gorm:"column:Styles;type:jsonb" json:"styles,omitempty"`
+	TailwindStyles *string         `gorm:"column:TailwindStyles;type:varchar(255)" json:"tailwindStyles,omitempty"`
+	Src            *string         `gorm:"column:Src;type:varchar(255)" json:"src,omitempty"`
+	Href           *string         `gorm:"column:Href;type:varchar(255)" json:"href,omitempty"`
+	ParentId       *string         `gorm:"column:ParentId;type:varchar(255)" json:"parentId,omitempty"`
+	PageId					*string 			`gorm:"column:PageId;type:varchar(255)" json:"pageId,omitempty"`
+	ProjectId      string          `gorm:"column:ProjectId;type:varchar(255)" json:"projectId"`
+	Order          int             `gorm:"column:Order;default:0" json:"order"`
+	Settings       *json.RawMessage  `gorm:"-" json:"settings,omitempty"`
 }
 
 type SectionElement struct {
@@ -22,61 +23,44 @@ type SectionElement struct {
     Elements []any `json:"elements" db:"-"`
 }
 
-// FrameElement extends Element
 type FrameElement struct {
     Element
     Elements []any `json:"elements" db:"-"`
 }
 
-// CarouselElement extends Element
 type CarouselElement struct {
     Element
-    Settings map[string]any `json:"settings" db:"carousel_settings"`
-    Elements []any          `json:"elements" db:"-"`
+    Elements []any `json:"elements" db:"-"`
 }
 
-// ButtonElement extends Element
 type ButtonElement struct {
     Element
     ButtonType    string        `json:"buttonType" db:"button_type"`
     FrameElement  *FrameElement `json:"element,omitempty" db:"-"`
 }
 
-// InputElement extends Element
 type InputElement struct {
     Element
-    Settings map[string]any `json:"settings" db:"carousel_settings"`
 }
 
-// ListElement extends Element
 type ListElement struct {
     Element
     Elements []any `json:"elements" db:"-"`
 }
 
-// SelectElement extends Element
 type SelectElement struct {
     Element
-    Options  []map[string]any `json:"options" db:"options"`
-    Settings map[string]any   `json:"settings,omitempty" db:"carousel_settings"`
-}
-
-// ChartDataset for chart elements
-type ChartDataset struct {
-    Label           string      `json:"label"`
-    Data            []float64   `json:"data"`
-    BackgroundColor any `json:"backgroundColor,omitempty"`
-    BorderColor     any `json:"borderColor,omitempty"`
-    BorderWidth     *int        `json:"borderWidth,omitempty"`
-    Fill            *bool       `json:"fill,omitempty"`
+    Elements []any            `json:"elements" db:"-"`
 }
 
 
-// FormElement extends Element
 type FormElement struct {
     Element
     Elements []any           `json:"elements" db:"-"`
-    Settings map[string]any  `json:"settings,omitempty" db:"carousel_settings"`
+}
+
+func (e Element) TableName() string {
+	return `public."Element"`
 }
 
 type EditorElement interface {
@@ -84,7 +68,6 @@ type EditorElement interface {
     GetType() string
 }
 
-// Implement the interface for each element type
 func (e Element) GetElement() Element {
     return e
 }

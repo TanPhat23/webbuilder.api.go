@@ -1,37 +1,36 @@
 package database
 
 import (
-	"database/sql"
 	"log"
 	"os"
 
-	_ "github.com/lib/pq" // PostgreSQL driver
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-var DB *sql.DB
+var DB *gorm.DB
 
-// InitDB initializes the database connection pool once at startup
 func InitDB() error {
-	var err error
-	DB, err = sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	dsn := os.Getenv("DATABASE_URL")
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		PrepareStmt: false,
+	})
 	if err != nil {
 		return err
 	}
 
-	// Configure connection pool for optimal performance
-	DB.SetMaxOpenConns(100)                 // Maximum number of open connections
-	DB.SetMaxIdleConns(25)                 // Maximum number of idle connections  
-
-	// Test the connection
-	if err = DB.Ping(); err != nil {
+	sqlDB, err := db.DB()
+	if err != nil {
 		return err
 	}
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetMaxIdleConns(25)
 
-	log.Println("Database connection pool initialized successfully")
+	DB = db
+	log.Println("GORM PostgreSQL database connection initialized successfully")
 	return nil
 }
 
-// GetDB returns the shared database connection
-func GetDB() *sql.DB {
+func GetDB() *gorm.DB {
 	return DB
 }

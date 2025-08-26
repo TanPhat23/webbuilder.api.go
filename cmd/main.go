@@ -28,7 +28,6 @@ func main() {
 	if err := database.InitDB(); err != nil {
 		log.Fatal("Failed to initialize database connection pool:", err)
 	}
-	defer database.DB.Close()
 	app := fiber.New(configs.FiberConfig())
 	app.Use(cors.New(configs.CorsConfig()))
 	app.Use(logger.New(configs.LoggerConfig()))

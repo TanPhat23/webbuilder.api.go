@@ -21,5 +21,5 @@ func PublicRoutes(app *fiber.App) {
 	group.Get("/elements/public/:projectid", elmentHandler.GetElements)
 
 	group.Get("/projects/public", projectHandler.GetProject)
-	
+
 }
