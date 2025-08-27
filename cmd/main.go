@@ -22,7 +22,7 @@ func main() {
 		log.Println("Warning: Could not load .env file, using system environment variables")
 	}
 	//Set Clerk API key from environment variable
-	clerk.SetKey(os.Getenv("CLERK_API_KEY"))
+	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
 	// Initialize database connection
 	if err := database.InitDB(); err != nil {
