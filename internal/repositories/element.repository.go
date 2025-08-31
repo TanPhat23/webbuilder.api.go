@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"encoding/json"
+	"log"
 	"my-go-app/internal/models"
 	"my-go-app/pkg/utils"
 	"strings"
@@ -22,7 +23,10 @@ func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElemen
 
 	var rows []elementWithSettings
 	err := r.DB.Table(TableElement.String()+" as e").
-		Joins(`LEFT JOIN `+TableSetting.String()+` as s ON e."Id" = s."ElementId"`).
+		Select(`e.*, s."Settings"`).
+		Joins(`LEFT JOIN LATERAL (
+			SELECT "Settings" FROM `+TableSetting.String()+` WHERE "ElementId" = e."Id" LIMIT 1
+		) s ON true`).
 		Where(`e."ProjectId" = ?`, projectID).
 		Order(`e."Order"`).
 		Scan(&rows).Error
@@ -31,17 +35,18 @@ func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElemen
 		return nil, err
 	}
 
+
 	if len(rows) == 0 {
 		return []models.EditorElement{}, nil
 	}
 
 	elements := make([]models.EditorElement, len(rows))
 	for i, row := range rows {
-		element := row.Element
-		element.Settings = &row.Settings
-		elements[i] = &element
+		el := row.Element
+		s := row.Settings
+		el.Settings = &s
+		elements[i] = &el
 	}
-
 	return utils.BuildElementTree(elements), nil
 }
 
