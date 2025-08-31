@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"encoding/json"
-	"log"
 	"my-go-app/internal/models"
 	"my-go-app/pkg/utils"
 	"strings"
