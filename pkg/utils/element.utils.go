@@ -2,20 +2,17 @@ package utils
 
 import (
 	"encoding/json"
+	"log"
 	"my-go-app/internal/models"
 )
 
-// BuildElementTree constructs a hierarchical tree of EditorElement values from a flat list.
 func BuildElementTree(elements []models.EditorElement) []models.EditorElement {
 	elementMap := make(map[string]models.EditorElement, len(elements))
 	childrenMap := make(map[string][]models.EditorElement)
 	rootElements := make([]models.EditorElement, 0, len(elements))
 
-	// Build maps and identify roots
 	for _, element := range elements {
 		baseElement := element.GetElement()
-		// Guard against nil base element (models.EditorElement now returns *Element).
-		// Skip any malformed/empty entries to avoid nil dereferences.
 		if baseElement == nil {
 			continue
 		}
@@ -28,6 +25,16 @@ func BuildElementTree(elements []models.EditorElement) []models.EditorElement {
 			childrenMap[parentID] = append(childrenMap[parentID], element)
 		}
 	}
+
+	// Debug: log counts to aid diagnosing missing children
+	totalElements := len(elements)
+	totalRoots := len(rootElements)
+	totalParentKeys := len(childrenMap)
+	totalChildEntries := 0
+	for _, arr := range childrenMap {
+		totalChildEntries += len(arr)
+	}
+	log.Printf("BuildElementTree: totalElements=%d totalRoots=%d parentKeys=%d totalChildEntries=%d", totalElements, totalRoots, totalParentKeys, totalChildEntries)
 
 	builtRootElements := make([]models.EditorElement, len(rootElements))
 	for i, rootElement := range rootElements {
