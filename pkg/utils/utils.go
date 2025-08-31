@@ -18,7 +18,7 @@ func HandleError(w http.ResponseWriter, err error, statusCode int) {
 }
 
 // FormatResponse is a utility function that formats the response data.
-func FormatResponse(data interface{}) string {
+func FormatResponse(data any) string {
 	// Implement your formatting logic here``
 	return fmt.Sprintf("%v", data)
 }
