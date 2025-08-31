@@ -18,116 +18,53 @@ type Element struct {
 	Settings       *json.RawMessage  `gorm:"-" json:"settings,omitempty"`
 }
 
-type SectionElement struct {
-    Element
-    Elements []any `json:"elements" db:"-"`
-}
-
-type FrameElement struct {
-    Element
-    Elements []any `json:"elements" db:"-"`
-}
-
-type CarouselElement struct {
-    Element
-    Elements []any `json:"elements" db:"-"`
-}
-
-type ButtonElement struct {
-    Element
-    ButtonType    string        `json:"buttonType" db:"button_type"`
-    FrameElement  *FrameElement `json:"element,omitempty" db:"-"`
-}
-
-type InputElement struct {
-    Element
-}
-
-type ListElement struct {
-    Element
-    Elements []any `json:"elements" db:"-"`
-}
-
-type SelectElement struct {
-    Element
-    Elements []any            `json:"elements" db:"-"`
-}
-
-
-type FormElement struct {
-    Element
-    Elements []any           `json:"elements" db:"-"`
-}
-
-func (e Element) TableName() string {
-	return `public."Element"`
-}
-
 type EditorElement interface {
-    GetElement() Element
+    GetElement() *Element
     GetType() string
 }
 
-func (e Element) GetElement() Element {
+func (e *Element) GetElement() *Element {
     return e
 }
 
-func (e Element) GetType() string {
+func (e *Element) GetType() string {
     return e.Type
 }
 
-func (fe FormElement) GetType() string {
-    return fe.Type
+type SectionElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
 }
 
-func (fe FrameElement) GetElement() Element {
-    return fe.Element
+type FrameElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
 }
 
-func (fe FrameElement) GetType() string {
-    return fe.Type
+type CarouselElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
 }
 
-func (ce CarouselElement) GetElement() Element {
-    return ce.Element
+type ButtonElement struct {
+	*Element
 }
 
-func (ce CarouselElement) GetType() string {
-    return ce.Type
+type InputElement struct {
+	*Element
 }
 
-func (be ButtonElement) GetElement() Element {
-    return be.Element
+type ListElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
 }
 
-func (be ButtonElement) GetType() string {
-    return be.Type
+type SelectElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
 }
 
-func (ie InputElement) GetElement() Element {
-    return ie.Element
-}
-
-func (ie InputElement) GetType() string {
-    return ie.Type
-}
-
-func (le ListElement) GetElement() Element {
-    return le.Element
-}
-
-func (le ListElement) GetType() string {
-    return le.Type
-}
-
-func (se SelectElement) GetElement() Element {
-    return se.Element
-}
-
-func (se SelectElement) GetType() string {
-    return se.Type
-}
-
-func (fe FormElement) GetElement() Element {
-    return fe.Element
+type FormElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
 }

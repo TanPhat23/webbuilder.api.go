@@ -16,6 +16,4 @@ type Page struct {
 	DeletedAt *time.Time      `gorm:"column:DeletedAt;precision:6" json:"DeletedAt,omitempty"`
 }
 
-func (Page) GetTable() string{
-	return `"public".Page`
-}
+// Table name is managed by repositories

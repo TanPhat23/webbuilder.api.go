@@ -19,7 +19,7 @@ func PublicRoutes(app *fiber.App) {
 	group := app.Group("/api/v1")
 	group.Use(limiter.New())
 	group.Get("/elements/public/:projectid", elmentHandler.GetElements)
-
+	group.Post("/elements/public/:projectid", elmentHandler.CreateElements)
 	group.Get("/projects/public", projectHandler.GetProject)
 
 }

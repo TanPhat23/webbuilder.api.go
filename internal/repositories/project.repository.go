@@ -12,7 +12,7 @@ type ProjectRepository struct {
 
 func (r *ProjectRepository) GetProjects() ([]models.Project, error) {
 	var projects []models.Project
-	if err := r.DB.Table((models.Project{}).GetTable()).Find(&projects).Error; err != nil {
+	if err := r.DB.Table(TableProject.String()).Find(&projects).Error; err != nil {
 		return nil, err
 	}
 	return projects, nil
@@ -20,7 +20,7 @@ func (r *ProjectRepository) GetProjects() ([]models.Project, error) {
 
 func (r *ProjectRepository) GetProjectByID(projectID string, userId string) (*models.Project, error) {
 	var project models.Project
-	if err := r.DB.Table((models.Project{}).GetTable()).Where(`"Id" = ? AND "OwnerId" = ?`, projectID, userId).First(&project).Error; err != nil {
+	if err := r.DB.Table(TableProject.String()).Where(`"Id" = ? AND "OwnerId" = ?`, projectID, userId).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -31,7 +31,7 @@ func (r *ProjectRepository) GetProjectByID(projectID string, userId string) (*mo
 
 func (r *ProjectRepository) GetProjectsByUserID(userID string) ([]models.Project, error) {
 	var projects []models.Project
-	if err := r.DB.Table((models.Project{}).GetTable()).Where(`"OwnerId" = ? AND "DeletedAt" IS NULL`, userID).Find(&projects).Error; err != nil {
+	if err := r.DB.Table(TableProject.String()).Where(`"OwnerId" = ? AND "DeletedAt" IS NULL`, userID).Find(&projects).Error; err != nil {
 		return nil, err
 	}
 	return projects, nil
@@ -40,8 +40,8 @@ func (r *ProjectRepository) GetProjectsByUserID(userID string) ([]models.Project
 func (r *ProjectRepository) GetProjectPages(projectID string, userId string) ([]models.Page, error) {
 	var pages []models.Page
 
-	err := r.DB.Table(`public."Page" AS p`).
-		Joins(`LEFT JOIN public."Project" AS pr ON p."ProjectId" = pr."Id"`).
+	err := r.DB.Table(TablePage.String() + " AS p").
+		Joins(`LEFT JOIN `+TableProject.String()+` AS pr ON p."ProjectId" = pr."Id"`).
 		Where(`p."ProjectId" = ? AND pr."OwnerId" = ? `, projectID, userId).
 		Find(&pages).Error
 

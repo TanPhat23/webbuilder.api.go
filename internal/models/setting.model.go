@@ -13,7 +13,4 @@ type Setting struct {
 	ElementId   string         `gorm:"column:ElementId;type:varchar(255);unique" json:"elementId"`
 }
 
-// TableName sets the table name for GORM to use public."Setting"
-func (Setting) TableName() string {
-	return `public."Setting"`
-}
+// TableName removed; table name is managed by repositories
