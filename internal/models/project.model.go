@@ -7,6 +7,7 @@ type Project struct {
 	Name        string     `gorm:"column:Name;type:varchar(255);not null" json:"name"`
 	Description *string    `gorm:"column:Description;type:text" json:"description,omitempty"`
 	Styles      string     `gorm:"column:Styles;type:text" json:"styles"`
+	CustomStyles *string    `gorm:"column:CustomStyles;type:text" json:"customStyles,omitempty"`
 	Published   bool       `gorm:"column:Published;not null;default:false" json:"published"`
 	Subdomain   *string    `gorm:"column:Subdomain;type:varchar(255)" json:"subdomain,omitempty"`
 	OwnerId     string     `gorm:"column:OwnerId;type:varchar(255);not null" json:"ownerId"`
