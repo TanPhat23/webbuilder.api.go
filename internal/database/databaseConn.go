@@ -1,17 +1,13 @@
 package database
 
-import "my-go-app/internal/repositories"
+import (
+	"my-go-app/internal/repositories"
 
-type Repositories struct {
-	*repositories.ElementRepository
-	*repositories.ProjectRepository
-}
+	"gorm.io/gorm"
+)
 
-// GetRepositories returns repositories using the shared DB connection
-func GetRepositories() *Repositories {
-	db := GetDB()
-
-	return &Repositories{
+func NewRepositories(db *gorm.DB) *repositories.RepositoriesInterface {
+	return &repositories.RepositoriesInterface{
 		ElementRepository: &repositories.ElementRepository{DB: db},
 		ProjectRepository: &repositories.ProjectRepository{DB: db},
 	}
