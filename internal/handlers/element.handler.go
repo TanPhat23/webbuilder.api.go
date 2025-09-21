@@ -3,25 +3,27 @@ package handlers
 import (
 	"encoding/json"
 	"log"
-	"my-go-app/internal/database"
 	"my-go-app/internal/models"
+	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 type ElementHandler struct {
+	elementRepo repositories.ElementRepositoryInterface
 }
 
-func NewElementHandler() *ElementHandler {
-	return &ElementHandler{}
+func NewElementHandler(elementRepo repositories.ElementRepositoryInterface) *ElementHandler {
+	return &ElementHandler{
+		elementRepo: elementRepo,
+	}
 }
 
 func (h *ElementHandler) GetElements(c *fiber.Ctx) error {
 	projectID := c.Params("projectid")
-	repo := database.GetRepositories()
 
-	elements, err := repo.ElementRepository.GetElements(projectID)
+	elements, err := h.elementRepo.GetElements(projectID)
 	if err != nil {
 		log.Println("Error retrieving elements:", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -32,9 +34,6 @@ func (h *ElementHandler) GetElements(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(elements)
 }
 
-// CreateElements parses incoming JSON into editor elements, converts each top-level
-// item into a models.EditorElement (letting utils.ConvertToEditorElement handle child
-// conversion lazily during persistence), and then hands the converted slice to the repository.
 func (h *ElementHandler) CreateElements(c *fiber.Ctx) error {
 	projectId := c.Params("projectid")
 	if projectId == "" {
@@ -52,10 +51,8 @@ func (h *ElementHandler) CreateElements(c *fiber.Ctx) error {
 		})
 	}
 
-	// Try to unmarshal into an array of generic values first.
 	var rawSlice []any
 	if err := json.Unmarshal(body, &rawSlice); err != nil {
-		// If not an array, try a single object and wrap it.
 		var single any
 		if err2 := json.Unmarshal(body, &single); err2 != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -76,12 +73,10 @@ func (h *ElementHandler) CreateElements(c *fiber.Ctx) error {
 				"errorMessage": err.Error(),
 			})
 		}
-		// Do not set ProjectId here; repository.saveElementRecursive will set it.
 		editorElements = append(editorElements, ee)
 	}
 
-	repo := database.GetRepositories()
-	if err := repo.ElementRepository.CreateElement(editorElements, projectId); err != nil {
+	if err := h.elementRepo.CreateElement(editorElements, projectId); err != nil {
 		log.Println("Error creating elements:", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":        "Failed to create elements",
@@ -91,5 +86,43 @@ func (h *ElementHandler) CreateElements(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Elements created successfully",
+	})
+}
+
+func (h *ElementHandler) InsertElementAfter(c *fiber.Ctx) error {
+	projectId := c.Params("projectid")
+	previousElementId := c.Params("previouselementid")
+	if projectId == "" || previousElementId == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Project ID and Previous Element ID are required",
+			"errorMessage": "Missing projectid or previouselementid parameter in URL",
+		})
+	}
+
+	var rawElement any
+	if err := c.BodyParser(&rawElement); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Invalid request body",
+			"errorMessage": err.Error(),
+		})
+	}
+
+	newElement, err := utils.ConvertToEditorElement(rawElement)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Invalid element structure",
+			"errorMessage": err.Error(),
+		})
+	}
+
+	if err := h.elementRepo.InsertElementAfter(projectId, previousElementId, newElement); err != nil {
+		log.Println("Error inserting element:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":        "Failed to insert element",
+			"errorMessage": err.Error(),
+		})
+	}
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "Element inserted successfully",
 	})
 }

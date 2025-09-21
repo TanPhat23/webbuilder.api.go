@@ -86,6 +86,99 @@ func (r *ElementRepository) CreateElement(elements []models.EditorElement, proje
 	return tx.Commit().Error
 }
 
+func (r *ElementRepository) InsertElementAfter(projectID string, previousElementID string, element models.EditorElement) error {
+	if element == nil {
+		return nil
+	}
+
+	tx := r.DB.Begin()
+	defer func() {
+		if rec := recover(); rec != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var previousElement models.Element
+	if err := tx.Table(TableElement.String()).
+		Where(`"Id" = ? AND "ProjectId" = ?`, previousElementID, projectID).
+		First(&previousElement).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Convert single element to slice for existing flatten logic
+	elements := []models.EditorElement{element}
+	flatElements, flatSettings, err := r.flattenElementsForInsert(tx, elements, projectID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if len(flatElements) == 0 {
+		return nil
+	}
+
+	parentID := previousElement.ParentId
+
+	// Find siblings that come after the previous element
+	var siblings []models.Element
+	if err := tx.Table(TableElement.String()).
+		Where(`"ProjectId" = ? AND "ParentId" IS NOT DISTINCT FROM ? AND "Order" > ?`,
+			projectID, parentID, previousElement.Order).
+		Order(`"Order"`).
+		Find(&siblings).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Set order for the new element(s)
+	newOrder := previousElement.Order + 1
+	for i := range flatElements {
+		elem := &flatElements[i]
+		elem.ParentId = parentID
+		elem.Order = newOrder
+		newOrder++
+	}
+
+	// Update order for siblings
+	for i := range siblings {
+		sibling := &siblings[i]
+		sibling.Order = newOrder
+		newOrder++
+	}
+
+	// Insert elements
+	if len(flatElements) > 0 {
+		if err := tx.Table(TableElement.String()).CreateInBatches(flatElements, 500).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Update sibling orders
+	if len(siblings) > 0 {
+		for i := range siblings {
+			sibling := &siblings[i]
+			if err := tx.Table(TableElement.String()).
+				Where(`"Id" = ?`, sibling.Id).
+				Update(`"Order"`, sibling.Order).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	// Insert settings
+	if len(flatSettings) > 0 {
+		if err := tx.Table(TableSetting.String()).CreateInBatches(flatSettings, 500).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
+}
+
 func (r *ElementRepository) flattenElementsForInsert(tx *gorm.DB, rootElements []models.EditorElement, projectID string) ([]models.Element, []models.Setting, error) {
 	type queueItem struct {
 		element  models.EditorElement

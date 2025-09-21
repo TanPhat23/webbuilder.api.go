@@ -25,9 +25,13 @@ func main() {
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
 	// Initialize database connection
-	if err := database.InitDB(); err != nil {
+	db, err := database.InitDB()
+	if err != nil {
 		log.Fatal("Failed to initialize database connection pool:", err)
 	}
+
+	repos := database.NewRepositories(db)
+
 	app := fiber.New(configs.FiberConfig())
 	app.Use(cors.New(configs.CorsConfig()))
 	app.Use(logger.New(configs.LoggerConfig()))
@@ -35,8 +39,8 @@ func main() {
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
-	routes.PrivateRoutes(app)
-	routes.PublicRoutes(app)
+	routes.PrivateRoutes(app, repos)
+	routes.PublicRoutes(app, repos)
 
 	app.Listen(":8080")
 }

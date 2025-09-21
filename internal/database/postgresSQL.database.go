@@ -8,29 +8,24 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
 
-func InitDB() error {
+
+func InitDB() (*gorm.DB, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		PrepareStmt: false,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetMaxIdleConns(25)
 
-	DB = db
 	log.Println("GORM PostgreSQL database connection initialized successfully")
-	return nil
-}
-
-func GetDB() *gorm.DB {
-	return DB
+	return db, nil
 }

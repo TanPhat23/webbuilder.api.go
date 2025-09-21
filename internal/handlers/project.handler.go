@@ -1,20 +1,23 @@
 package handlers
 
 import (
-	"my-go-app/internal/database"
+	"my-go-app/internal/repositories"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-type ProjectHandler struct{}
+type ProjectHandler struct{
+	projectRepository repositories.ProjectRepositoryInterface
+}
 
-func NewProjectHandler() *ProjectHandler {
-	return &ProjectHandler{}
+func NewProjectHandler(projectRepo repositories.ProjectRepositoryInterface) *ProjectHandler {
+	return &ProjectHandler{
+		projectRepository: projectRepo,
+	}
 }
 
 func (h *ProjectHandler) GetProject(c *fiber.Ctx) error {
-	repo := database.GetRepositories()
-	projects, err := repo.GetProjects()
+	projects, err := h.projectRepository.GetProjects()
 	userID, _ := c.Locals("userId").(string)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -45,8 +48,7 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 		})
 	}
 
-	repo := database.GetRepositories()
-	project, err := repo.GetProjectByID(projectID, userID)
+	project, err := h.projectRepository.GetProjectByID(projectID, userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":        "Failed to retrieve project",
@@ -82,8 +84,7 @@ func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
 		})
 	}
 
-	repo := database.GetRepositories()
-	pages, err := repo.GetProjectPages(projectID, userID)
+	pages, err := h.projectRepository.GetProjectPages(projectID, userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":        "Failed to retrieve project pages",
@@ -104,8 +105,7 @@ func (h *ProjectHandler) GetProjectByUserID(c *fiber.Ctx) error {
 		})
 	}
 
-	repo := database.GetRepositories()
-	projects, err := repo.GetProjectsByUserID(userID)
+	projects, err := h.projectRepository.GetProjectsByUserID(userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":        "Failed to retrieve projects by user ID",
