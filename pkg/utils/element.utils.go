@@ -36,11 +36,42 @@ func BuildElementTree(elements []models.EditorElement) []models.EditorElement {
 	}
 	log.Printf("BuildElementTree: totalElements=%d totalRoots=%d parentKeys=%d totalChildEntries=%d", totalElements, totalRoots, totalParentKeys, totalChildEntries)
 
-	builtRootElements := make([]models.EditorElement, len(rootElements))
-	for i, rootElement := range rootElements {
-		builtRootElements[i] = buildElementWithChildren(rootElement, childrenMap)
+	// Use fan-in/fan-out pattern for concurrent subtree building
+	return buildElementTreeConcurrent(rootElements, childrenMap)
+}
+
+// buildElementTreeConcurrent uses fan-in/fan-out pattern to build element trees concurrently
+func buildElementTreeConcurrent(rootElements []models.EditorElement, childrenMap map[string][]models.EditorElement) []models.EditorElement {
+	if len(rootElements) == 0 {
+		return rootElements
 	}
+
+	// Channel for results (fan-in)
+	results := make(chan elementResult, len(rootElements))
+
+	// Fan-out: start goroutines for each root element
+	for i, rootElement := range rootElements {
+		go func(index int, element models.EditorElement) {
+			builtElement := buildElementWithChildren(element, childrenMap)
+			results <- elementResult{index: index, element: builtElement}
+		}(i, rootElement)
+	}
+
+	// Fan-in: collect results in correct order
+	builtRootElements := make([]models.EditorElement, len(rootElements))
+	for i := 0; i < len(rootElements); i++ {
+		result := <-results
+		builtRootElements[result.index] = result.element
+	}
+
+	close(results)
 	return builtRootElements
+}
+
+// elementResult holds the result of building an element tree with its original index
+type elementResult struct {
+	index   int
+	element models.EditorElement
 }
 
 func buildElementWithChildren(element models.EditorElement, childrenMap map[string][]models.EditorElement) models.EditorElement {

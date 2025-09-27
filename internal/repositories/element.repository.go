@@ -5,48 +5,225 @@ import (
 	"my-go-app/internal/models"
 	"my-go-app/pkg/utils"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
+func (r *ElementRepository) UpdateElement(element models.EditorElement, settings *string) error {
+	if element == nil {
+		return nil
+	}
+
+	base := element.GetElement()
+	if base == nil {
+		return gorm.ErrRecordNotFound
+	}
+
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		updateData := map[string]any{
+			"Type": base.Type,
+		}
+
+		if base.Content != nil {
+			updateData["Content"] = *base.Content
+		}
+
+		if base.Name != nil {
+			updateData["Name"] = *base.Name
+		}
+
+		if len(base.Styles) > 0 {
+			updateData["Styles"] = base.Styles
+		}
+
+		if base.TailwindStyles != nil {
+			updateData["TailwindStyles"] = *base.TailwindStyles
+		}
+
+		if base.Src != nil {
+			updateData["Src"] = *base.Src
+		}
+
+		if base.Href != nil {
+			updateData["Href"] = *base.Href
+		}
+
+		if err := tx.Table(TableElement.String()).
+			Where(`"Id" = ?`, base.Id).
+			Updates(updateData).Error; err != nil {
+			return err
+		}
+
+		// Handle settings update
+		if err := r.updateElementSettings(tx, base.Id, settings); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+
+
+func (r *ElementRepository) updateElementSettings(tx *gorm.DB, elementID string, settings *string) error {
+	if settings == nil {
+		return nil
+	}
+
+	if err := r.SettingRepository.DeleteSetting(tx, elementID); err != nil {
+		return err
+	}
+
+	if *settings != "" {
+		setting := models.Setting{
+			Id:          uuid.NewString(),
+			Name:        "default",
+			SettingType: "element",
+			Settings:    json.RawMessage(*settings),
+			ElementId:   elementID,
+		}
+		return r.SettingRepository.CreateSetting(tx, setting)
+	}
+
+	return nil
+}
+
+func (r *ElementRepository) DeleteElement(elementID string) error {
+	if elementID == "" {
+		return gorm.ErrInvalidData
+	}
+
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		elementIDs, err := r.getElementIDsForDeletion(tx, elementID)
+		if err != nil {
+			return err
+		}
+
+		if len(elementIDs) == 0 {
+			return gorm.ErrRecordNotFound
+		}
+
+		return r.deleteElementsAndSettings(tx, elementIDs)
+	})
+}
+
+func (r *ElementRepository) getElementIDsForDeletion(tx *gorm.DB, elementID string) ([]string, error) {
+	var elementIDs []string
+	err := tx.Table(TableElement.String()).
+		Select(`"Id"`).
+		Where(`"Id" = ? OR "ParentId" = ?`, elementID, elementID).
+		Pluck(`"Id"`, &elementIDs).Error
+	return elementIDs, err
+}
+
+func (r *ElementRepository) deleteElementsAndSettings(tx *gorm.DB, elementIDs []string) error {
+	// Delete settings for all elements
+	if err := r.SettingRepository.DeleteSettings(tx, elementIDs); err != nil {
+		return err
+	}
+
+	// Delete elements
+	return tx.Table(TableElement.String()).
+		Where(`"Id" IN (?)`, elementIDs).
+		Delete(&models.Element{}).Error
+}
+
+func (r *ElementRepository) ReplaceElements(projectID string, elements []models.EditorElement) error {
+	mu := r.getProjectMutex(projectID)
+	mu.Lock()
+	defer mu.Unlock()
+
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(TableElement.String()).
+			Where(`"ProjectId" = ?`, projectID).
+			Delete(&models.Element{}).Error; err != nil {
+			return err
+		}
+
+		return r.createElementsAndSettings(tx, elements, projectID)
+	})
+}
+
+func (r *ElementRepository) createElementsAndSettings(tx *gorm.DB, elements []models.EditorElement, projectID string) error {
+	flatElements, flatSettings, err := r.flattenElementsForInsert(tx, elements, projectID)
+	if err != nil {
+		return err
+	}
+
+	const batchSize = 500
+
+	// Create elements
+	if len(flatElements) > 0 {
+		if err := tx.Table(TableElement.String()).
+			CreateInBatches(flatElements, batchSize).Error; err != nil {
+			return err
+		}
+	}
+
+	// Create settings
+	if err := r.SettingRepository.CreateSettings(tx, flatSettings); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type ElementRepository struct {
-	DB *gorm.DB
+	DB               *gorm.DB
+	SettingRepository SettingRepositoryInterface
+	projectLocks     sync.Map // map[string]*sync.Mutex
+}
+
+func (r *ElementRepository) getProjectMutex(projectID string) *sync.Mutex {
+	mu, _ := r.projectLocks.LoadOrStore(projectID, &sync.Mutex{})
+	return mu.(*sync.Mutex)
 }
 
 func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElement, error) {
-	type elementWithSettings struct {
-		models.Element
-		Settings json.RawMessage `gorm:"column:Settings"`
+	// First, get all elements for the project
+	var elements []models.Element
+	if err := r.DB.Table(TableElement.String()).
+		Where(`"ProjectId" = ?`, projectID).
+		Order(`"Order"`).
+		Find(&elements).Error; err != nil {
+		return nil, err
 	}
 
-	var rows []elementWithSettings
-	err := r.DB.Table(TableElement.String()+" as e").
-		Select(`e.*, s."Settings"`).
-		Joins(`LEFT JOIN LATERAL (
-			SELECT "Settings" FROM `+TableSetting.String()+` WHERE "ElementId" = e."Id" LIMIT 1
-		) s ON true`).
-		Where(`e."ProjectId" = ?`, projectID).
-		Order(`e."Order"`).
-		Scan(&rows).Error
+	if len(elements) == 0 {
+		return []models.EditorElement{}, nil
+	}
 
+	// Extract element IDs for settings query
+	elementIDs := make([]string, len(elements))
+	for i, elem := range elements {
+		elementIDs[i] = elem.Id
+	}
+
+	// Get all settings for these elements in one query
+	settings, err := r.SettingRepository.GetSettingsByElementIDs(r.DB, elementIDs)
 	if err != nil {
 		return nil, err
 	}
 
-
-	if len(rows) == 0 {
-		return []models.EditorElement{}, nil
+	// Create a map of element ID to settings for efficient lookup
+	settingsMap := make(map[string]json.RawMessage)
+	for _, setting := range settings {
+		settingsMap[setting.ElementId] = setting.Settings
 	}
 
-	elements := make([]models.EditorElement, len(rows))
-	for i, row := range rows {
-		el := row.Element
-		s := row.Settings
-		el.Settings = &s
-		elements[i] = &el
+	// Merge elements with their settings
+	editorElements := make([]models.EditorElement, len(elements))
+	for i, elem := range elements {
+		elemCopy := elem
+		if settings, exists := settingsMap[elem.Id]; exists {
+			elemCopy.Settings = &settings
+		}
+		editorElements[i] = &elemCopy
 	}
-	return utils.BuildElementTree(elements), nil
+
+	return utils.BuildElementTree(editorElements), nil
 }
 
 func (r *ElementRepository) CreateElement(elements []models.EditorElement, projectID string) error {
@@ -54,36 +231,9 @@ func (r *ElementRepository) CreateElement(elements []models.EditorElement, proje
 		return nil
 	}
 
-	tx := r.DB.Begin()
-	defer func() {
-		if rec := recover(); rec != nil {
-			tx.Rollback()
-		}
-	}()
-
-	flatElements, flatSettings, err := r.flattenElementsForInsert(tx, elements, projectID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	const batchSize = 500
-
-	if len(flatElements) > 0 {
-		if err := tx.Table(TableElement.String()).CreateInBatches(flatElements, batchSize).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	if len(flatSettings) > 0 {
-		if err := tx.Table(TableSetting.String()).CreateInBatches(flatSettings, batchSize).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	return tx.Commit().Error
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		return r.createElementsAndSettings(tx, elements, projectID)
+	})
 }
 
 func (r *ElementRepository) InsertElementAfter(projectID string, previousElementID string, element models.EditorElement) error {
@@ -91,48 +241,45 @@ func (r *ElementRepository) InsertElementAfter(projectID string, previousElement
 		return nil
 	}
 
-	tx := r.DB.Begin()
-	defer func() {
-		if rec := recover(); rec != nil {
-			tx.Rollback()
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		// Get previous element
+		var previousElement models.Element
+		if err := tx.Table(TableElement.String()).
+			Where(`"Id" = ? AND "ProjectId" = ?`, previousElementID, projectID).
+			First(&previousElement).Error; err != nil {
+			return err
 		}
-	}()
 
-	var previousElement models.Element
-	if err := tx.Table(TableElement.String()).
-		Where(`"Id" = ? AND "ProjectId" = ?`, previousElementID, projectID).
-		First(&previousElement).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
+		// Prepare elements for insertion
+		elements := []models.EditorElement{element}
+		flatElements, flatSettings, err := r.flattenElementsForInsert(tx, elements, projectID)
+		if err != nil {
+			return err
+		}
 
-	// Convert single element to slice for existing flatten logic
-	elements := []models.EditorElement{element}
-	flatElements, flatSettings, err := r.flattenElementsForInsert(tx, elements, projectID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
+		if len(flatElements) == 0 {
+			return nil
+		}
 
-	if len(flatElements) == 0 {
+		// Update element orders and insert
+		if err := r.insertElementsWithOrderUpdate(tx, flatElements, flatSettings, previousElement); err != nil {
+			return err
+		}
+
 		return nil
-	}
+	})
+}
 
+func (r *ElementRepository) insertElementsWithOrderUpdate(tx *gorm.DB, flatElements []models.Element, flatSettings []models.Setting, previousElement models.Element) error {
 	parentID := previousElement.ParentId
 
-	// Find siblings that come after the previous element
-	var siblings []models.Element
-	if err := tx.Table(TableElement.String()).
-		Where(`"ProjectId" = ? AND "ParentId" IS NOT DISTINCT FROM ? AND "Order" > ?`,
-			projectID, parentID, previousElement.Order).
-		Order(`"Order"`).
-		Find(&siblings).Error; err != nil {
-		tx.Rollback()
+	// Update siblings order and get new order for elements
+	newOrder, err := r.getAndUpdateSiblingsOrder(tx, previousElement, parentID)
+	if err != nil {
 		return err
 	}
 
-	// Set order for the new element(s)
-	newOrder := previousElement.Order + 1
+	// Set order for new elements
 	for i := range flatElements {
 		elem := &flatElements[i]
 		elem.ParentId = parentID
@@ -140,43 +287,44 @@ func (r *ElementRepository) InsertElementAfter(projectID string, previousElement
 		newOrder++
 	}
 
-	// Update order for siblings
-	for i := range siblings {
-		sibling := &siblings[i]
-		sibling.Order = newOrder
-		newOrder++
-	}
-
 	// Insert elements
 	if len(flatElements) > 0 {
-		if err := tx.Table(TableElement.String()).CreateInBatches(flatElements, 500).Error; err != nil {
-			tx.Rollback()
+		if err := tx.Table(TableElement.String()).
+			CreateInBatches(flatElements, 500).Error; err != nil {
 			return err
-		}
-	}
-
-	// Update sibling orders
-	if len(siblings) > 0 {
-		for i := range siblings {
-			sibling := &siblings[i]
-			if err := tx.Table(TableElement.String()).
-				Where(`"Id" = ?`, sibling.Id).
-				Update(`"Order"`, sibling.Order).Error; err != nil {
-				tx.Rollback()
-				return err
-			}
 		}
 	}
 
 	// Insert settings
-	if len(flatSettings) > 0 {
-		if err := tx.Table(TableSetting.String()).CreateInBatches(flatSettings, 500).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
+	if err := r.SettingRepository.CreateSettings(tx, flatSettings); err != nil {
+		return err
 	}
 
-	return tx.Commit().Error
+	return nil
+}
+
+func (r *ElementRepository) getAndUpdateSiblingsOrder(tx *gorm.DB, previousElement models.Element, parentID *string) (int, error) {
+	var siblings []models.Element
+	if err := tx.Table(TableElement.String()).
+		Where(`"ProjectId" = ? AND "ParentId" IS NOT DISTINCT FROM ? AND "Order" > ?`,
+			previousElement.ProjectId, parentID, previousElement.Order).
+		Order(`"Order"`).
+		Find(&siblings).Error; err != nil {
+		return 0, err
+	}
+
+	newOrder := previousElement.Order + 2 // +2 because new element takes Order + 1
+	for i := range siblings {
+		sibling := &siblings[i]
+		if err := tx.Table(TableElement.String()).
+			Where(`"Id" = ?`, sibling.Id).
+			Update(`"Order"`, newOrder).Error; err != nil {
+			return 0, err
+		}
+		newOrder++
+	}
+
+	return previousElement.Order + 1, nil
 }
 
 func (r *ElementRepository) flattenElementsForInsert(tx *gorm.DB, rootElements []models.EditorElement, projectID string) ([]models.Element, []models.Setting, error) {

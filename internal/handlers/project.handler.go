@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"my-go-app/internal/repositories"
 
 	"github.com/gofiber/fiber/v2"
@@ -114,4 +115,71 @@ func (h *ProjectHandler) GetProjectByUserID(c *fiber.Ctx) error {
 		})
 	}
 	return c.Status(fiber.StatusOK).JSON(projects)
+}
+
+func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
+	projectID := c.Params("projectid")
+	if projectID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Project ID is required",
+			"errorMessage": "Missing projectid parameter in URL",
+		})
+	}
+
+	userID, ok := c.Locals("userId").(string)
+	if !ok || userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":        "Unauthorized",
+			"errorMessage": "You must be logged in to access this resource",
+		})
+	}
+
+	err := h.projectRepository.DeleteProject(projectID, userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":        "Failed to delete project",
+			"errorMessage": err.Error(),
+		})
+	}
+	return c.Status(fiber.StatusNoContent).Send(nil)
+}
+
+func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
+	projectID := c.Params("projectid")
+	if projectID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Project ID is required",
+			"errorMessage": "Missing projectid parameter in URL",
+		})
+	}
+
+	userID, ok := c.Locals("userId").(string)
+	if !ok || userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":        "Unauthorized",
+			"errorMessage": "You must be logged in to access this resource",
+		})
+	}
+
+	var updates map[string]any
+	if err := json.Unmarshal(c.Body(), &updates); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Invalid JSON body",
+			"errorMessage": err.Error(),
+		})
+	}
+
+	updatedProject, err := h.projectRepository.UpdateProject(projectID, userID, updates)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":        "Failed to update project",
+			"errorMessage": err.Error(),
+		})
+	}
+	if updatedProject == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Project not found or not updated",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(updatedProject)
 }

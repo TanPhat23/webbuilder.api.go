@@ -121,8 +121,138 @@ func (h *ElementHandler) InsertElementAfter(c *fiber.Ctx) error {
 			"error":        "Failed to insert element",
 			"errorMessage": err.Error(),
 		})
+		}
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"message": "Element inserted successfully",
+		})
 	}
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "Element inserted successfully",
-	})
-}
+
+	// Helper functions for element operations
+	func (h *ElementHandler) validateElementID(c *fiber.Ctx) (string, error) {
+		elementId := c.Params("elementid")
+		if elementId == "" {
+			return "", fiber.NewError(fiber.StatusBadRequest, "Element ID is required")
+		}
+		return elementId, nil
+	}
+
+	func (h *ElementHandler) parseElementPayload(c *fiber.Ctx) (models.EditorElement, *string, error) {
+		var payload map[string]any
+		if err := c.BodyParser(&payload); err != nil {
+			return nil, nil, fiber.NewError(fiber.StatusBadRequest, "Invalid request body: "+err.Error())
+		}
+
+		// Extract element data
+		var rawElement any
+		if elem, exists := payload["element"]; exists && elem != nil {
+			rawElement = elem
+		} else if data, exists := payload["data"]; exists && data != nil {
+			rawElement = data
+		} else {
+			return nil, nil, fiber.NewError(fiber.StatusBadRequest, "Element data is required")
+		}
+
+		element, err := utils.ConvertToEditorElement(rawElement)
+		if err != nil {
+			return nil, nil, fiber.NewError(fiber.StatusBadRequest, "Invalid element structure: "+err.Error())
+		}
+
+		// Extract settings
+		var settings *string
+		if settingsVal, exists := payload["settings"]; exists {
+			if settingsStr, ok := settingsVal.(string); ok {
+				settings = &settingsStr
+			}
+		}
+
+		return element, settings, nil
+	}
+
+	func (h *ElementHandler) handleRepositoryError(err error, operation string, elementId string) error {
+		log.Printf("Error %s element %s: %v", operation, elementId, err)
+		if err.Error() == "record not found" {
+			return fiber.NewError(fiber.StatusNotFound, "Element not found")
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to "+operation+" element: "+err.Error())
+	}
+
+	func (h *ElementHandler) UpdateElement(c *fiber.Ctx) error {
+		elementId, err := h.validateElementID(c)
+		if err != nil {
+			return c.Status(err.(*fiber.Error).Code).JSON(fiber.Map{
+				"error":        err.Error(),
+				"errorMessage": err.Error(),
+			})
+		}
+
+		var payload map[string]any
+		if err := c.BodyParser(&payload); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":        "Invalid request body",
+				"errorMessage": err.Error(),
+			})
+		}
+
+		// Extract element data (assume body is the element)
+		element, err := utils.ConvertToEditorElement(payload)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":        "Invalid element structure",
+				"errorMessage": err.Error(),
+			})
+		}
+
+		// Extract settings if present
+		var settings *string
+		if settingsVal, exists := payload["settings"]; exists {
+			if settingsStr, ok := settingsVal.(string); ok {
+				settings = &settingsStr
+			}
+		}
+
+		// Set the element ID
+		base := element.GetElement()
+		if base == nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":        "Invalid element structure",
+				"errorMessage": "Element must have valid base data",
+			})
+		}
+		base.Id = elementId
+
+		if err := h.elementRepo.UpdateElement(element, settings); err != nil {
+			repoErr := h.handleRepositoryError(err, "updating", elementId)
+			return c.Status(repoErr.(*fiber.Error).Code).JSON(fiber.Map{
+				"error":        repoErr.Error(),
+				"errorMessage": repoErr.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message": "Element updated successfully",
+			"data": fiber.Map{
+				"id":   elementId,
+				"type": base.Type,
+			},
+		})
+	}
+
+	func (h *ElementHandler) DeleteElement(c *fiber.Ctx) error {
+		elementId, err := h.validateElementID(c)
+		if err != nil {
+			return c.Status(err.(*fiber.Error).Code).JSON(fiber.Map{
+				"error":        err.Error(),
+				"errorMessage": err.Error(),
+			})
+		}
+
+		if err := h.elementRepo.DeleteElement(elementId); err != nil {
+			repoErr := h.handleRepositoryError(err, "deleting", elementId)
+			return c.Status(repoErr.(*fiber.Error).Code).JSON(fiber.Map{
+				"error":        repoErr.Error(),
+				"errorMessage": repoErr.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusNoContent).Send(nil)
+	}
