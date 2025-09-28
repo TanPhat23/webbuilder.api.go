@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func (r *ElementRepository) UpdateElement(element models.EditorElement, settings *string) error {
+func (r *ElementRepository) UpdateElement(element models.EditorElement) error {
 	if element == nil {
 		return nil
 	}
@@ -19,6 +19,12 @@ func (r *ElementRepository) UpdateElement(element models.EditorElement, settings
 	base := element.GetElement()
 	if base == nil {
 		return gorm.ErrRecordNotFound
+	}
+
+	var settings *string
+	if base.Settings != nil {
+		settingsStr := string(*base.Settings)
+		settings = &settingsStr
 	}
 
 	return r.DB.Transaction(func(tx *gorm.DB) error {
@@ -56,8 +62,8 @@ func (r *ElementRepository) UpdateElement(element models.EditorElement, settings
 			return err
 		}
 
-		// Handle settings update
-		if err := r.updateElementSettings(tx, base.Id, settings); err != nil {
+
+		if err := r.updateElementSettings(tx, base.Id, settings, base.Type); err != nil {
 			return err
 		}
 
@@ -67,7 +73,7 @@ func (r *ElementRepository) UpdateElement(element models.EditorElement, settings
 
 
 
-func (r *ElementRepository) updateElementSettings(tx *gorm.DB, elementID string, settings *string) error {
+func (r *ElementRepository) updateElementSettings(tx *gorm.DB, elementID string, settings *string, settingType string) error {
 	if settings == nil {
 		return nil
 	}
@@ -80,7 +86,7 @@ func (r *ElementRepository) updateElementSettings(tx *gorm.DB, elementID string,
 		setting := models.Setting{
 			Id:          uuid.NewString(),
 			Name:        "default",
-			SettingType: "element",
+			SettingType:  settingType,
 			Settings:    json.RawMessage(*settings),
 			ElementId:   elementID,
 		}
@@ -119,12 +125,12 @@ func (r *ElementRepository) getElementIDsForDeletion(tx *gorm.DB, elementID stri
 }
 
 func (r *ElementRepository) deleteElementsAndSettings(tx *gorm.DB, elementIDs []string) error {
-	// Delete settings for all elements
+
 	if err := r.SettingRepository.DeleteSettings(tx, elementIDs); err != nil {
 		return err
 	}
 
-	// Delete elements
+
 	return tx.Table(TableElement.String()).
 		Where(`"Id" IN (?)`, elementIDs).
 		Delete(&models.Element{}).Error
@@ -173,7 +179,7 @@ func (r *ElementRepository) createElementsAndSettings(tx *gorm.DB, elements []mo
 type ElementRepository struct {
 	DB               *gorm.DB
 	SettingRepository SettingRepositoryInterface
-	projectLocks     sync.Map // map[string]*sync.Mutex
+	projectLocks     sync.Map
 }
 
 func (r *ElementRepository) getProjectMutex(projectID string) *sync.Mutex {
@@ -182,7 +188,7 @@ func (r *ElementRepository) getProjectMutex(projectID string) *sync.Mutex {
 }
 
 func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElement, error) {
-	// First, get all elements for the project
+
 	var elements []models.Element
 	if err := r.DB.Table(TableElement.String()).
 		Where(`"ProjectId" = ?`, projectID).
@@ -195,25 +201,25 @@ func (r *ElementRepository) GetElements(projectID string) ([]models.EditorElemen
 		return []models.EditorElement{}, nil
 	}
 
-	// Extract element IDs for settings query
+
 	elementIDs := make([]string, len(elements))
 	for i, elem := range elements {
 		elementIDs[i] = elem.Id
 	}
 
-	// Get all settings for these elements in one query
+
 	settings, err := r.SettingRepository.GetSettingsByElementIDs(r.DB, elementIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a map of element ID to settings for efficient lookup
+
 	settingsMap := make(map[string]json.RawMessage)
 	for _, setting := range settings {
 		settingsMap[setting.ElementId] = setting.Settings
 	}
 
-	// Merge elements with their settings
+
 	editorElements := make([]models.EditorElement, len(elements))
 	for i, elem := range elements {
 		elemCopy := elem
@@ -242,7 +248,7 @@ func (r *ElementRepository) InsertElementAfter(projectID string, previousElement
 	}
 
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		// Get previous element
+
 		var previousElement models.Element
 		if err := tx.Table(TableElement.String()).
 			Where(`"Id" = ? AND "ProjectId" = ?`, previousElementID, projectID).
@@ -250,7 +256,7 @@ func (r *ElementRepository) InsertElementAfter(projectID string, previousElement
 			return err
 		}
 
-		// Prepare elements for insertion
+
 		elements := []models.EditorElement{element}
 		flatElements, flatSettings, err := r.flattenElementsForInsert(tx, elements, projectID)
 		if err != nil {
@@ -261,7 +267,7 @@ func (r *ElementRepository) InsertElementAfter(projectID string, previousElement
 			return nil
 		}
 
-		// Update element orders and insert
+
 		if err := r.insertElementsWithOrderUpdate(tx, flatElements, flatSettings, previousElement); err != nil {
 			return err
 		}
@@ -273,7 +279,7 @@ func (r *ElementRepository) InsertElementAfter(projectID string, previousElement
 func (r *ElementRepository) insertElementsWithOrderUpdate(tx *gorm.DB, flatElements []models.Element, flatSettings []models.Setting, previousElement models.Element) error {
 	parentID := previousElement.ParentId
 
-	// Update siblings order and get new order for elements
+
 	newOrder, err := r.getAndUpdateSiblingsOrder(tx, previousElement, parentID)
 	if err != nil {
 		return err
@@ -313,7 +319,7 @@ func (r *ElementRepository) getAndUpdateSiblingsOrder(tx *gorm.DB, previousEleme
 		return 0, err
 	}
 
-	newOrder := previousElement.Order + 2 // +2 because new element takes Order + 1
+	newOrder := previousElement.Order + 2
 	for i := range siblings {
 		sibling := &siblings[i]
 		if err := tx.Table(TableElement.String()).
@@ -379,11 +385,11 @@ func (r *ElementRepository) flattenElementsForInsert(tx *gorm.DB, rootElements [
 
 		flattened = append(flattened, *base)
 
-		if base.Settings != nil {
+		if base.Settings != nil && string(*base.Settings) != "{}" {
 			setting := models.Setting{
 				Id:          uuid.NewString(),
 				Name:        "default",
-				SettingType: "element",
+				SettingType: base.GetType(),
 				Settings:    *base.Settings,
 				ElementId:   base.Id,
 			}
@@ -405,7 +411,7 @@ func (r *ElementRepository) flattenElementsForInsert(tx *gorm.DB, rootElements [
 		}
 	}
 
-	// Query for highest orders
+
 	var parentIDList []string
 	for key := range parentKeys {
 		if key != r.buildParentKey(projectID, nil) {
@@ -445,14 +451,14 @@ func (r *ElementRepository) flattenElementsForInsert(tx *gorm.DB, rootElements [
 		}
 	}
 
-	// Ensure all parentKeys have an entry
+
 	for key := range parentKeys {
 		if _, exists := orderCounters[key]; !exists {
 			orderCounters[key] = 0
 		}
 	}
 
-	// Assign orders
+
 	for i := range flattened {
 		elem := &flattened[i]
 		parentID := elem.ParentId
@@ -469,4 +475,42 @@ func (r *ElementRepository) buildParentKey(projectID string, parentID *string) s
 		return projectID + ":" + *parentID
 	}
 	return projectID + ":root"
+}
+
+func (r *ElementRepository) SwapElements(projectID string, elementID1 string, elementID2 string) error {
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		var elem1, elem2 models.Element
+		if err := tx.Table(TableElement.String()).
+			Where(`"Id" = ? AND "ProjectId" = ?`, elementID1, projectID).
+			First(&elem1).Error; err != nil {
+			return err
+		}
+		if err := tx.Table(TableElement.String()).
+			Where(`"Id" = ? AND "ProjectId" = ?`, elementID2, projectID).
+			First(&elem2).Error; err != nil {
+			return err
+		}
+
+
+		if (elem1.ParentId == nil && elem2.ParentId != nil) || (elem1.ParentId != nil && elem2.ParentId == nil) || (elem1.ParentId != nil && elem2.ParentId != nil && *elem1.ParentId != *elem2.ParentId) {
+			return gorm.ErrInvalidData
+		}
+
+		temp := elem1.Order
+		elem1.Order = elem2.Order
+		elem2.Order = temp
+
+		if err := tx.Table(TableElement.String()).
+			Where(`"Id" = ?`, elem1.Id).
+			Update("Order", elem1.Order).Error; err != nil {
+			return err
+		}
+		if err := tx.Table(TableElement.String()).
+			Where(`"Id" = ?`, elem2.Id).
+			Update("Order", elem2.Order).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }

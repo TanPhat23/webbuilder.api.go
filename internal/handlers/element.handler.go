@@ -193,8 +193,15 @@ func (h *ElementHandler) InsertElementAfter(c *fiber.Ctx) error {
 			})
 		}
 
-		// Extract element data (assume body is the element)
-		element, err := utils.ConvertToEditorElement(payload)
+		updates, ok := payload["updates"].(map[string]any)
+		if !ok {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":        "Invalid request body",
+				"errorMessage": "Missing or invalid 'updates' field",
+			})
+		}
+
+		element, err := utils.ConvertToEditorElement(updates)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error":        "Invalid element structure",
@@ -202,15 +209,8 @@ func (h *ElementHandler) InsertElementAfter(c *fiber.Ctx) error {
 			})
 		}
 
-		// Extract settings if present
-		var settings *string
-		if settingsVal, exists := payload["settings"]; exists {
-			if settingsStr, ok := settingsVal.(string); ok {
-				settings = &settingsStr
-			}
-		}
 
-		// Set the element ID
+
 		base := element.GetElement()
 		if base == nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -220,7 +220,7 @@ func (h *ElementHandler) InsertElementAfter(c *fiber.Ctx) error {
 		}
 		base.Id = elementId
 
-		if err := h.elementRepo.UpdateElement(element, settings); err != nil {
+		if err := h.elementRepo.UpdateElement(element); err != nil {
 			repoErr := h.handleRepositoryError(err, "updating", elementId)
 			return c.Status(repoErr.(*fiber.Error).Code).JSON(fiber.Map{
 				"error":        repoErr.Error(),
@@ -255,4 +255,38 @@ func (h *ElementHandler) InsertElementAfter(c *fiber.Ctx) error {
 		}
 
 		return c.Status(fiber.StatusNoContent).Send(nil)
+	}
+
+	func (h *ElementHandler) SwapElements(c *fiber.Ctx) error {
+		projectID := c.Params("projectid")
+
+		var payload struct {
+			ElementID1 string `json:"elementId1"`
+			ElementID2 string `json:"elementId2"`
+		}
+
+		if err := c.BodyParser(&payload); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":        "Invalid request body",
+				"errorMessage": err.Error(),
+			})
+		}
+
+		if payload.ElementID1 == "" || payload.ElementID2 == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Element IDs are required",
+			})
+		}
+
+		if err := h.elementRepo.SwapElements(projectID, payload.ElementID1, payload.ElementID2); err != nil {
+			log.Println("Error swapping elements:", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":        "Failed to swap elements",
+				"errorMessage": err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message": "Elements swapped successfully",
+		})
 	}

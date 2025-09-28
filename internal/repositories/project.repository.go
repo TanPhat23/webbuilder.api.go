@@ -68,7 +68,7 @@ func (r *ProjectRepository) UpdateProject(projectID string, userID string, updat
 		return nil, err
 	}
 	if count == 0 {
-		return nil, nil // Not found or not owned
+		return nil, nil
 	}
 
 	updatesMap := make(map[string]any)
@@ -80,8 +80,8 @@ func (r *ProjectRepository) UpdateProject(projectID string, userID string, updat
 			updatesMap["Description"] = v
 		case "styles":
 			updatesMap["Styles"] = v
-		case "customStyles":
-			updatesMap["CustomStyles"] = v
+		case "header":
+			updatesMap["Header"] = v
 		case "published":
 			updatesMap["Published"] = v
 		case "subdomain":
