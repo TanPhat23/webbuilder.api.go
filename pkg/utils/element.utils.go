@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/json"
-	"log"
 	"my-go-app/internal/models"
 )
 
@@ -26,26 +25,44 @@ func BuildElementTree(elements []models.EditorElement) []models.EditorElement {
 		}
 	}
 
-	// Debug: log counts to aid diagnosing missing children
-	totalElements := len(elements)
-	totalRoots := len(rootElements)
-	totalParentKeys := len(childrenMap)
 	totalChildEntries := 0
 	for _, arr := range childrenMap {
 		totalChildEntries += len(arr)
 	}
-	log.Printf("BuildElementTree: totalElements=%d totalRoots=%d parentKeys=%d totalChildEntries=%d", totalElements, totalRoots, totalParentKeys, totalChildEntries)
+
+	return buildElementTreeConcurrent(rootElements, childrenMap)
+}
+
+func buildElementTreeConcurrent(rootElements []models.EditorElement, childrenMap map[string][]models.EditorElement) []models.EditorElement {
+	if len(rootElements) == 0 {
+		return rootElements
+	}
+
+	results := make(chan elementResult, len(rootElements))
+
+	for i, rootElement := range rootElements {
+		go func(index int, element models.EditorElement) {
+			builtElement := buildElementWithChildren(element, childrenMap)
+			results <- elementResult{index: index, element: builtElement}
+		}(i, rootElement)
+	}
 
 	builtRootElements := make([]models.EditorElement, len(rootElements))
-	for i, rootElement := range rootElements {
-		builtRootElements[i] = buildElementWithChildren(rootElement, childrenMap)
+	for range rootElements {
+		result := <-results
+		builtRootElements[result.index] = result.element
 	}
+	close(results)
 	return builtRootElements
+}
+
+type elementResult struct {
+	index   int
+	element models.EditorElement
 }
 
 func buildElementWithChildren(element models.EditorElement, childrenMap map[string][]models.EditorElement) models.EditorElement {
 	baseElement := element.GetElement()
-	// Guard against nil base element - return as-is to avoid panics.
 	if baseElement == nil {
 		return element
 	}

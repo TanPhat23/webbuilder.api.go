@@ -11,6 +11,10 @@ const (
 	TableSetting TableName = `public."Setting"`
 
 	TablePage TableName = `public."Page"`
+
+	TableGroup TableName = `public."Group"`
+
+	TableSnapshot TableName = `public."Snapshot"`
 )
 
 //Convert TableName to string for gorm
