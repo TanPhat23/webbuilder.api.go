@@ -13,4 +13,3 @@ type Setting struct {
 	ElementId   string         `gorm:"column:ElementId;type:varchar(255);unique" json:"elementId"`
 }
 
-// TableName removed; table name is managed by repositories

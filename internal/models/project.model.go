@@ -19,4 +19,3 @@ type Project struct {
 	DeletedAt   *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
 }
 
-// Table name is managed by repositories; removed GetTable method from model.
