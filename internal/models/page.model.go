@@ -16,4 +16,3 @@ type Page struct {
 	DeletedAt *time.Time      `gorm:"column:DeletedAt;precision:6" json:"DeletedAt,omitempty"`
 }
 
-// Table name is managed by repositories

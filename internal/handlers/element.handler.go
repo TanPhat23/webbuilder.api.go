@@ -170,6 +170,7 @@ func (h *ElementHandler) InsertElementAfter(c *fiber.Ctx) error {
 
 	func (h *ElementHandler) handleRepositoryError(err error, operation string, elementId string) error {
 		log.Printf("Error %s element %s: %v", operation, elementId, err)
+			
 		if err.Error() == "record not found" {
 			return fiber.NewError(fiber.StatusNotFound, "Element not found")
 		}
