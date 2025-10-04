@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"my-go-app/internal/models"
+	"strings"
 
 	"github.com/lucsky/cuid"
 	"gorm.io/gorm"
@@ -96,6 +97,56 @@ func (r *ContentItemRepository) UpdateContentItem(id string, updates map[string]
 
 func (r *ContentItemRepository) DeleteContentItem(id string) error {
 	return r.db.Table(TableContentItem.String()).Delete(&models.ContentItem{}, "\"Id\" = ?", id).Error
+}
+
+func (r *ContentItemRepository) GetPublicContentItems(contentTypeId string, limit int, sortBy string, sortOrder string) ([]models.ContentItem, error) {
+	if sortOrder != "asc" {
+		sortOrder = "desc"
+	}
+
+	validSortBy := map[string]bool{
+		"CreatedAt": true,
+		"UpdatedAt": true,
+		"Title":     true,
+	}
+	if !validSortBy[sortBy] {
+		sortBy = "CreatedAt"
+	}
+
+	sql := `SELECT * FROM ` + TableContentItem.String()
+	args := []interface{}{}
+	conditions := []string{}
+
+	if contentTypeId != "" {
+		conditions = append(conditions, `"ContentTypeId" = ?`)
+		args = append(args, contentTypeId)
+	}
+
+	// Temporarily remove Published filter for debugging
+	// conditions = append(conditions, `"Published" = true`)
+
+	if len(conditions) > 0 {
+		sql += ` WHERE ` + strings.Join(conditions, " AND ")
+	}
+
+	sql += ` ORDER BY "` + sortBy + `" ` + sortOrder + ` LIMIT ?`
+	args = append(args, limit)
+
+	var contentItems []models.ContentItem
+	err := r.db.Raw(sql, args...).Scan(&contentItems).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Load FieldValues separately
+	for i := range contentItems {
+		err = r.db.Table(TableContentFieldValue.String()).Where("\"ContentItemId\" = ?", contentItems[i].Id).Find(&contentItems[i].FieldValues).Error
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return contentItems, nil
 }
 
 func (r *ContentItemRepository) GetContentItemBySlug(contentTypeId string, slug string) (*models.ContentItem, error) {

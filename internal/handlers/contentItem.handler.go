@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -156,6 +157,41 @@ func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
 		})
 	}
 	return c.Status(fiber.StatusNoContent).Send(nil)
+}
+
+func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
+	contentTypeId := c.Query("contentTypeId")
+	limitStr := c.Query("limit")
+	sortBy := c.Query("sortBy", "createdAt")
+	sortOrder := c.Query("sortOrder", "desc")
+
+	// Map client sortBy to database column names
+	sortByMap := map[string]string{
+		"createdAt": "CreatedAt",
+		"updatedAt": "UpdatedAt",
+		"title":     "Title",
+	}
+	if mapped, ok := sortByMap[sortBy]; ok {
+		sortBy = mapped
+	} else {
+		sortBy = "CreatedAt"
+	}
+
+	limit := 10
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	contentItems, err := h.contentItemRepository.GetPublicContentItems(contentTypeId, limit, sortBy, sortOrder)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":        "Failed to retrieve content items",
+			"errorMessage": err.Error(),
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(contentItems)
 }
 
 func (h *ContentItemHandler) GetPublicContentItemBySlug(c *fiber.Ctx) error {
