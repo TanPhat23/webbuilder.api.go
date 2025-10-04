@@ -15,6 +15,14 @@ const (
 	TableGroup TableName = `public."Group"`
 
 	TableSnapshot TableName = `public."Snapshot"`
+
+	TableContentType TableName = `public."ContentType"`
+
+	TableContentField TableName = `public."ContentField"`
+
+	TableContentFieldValue TableName = `public."ContentFieldValue"`
+
+	TableContentItem TableName = `public."ContentItem"`
 )
 
 //Convert TableName to string for gorm

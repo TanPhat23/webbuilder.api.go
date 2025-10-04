@@ -169,7 +169,29 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 		})
 	}
 
-	updatedProject, err := h.projectRepository.UpdateProject(projectID, userID, updates)
+	columnUpdates := make(map[string]any)
+	for k, v := range updates {
+		switch k {
+		case "name":
+			columnUpdates["Name"] = v
+		case "description":
+			columnUpdates["Description"] = v
+		case "styles":
+			columnUpdates["Styles"] = v
+		case "header":
+			columnUpdates["Header"] = v
+		case "published":
+			columnUpdates["Published"] = v
+		case "subdomain":
+			columnUpdates["Subdomain"] = v
+		case "updatedAt":
+			columnUpdates["UpdatedAt"] = v
+		default:
+			columnUpdates[k] = v
+		}
+	}
+
+	updatedProject, err := h.projectRepository.UpdateProject(projectID, userID, columnUpdates)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":        "Failed to update project",

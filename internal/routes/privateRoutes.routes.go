@@ -15,6 +15,9 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 	projectHandler := handlers.NewProjectHandler(repos.ProjectRepository)
 	pageHandler := handlers.NewPageHandler(repos.PageRepository)
 	snapshotHandler := handlers.NewSnapshotHandler(repos.SnapshotRepository, repos.ElementRepository)
+	contentTypeHandler := handlers.NewContentTypeHandler(repos.ContentTypeRepository)
+	contentFieldHandler := handlers.NewContentFieldHandler(repos.ContentFieldRepository)
+	contentItemHandler := handlers.NewContentItemHandler(repos.ContentItemRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
@@ -33,5 +36,24 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 	group.Delete("/projects/:projectid/pages/:pageid", pageHandler.DeletePage)
 
 	group.Post("/snapshots/:projectid/save", snapshotHandler.SaveSnapshot)
+
+	// CMS routes
+	group.Get("/content-types", contentTypeHandler.GetContentTypes)
+	group.Post("/content-types", contentTypeHandler.CreateContentType)
+	group.Get("/content-types/:id", contentTypeHandler.GetContentTypeByID)
+	group.Patch("/content-types/:id", contentTypeHandler.UpdateContentType)
+	group.Delete("/content-types/:id", contentTypeHandler.DeleteContentType)
+
+	group.Get("/content-types/:contentTypeId/fields", contentFieldHandler.GetContentFieldsByContentType)
+	group.Post("/content-types/:contentTypeId/fields", contentFieldHandler.CreateContentField)
+	group.Get("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.GetContentFieldByID)
+	group.Patch("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.UpdateContentField)
+	group.Delete("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.DeleteContentField)
+
+	group.Get("/content-types/:contentTypeId/items", contentItemHandler.GetContentItemsByContentType)
+	group.Post("/content-types/:contentTypeId/items", contentItemHandler.CreateContentItem)
+	group.Get("/content-types/:contentTypeId/items/:itemId", contentItemHandler.GetContentItemByID)
+	group.Patch("/content-types/:contentTypeId/items/:itemId", contentItemHandler.UpdateContentItem)
+	group.Delete("/content-types/:contentTypeId/items/:itemId", contentItemHandler.DeleteContentItem)
 
 }
