@@ -97,3 +97,12 @@ func (r *ContentItemRepository) UpdateContentItem(id string, updates map[string]
 func (r *ContentItemRepository) DeleteContentItem(id string) error {
 	return r.db.Table(TableContentItem.String()).Delete(&models.ContentItem{}, "\"Id\" = ?", id).Error
 }
+
+func (r *ContentItemRepository) GetContentItemBySlug(contentTypeId string, slug string) (*models.ContentItem, error) {
+	var contentItem models.ContentItem
+	err := r.db.Table(TableContentItem.String()).Where("\"ContentTypeId\" = ? AND \"Slug\" = ?", contentTypeId, slug).Preload("FieldValues").First(&contentItem).Error
+	if err != nil {
+		return nil, err
+	}
+	return &contentItem, nil
+}

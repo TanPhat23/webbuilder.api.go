@@ -157,3 +157,28 @@ func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
 	}
 	return c.Status(fiber.StatusNoContent).Send(nil)
 }
+
+func (h *ContentItemHandler) GetPublicContentItemBySlug(c *fiber.Ctx) error {
+	contentTypeId := c.Params("contentTypeId")
+	slug := c.Params("slug")
+	if contentTypeId == "" || slug == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Content type ID and slug are required",
+			"errorMessage": "Missing contentTypeId or slug parameter in URL",
+		})
+	}
+
+	contentItem, err := h.contentItemRepository.GetContentItemBySlug(contentTypeId, slug)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":        "Failed to retrieve content item",
+			"errorMessage": err.Error(),
+		})
+	}
+	if contentItem == nil || !contentItem.Published {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Content item not found",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(contentItem)
+}

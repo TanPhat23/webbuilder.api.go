@@ -279,18 +279,23 @@ func (r *ElementRepository) InsertElementAfter(projectID string, previousElement
 func (r *ElementRepository) insertElementsWithOrderUpdate(tx *gorm.DB, flatElements []models.Element, flatSettings []models.Setting, previousElement models.Element) error {
 	parentID := previousElement.ParentId
 
-
 	newOrder, err := r.getAndUpdateSiblingsOrder(tx, previousElement, parentID)
 	if err != nil {
 		return err
 	}
 
-	// Set order for new elements
-	for i := range flatElements {
-		elem := &flatElements[i]
-		elem.ParentId = parentID
-		elem.Order = newOrder
-		newOrder++
+	// Assume flatElements[0] is the root of the inserted tree
+	if len(flatElements) > 0 {
+		rootOrder := flatElements[0].Order
+		offset := newOrder - rootOrder
+
+		for i := range flatElements {
+			elem := &flatElements[i]
+			if i == 0 && elem.ParentId == nil {
+				elem.ParentId = parentID
+			}
+			elem.Order += offset
+		}
 	}
 
 	// Insert elements

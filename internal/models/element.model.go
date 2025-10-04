@@ -68,3 +68,27 @@ type FormElement struct {
 	*Element
 	Elements []any `json:"elements" db:"-"`
 }
+
+type TextElement struct {
+	*Element
+}
+
+type DataLoaderElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
+}
+
+type CMSContentListElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
+}
+
+type CMSContentItemElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
+}
+
+type CMSContentGridElement struct {
+	*Element
+	Elements []any `json:"elements" db:"-"`
+}

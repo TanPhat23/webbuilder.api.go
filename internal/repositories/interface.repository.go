@@ -67,6 +67,7 @@ type ContentFieldRepositoryInterface interface {
 type ContentItemRepositoryInterface interface {
 	GetContentItemsByContentType(contentTypeId string) ([]models.ContentItem, error)
 	GetContentItemByID(id string) (*models.ContentItem, error)
+	GetContentItemBySlug(contentTypeId string, slug string) (*models.ContentItem, error)
 	CreateContentItem(ci models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
 	UpdateContentItem(id string, updates map[string]any) (*models.ContentItem, error)
 	DeleteContentItem(id string) error
