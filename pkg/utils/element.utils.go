@@ -116,6 +116,34 @@ func buildElementWithChildren(element models.EditorElement, childrenMap map[stri
 			selectElement.Elements[i] = child
 		}
 		return selectElement
+	case "DataLoader":
+		dataLoaderElement := &models.DataLoaderElement{Element: baseElement}
+		dataLoaderElement.Elements = make([]any, len(builtChildren))
+		for i, child := range builtChildren {
+			dataLoaderElement.Elements[i] = child
+		}
+		return dataLoaderElement
+	case "CMSContentList":
+		cmsListElement := &models.CMSContentListElement{Element: baseElement}
+		cmsListElement.Elements = make([]any, len(builtChildren))
+		for i, child := range builtChildren {
+			cmsListElement.Elements[i] = child
+		}
+		return cmsListElement
+	case "CMSContentItem":
+		cmsItemElement := &models.CMSContentItemElement{Element: baseElement}
+		cmsItemElement.Elements = make([]any, len(builtChildren))
+		for i, child := range builtChildren {
+			cmsItemElement.Elements[i] = child
+		}
+		return cmsItemElement
+	case "CMSContentGrid":
+		cmsGridElement := &models.CMSContentGridElement{Element: baseElement}
+		cmsGridElement.Elements = make([]any, len(builtChildren))
+		for i, child := range builtChildren {
+			cmsGridElement.Elements[i] = child
+		}
+		return cmsGridElement
 	default:
 		return element
 	}
@@ -167,6 +195,34 @@ func GetChildrenFromEditorElement(element models.EditorElement) []any {
 		}
 		return e.Elements
 	case models.SelectElement:
+		return e.Elements
+	case *models.DataLoaderElement:
+		if e == nil {
+			return nil
+		}
+		return e.Elements
+	case models.DataLoaderElement:
+		return e.Elements
+	case *models.CMSContentListElement:
+		if e == nil {
+			return nil
+		}
+		return e.Elements
+	case models.CMSContentListElement:
+		return e.Elements
+	case *models.CMSContentItemElement:
+		if e == nil {
+			return nil
+		}
+		return e.Elements
+	case models.CMSContentItemElement:
+		return e.Elements
+	case *models.CMSContentGridElement:
+		if e == nil {
+			return nil
+		}
+		return e.Elements
+	case models.CMSContentGridElement:
 		return e.Elements
 	default:
 		return nil
@@ -242,6 +298,41 @@ func ConvertToEditorElement(v any) (models.EditorElement, error) {
 				return nil, err
 			}
 			return &ie, nil
+		},
+		"Text": func(b []byte) (models.EditorElement, error) {
+			var te models.TextElement
+			if err := json.Unmarshal(b, &te); err != nil {
+				return nil, err
+			}
+			return &te, nil
+		},
+		"DataLoader": func(b []byte) (models.EditorElement, error) {
+			var de models.DataLoaderElement
+			if err := json.Unmarshal(b, &de); err != nil {
+				return nil, err
+			}
+			return &de, nil
+		},
+		"CMSContentList": func(b []byte) (models.EditorElement, error) {
+			var cle models.CMSContentListElement
+			if err := json.Unmarshal(b, &cle); err != nil {
+				return nil, err
+			}
+			return &cle, nil
+		},
+		"CMSContentItem": func(b []byte) (models.EditorElement, error) {
+			var cie models.CMSContentItemElement
+			if err := json.Unmarshal(b, &cie); err != nil {
+				return nil, err
+			}
+			return &cie, nil
+		},
+		"CMSContentGrid": func(b []byte) (models.EditorElement, error) {
+			var cge models.CMSContentGridElement
+			if err := json.Unmarshal(b, &cge); err != nil {
+				return nil, err
+			}
+			return &cge, nil
 		},
 	}
 

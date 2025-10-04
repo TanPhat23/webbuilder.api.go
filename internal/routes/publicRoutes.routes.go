@@ -17,10 +17,13 @@ func PublicRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 
 	elementHandler := handlers.NewElementHandler(repos.ElementRepository)
 	projectHandler := handlers.NewProjectHandler(repos.ProjectRepository)
+	contentItemHandler := handlers.NewContentItemHandler(repos.ContentItemRepository)
 	group := app.Group("/api/v1")
 	group.Use(limiter.New())
 	group.Get("/elements/public/:projectid", elementHandler.GetElements)
 	group.Post("/elements/public/:projectid", elementHandler.CreateElements)
 	group.Get("/projects/public", projectHandler.GetProject)
+	group.Get("/public/content", contentItemHandler.GetPublicContentItems)
+	group.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicContentItemBySlug)
 
 }

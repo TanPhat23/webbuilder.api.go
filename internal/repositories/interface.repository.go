@@ -48,10 +48,48 @@ type PageRepositoryInterface interface {
 	DeletePageByProjectID(pageID string, projectID string, userID string) error
 }
 
+type ContentTypeRepositoryInterface interface {
+	GetContentTypes() ([]models.ContentType, error)
+	GetContentTypeByID(id string) (*models.ContentType, error)
+	CreateContentType(ct models.ContentType) (*models.ContentType, error)
+	UpdateContentType(id string, updates map[string]any) (*models.ContentType, error)
+	DeleteContentType(id string) error
+}
+
+type ContentFieldRepositoryInterface interface {
+	GetContentFieldsByContentType(contentTypeId string) ([]models.ContentField, error)
+	GetContentFieldByID(id string) (*models.ContentField, error)
+	CreateContentField(cf models.ContentField) (*models.ContentField, error)
+	UpdateContentField(id string, updates map[string]any) (*models.ContentField, error)
+	DeleteContentField(id string) error
+}
+
+type ContentItemRepositoryInterface interface {
+	GetContentItemsByContentType(contentTypeId string) ([]models.ContentItem, error)
+	GetContentItemByID(id string) (*models.ContentItem, error)
+	GetContentItemBySlug(contentTypeId string, slug string) (*models.ContentItem, error)
+	GetPublicContentItems(contentTypeId string, limit int, sortBy string, sortOrder string) ([]models.ContentItem, error)
+	CreateContentItem(ci models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
+	UpdateContentItem(id string, updates map[string]any) (*models.ContentItem, error)
+	DeleteContentItem(id string) error
+}
+
+type ContentFieldValueRepositoryInterface interface {
+	GetContentFieldValuesByContentItem(contentItemId string) ([]models.ContentFieldValue, error)
+	GetContentFieldValueByID(id string) (*models.ContentFieldValue, error)
+	CreateContentFieldValue(cfv models.ContentFieldValue) (*models.ContentFieldValue, error)
+	UpdateContentFieldValue(id string, value *string) (*models.ContentFieldValue, error)
+	DeleteContentFieldValue(id string) error
+}
+
 type RepositoriesInterface struct {
-	ElementRepository  ElementRepositoryInterface
-	ProjectRepository  ProjectRepositoryInterface
-	SnapshotRepository SnapshotRepositoryInterface
-	SettingRepository  SettingRepositoryInterface
-	PageRepository     PageRepositoryInterface
+	ElementRepository          ElementRepositoryInterface
+	ProjectRepository          ProjectRepositoryInterface
+	SnapshotRepository         SnapshotRepositoryInterface
+	SettingRepository          SettingRepositoryInterface
+	PageRepository             PageRepositoryInterface
+	ContentTypeRepository      ContentTypeRepositoryInterface
+	ContentFieldRepository     ContentFieldRepositoryInterface
+	ContentItemRepository      ContentItemRepositoryInterface
+	ContentFieldValueRepository ContentFieldValueRepositoryInterface
 }
