@@ -22,11 +22,6 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
 	group.Get("/elements/:projectid", elementHandler.GetElements)
-	group.Post("/elements/:projectid", elementHandler.CreateElements)
-	group.Post("/elements/:projectid/swap", elementHandler.SwapElements)
-	group.Post("/elements/:projectid/insert/:previouselementid", elementHandler.InsertElementAfter)
-	group.Patch("/elements/:elementid", elementHandler.UpdateElement)
-	group.Delete("/elements/:elementid", elementHandler.DeleteElement)
 
 	group.Get("/projects/user", projectHandler.GetProjectByUserID)
 	group.Get("/projects/:projectid", projectHandler.GetProjectByID)

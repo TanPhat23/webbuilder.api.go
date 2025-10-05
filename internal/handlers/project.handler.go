@@ -177,9 +177,23 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 		case "description":
 			columnUpdates["Description"] = v
 		case "styles":
-			columnUpdates["Styles"] = v
+			if stylesJSON, err := json.Marshal(v); err == nil {
+				columnUpdates["Styles"] = json.RawMessage(stylesJSON)
+			} else {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error":        "Invalid styles format",
+					"errorMessage": err.Error(),
+				})
+			}
 		case "header":
-			columnUpdates["Header"] = v
+			if headerJSON, err := json.Marshal(v); err == nil {
+				columnUpdates["Header"] = json.RawMessage(headerJSON)
+			} else {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error":        "Invalid header format",
+					"errorMessage": err.Error(),
+				})
+			}
 		case "published":
 			columnUpdates["Published"] = v
 		case "subdomain":
