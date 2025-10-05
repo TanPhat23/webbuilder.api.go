@@ -8,12 +8,7 @@ import (
 
 type ElementRepositoryInterface interface {
 	GetElements(projectID string) ([]models.EditorElement, error)
-	CreateElement(elements []models.EditorElement, projectID string) error
-	InsertElementAfter(projectID string, previousElementID string, element models.EditorElement) error
 	ReplaceElements(projectID string, elements []models.EditorElement) error
-	UpdateElement(element models.EditorElement) error
-	DeleteElement(elementID string) error
-	SwapElements(projectID string, elementID1 string, elementID2 string) error
 }
 type ProjectRepositoryInterface interface {
 	GetProjects() ([]models.Project, error)

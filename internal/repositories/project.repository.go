@@ -86,8 +86,8 @@ func (r *ProjectRepository) UpdateProject(projectID string, userID string, updat
 			updatesMap["Published"] = v
 		case "subdomain":
 			updatesMap["Subdomain"] = v
-		default:
-			updatesMap[k] = v
+		case "updatedAt":
+			updatesMap["UpdatedAt"] = v
 		}
 	}
 
