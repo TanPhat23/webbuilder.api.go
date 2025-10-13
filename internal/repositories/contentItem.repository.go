@@ -140,7 +140,7 @@ func (r *ContentItemRepository) GetPublicContentItems(contentTypeId string, limi
 
 	// Load FieldValues separately
 	for i := range contentItems {
-		err = r.db.Table(TableContentFieldValue.String()).Where("\"ContentItemId\" = ?", contentItems[i].Id).Find(&contentItems[i].FieldValues).Error
+		err = r.db.Model(&models.ContentFieldValue{}).Where("\"ContentItemId\" = ?", contentItems[i].Id).Preload("Field").Find(&contentItems[i].FieldValues).Error
 		if err != nil {
 			return nil, err
 		}
