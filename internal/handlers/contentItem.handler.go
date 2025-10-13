@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"log"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
@@ -39,7 +38,7 @@ func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
 			"errorMessage": err.Error(),
 		})
 	}
-	return c.Status(fiber.StatusOK).JSON(utils.FlattenContentItems(contentItems))
+	return c.Status(fiber.StatusOK).JSON(contentItems)
 }
 
 func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
@@ -63,7 +62,7 @@ func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
 			"error": "Content item not found",
 		})
 	}
-	return c.Status(fiber.StatusOK).JSON(utils.FlattenContentItem(contentItem))
+	return c.Status(fiber.StatusOK).JSON(contentItem)
 }
 
 func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
@@ -93,7 +92,7 @@ func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
 			"errorMessage": err.Error(),
 		})
 	}
-	return c.Status(fiber.StatusCreated).JSON(utils.FlattenContentItem(createdContentItem))
+	return c.Status(fiber.StatusCreated).JSON(createdContentItem)
 }
 
 func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
@@ -141,7 +140,7 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 			"error": "Content item not found",
 		})
 	}
-	return c.Status(fiber.StatusOK).JSON(utils.FlattenContentItem(updatedContentItem))
+	return c.Status(fiber.StatusOK).JSON(updatedContentItem)
 }
 
 func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
@@ -195,9 +194,7 @@ func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
 			"errorMessage": err.Error(),
 		})
 	}
-	log.Printf("Content items before flattening: %+v", contentItems)
 	flattened := utils.FlattenContentItems(contentItems)
-	log.Printf("Flattened content items: %+v", flattened)
 	return c.Status(fiber.StatusOK).JSON(flattened)
 }
 
@@ -223,5 +220,5 @@ func (h *ContentItemHandler) GetPublicContentItemBySlug(c *fiber.Ctx) error {
 			"error": "Content item not found",
 		})
 	}
-	return c.Status(fiber.StatusOK).JSON(utils.FlattenContentItem(contentItem))
+	return c.Status(fiber.StatusOK).JSON(contentItem)
 }
