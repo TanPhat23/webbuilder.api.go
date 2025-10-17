@@ -5,6 +5,7 @@ import (
 	"my-go-app/internal/database"
 	"my-go-app/internal/routes"
 	"my-go-app/pkg/configs"
+	"my-go-app/pkg/services"
 	"os"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -32,6 +33,13 @@ func main() {
 
 	repos := database.NewRepositories(db)
 
+	// Initialize Cloudinary service
+	cloudinaryService, err := services.NewCloudinaryService()
+	if err != nil {
+		log.Println("Warning: Cloudinary service not initialized:", err)
+		log.Println("Image upload functionality will not be available")
+	}
+
 	app := fiber.New(configs.FiberConfig())
 	app.Use(cors.New(configs.CorsConfig()))
 	app.Use(logger.New(configs.LoggerConfig()))
@@ -39,8 +47,8 @@ func main() {
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
-	routes.PrivateRoutes(app, repos)
 	routes.PublicRoutes(app, repos)
+	routes.PrivateRoutes(app, repos, cloudinaryService)
 
 	app.Listen(":8080")
 }

@@ -13,6 +13,7 @@ type ElementRepositoryInterface interface {
 type ProjectRepositoryInterface interface {
 	GetProjects() ([]models.Project, error)
 	GetProjectByID(projectID string, userId string) (*models.Project, error)
+	GetPublicProjectByID(projectID string) (*models.Project, error)
 	GetProjectsByUserID(userID string) ([]models.Project, error)
 	GetProjectPages(projectID string, userId string) ([]models.Page, error)
 	UpdateProject(projectID string, userId string, updates map[string]any) (*models.Project, error)
@@ -77,14 +78,58 @@ type ContentFieldValueRepositoryInterface interface {
 	DeleteContentFieldValue(id string) error
 }
 
+type ImageRepositoryInterface interface {
+	CreateImage(image models.Image) (*models.Image, error)
+	GetImagesByUserID(userID string) ([]models.Image, error)
+	GetImageByID(imageID string, userID string) (*models.Image, error)
+	DeleteImage(imageID string, userID string) error
+	SoftDeleteImage(imageID string, userID string) error
+	GetAllImages(limit int, offset int) ([]models.Image, error)
+}
+
+type MarketplaceRepositoryInterface interface {
+	CreateMarketplaceItem(item models.MarketplaceItem, tagIds []string, categoryIds []string) (*models.MarketplaceItem, error)
+	GetMarketplaceItems(filter MarketplaceFilter) ([]models.MarketplaceItem, int64, error)
+	GetMarketplaceItemByID(id string) (*models.MarketplaceItem, error)
+	UpdateMarketplaceItem(id string, userId string, updates map[string]any) (*models.MarketplaceItem, error)
+	DeleteMarketplaceItem(id string, userId string) error
+	IncrementDownloads(id string) error
+	IncrementLikes(id string) error
+	CreateCategory(category models.Category) (*models.Category, error)
+	GetCategories() ([]models.Category, error)
+	GetCategoryByID(id string) (*models.Category, error)
+	GetCategoryByName(name string) (*models.Category, error)
+	DeleteCategory(id string) error
+	CreateTag(tag models.Tag) (*models.Tag, error)
+	GetTags() ([]models.Tag, error)
+	GetTagByID(id string) (*models.Tag, error)
+	GetTagByName(name string) (*models.Tag, error)
+	DeleteTag(id string) error
+}
+
+type MarketplaceFilter struct {
+	TemplateType string
+	Featured     *bool
+	CategoryId   string
+	TagId        string
+	AuthorId     string
+	Search       string
+	SortBy       string
+	SortOrder    string
+	Limit        int
+	Offset       int
+}
+
 type RepositoriesInterface struct {
-	ElementRepository          ElementRepositoryInterface
-	ProjectRepository          ProjectRepositoryInterface
-	SnapshotRepository         SnapshotRepositoryInterface
-	SettingRepository          SettingRepositoryInterface
-	PageRepository             PageRepositoryInterface
-	ContentTypeRepository      ContentTypeRepositoryInterface
-	ContentFieldRepository     ContentFieldRepositoryInterface
-	ContentItemRepository      ContentItemRepositoryInterface
+	ElementRepository           ElementRepositoryInterface
+	ProjectRepository           ProjectRepositoryInterface
+	SnapshotRepository          SnapshotRepositoryInterface
+	SettingRepository           SettingRepositoryInterface
+	PageRepository              PageRepositoryInterface
+	ContentTypeRepository       ContentTypeRepositoryInterface
+	ContentFieldRepository      ContentFieldRepositoryInterface
+	ContentItemRepository       ContentItemRepositoryInterface
 	ContentFieldValueRepository ContentFieldValueRepositoryInterface
+	ImageRepository             ImageRepositoryInterface
+	MarketplaceRepository       MarketplaceRepositoryInterface
 }
