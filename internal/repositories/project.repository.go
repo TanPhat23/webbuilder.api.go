@@ -10,6 +10,13 @@ type ProjectRepository struct {
 	DB *gorm.DB
 }
 
+func (r *ProjectRepository) CreateProject(project models.Project) (*models.Project, error) {
+	if err := r.DB.Table(TableProject.String()).Create(&project).Error; err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
 func (r *ProjectRepository) GetProjects() ([]models.Project, error) {
 	var projects []models.Project
 	if err := r.DB.Table(TableProject.String()).Find(&projects).Error; err != nil {

@@ -64,7 +64,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/marketplace/items/:itemid", marketplaceHandler.GetMarketplaceItemByID)
 	group.Patch("/marketplace/items/:itemid", marketplaceHandler.UpdateMarketplaceItem)
 	group.Delete("/marketplace/items/:itemid", marketplaceHandler.DeleteMarketplaceItem)
-	group.Post("/marketplace/items/:itemid/download", marketplaceHandler.IncrementDownloads)
+	group.Post("/marketplace/items/:itemid/download", marketplaceHandler.DownloadMarketplaceItem)
 	group.Post("/marketplace/items/:itemid/like", marketplaceHandler.IncrementLikes)
 
 	// Category routes

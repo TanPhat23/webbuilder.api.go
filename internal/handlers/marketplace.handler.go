@@ -72,6 +72,7 @@ func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
 		AuthorId:     userID,
 		AuthorName:   authorName,
 		Verified:     false,
+		ProjectId:    req.ProjectId,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -250,6 +251,38 @@ func (h *MarketplaceHandler) DeleteMarketplaceItem(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusNoContent).Send(nil)
+}
+
+// DownloadMarketplaceItem downloads a marketplace item by cloning its project
+func (h *MarketplaceHandler) DownloadMarketplaceItem(c *fiber.Ctx) error {
+	userID, ok := c.Locals("userId").(string)
+	if !ok || userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":        "Unauthorized",
+			"errorMessage": "You must be logged in to download marketplace items",
+		})
+	}
+
+	itemID := c.Params("itemid")
+	if itemID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Item ID is required",
+			"errorMessage": "Missing itemid parameter in URL",
+		})
+	}
+
+	project, err := h.marketplaceRepository.DownloadMarketplaceItem(itemID, userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":        "Failed to download marketplace item",
+			"errorMessage": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "Marketplace item downloaded successfully",
+		"project": project,
+	})
 }
 
 // IncrementDownloads increments the download count for an item

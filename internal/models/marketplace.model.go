@@ -17,11 +17,12 @@ type MarketplaceItem struct {
 	AuthorId     string     `gorm:"column:AuthorId;not null" json:"authorId"`
 	AuthorName   string     `gorm:"column:AuthorName;not null" json:"authorName"`
 	Verified     bool       `gorm:"column:Verified;not null;default:false" json:"verified"`
+	ProjectId    *string    `gorm:"column:ProjectId" json:"projectId,omitempty"`
 	CreatedAt    time.Time  `gorm:"column:CreatedAt;type:timestamp(6);not null" json:"createdAt"`
 	UpdatedAt    time.Time  `gorm:"column:UpdatedAt;type:timestamp(6);not null" json:"updatedAt"`
 	DeletedAt    *time.Time `gorm:"column:DeletedAt;type:timestamp(6)" json:"deletedAt,omitempty"`
-	Tags         []Tag      `gorm:"many2many:MarketplaceItemTag;joinForeignKey:ItemId;joinReferences:TagId" json:"tags,omitempty"`
-	Categories   []Category `gorm:"many2many:MarketplaceItemCategory;joinForeignKey:ItemId;joinReferences:CategoryId" json:"categories,omitempty"`
+	Tags         []Tag      `gorm:"many2many:MarketplaceItemTag;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:TagId" json:"tags,omitempty"`
+	Categories   []Category `gorm:"many2many:MarketplaceItemCategory;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:CategoryId" json:"categories,omitempty"`
 }
 
 func (MarketplaceItem) TableName() string {
@@ -71,6 +72,7 @@ type CreateMarketplaceItemRequest struct {
 	Preview      *string  `json:"preview"`
 	TemplateType string   `json:"templateType"`
 	PageCount    *int     `json:"pageCount"`
+	ProjectId    *string  `json:"projectId"`
 	TagIds       []string `json:"tagIds"`
 	CategoryIds  []string `json:"categoryIds"`
 }
@@ -82,6 +84,7 @@ type UpdateMarketplaceItemRequest struct {
 	TemplateType *string  `json:"templateType"`
 	Featured     *bool    `json:"featured"`
 	PageCount    *int     `json:"pageCount"`
+	ProjectId    *string  `json:"projectId"`
 	TagIds       []string `json:"tagIds"`
 	CategoryIds  []string `json:"categoryIds"`
 }
@@ -99,6 +102,7 @@ type MarketplaceItemResponse struct {
 	AuthorId     string     `json:"authorId"`
 	AuthorName   string     `json:"authorName"`
 	Verified     bool       `json:"verified"`
+	ProjectId    *string    `json:"projectId,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	UpdatedAt    time.Time  `json:"updatedAt"`
 	Tags         []Tag      `json:"tags"`

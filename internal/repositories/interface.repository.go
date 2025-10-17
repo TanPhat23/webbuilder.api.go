@@ -11,6 +11,7 @@ type ElementRepositoryInterface interface {
 	ReplaceElements(projectID string, elements []models.EditorElement) error
 }
 type ProjectRepositoryInterface interface {
+	CreateProject(project models.Project) (*models.Project, error)
 	GetProjects() ([]models.Project, error)
 	GetProjectByID(projectID string, userId string) (*models.Project, error)
 	GetPublicProjectByID(projectID string) (*models.Project, error)
@@ -93,6 +94,7 @@ type MarketplaceRepositoryInterface interface {
 	GetMarketplaceItemByID(id string) (*models.MarketplaceItem, error)
 	UpdateMarketplaceItem(id string, userId string, updates map[string]any) (*models.MarketplaceItem, error)
 	DeleteMarketplaceItem(id string, userId string) error
+	DownloadMarketplaceItem(itemId string, userId string) (*models.Project, error)
 	IncrementDownloads(id string) error
 	IncrementLikes(id string) error
 	CreateCategory(category models.Category) (*models.Category, error)
