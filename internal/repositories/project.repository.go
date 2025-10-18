@@ -10,6 +10,13 @@ type ProjectRepository struct {
 	DB *gorm.DB
 }
 
+func (r *ProjectRepository) CreateProject(project models.Project) (*models.Project, error) {
+	if err := r.DB.Table(TableProject.String()).Create(&project).Error; err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
 func (r *ProjectRepository) GetProjects() ([]models.Project, error) {
 	var projects []models.Project
 	if err := r.DB.Table(TableProject.String()).Find(&projects).Error; err != nil {
@@ -21,6 +28,17 @@ func (r *ProjectRepository) GetProjects() ([]models.Project, error) {
 func (r *ProjectRepository) GetProjectByID(projectID string, userId string) (*models.Project, error) {
 	var project models.Project
 	if err := r.DB.Table(TableProject.String()).Where(`"Id" = ? AND "OwnerId" = ?`, projectID, userId).First(&project).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &project, nil
+}
+
+func (r *ProjectRepository) GetPublicProjectByID(projectID string) (*models.Project, error) {
+	var project models.Project
+	if err := r.DB.Table(TableProject.String()).Where(`"Id" = ? AND "Published" = ?`, projectID, true).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -71,29 +89,10 @@ func (r *ProjectRepository) UpdateProject(projectID string, userID string, updat
 		return nil, nil
 	}
 
-	updatesMap := make(map[string]any)
-	for k, v := range updates {
-		switch k {
-		case "name":
-			updatesMap["Name"] = v
-		case "description":
-			updatesMap["Description"] = v
-		case "styles":
-			updatesMap["Styles"] = v
-		case "header":
-			updatesMap["Header"] = v
-		case "published":
-			updatesMap["Published"] = v
-		case "subdomain":
-			updatesMap["Subdomain"] = v
-		case "updatedAt":
-			updatesMap["UpdatedAt"] = v
-		}
-	}
-
+	// The handler already converts keys to column names, so use updates directly
 	if err := r.DB.Table(TableProject.String()).
 		Where(`"Id" = ? AND "OwnerId" = ?`, projectID, userID).
-		Updates(updatesMap).Error; err != nil {
+		Updates(updates).Error; err != nil {
 		return nil, err
 	}
 

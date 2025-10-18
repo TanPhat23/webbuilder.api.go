@@ -5,7 +5,6 @@ import (
 	"my-go-app/internal/repositories"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
 )
 
 func PublicRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
@@ -19,9 +18,10 @@ func PublicRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 	projectHandler := handlers.NewProjectHandler(repos.ProjectRepository)
 	contentItemHandler := handlers.NewContentItemHandler(repos.ContentItemRepository)
 	group := app.Group("/api/v1")
-	group.Use(limiter.New())
+	// group.Use(limiter.New())
 	group.Get("/elements/public/:projectid", elementHandler.GetElements)
 	group.Get("/projects/public", projectHandler.GetProject)
+	group.Get("/projects/public/:projectid", projectHandler.GetPublicProjectByID)
 	group.Get("/public/content", contentItemHandler.GetPublicContentItems)
 	group.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicContentItemBySlug)
 

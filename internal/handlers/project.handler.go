@@ -7,7 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type ProjectHandler struct{
+type ProjectHandler struct {
 	projectRepository repositories.ProjectRepositoryInterface
 }
 
@@ -30,7 +30,31 @@ func (h *ProjectHandler) GetProject(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(projects)
 }
 
-func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
+func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
+	projectID := c.Params("projectid")
+	if projectID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":        "Project ID is required",
+			"errorMessage": "Missing projectid parameter in URL",
+		})
+	}
+
+	project, err := h.projectRepository.GetPublicProjectByID(projectID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":        "Failed to retrieve project",
+			"errorMessage": err.Error(),
+		})
+	}
+	if project == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Project not found",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(project)
+}
+
+func (h *ProjectHandler) GetPrivateProjectByID(c *fiber.Ctx) error {
 	projectID := c.Params("projectid")
 	if projectID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -59,8 +83,8 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 	}
 	if project == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error":        "Project not found",
-			"userId":       userID,
+			"error":  "Project not found",
+			"userId": userID,
 		})
 	}
 	return c.Status(fiber.StatusOK).JSON(project)
