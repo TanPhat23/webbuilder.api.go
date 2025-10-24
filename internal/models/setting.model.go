@@ -13,3 +13,6 @@ type Setting struct {
 	ElementId   string         `gorm:"column:ElementId;type:varchar(255);unique" json:"elementId"`
 }
 
+func (Setting) TableName() string {
+	return `public."Setting"`
+}

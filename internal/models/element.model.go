@@ -92,3 +92,7 @@ type CMSContentGridElement struct {
 	*Element
 	Elements []any `json:"elements" db:"-"`
 }
+
+func (Element) TableName() string {
+	return `public."Element"`
+}

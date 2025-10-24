@@ -5,64 +5,64 @@ import (
 )
 
 type MarketplaceItem struct {
-	Id           string     `gorm:"column:Id;primaryKey" json:"id"`
-	Title        string     `gorm:"column:Title;not null" json:"title"`
-	Description  string     `gorm:"column:Description;not null" json:"description"`
-	Preview      *string    `gorm:"column:Preview" json:"preview"`
-	TemplateType string     `gorm:"column:TemplateType;not null;default:'block'" json:"templateType"`
+	Id           string     `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	Title        string     `gorm:"column:Title;type:varchar(255);not null" json:"title"`
+	Description  string     `gorm:"column:Description;type:text;not null" json:"description"`
+	Preview      *string    `gorm:"column:Preview;type:text" json:"preview,omitempty"`
+	TemplateType string     `gorm:"column:TemplateType;type:varchar(50);not null;default:'block'" json:"templateType"`
 	Featured     bool       `gorm:"column:Featured;not null;default:false" json:"featured"`
-	PageCount    *int       `gorm:"column:PageCount" json:"pageCount"`
+	PageCount    *int       `gorm:"column:PageCount;type:int" json:"pageCount,omitempty"`
 	Downloads    int        `gorm:"column:Downloads;not null;default:0" json:"downloads"`
 	Likes        int        `gorm:"column:Likes;not null;default:0" json:"likes"`
-	AuthorId     string     `gorm:"column:AuthorId;not null" json:"authorId"`
-	AuthorName   string     `gorm:"column:AuthorName;not null" json:"authorName"`
+	AuthorId     string     `gorm:"column:AuthorId;type:varchar(255);not null" json:"authorId"`
+	AuthorName   string     `gorm:"column:AuthorName;type:varchar(255);not null" json:"authorName"`
 	Verified     bool       `gorm:"column:Verified;not null;default:false" json:"verified"`
-	ProjectId    *string    `gorm:"column:ProjectId" json:"projectId,omitempty"`
-	CreatedAt    time.Time  `gorm:"column:CreatedAt;type:timestamp(6);not null" json:"createdAt"`
-	UpdatedAt    time.Time  `gorm:"column:UpdatedAt;type:timestamp(6);not null" json:"updatedAt"`
-	DeletedAt    *time.Time `gorm:"column:DeletedAt;type:timestamp(6)" json:"deletedAt,omitempty"`
+	ProjectId    *string    `gorm:"column:ProjectId;type:varchar(255)" json:"projectId,omitempty"`
+	CreatedAt    time.Time  `gorm:"column:CreatedAt" json:"createdAt,omitempty"`
+	UpdatedAt    time.Time  `gorm:"column:UpdatedAt" json:"updatedAt,omitempty"`
+	DeletedAt    *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
 	Tags         []Tag      `gorm:"many2many:MarketplaceItemTag;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:TagId" json:"tags,omitempty"`
 	Categories   []Category `gorm:"many2many:MarketplaceItemCategory;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:CategoryId" json:"categories,omitempty"`
 }
 
 func (MarketplaceItem) TableName() string {
-	return "MarketplaceItem"
+	return `public."MarketplaceItem"`
 }
 
 type Category struct {
-	Id   string `gorm:"column:Id;primaryKey" json:"id"`
-	Name string `gorm:"column:Name;not null;unique" json:"name"`
+	Id   string `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	Name string `gorm:"column:Name;type:varchar(255);not null;unique" json:"name"`
 }
 
 func (Category) TableName() string {
-	return "Category"
+	return `public."Category"`
 }
 
 type Tag struct {
-	Id   string `gorm:"column:Id;primaryKey" json:"id"`
-	Name string `gorm:"column:Name;not null;unique" json:"name"`
+	Id   string `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	Name string `gorm:"column:Name;type:varchar(255);not null;unique" json:"name"`
 }
 
 func (Tag) TableName() string {
-	return "Tag"
+	return `public."Tag"`
 }
 
 type MarketplaceItemTag struct {
-	ItemId string `gorm:"column:ItemId;primaryKey" json:"itemId"`
-	TagId  string `gorm:"column:TagId;primaryKey" json:"tagId"`
+	ItemId string `gorm:"primaryKey;column:ItemId;type:varchar(255)" json:"itemId"`
+	TagId  string `gorm:"primaryKey;column:TagId;type:varchar(255)" json:"tagId"`
 }
 
 func (MarketplaceItemTag) TableName() string {
-	return "MarketplaceItemTag"
+	return `public."MarketplaceItemTag"`
 }
 
 type MarketplaceItemCategory struct {
-	ItemId     string `gorm:"column:ItemId;primaryKey" json:"itemId"`
-	CategoryId string `gorm:"column:CategoryId;primaryKey" json:"categoryId"`
+	ItemId     string `gorm:"primaryKey;column:ItemId;type:varchar(255)" json:"itemId"`
+	CategoryId string `gorm:"primaryKey;column:CategoryId;type:varchar(255)" json:"categoryId"`
 }
 
 func (MarketplaceItemCategory) TableName() string {
-	return "MarketplaceItemCategory"
+	return `public."MarketplaceItemCategory"`
 }
 
 // Request/Response DTOs

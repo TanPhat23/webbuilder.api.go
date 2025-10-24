@@ -5,17 +5,17 @@ import (
 )
 
 type Image struct {
-	ImageId   string     `gorm:"column:ImageId;primaryKey" json:"imageId"`
-	ImageLink string     `gorm:"column:ImageLink;not null;default:''" json:"imageLink"`
-	ImageName *string    `gorm:"column:ImageName" json:"imageName"`
-	UserId    string     `gorm:"column:UserId;not null" json:"userId"`
-	CreatedAt time.Time  `gorm:"column:CreatedAt;type:timestamp(6);not null" json:"createdAt"`
-	DeletedAt *time.Time `gorm:"column:DeletedAt;type:timestamp(6)" json:"deletedAt,omitempty"`
-	UpdatedAt time.Time  `gorm:"column:UpdatedAt;type:timestamp(6);not null" json:"updatedAt"`
+	ImageId   string     `gorm:"primaryKey;column:ImageId;type:varchar(255)" json:"imageId"`
+	ImageLink string     `gorm:"column:ImageLink;type:text;not null;default:''" json:"imageLink"`
+	ImageName *string    `gorm:"column:ImageName;type:varchar(255)" json:"imageName,omitempty"`
+	UserId    string     `gorm:"column:UserId;type:varchar(255);not null" json:"userId"`
+	CreatedAt time.Time  `gorm:"column:CreatedAt" json:"createdAt,omitempty"`
+	DeletedAt *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
+	UpdatedAt time.Time  `gorm:"column:UpdatedAt" json:"updatedAt,omitempty"`
 }
 
 func (Image) TableName() string {
-	return "Image"
+	return `public."Image"`
 }
 
 type CreateImageRequest struct {

@@ -21,7 +21,6 @@ func NewMarketplaceRepository(db *gorm.DB) *MarketplaceRepository {
 	}
 }
 
-// CreateMarketplaceItem creates a new marketplace item with tags and categories
 func (r *MarketplaceRepository) CreateMarketplaceItem(item models.MarketplaceItem, tagIds []string, categoryIds []string) (*models.MarketplaceItem, error) {
 	err := r.DB.Transaction(func(tx *gorm.DB) error {
 		// Create the item
@@ -66,7 +65,6 @@ func (r *MarketplaceRepository) CreateMarketplaceItem(item models.MarketplaceIte
 	return r.GetMarketplaceItemByID(item.Id)
 }
 
-// GetMarketplaceItems retrieves marketplace items with filtering and pagination
 func (r *MarketplaceRepository) GetMarketplaceItems(filter MarketplaceFilter) ([]models.MarketplaceItem, int64, error) {
 	var items []models.MarketplaceItem
 	var total int64
@@ -193,10 +191,9 @@ func (r *MarketplaceRepository) GetMarketplaceItems(filter MarketplaceFilter) ([
 	return items, total, nil
 }
 
-// GetMarketplaceItemByID retrieves a single marketplace item by ID
 func (r *MarketplaceRepository) GetMarketplaceItemByID(id string) (*models.MarketplaceItem, error) {
 	var item models.MarketplaceItem
-	err := r.DB.Session(&gorm.Session{PrepareStmt: false}).Where(`"Id" = ? AND "DeletedAt" IS NULL`, id).
+	err := r.DB.Session(&gorm.Session{PrepareStmt: false}).Where(&models.MarketplaceItem{Id: id, DeletedAt: nil}).
 		First(&item).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -224,12 +221,11 @@ func (r *MarketplaceRepository) GetMarketplaceItemByID(id string) (*models.Marke
 	return &item, nil
 }
 
-// UpdateMarketplaceItem updates a marketplace item
 func (r *MarketplaceRepository) UpdateMarketplaceItem(id string, userId string, updates map[string]any) (*models.MarketplaceItem, error) {
 	// Verify ownership
 	var count int64
 	if err := r.DB.Model(&models.MarketplaceItem{}).
-		Where(`"Id" = ? AND "AuthorId" = ? AND "DeletedAt" IS NULL`, id, userId).
+		Where(&models.MarketplaceItem{Id: id, AuthorId: userId, DeletedAt: nil}).
 		Count(&count).Error; err != nil {
 		return nil, err
 	}
@@ -241,7 +237,7 @@ func (r *MarketplaceRepository) UpdateMarketplaceItem(id string, userId string, 
 		// Handle tag updates
 		if tagIds, ok := updates["TagIds"].([]string); ok {
 			// Delete existing tags
-			if err := tx.Where(`"ItemId" = ?`, id).Delete(&models.MarketplaceItemTag{}).Error; err != nil {
+			if err := tx.Where(&models.MarketplaceItemTag{ItemId: id}).Delete(&models.MarketplaceItemTag{}).Error; err != nil {
 				return err
 			}
 			// Add new tags
@@ -260,7 +256,7 @@ func (r *MarketplaceRepository) UpdateMarketplaceItem(id string, userId string, 
 		// Handle category updates
 		if categoryIds, ok := updates["CategoryIds"].([]string); ok {
 			// Delete existing categories
-			if err := tx.Where(`"ItemId" = ?`, id).Delete(&models.MarketplaceItemCategory{}).Error; err != nil {
+			if err := tx.Where(&models.MarketplaceItemCategory{ItemId: id}).Delete(&models.MarketplaceItemCategory{}).Error; err != nil {
 				return err
 			}
 			// Add new categories
@@ -280,7 +276,7 @@ func (r *MarketplaceRepository) UpdateMarketplaceItem(id string, userId string, 
 		if len(updates) > 0 {
 			updates["UpdatedAt"] = time.Now()
 			if err := tx.Model(&models.MarketplaceItem{}).
-				Where(`"Id" = ?`, id).
+				Where(&models.MarketplaceItem{Id: id}).
 				Updates(updates).Error; err != nil {
 				return err
 			}
@@ -296,11 +292,10 @@ func (r *MarketplaceRepository) UpdateMarketplaceItem(id string, userId string, 
 	return r.GetMarketplaceItemByID(id)
 }
 
-// DeleteMarketplaceItem soft deletes a marketplace item
 func (r *MarketplaceRepository) DeleteMarketplaceItem(id string, userId string) error {
 	result := r.DB.Model(&models.MarketplaceItem{}).
-		Where(`"Id" = ? AND "AuthorId" = ? AND "DeletedAt" IS NULL`, id, userId).
-		Update("DeletedAt", time.Now())
+		Where(&models.MarketplaceItem{Id: id, AuthorId: userId, DeletedAt: nil}).
+		Update("\"DeletedAt\"", time.Now())
 	if result.Error != nil {
 		return result.Error
 	}
@@ -310,7 +305,6 @@ func (r *MarketplaceRepository) DeleteMarketplaceItem(id string, userId string) 
 	return nil
 }
 
-// DownloadMarketplaceItem clones a project from a marketplace item
 func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId string) (*models.Project, error) {
 	// Get the marketplace item with its ProjectId
 	item, err := r.GetMarketplaceItemByID(itemId)
@@ -438,21 +432,18 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId st
 	return &newProject, nil
 }
 
-// IncrementDownloads increments the download count
 func (r *MarketplaceRepository) IncrementDownloads(id string) error {
 	return r.DB.Model(&models.MarketplaceItem{}).
-		Where(`"Id" = ?`, id).
-		Update("Downloads", gorm.Expr(`"Downloads" + 1`)).Error
+		Where(&models.MarketplaceItem{Id: id}).
+		Update("\"Downloads\"", gorm.Expr(`"Downloads" + 1`)).Error
 }
 
-// IncrementLikes increments the like count
 func (r *MarketplaceRepository) IncrementLikes(id string) error {
 	return r.DB.Model(&models.MarketplaceItem{}).
-		Where(`"Id" = ?`, id).
-		Update("Likes", gorm.Expr(`"Likes" + 1`)).Error
+		Where(&models.MarketplaceItem{Id: id}).
+		Update("\"Likes\"", gorm.Expr(`"Likes" + 1`)).Error
 }
 
-// CreateCategory creates a new category
 func (r *MarketplaceRepository) CreateCategory(category models.Category) (*models.Category, error) {
 	if err := r.DB.Create(&category).Error; err != nil {
 		return nil, err
@@ -460,7 +451,6 @@ func (r *MarketplaceRepository) CreateCategory(category models.Category) (*model
 	return &category, nil
 }
 
-// GetCategories retrieves all categories
 func (r *MarketplaceRepository) GetCategories() ([]models.Category, error) {
 	var categories []models.Category
 	if err := r.DB.Order(`"Name" ASC`).Find(&categories).Error; err != nil {
@@ -469,10 +459,9 @@ func (r *MarketplaceRepository) GetCategories() ([]models.Category, error) {
 	return categories, nil
 }
 
-// GetCategoryByID retrieves a category by ID
 func (r *MarketplaceRepository) GetCategoryByID(id string) (*models.Category, error) {
 	var category models.Category
-	err := r.DB.Where(`"Id" = ?`, id).First(&category).Error
+	err := r.DB.Where(&models.Category{Id: id}).First(&category).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -482,10 +471,9 @@ func (r *MarketplaceRepository) GetCategoryByID(id string) (*models.Category, er
 	return &category, nil
 }
 
-// GetCategoryByName retrieves a category by name
 func (r *MarketplaceRepository) GetCategoryByName(name string) (*models.Category, error) {
 	var category models.Category
-	err := r.DB.Where(`"Name" = ?`, name).First(&category).Error
+	err := r.DB.Where(&models.Category{Name: name}).First(&category).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -495,9 +483,8 @@ func (r *MarketplaceRepository) GetCategoryByName(name string) (*models.Category
 	return &category, nil
 }
 
-// DeleteCategory deletes a category
 func (r *MarketplaceRepository) DeleteCategory(id string) error {
-	result := r.DB.Where(`"Id" = ?`, id).Delete(&models.Category{})
+	result := r.DB.Where(&models.Category{Id: id}).Delete(&models.Category{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -507,7 +494,6 @@ func (r *MarketplaceRepository) DeleteCategory(id string) error {
 	return nil
 }
 
-// CreateTag creates a new tag
 func (r *MarketplaceRepository) CreateTag(tag models.Tag) (*models.Tag, error) {
 	if err := r.DB.Create(&tag).Error; err != nil {
 		return nil, err
@@ -515,7 +501,6 @@ func (r *MarketplaceRepository) CreateTag(tag models.Tag) (*models.Tag, error) {
 	return &tag, nil
 }
 
-// GetTags retrieves all tags
 func (r *MarketplaceRepository) GetTags() ([]models.Tag, error) {
 	var tags []models.Tag
 	if err := r.DB.Order(`"Name" ASC`).Find(&tags).Error; err != nil {
@@ -524,10 +509,9 @@ func (r *MarketplaceRepository) GetTags() ([]models.Tag, error) {
 	return tags, nil
 }
 
-// GetTagByID retrieves a tag by ID
 func (r *MarketplaceRepository) GetTagByID(id string) (*models.Tag, error) {
 	var tag models.Tag
-	err := r.DB.Where(`"Id" = ?`, id).First(&tag).Error
+	err := r.DB.Where(&models.Tag{Id: id}).First(&tag).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -537,10 +521,9 @@ func (r *MarketplaceRepository) GetTagByID(id string) (*models.Tag, error) {
 	return &tag, nil
 }
 
-// GetTagByName retrieves a tag by name
 func (r *MarketplaceRepository) GetTagByName(name string) (*models.Tag, error) {
 	var tag models.Tag
-	err := r.DB.Where(`"Name" = ?`, name).First(&tag).Error
+	err := r.DB.Where(&models.Tag{Name: name}).First(&tag).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -550,9 +533,8 @@ func (r *MarketplaceRepository) GetTagByName(name string) (*models.Tag, error) {
 	return &tag, nil
 }
 
-// DeleteTag deletes a tag
 func (r *MarketplaceRepository) DeleteTag(id string) error {
-	result := r.DB.Where(`"Id" = ?`, id).Delete(&models.Tag{})
+	result := r.DB.Where(&models.Tag{Id: id}).Delete(&models.Tag{})
 	if result.Error != nil {
 		return result.Error
 	}

@@ -19,3 +19,6 @@ type Project struct {
 	DeletedAt   *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
 }
 
+func (Project) TableName() string {
+	return `public."Project"`
+}

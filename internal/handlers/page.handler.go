@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"my-go-app/internal/repositories"
+	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -17,36 +18,28 @@ func NewPageHandler(pageRepo repositories.PageRepositoryInterface) *PageHandler 
 }
 
 func (h *PageHandler) DeletePage(c *fiber.Ctx) error {
-	projectID := c.Params("projectid")
-	pageID := c.Params("pageid")
-
-	if projectID == "" || pageID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Project ID and Page ID are required",
-			"errorMessage": "Missing projectid or pageid parameter in URL",
-		})
+	projectID, err := utils.ValidateRequiredParam(c, "projectid")
+	if err != nil {
+		return err
 	}
 
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to access this resource",
-		})
+	pageID, err := utils.ValidateRequiredParam(c, "pageid")
+	if err != nil {
+		return err
 	}
 
-	err := h.pageRepository.DeletePageByProjectID(pageID, projectID, userID)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+
+	err = h.pageRepository.DeletePageByProjectID(c.Context(), pageID, projectID, userID)
 	if err != nil {
 		if err.Error() == "record not found" {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "Page not found or not owned by user",
-			})
+			return utils.SendError(c, fiber.StatusNotFound, "Page not found or not owned by user", nil)
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to delete page",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete page", err)
 	}
 
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	return utils.SendNoContent(c)
 }

@@ -3,6 +3,7 @@ package handlers
 import (
 	"log"
 	"my-go-app/internal/repositories"
+	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -18,15 +19,15 @@ func NewElementHandler(elementRepo repositories.ElementRepositoryInterface) *Ele
 }
 
 func (h *ElementHandler) GetElements(c *fiber.Ctx) error {
-	projectID := c.Params("projectid")
+	projectID, err := utils.ValidateRequiredParam(c, "projectid")
+	if err != nil {
+		return err
+	}
 
-	elements, err := h.elementRepo.GetElements(projectID)
+	elements, err := h.elementRepo.GetElements(c.Context(), projectID)
 	if err != nil {
 		log.Println("Error retrieving elements:", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve elements",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve elements", err)
 	}
-	return c.Status(fiber.StatusOK).JSON(elements)
+	return utils.SendJSON(c, fiber.StatusOK, elements)
 }

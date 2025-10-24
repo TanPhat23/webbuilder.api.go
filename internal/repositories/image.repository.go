@@ -17,7 +17,6 @@ func NewImageRepository(db *gorm.DB) *ImageRepository {
 	}
 }
 
-// CreateImage creates a new image record
 func (r *ImageRepository) CreateImage(image models.Image) (*models.Image, error) {
 	if err := r.DB.Create(&image).Error; err != nil {
 		return nil, err
@@ -25,10 +24,9 @@ func (r *ImageRepository) CreateImage(image models.Image) (*models.Image, error)
 	return &image, nil
 }
 
-// GetImagesByUserID retrieves all images for a specific user (excluding soft-deleted)
 func (r *ImageRepository) GetImagesByUserID(userID string) ([]models.Image, error) {
 	var images []models.Image
-	err := r.DB.Where("\"UserId\" = ? AND \"DeletedAt\" IS NULL", userID).
+	err := r.DB.Where(&models.Image{UserId: userID, DeletedAt: nil}).
 		Order("\"CreatedAt\" DESC").
 		Find(&images).Error
 	if err != nil {
@@ -37,10 +35,9 @@ func (r *ImageRepository) GetImagesByUserID(userID string) ([]models.Image, erro
 	return images, nil
 }
 
-// GetImageByID retrieves a specific image by ID and user ID
 func (r *ImageRepository) GetImageByID(imageID string, userID string) (*models.Image, error) {
 	var image models.Image
-	err := r.DB.Where("\"ImageId\" = ? AND \"UserId\" = ? AND \"DeletedAt\" IS NULL", imageID, userID).
+	err := r.DB.Where(&models.Image{ImageId: imageID, UserId: userID, DeletedAt: nil}).
 		First(&image).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -51,9 +48,8 @@ func (r *ImageRepository) GetImageByID(imageID string, userID string) (*models.I
 	return &image, nil
 }
 
-// DeleteImage permanently deletes an image record
 func (r *ImageRepository) DeleteImage(imageID string, userID string) error {
-	result := r.DB.Where("\"ImageId\" = ? AND \"UserId\" = ?", imageID, userID).
+	result := r.DB.Where(&models.Image{ImageId: imageID, UserId: userID}).
 		Delete(&models.Image{})
 	if result.Error != nil {
 		return result.Error
@@ -64,12 +60,11 @@ func (r *ImageRepository) DeleteImage(imageID string, userID string) error {
 	return nil
 }
 
-// SoftDeleteImage soft deletes an image record by setting DeletedAt timestamp
 func (r *ImageRepository) SoftDeleteImage(imageID string, userID string) error {
 	now := time.Now()
 	result := r.DB.Model(&models.Image{}).
-		Where("\"ImageId\" = ? AND \"UserId\" = ? AND \"DeletedAt\" IS NULL", imageID, userID).
-		Update("DeletedAt", now)
+		Where(&models.Image{ImageId: imageID, UserId: userID, DeletedAt: nil}).
+		Update("\"DeletedAt\"", now)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -79,10 +74,9 @@ func (r *ImageRepository) SoftDeleteImage(imageID string, userID string) error {
 	return nil
 }
 
-// GetAllImages retrieves all images with pagination (excluding soft-deleted)
 func (r *ImageRepository) GetAllImages(limit int, offset int) ([]models.Image, error) {
 	var images []models.Image
-	query := r.DB.Where("\"DeletedAt\" IS NULL").
+	query := r.DB.Where(&models.Image{DeletedAt: nil}).
 		Order("\"CreatedAt\" DESC")
 
 	if limit > 0 {

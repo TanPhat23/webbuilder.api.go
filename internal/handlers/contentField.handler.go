@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"encoding/json"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
+	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -19,93 +19,87 @@ func NewContentFieldHandler(contentFieldRepo repositories.ContentFieldRepository
 }
 
 func (h *ContentFieldHandler) GetContentFieldsByContentType(c *fiber.Ctx) error {
-	contentTypeId := c.Params("contentTypeId")
-	if contentTypeId == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content type ID is required",
-			"errorMessage": "Missing contentTypeId parameter in URL",
-		})
+	contentTypeId, err := utils.ValidateRequiredParam(c, "contentTypeId")
+	if err != nil {
+		return err
 	}
 
-	contentFields, err := h.contentFieldRepository.GetContentFieldsByContentType(contentTypeId)
+	contentFields, err := h.contentFieldRepository.GetContentFieldsByContentType(c.Context(), contentTypeId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve content fields",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content fields", err)
 	}
-	return c.Status(fiber.StatusOK).JSON(contentFields)
+	return utils.SendJSON(c, fiber.StatusOK, contentFields)
 }
 
 func (h *ContentFieldHandler) GetContentFieldByID(c *fiber.Ctx) error {
-	id := c.Params("fieldId")
-	if id == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content field ID is required",
-			"errorMessage": "Missing fieldId parameter in URL",
-		})
+	id, err := utils.ValidateRequiredParam(c, "fieldId")
+	if err != nil {
+		return err
 	}
 
-	contentField, err := h.contentFieldRepository.GetContentFieldByID(id)
+	contentField, err := h.contentFieldRepository.GetContentFieldByID(c.Context(), id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve content field",
-			"errorMessage": err.Error(),
-		})
+		if err.Error() == "content field not found" {
+			return utils.SendError(c, fiber.StatusNotFound, "Content field not found", err)
+		}
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content field", err)
 	}
-	if contentField == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Content field not found",
-		})
-	}
-	return c.Status(fiber.StatusOK).JSON(contentField)
+	return utils.SendJSON(c, fiber.StatusOK, contentField)
 }
 
 func (h *ContentFieldHandler) CreateContentField(c *fiber.Ctx) error {
-	contentTypeId := c.Params("contentTypeId")
-	if contentTypeId == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content type ID is required",
-			"errorMessage": "Missing contentTypeId parameter in URL",
-		})
+	contentTypeId, err := utils.ValidateRequiredParam(c, "contentTypeId")
+	if err != nil {
+		return err
 	}
 
 	var contentField models.ContentField
-	if err := json.Unmarshal(c.Body(), &contentField); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid JSON body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateJSONBody(c, &contentField); err != nil {
+		return err
 	}
 	contentField.ContentTypeId = contentTypeId
 
-	createdContentField, err := h.contentFieldRepository.CreateContentField(contentField)
+	createdContentField, err := h.contentFieldRepository.CreateContentField(c.Context(), &contentField)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to create content field",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create content field", err)
 	}
-	return c.Status(fiber.StatusCreated).JSON(createdContentField)
+	return utils.SendJSON(c, fiber.StatusCreated, createdContentField)
 }
 
 func (h *ContentFieldHandler) UpdateContentField(c *fiber.Ctx) error {
-	id := c.Params("fieldId")
-	if id == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content field ID is required",
-			"errorMessage": "Missing fieldId parameter in URL",
-		})
+	id, err := utils.ValidateRequiredParam(c, "fieldId")
+	if err != nil {
+		return err
 	}
 
 	var updates map[string]any
-	if err := json.Unmarshal(c.Body(), &updates); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid JSON body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateJSONBody(c, &updates); err != nil {
+		return err
 	}
 
+	columnUpdates := h.buildColumnUpdates(updates)
+
+	updatedContentField, err := h.contentFieldRepository.UpdateContentField(c.Context(), id, columnUpdates)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update content field", err)
+	}
+	return utils.SendJSON(c, fiber.StatusOK, updatedContentField)
+}
+
+func (h *ContentFieldHandler) DeleteContentField(c *fiber.Ctx) error {
+	id, err := utils.ValidateRequiredParam(c, "fieldId")
+	if err != nil {
+		return err
+	}
+
+	err = h.contentFieldRepository.DeleteContentField(c.Context(), id)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete content field", err)
+	}
+	return utils.SendNoContent(c)
+}
+
+func (h *ContentFieldHandler) buildColumnUpdates(updates map[string]any) map[string]any {
 	columnUpdates := make(map[string]any)
 	for k, v := range updates {
 		switch k {
@@ -119,37 +113,5 @@ func (h *ContentFieldHandler) UpdateContentField(c *fiber.Ctx) error {
 			columnUpdates[k] = v
 		}
 	}
-
-	updatedContentField, err := h.contentFieldRepository.UpdateContentField(id, columnUpdates)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to update content field",
-			"errorMessage": err.Error(),
-		})
-	}
-	if updatedContentField == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Content field not found",
-		})
-	}
-	return c.Status(fiber.StatusOK).JSON(updatedContentField)
-}
-
-func (h *ContentFieldHandler) DeleteContentField(c *fiber.Ctx) error {
-	id := c.Params("fieldId")
-	if id == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content field ID is required",
-			"errorMessage": "Missing fieldId parameter in URL",
-		})
-	}
-
-	err := h.contentFieldRepository.DeleteContentField(id)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to delete content field",
-			"errorMessage": err.Error(),
-		})
-	}
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	return columnUpdates
 }
