@@ -19,19 +19,23 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	contentItemHandler := handlers.NewContentItemHandler(repos.ContentItemRepository)
 	imageHandler := handlers.NewImageHandler(repos.ImageRepository, cloudinaryService)
 	marketplaceHandler := handlers.NewMarketplaceHandler(repos.MarketplaceRepository)
+	customElementHandler := handlers.NewCustomElementHandler(repos.CustomElementRepository)
+	customElementTypeHandler := handlers.NewCustomElementTypeHandler(repos.CustomElementTypeRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
 	group.Get("/elements/:projectid", elementHandler.GetElements)
 
 	group.Get("/projects/user", projectHandler.GetProjectByUserID)
-	group.Get("/projects/:projectid", projectHandler.GetPrivateProjectByID)
+	group.Get("/projects/:projectid", projectHandler.GetProjectByID)
 	group.Get("/projects/:projectid/pages", projectHandler.GetProjectPages)
 	group.Delete("/projects/:projectid", projectHandler.DeleteProject)
 	group.Patch("/projects/:projectid", projectHandler.UpdateProject)
 	group.Delete("/projects/:projectid/pages/:pageid", pageHandler.DeletePage)
 
 	group.Post("/snapshots/:projectid/save", snapshotHandler.SaveSnapshot)
+	group.Get("/snapshots/:projectid", snapshotHandler.GetSnapshots)
+	group.Get("/snapshots/:projectid/:snapshotid", snapshotHandler.GetSnapshotByID)
 
 	group.Get("/content-types", contentTypeHandler.GetContentTypes)
 	group.Post("/content-types", contentTypeHandler.CreateContentType)
@@ -76,4 +80,20 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Post("/marketplace/tags", marketplaceHandler.CreateTag)
 	group.Get("/marketplace/tags", marketplaceHandler.GetTags)
 	group.Delete("/marketplace/tags/:tagid", marketplaceHandler.DeleteTag)
+
+	// Custom element routes
+	group.Get("/customelements", customElementHandler.GetCustomElements)
+	group.Get("/customelements/public", customElementHandler.GetPublicCustomElements)
+	group.Get("/customelements/:id", customElementHandler.GetCustomElementByID)
+	group.Post("/customelements", customElementHandler.CreateCustomElement)
+	group.Patch("/customelements/:id", customElementHandler.UpdateCustomElement)
+	group.Delete("/customelements/:id", customElementHandler.DeleteCustomElement)
+	group.Post("/customelements/:id/duplicate", customElementHandler.DuplicateCustomElement)
+
+	// Custom element type routes
+	group.Get("/customelementtypes", customElementTypeHandler.GetCustomElementTypes)
+	group.Get("/customelementtypes/:id", customElementTypeHandler.GetCustomElementTypeByID)
+	group.Post("/customelementtypes", customElementTypeHandler.CreateCustomElementType)
+	group.Patch("/customelementtypes/:id", customElementTypeHandler.UpdateCustomElementType)
+	group.Delete("/customelementtypes/:id", customElementTypeHandler.DeleteCustomElementType)
 }

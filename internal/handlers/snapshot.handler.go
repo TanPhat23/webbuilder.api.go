@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"my-go-app/internal/models"
@@ -26,6 +27,8 @@ func NewSnapshotHandler(snapshotRepo repositories.SnapshotRepositoryInterface, e
 
 type SaveSnapshotRequest struct {
 	Id        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Type      string                 `json:"type,omitempty"` // "working" or "version"
 	Elements  []any          `json:"elements"`
 	Timestamp int64                  `json:"timestamp,omitempty"` // optional, will use current if not provided
 }
@@ -38,30 +41,19 @@ func (h *SnapshotHandler) SaveSnapshot(c *fiber.Ctx) error {
 
 	elements, err := h.processElements(req.Elements)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid element structure",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusBadRequest, "Invalid element structure", err)
 	}
 
 	snapshot, err := h.createSnapshot(projectId, req, elements)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to create snapshot",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create snapshot", err)
 	}
 
-	if err := h.saveAndSyncSnapshot(projectId, snapshot, elements); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to save and sync snapshot",
-			"errorMessage": err.Error(),
-		})
+	if err := h.saveAndSyncSnapshot(c.Context(), projectId, snapshot, elements); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save and sync snapshot", err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "Snapshot saved successfully",
-	})
+	return utils.SendSuccess(c, fiber.StatusCreated, "Snapshot saved successfully")
 }
 
 func (h *SnapshotHandler) validateAndParseRequest(c *fiber.Ctx) (string, SaveSnapshotRequest, error) {
@@ -105,26 +97,86 @@ func (h *SnapshotHandler) createSnapshot(projectId string, req SaveSnapshotReque
 		return models.Snapshot{}, err
 	}
 
+	snapshotType := "working"
+	if req.Type != "" {
+		snapshotType = req.Type
+	}
+
 	return models.Snapshot{
 		Id:        req.Id,
 		ProjectId: projectId,
+		Name:      req.Name,
+		Type:      snapshotType,
 		Elements:  elementsJSON,
 		Timestamp: timestamp.UnixMilli(),
 	}, nil
 }
 
-func (h *SnapshotHandler) saveAndSyncSnapshot(projectId string, snapshot models.Snapshot, elements []models.EditorElement) error {
-	if err := h.snapshotRepo.SaveSnapshot(projectId, snapshot); err != nil {
+func (h *SnapshotHandler) saveAndSyncSnapshot(ctx context.Context, projectId string, snapshot models.Snapshot, elements []models.EditorElement) error {
+	if err := h.snapshotRepo.SaveSnapshot(ctx, projectId, &snapshot); err != nil {
 		log.Printf("Error saving snapshot for project %s: %v", projectId, err)
 		return err
 	}
 
 	log.Printf("About to sync elements for project: %s with %d elements", projectId, len(elements))
-	if err := h.elementRepo.ReplaceElements(projectId, elements); err != nil {
+	if err := h.elementRepo.ReplaceElements(ctx, projectId, elements); err != nil {
 		log.Printf("Error syncing elements with snapshot for project %s: %v", projectId, err)
 		return err
 	}
 	log.Printf("Successfully synced elements for project: %s", projectId)
 
 	return nil
+}
+
+func (h *SnapshotHandler) GetSnapshots(c *fiber.Ctx) error {
+	projectId, err := utils.ValidateRequiredParam(c, "projectid")
+	if err != nil {
+		return err
+	}
+
+	snapshots, err := h.snapshotRepo.GetSnapshotsByProjectID(c.Context(), projectId)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to get snapshots", err)
+	}
+
+	return utils.SendJSON(c, fiber.StatusOK, snapshots)
+}
+
+func (h *SnapshotHandler) GetSnapshotByID(c *fiber.Ctx) error {
+	snapshotId, err := utils.ValidateRequiredParam(c, "snapshotid")
+	if err != nil {
+		return err
+	}
+
+	snapshot, err := h.snapshotRepo.GetSnapshotByID(c.Context(), snapshotId)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to get snapshot", err)
+	}
+
+	return utils.SendJSON(c, fiber.StatusOK, snapshot)
+}
+
+func (h *SnapshotHandler) DeleteSnapshot(c *fiber.Ctx) error {
+	snapshotId, err := utils.ValidateRequiredParam(c, "snapshotid")
+	if err != nil {
+		return err
+	}
+
+	// Optional: Check if snapshot exists and is not working type
+	snapshot, err := h.snapshotRepo.GetSnapshotByID(c.Context(), snapshotId)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusNotFound, "Snapshot not found", err)
+	}
+
+	// Prevent deleting working snapshots
+	if snapshot.Type == "working" {
+		return utils.SendError(c, fiber.StatusBadRequest, "Cannot delete working snapshots", nil)
+	}
+
+	err = h.snapshotRepo.DeleteSnapshot(c.Context(), snapshotId)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete snapshot", err)
+	}
+
+	return utils.SendSuccess(c, fiber.StatusOK, "Snapshot deleted successfully")
 }

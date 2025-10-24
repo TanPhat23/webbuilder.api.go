@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
@@ -23,143 +22,86 @@ func NewContentItemHandler(contentItemRepo repositories.ContentItemRepositoryInt
 }
 
 func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
-	contentTypeId := c.Params("contentTypeId")
-	if contentTypeId == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content type ID is required",
-			"errorMessage": "Missing contentTypeId parameter in URL",
-		})
+	contentTypeId, err := utils.ValidateRequiredParam(c, "contentTypeId")
+	if err != nil {
+		return err
 	}
 
-	contentItems, err := h.contentItemRepository.GetContentItemsByContentType(contentTypeId)
+	contentItems, err := h.contentItemRepository.GetContentItemsByContentType(c.Context(), contentTypeId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve content items",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content items", err)
 	}
-	return c.Status(fiber.StatusOK).JSON(contentItems)
+	return utils.SendJSON(c, fiber.StatusOK, contentItems)
 }
 
 func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
-	id := c.Params("itemId")
-	if id == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content item ID is required",
-			"errorMessage": "Missing itemId parameter in URL",
-		})
+	id, err := utils.ValidateRequiredParam(c, "itemId")
+	if err != nil {
+		return err
 	}
 
-	contentItem, err := h.contentItemRepository.GetContentItemByID(id)
+	contentItem, err := h.contentItemRepository.GetContentItemByID(c.Context(), id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve content item",
-			"errorMessage": err.Error(),
-		})
+		if err.Error() == "content item not found" {
+			return utils.SendError(c, fiber.StatusNotFound, "Content item not found", err)
+		}
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content item", err)
 	}
-	if contentItem == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Content item not found",
-		})
-	}
-	return c.Status(fiber.StatusOK).JSON(contentItem)
+	return utils.SendJSON(c, fiber.StatusOK, contentItem)
 }
 
 func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
-	contentTypeId := c.Params("contentTypeId")
-	if contentTypeId == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content type ID is required",
-			"errorMessage": "Missing contentTypeId parameter in URL",
-		})
+	contentTypeId, err := utils.ValidateRequiredParam(c, "contentTypeId")
+	if err != nil {
+		return err
 	}
 
 	var contentItem models.ContentItem
-	if err := json.Unmarshal(c.Body(), &contentItem); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid JSON body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateJSONBody(c, &contentItem); err != nil {
+		return err
 	}
 	fieldValues := contentItem.FieldValues
 	contentItem.FieldValues = nil
 	contentItem.ContentTypeId = contentTypeId
 
-	createdContentItem, err := h.contentItemRepository.CreateContentItem(contentItem, fieldValues)
+	createdContentItem, err := h.contentItemRepository.CreateContentItem(c.Context(), &contentItem, fieldValues)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to create content item",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create content item", err)
 	}
-	return c.Status(fiber.StatusCreated).JSON(createdContentItem)
+	return utils.SendJSON(c, fiber.StatusCreated, createdContentItem)
 }
 
 func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
-	id := c.Params("itemId")
-	if id == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content item ID is required",
-			"errorMessage": "Missing itemId parameter in URL",
-		})
+	id, err := utils.ValidateRequiredParam(c, "itemId")
+	if err != nil {
+		return err
 	}
 
 	var updates map[string]any
-	if err := json.Unmarshal(c.Body(), &updates); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid JSON body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateJSONBody(c, &updates); err != nil {
+		return err
 	}
 
-	columnUpdates := make(map[string]any)
-	for k, v := range updates {
-		switch k {
-		case "published":
-			columnUpdates["Published"] = v
-		case "slug":
-			columnUpdates["Slug"] = v
-		case "title":
-			columnUpdates["Title"] = v
-		case "updatedAt":
-			columnUpdates["UpdatedAt"] = v
-		default:
-			columnUpdates[k] = v
-		}
-	}
+	columnUpdates := h.buildColumnUpdates(updates)
 
-	updatedContentItem, err := h.contentItemRepository.UpdateContentItem(id, columnUpdates)
+	updatedContentItem, err := h.contentItemRepository.UpdateContentItem(c.Context(), id, columnUpdates)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to update content item",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update content item", err)
 	}
-	if updatedContentItem == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Content item not found",
-		})
-	}
-	return c.Status(fiber.StatusOK).JSON(updatedContentItem)
+	return utils.SendJSON(c, fiber.StatusOK, updatedContentItem)
 }
 
 func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
-	id := c.Params("itemId")
-	if id == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content item ID is required",
-			"errorMessage": "Missing itemId parameter in URL",
-		})
+	id, err := utils.ValidateRequiredParam(c, "itemId")
+	if err != nil {
+		return err
 	}
 
-	err := h.contentItemRepository.DeleteContentItem(id)
+	err = h.contentItemRepository.DeleteContentItem(c.Context(), id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to delete content item",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete content item", err)
 	}
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	return utils.SendNoContent(c)
 }
 
 func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
@@ -187,38 +129,51 @@ func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
 		}
 	}
 
-	contentItems, err := h.contentItemRepository.GetPublicContentItems(contentTypeId, limit, sortBy, sortOrder)
+	contentItems, err := h.contentItemRepository.GetPublicContentItems(c.Context(), contentTypeId, limit, sortBy, sortOrder)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve content items",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content items", err)
 	}
-	flattened := utils.FlattenContentItems(contentItems)
-	return c.Status(fiber.StatusOK).JSON(flattened)
+	return utils.SendJSON(c, fiber.StatusOK, contentItems)
 }
 
 func (h *ContentItemHandler) GetPublicContentItemBySlug(c *fiber.Ctx) error {
-	contentTypeId := c.Params("contentTypeId")
-	slug := c.Params("slug")
-	if contentTypeId == "" || slug == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Content type ID and slug are required",
-			"errorMessage": "Missing contentTypeId or slug parameter in URL",
-		})
+	contentTypeId, err := utils.ValidateRequiredParam(c, "contentTypeId")
+	if err != nil {
+		return err
+	}
+	slug, err := utils.ValidateRequiredParam(c, "slug")
+	if err != nil {
+		return err
 	}
 
-	contentItem, err := h.contentItemRepository.GetContentItemBySlug(contentTypeId, slug)
+	contentItem, err := h.contentItemRepository.GetContentItemBySlug(c.Context(), contentTypeId, slug)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve content item",
-			"errorMessage": err.Error(),
-		})
+		if err.Error() == "content item not found" {
+			return utils.SendError(c, fiber.StatusNotFound, "Content item not found", err)
+		}
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content item", err)
 	}
-	if contentItem == nil || !contentItem.Published {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Content item not found",
-		})
+	if !contentItem.Published {
+		return utils.SendError(c, fiber.StatusNotFound, "Content item not found", nil)
 	}
-	return c.Status(fiber.StatusOK).JSON(contentItem)
+	return utils.SendJSON(c, fiber.StatusOK, contentItem)
+}
+
+func (h *ContentItemHandler) buildColumnUpdates(updates map[string]any) map[string]any {
+	columnUpdates := make(map[string]any)
+	for k, v := range updates {
+		switch k {
+		case "published":
+			columnUpdates["Published"] = v
+		case "slug":
+			columnUpdates["Slug"] = v
+		case "title":
+			columnUpdates["Title"] = v
+		case "updatedAt":
+			columnUpdates["UpdatedAt"] = v
+		default:
+			columnUpdates[k] = v
+		}
+	}
+	return columnUpdates
 }

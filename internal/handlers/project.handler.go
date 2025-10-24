@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"my-go-app/internal/repositories"
+	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -18,181 +19,114 @@ func NewProjectHandler(projectRepo repositories.ProjectRepositoryInterface) *Pro
 }
 
 func (h *ProjectHandler) GetProject(c *fiber.Ctx) error {
-	projects, err := h.projectRepository.GetProjects()
 	userID, _ := c.Locals("userId").(string)
+	projects, err := h.projectRepository.GetProjects(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve projects",
-			"errorMessage": err.Error(),
-			"userId":       userID,
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve projects", err, userID)
 	}
-	return c.Status(fiber.StatusOK).JSON(projects)
+	return utils.SendJSON(c, fiber.StatusOK, projects)
 }
 
-func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
-	projectID := c.Params("projectid")
-	if projectID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Project ID is required",
-			"errorMessage": "Missing projectid parameter in URL",
-		})
-	}
-
-	project, err := h.projectRepository.GetPublicProjectByID(projectID)
+func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
+	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve project",
-			"errorMessage": err.Error(),
-		})
-	}
-	if project == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Project not found",
-		})
-	}
-	return c.Status(fiber.StatusOK).JSON(project)
-}
-
-func (h *ProjectHandler) GetPrivateProjectByID(c *fiber.Ctx) error {
-	projectID := c.Params("projectid")
-	if projectID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Project ID is required",
-			"errorMessage": "Missing projectid parameter in URL",
-			"userId":       c.Locals("userId"),
-		})
+		return err
 	}
 
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to access this resource",
-			"userId":       userID,
-		})
-	}
-
-	project, err := h.projectRepository.GetProjectByID(projectID, userID)
+	userID, err := utils.ValidateUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve project",
-			"errorMessage": err.Error(),
-			"userId":       userID,
-		})
+		return err
 	}
-	if project == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error":  "Project not found",
-			"userId": userID,
-		})
+
+	project, err := h.projectRepository.GetProjectByID(c.Context(), projectID, userID)
+	if err != nil {
+		if err.Error() == "project not found" {
+			return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, userID)
+		}
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve project", err, userID)
 	}
-	return c.Status(fiber.StatusOK).JSON(project)
+	return utils.SendJSON(c, fiber.StatusOK, project)
 }
 
 func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
-	projectID := c.Params("projectid")
-	if projectID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Project ID is required",
-			"errorMessage": "Missing projectid parameter in URL",
-			"userId":       c.Locals("userId"),
-		})
-	}
-
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to access this resource",
-			"userId":       userID,
-		})
-	}
-
-	pages, err := h.projectRepository.GetProjectPages(projectID, userID)
+	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve project pages",
-			"errorMessage": err.Error(),
-			"userId":       userID,
-		})
+		return err
 	}
-	return c.Status(fiber.StatusOK).JSON(pages)
+
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+
+	pages, err := h.projectRepository.GetProjectPages(c.Context(), projectID, userID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve project pages", err, userID)
+	}
+	return utils.SendJSON(c, fiber.StatusOK, pages)
 }
 
 func (h *ProjectHandler) GetProjectByUserID(c *fiber.Ctx) error {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to access this resource",
-			"userId":       userID,
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
-	projects, err := h.projectRepository.GetProjectsByUserID(userID)
+	projects, err := h.projectRepository.GetProjectsByUserID(c.Context(), userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve projects by user ID",
-			"errorMessage": err.Error(),
-			"userId":       userID,
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve projects by user ID", err, userID)
 	}
-	return c.Status(fiber.StatusOK).JSON(projects)
+	return utils.SendJSON(c, fiber.StatusOK, projects)
 }
 
 func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
-	projectID := c.Params("projectid")
-	if projectID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Project ID is required",
-			"errorMessage": "Missing projectid parameter in URL",
-		})
-	}
-
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to access this resource",
-		})
-	}
-
-	err := h.projectRepository.DeleteProject(projectID, userID)
+	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to delete project",
-			"errorMessage": err.Error(),
-		})
+		return err
 	}
-	return c.Status(fiber.StatusNoContent).Send(nil)
+
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+
+	err = h.projectRepository.DeleteProject(c.Context(), projectID, userID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete project", err)
+	}
+	return utils.SendNoContent(c)
 }
 
 func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
-	projectID := c.Params("projectid")
-	if projectID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Project ID is required",
-			"errorMessage": "Missing projectid parameter in URL",
-		})
+	projectID, err := utils.ValidateRequiredParam(c, "projectid")
+	if err != nil {
+		return err
 	}
 
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to access this resource",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	var updates map[string]any
-	if err := json.Unmarshal(c.Body(), &updates); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid JSON body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateJSONBody(c, &updates); err != nil {
+		return err
 	}
 
+	columnUpdates, err := h.buildColumnUpdates(updates)
+	if err != nil {
+		return err
+	}
+
+	updatedProject, err := h.projectRepository.UpdateProject(c.Context(), projectID, userID, columnUpdates)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update project", err)
+	}
+
+	return utils.SendJSON(c, fiber.StatusOK, updatedProject)
+}
+
+func (h *ProjectHandler) buildColumnUpdates(updates map[string]any) (map[string]any, error) {
 	columnUpdates := make(map[string]any)
 	for k, v := range updates {
 		switch k {
@@ -201,45 +135,24 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 		case "description":
 			columnUpdates["Description"] = v
 		case "styles":
-			if stylesJSON, err := json.Marshal(v); err == nil {
-				columnUpdates["Styles"] = json.RawMessage(stylesJSON)
-			} else {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error":        "Invalid styles format",
-					"errorMessage": err.Error(),
-				})
+			stylesJSON, err := json.Marshal(v)
+			if err != nil {
+				return nil, fiber.NewError(fiber.StatusBadRequest, "Invalid styles format: "+err.Error())
 			}
+			columnUpdates["Styles"] = json.RawMessage(stylesJSON)
 		case "header":
-			if headerJSON, err := json.Marshal(v); err == nil {
-				columnUpdates["Header"] = json.RawMessage(headerJSON)
-			} else {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error":        "Invalid header format",
-					"errorMessage": err.Error(),
-				})
+			headerJSON, err := json.Marshal(v)
+			if err != nil {
+				return nil, fiber.NewError(fiber.StatusBadRequest, "Invalid header format: "+err.Error())
 			}
+			columnUpdates["Header"] = json.RawMessage(headerJSON)
 		case "published":
 			columnUpdates["Published"] = v
 		case "subdomain":
 			columnUpdates["Subdomain"] = v
-		case "updatedAt":
-			columnUpdates["UpdatedAt"] = v
 		default:
 			columnUpdates[k] = v
 		}
 	}
-
-	updatedProject, err := h.projectRepository.UpdateProject(projectID, userID, columnUpdates)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to update project",
-			"errorMessage": err.Error(),
-		})
-	}
-	if updatedProject == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Project not found or not updated",
-		})
-	}
-	return c.Status(fiber.StatusOK).JSON(updatedProject)
+	return columnUpdates, nil
 }

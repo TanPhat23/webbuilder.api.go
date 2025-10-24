@@ -6,6 +6,6 @@ import (
 
 func LoggerConfig() logger.Config {
 	return logger.Config{
-		Format: "[${ip}]:${port} ${status} - ${method} ${path}\n",
+		Format: "${status} - ${method} ${path} user:${locals:userId}\n",
 	}
 }

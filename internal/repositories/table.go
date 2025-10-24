@@ -1,31 +1,16 @@
 package repositories
 
-type TableName string
-
-// Table names as for the database
+// Repository operation constants
 const (
-	TableProject TableName = `public."Project"`
+	// DefaultBatchSize is the default batch size for bulk operations
+	DefaultBatchSize = 500
 
-	TableElement TableName = `public."Element"`
+	// MaxBatchSize is the maximum allowed batch size
+	MaxBatchSize = 1000
 
-	TableSetting TableName = `public."Setting"`
+	// DefaultPageSize is the default page size for pagination
+	DefaultPageSize = 20
 
-	TablePage TableName = `public."Page"`
-
-	TableGroup TableName = `public."Group"`
-
-	TableSnapshot TableName = `public."Snapshot"`
-
-	TableContentType TableName = `public."ContentType"`
-
-	TableContentField TableName = `public."ContentField"`
-
-	TableContentFieldValue TableName = `public."ContentFieldValue"`
-
-	TableContentItem TableName = `public."ContentItem"`
+	// MaxPageSize is the maximum allowed page size for pagination
+	MaxPageSize = 100
 )
-
-//Convert TableName to string for gorm
-func (t TableName) String() string {
-	return string(t)
-}
