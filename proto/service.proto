@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package element;
+
+option go_package = "my-go-app/proto/element";
+
+message Element {
+  string id = 1;
+  string type = 2;
+  optional string content = 3;
+  optional string name = 4;
+  string styles = 5; // JSON string
+  optional string tailwind_styles = 6;
+  optional string src = 7;
+  optional string href = 8;
+  optional string parent_id = 9;
+  optional string page_id = 10;
+  string project_id = 11;
+
+  int32 order = 12;
+  optional string settings = 13;
+  repeated Element elements = 14;
+}
+
+message SaveSnapshotRequest {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string elements = 4;
+  int64 timestamp = 5;
+  string project_id = 6;
+}
+
+message SaveSnapshotResponse {
+  string message = 1;
+}
+
+service ElementSerivice {
+  rpc SaveSnapshot(SaveSnapshotRequest) returns (SaveSnapshotResponse);
+}

@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"log"
 	"my-go-app/internal/database"
 	"my-go-app/internal/routes"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/configs"
-	"my-go-app/pkg/services"
+	"my-go-app/proto/element"
+	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/gofiber/fiber/v2"
@@ -14,6 +19,8 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -33,6 +40,34 @@ func main() {
 
 	repos := database.NewRepositories(db)
 
+	elementService := services.NewElementService(repos.SnapshotRepository, repos.ElementRepository)
+
+	// Create context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start gRPC server
+	go func() {
+		lis, err := net.Listen("tcp", ":8081")
+		if err != nil {
+			log.Fatal("Failed to listen on gRPC port:", err)
+		}
+		s := grpc.NewServer()
+		element.RegisterElementSeriviceServer(s, elementService)
+		reflection.Register(s)
+		log.Println("gRPC server listening on :8081")
+
+		// Goroutine to handle shutdown
+		go func() {
+			<-ctx.Done()
+			log.Println("Shutting down gRPC server...")
+			s.GracefulStop()
+		}()
+
+		if err := s.Serve(lis); err != nil {
+			log.Fatal("Failed to serve gRPC:", err)
+		}
+	}()
+
 	// Initialize Cloudinary service
 	cloudinaryService, err := services.NewCloudinaryService()
 	if err != nil {
@@ -49,6 +84,16 @@ func main() {
 
 	routes.PublicRoutes(app, repos)
 	routes.PrivateRoutes(app, repos, cloudinaryService)
+
+	// Handle graceful shutdown
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		<-c
+		log.Println("Received signal, shutting down...")
+		cancel()
+		app.Shutdown()
+	}()
 
 	app.Listen(":8080")
 }

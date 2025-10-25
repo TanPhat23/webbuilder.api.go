@@ -3,8 +3,8 @@ package routes
 import (
 	"my-go-app/internal/handlers"
 	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/middleware"
-	"my-go-app/pkg/services"
 
 	"github.com/gofiber/fiber/v2"
 )

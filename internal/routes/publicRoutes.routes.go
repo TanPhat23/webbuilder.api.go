@@ -23,7 +23,7 @@ func PublicRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 	group.Get("/projects/public", projectHandler.GetProject)
 	group.Get("/public/content", contentItemHandler.GetPublicContentItems)
 	group.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicContentItemBySlug)
-
+	
 	// Public marketplace routes
 	// group.Get("/marketplace/categories", marketplaceHandler.GetCategories)
 	// group.Get("/marketplace/tags", marketplaceHandler.GetTags)
