@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package element;
+package proto;
 
-option go_package = "my-go-app/proto/element";
+option go_package = "my-go-app/proto";
 
 message Element {
   string id = 1;
@@ -35,6 +35,14 @@ message SaveSnapshotResponse {
   string message = 1;
 }
 
-service ElementSerivice {
+message ProjectElementsRequest {
+  string project_id = 1;
+}
+
+message ProjectElementsResponse {
+  repeated Element elements = 1;
+}
+service ElementService {
   rpc SaveSnapshot(SaveSnapshotRequest) returns (SaveSnapshotResponse);
+  rpc GetProjectElements(ProjectElementsRequest) returns (ProjectElementsResponse);
 }

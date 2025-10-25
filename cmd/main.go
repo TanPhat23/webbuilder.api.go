@@ -7,7 +7,7 @@ import (
 	"my-go-app/internal/routes"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/configs"
-	"my-go-app/proto/element"
+	"my-go-app/proto"
 	"net"
 	"os"
 	"os/signal"
@@ -52,7 +52,7 @@ func main() {
 			log.Fatal("Failed to listen on gRPC port:", err)
 		}
 		s := grpc.NewServer()
-		element.RegisterElementSeriviceServer(s, elementService)
+		proto.RegisterElementServiceServer(s, elementService)
 		reflection.Register(s)
 		log.Println("gRPC server listening on :8081")
 

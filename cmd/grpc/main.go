@@ -4,7 +4,7 @@ import (
 	"log"
 	"my-go-app/internal/database"
 	"my-go-app/internal/services"
-	"my-go-app/proto/element"
+	"my-go-app/proto"
 	"net"
 	"os"
 
@@ -43,7 +43,7 @@ func main() {
 		log.Fatal("Failed to listen on gRPC port:", err)
 	}
 	s := grpc.NewServer()
-	element.RegisterElementSeriviceServer(s, elementService)
+	proto.RegisterElementServiceServer(s, elementService)
 	reflection.Register(s)
 	log.Println("gRPC server listening on :" + port)
 	if err := s.Serve(lis); err != nil {
