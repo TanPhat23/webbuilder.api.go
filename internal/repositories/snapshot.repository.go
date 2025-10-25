@@ -17,7 +17,7 @@ var (
 
 const (
 	SnapshotTypeWorking = "working"
-	SnapshotTypeVersion = "verison"
+	SnapshotTypeVersion = "version"
 	SnapshotTypePublished = "published"
 )
 
