@@ -27,16 +27,16 @@ type Element struct {
 	Type           string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	Content        *string                `protobuf:"bytes,3,opt,name=content,proto3,oneof" json:"content,omitempty"`
 	Name           *string                `protobuf:"bytes,4,opt,name=name,proto3,oneof" json:"name,omitempty"`
-	Styles         string                 `protobuf:"bytes,5,opt,name=styles,proto3" json:"styles,omitempty"` // JSON string
-	TailwindStyles *string                `protobuf:"bytes,6,opt,name=tailwind_styles,json=tailwindStyles,proto3,oneof" json:"tailwind_styles,omitempty"`
+	Styles         string                 `protobuf:"bytes,5,opt,name=styles,proto3" json:"styles,omitempty"` // JSON string for ResponsiveStyles
+	TailwindStyles *string                `protobuf:"bytes,6,opt,name=tailwindStyles,proto3,oneof" json:"tailwindStyles,omitempty"`
 	Src            *string                `protobuf:"bytes,7,opt,name=src,proto3,oneof" json:"src,omitempty"`
 	Href           *string                `protobuf:"bytes,8,opt,name=href,proto3,oneof" json:"href,omitempty"`
-	ParentId       *string                `protobuf:"bytes,9,opt,name=parent_id,json=parentId,proto3,oneof" json:"parent_id,omitempty"`
-	PageId         *string                `protobuf:"bytes,10,opt,name=page_id,json=pageId,proto3,oneof" json:"page_id,omitempty"`
-	ProjectId      string                 `protobuf:"bytes,11,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	ParentId       *string                `protobuf:"bytes,9,opt,name=parentId,proto3,oneof" json:"parentId,omitempty"`
+	PageId         *string                `protobuf:"bytes,10,opt,name=pageId,proto3,oneof" json:"pageId,omitempty"`
+	ProjectId      string                 `protobuf:"bytes,11,opt,name=projectId,proto3" json:"projectId,omitempty"`
 	Order          int32                  `protobuf:"varint,12,opt,name=order,proto3" json:"order,omitempty"`
-	Settings       *string                `protobuf:"bytes,13,opt,name=settings,proto3,oneof" json:"settings,omitempty"`
-	Elements       []*Element             `protobuf:"bytes,14,rep,name=elements,proto3" json:"elements,omitempty"`
+	Settings       *string                `protobuf:"bytes,13,opt,name=settings,proto3,oneof" json:"settings,omitempty"` // JSON string for type-specific settings
+	Elements       []*Element             `protobuf:"bytes,14,rep,name=elements,proto3" json:"elements,omitempty"`       // Child elements
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -176,7 +176,7 @@ type SaveSnapshotRequest struct {
 	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
 	Elements      string                 `protobuf:"bytes,4,opt,name=elements,proto3" json:"elements,omitempty"`
 	Timestamp     int64                  `protobuf:"varint,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	ProjectId     string                 `protobuf:"bytes,6,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	ProjectId     string                 `protobuf:"bytes,6,opt,name=projectId,proto3" json:"projectId,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -299,7 +299,7 @@ func (x *SaveSnapshotResponse) GetMessage() string {
 
 type ProjectElementsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=projectId,proto3" json:"projectId,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -389,53 +389,48 @@ var File_proto_service_proto protoreflect.FileDescriptor
 
 const file_proto_service_proto_rawDesc = "" +
 	"\n" +
-	"\x13proto/service.proto\x12\x05proto\"\xfe\x03\n" +
+	"\x13proto/service.proto\x12\x05proto\"\xf7\x03\n" +
 	"\aElement\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1d\n" +
 	"\acontent\x18\x03 \x01(\tH\x00R\acontent\x88\x01\x01\x12\x17\n" +
 	"\x04name\x18\x04 \x01(\tH\x01R\x04name\x88\x01\x01\x12\x16\n" +
-	"\x06styles\x18\x05 \x01(\tR\x06styles\x12,\n" +
-	"\x0ftailwind_styles\x18\x06 \x01(\tH\x02R\x0etailwindStyles\x88\x01\x01\x12\x15\n" +
+	"\x06styles\x18\x05 \x01(\tR\x06styles\x12+\n" +
+	"\x0etailwindStyles\x18\x06 \x01(\tH\x02R\x0etailwindStyles\x88\x01\x01\x12\x15\n" +
 	"\x03src\x18\a \x01(\tH\x03R\x03src\x88\x01\x01\x12\x17\n" +
-	"\x04href\x18\b \x01(\tH\x04R\x04href\x88\x01\x01\x12 \n" +
-	"\tparent_id\x18\t \x01(\tH\x05R\bparentId\x88\x01\x01\x12\x1c\n" +
-	"\apage_id\x18\n" +
-	" \x01(\tH\x06R\x06pageId\x88\x01\x01\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\v \x01(\tR\tprojectId\x12\x14\n" +
+	"\x04href\x18\b \x01(\tH\x04R\x04href\x88\x01\x01\x12\x1f\n" +
+	"\bparentId\x18\t \x01(\tH\x05R\bparentId\x88\x01\x01\x12\x1b\n" +
+	"\x06pageId\x18\n" +
+	" \x01(\tH\x06R\x06pageId\x88\x01\x01\x12\x1c\n" +
+	"\tprojectId\x18\v \x01(\tR\tprojectId\x12\x14\n" +
 	"\x05order\x18\f \x01(\x05R\x05order\x12\x1f\n" +
 	"\bsettings\x18\r \x01(\tH\aR\bsettings\x88\x01\x01\x12*\n" +
 	"\belements\x18\x0e \x03(\v2\x0e.proto.ElementR\belementsB\n" +
 	"\n" +
 	"\b_contentB\a\n" +
-	"\x05_nameB\x12\n" +
-	"\x10_tailwind_stylesB\x06\n" +
+	"\x05_nameB\x11\n" +
+	"\x0f_tailwindStylesB\x06\n" +
 	"\x04_srcB\a\n" +
-	"\x05_hrefB\f\n" +
-	"\n" +
-	"_parent_idB\n" +
-	"\n" +
-	"\b_page_idB\v\n" +
-	"\t_settings\"\xa6\x01\n" +
+	"\x05_hrefB\v\n" +
+	"\t_parentIdB\t\n" +
+	"\a_pageIdB\v\n" +
+	"\t_settings\"\xa5\x01\n" +
 	"\x13SaveSnapshotRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x03 \x01(\tR\x04type\x12\x1a\n" +
 	"\belements\x18\x04 \x01(\tR\belements\x12\x1c\n" +
-	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x06 \x01(\tR\tprojectId\"0\n" +
+	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\x12\x1c\n" +
+	"\tprojectId\x18\x06 \x01(\tR\tprojectId\"0\n" +
 	"\x14SaveSnapshotResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"7\n" +
-	"\x16ProjectElementsRequest\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\"E\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"6\n" +
+	"\x16ProjectElementsRequest\x12\x1c\n" +
+	"\tprojectId\x18\x01 \x01(\tR\tprojectId\"E\n" +
 	"\x17ProjectElementsResponse\x12*\n" +
 	"\belements\x18\x01 \x03(\v2\x0e.proto.ElementR\belements2\xae\x01\n" +
 	"\x0eElementService\x12G\n" +
 	"\fSaveSnapshot\x12\x1a.proto.SaveSnapshotRequest\x1a\x1b.proto.SaveSnapshotResponse\x12S\n" +
-	"\x12GetProjectElements\x12\x1d.proto.ProjectElementsRequest\x1a\x1e.proto.ProjectElementsResponseB\x11Z\x0fmy-go-app/protob\x06proto3"
+	"\x12GetProjectElements\x12\x1d.proto.ProjectElementsRequest\x1a\x1e.proto.ProjectElementsResponseB\tZ\a./protob\x06proto3"
 
 var (
 	file_proto_service_proto_rawDescOnce sync.Once
