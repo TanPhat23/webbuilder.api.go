@@ -61,6 +61,27 @@ func (r *ProjectRepository) GetProjectByID(ctx context.Context, projectID, userI
 	return &project, nil
 }
 
+func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
+	if projectID == "" {
+		return nil, errors.New("projectID is required")
+	}
+
+	var project models.Project
+
+	err := r.db.WithContext(ctx).
+		Where("\"Id\" = ? AND \"Published\" = true AND \"DeletedAt\" IS NULL", projectID).
+		First(&project).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProjectNotFound
+		}
+		return nil, fmt.Errorf("failed to get public project: %w", err)
+	}
+
+	return &project, nil
+}
+
 func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error) {
 	if userID == "" {
 		return nil, errors.New("userID is required")

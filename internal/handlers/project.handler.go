@@ -48,6 +48,22 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, project)
 }
 
+func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
+	projectID, err := utils.ValidateRequiredParam(c, "projectid")
+	if err != nil {
+		return err
+	}
+
+	project, err := h.projectRepository.GetPublicProjectByID(c.Context(), projectID)
+	if err != nil {
+		if err.Error() == "project not found" {
+			return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, "")
+		}
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve project", err, "")
+	}
+	return utils.SendJSON(c, fiber.StatusOK, project)
+}
+
 func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
 	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
