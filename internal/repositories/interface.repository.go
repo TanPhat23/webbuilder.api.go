@@ -16,6 +16,13 @@ type ElementRepositoryInterface interface {
 }
 
 // ProjectRepositoryInterface defines methods for project operations
+type UserRepositoryInterface interface {
+	// GetUserByID retrieves a user by ID
+	GetUserByID(ctx context.Context, userID string) (*models.User, error)
+	// GetUserByEmail retrieves a user by email
+	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+}
+
 type ProjectRepositoryInterface interface {
 	// GetProjects retrieves all projects
 	GetProjects(ctx context.Context) ([]models.Project, error)
@@ -23,6 +30,8 @@ type ProjectRepositoryInterface interface {
 	GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error)
 	// GetProjectByID retrieves a project by ID with user ownership verification
 	GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error)
+	// GetProjectWithAccess retrieves a project by ID with access verification (owner or collaborator)
+	GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
 	// GetProjectsByUserID retrieves all projects for a specific user
 	GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error)
 	// GetProjectPages retrieves all pages for a project with ownership verification
@@ -245,6 +254,8 @@ type InvitationRepositoryInterface interface {
 	CreateInvitation(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error)
 	// GetInvitationsByProject retrieves invitations by project ID
 	GetInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
+	// GetInvitationByID retrieves an invitation by ID
+	GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error)
 	// GetInvitationByToken retrieves an invitation by token
 	GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error)
 	// AcceptInvitation accepts an invitation and creates a collaborator
@@ -270,6 +281,7 @@ type CollaboratorRepositoryInterface interface {
 
 type RepositoriesInterface struct {
 	ElementRepository               ElementRepositoryInterface
+	UserRepository                  UserRepositoryInterface
 	ProjectRepository               ProjectRepositoryInterface
 	SnapshotRepository              SnapshotRepositoryInterface
 	SettingRepository               SettingRepositoryInterface
@@ -291,6 +303,7 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 
 	return &RepositoriesInterface{
 		ElementRepository:           NewElementRepository(db, settingRepo),
+		UserRepository:              NewUserRepository(db),
 		ProjectRepository:           NewProjectRepository(db),
 		SnapshotRepository:          NewSnapshotRepository(db),
 		SettingRepository:           settingRepo,

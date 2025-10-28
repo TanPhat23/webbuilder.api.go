@@ -15,6 +15,7 @@ type InvitationService struct {
 	invitationRepo   repositories.InvitationRepositoryInterface
 	collaboratorRepo repositories.CollaboratorRepositoryInterface
 	projectRepo      repositories.ProjectRepositoryInterface
+	userRepo         repositories.UserRepositoryInterface
 	emailService     EmailServiceInterface
 	baseURL          string
 }
@@ -23,6 +24,7 @@ func NewInvitationService(
 	invitationRepo repositories.InvitationRepositoryInterface,
 	collaboratorRepo repositories.CollaboratorRepositoryInterface,
 	projectRepo repositories.ProjectRepositoryInterface,
+	userRepo repositories.UserRepositoryInterface,
 	emailService EmailServiceInterface,
 	baseURL string,
 ) *InvitationService {
@@ -30,16 +32,28 @@ func NewInvitationService(
 		invitationRepo:   invitationRepo,
 		collaboratorRepo: collaboratorRepo,
 		projectRepo:      projectRepo,
+		userRepo:         userRepo,
 		emailService:     emailService,
 		baseURL:          baseURL,
 	}
 }
 
 func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, email string, role models.CollaboratorRole, invitedBy string) (*models.Invitation, error) {
-	// Check if user is owner or editor of the project
+	// Check if user is owner of the project
 	project, err := s.projectRepo.GetProjectByID(ctx, projectID, invitedBy)
 	if err != nil {
 		return nil, err
+	}
+
+	// Get the inviter's email to prevent self-invitation
+	inviter, err := s.userRepo.GetUserByID(ctx, invitedBy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get inviter details: %w", err)
+	}
+
+	// Prevent self-invitation
+	if inviter.Email == email {
+		return nil, fmt.Errorf("cannot invite yourself")
 	}
 
 	// Check if invitation already exists
@@ -77,6 +91,15 @@ func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, ema
 	}
 
 	return created, nil
+}
+
+func (s *InvitationService) CheckProjectOwnership(ctx context.Context, projectID, userID string) error {
+	_, err := s.projectRepo.GetProjectByID(ctx, projectID, userID)
+	return err
+}
+
+func (s *InvitationService) GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error) {
+	return s.invitationRepo.GetInvitationByID(ctx, id)
 }
 
 func (s *InvitationService) AcceptInvitation(ctx context.Context, token, userID string) error {

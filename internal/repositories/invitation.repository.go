@@ -35,6 +35,18 @@ func (r *InvitationRepository) GetInvitationsByProject(ctx context.Context, proj
 	return invitations, err
 }
 
+func (r *InvitationRepository) GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error) {
+	var invitation models.Invitation
+	err := r.DB.WithContext(ctx).Where(&models.Invitation{Id: id}).First(&invitation).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &invitation, nil
+}
+
 func (r *InvitationRepository) GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error) {
 	var invitation models.Invitation
 	err := r.DB.WithContext(ctx).Where(&models.Invitation{Token: token}).First(&invitation).Error

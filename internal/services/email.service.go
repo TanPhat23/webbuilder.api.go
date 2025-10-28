@@ -59,6 +59,7 @@ func NewEmailService() *EmailService {
 }
 
 func (e *EmailService) SendInvitationEmail(to, projectName, inviteLink string) error {
+	fmt.Printf("Attempting to send invitation email to %s for project %s\n", to, projectName)
 	if e.useSendgrid && e.sendgrid != nil {
 		return e.sendInvitationEmailSendGrid(to, projectName, inviteLink)
 	} else if e.dialer != nil {
@@ -89,15 +90,20 @@ func (e *EmailService) sendInvitationEmailSendGrid(to, projectName, inviteLink s
 
 	message := mail.NewSingleEmail(from, subject, toEmail, "", htmlContent)
 
+	fmt.Printf("Sending invitation email via SendGrid to %s\n", to)
 	response, err := e.sendgrid.Send(message)
 	if err != nil {
+		fmt.Printf("Failed to send email via SendGrid: %v\n", err)
 		return err
 	}
 
 	if response.StatusCode >= 400 {
-		return fmt.Errorf("SendGrid error: %d - %s", response.StatusCode, response.Body)
+		err := fmt.Errorf("SendGrid error: %d - %s", response.StatusCode, response.Body)
+		fmt.Printf("Failed to send email via SendGrid: %v\n", err)
+		return err
 	}
 
+	fmt.Printf("Successfully sent invitation email via SendGrid to %s\n", to)
 	return nil
 }
 
@@ -119,5 +125,12 @@ func (e *EmailService) sendInvitationEmailSMTP(to, projectName, inviteLink strin
 </html>
 `, projectName, inviteLink))
 
-	return e.dialer.DialAndSend(m)
+	fmt.Printf("Sending invitation email via SMTP to %s\n", to)
+	err := e.dialer.DialAndSend(m)
+	if err != nil {
+		fmt.Printf("Failed to send email via SMTP: %v\n", err)
+		return err
+	}
+	fmt.Printf("Successfully sent invitation email via SMTP to %s\n", to)
+	return nil
 }

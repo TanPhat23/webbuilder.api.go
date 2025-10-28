@@ -50,7 +50,7 @@ func main() {
 	if baseURL == "" {
 		baseURL = "http://localhost:3000" // Default for development
 	}
-	invitationService := services.NewInvitationService(repos.InvitationRepository, repos.CollaboratorRepository, repos.ProjectRepository, emailService, baseURL)
+	invitationService := services.NewInvitationService(repos.InvitationRepository, repos.CollaboratorRepository, repos.ProjectRepository, repos.UserRepository, emailService, baseURL)
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

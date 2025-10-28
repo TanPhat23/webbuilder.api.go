@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
@@ -35,7 +36,7 @@ func (h *CollaboratorHandler) GetCollaboratorsByProject(c *fiber.Ctx) error {
 	}
 
 	// Check if user has access to the project
-	_, err := h.projectRepo.GetProjectByID(c.Context(), projectID, userID)
+	_, err := h.projectRepo.GetProjectWithAccess(c.Context(), projectID, userID)
 	if err != nil {
 		if err.Error() == "project not found" {
 			return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, userID)
@@ -48,7 +49,7 @@ func (h *CollaboratorHandler) GetCollaboratorsByProject(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve collaborators", err)
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, collaborators)
+	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"collaborators": collaborators})
 }
 
 func (h *CollaboratorHandler) GetCollaboratorByID(c *fiber.Ctx) error {
@@ -67,11 +68,11 @@ func (h *CollaboratorHandler) GetCollaboratorByID(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusNotFound, "Collaborator not found", err)
 	}
 
-	// Check if user has access to the project
-	_, err = h.projectRepo.GetProjectByID(c.Context(), collaborator.ProjectId, userID)
+	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), collaborator.ProjectId, userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
+	log.Printf("%v", collaborator)
 
 	return utils.SendJSON(c, fiber.StatusOK, collaborator)
 }

@@ -40,7 +40,7 @@ func main() {
 	if baseURL == "" {
 		baseURL = "http://localhost:3000" // Default for development
 	}
-	invitationService := services.NewInvitationService(repos.InvitationRepository, repos.CollaboratorRepository, repos.ProjectRepository, emailService, baseURL)
+	invitationService := services.NewInvitationService(repos.InvitationRepository, repos.CollaboratorRepository, repos.ProjectRepository, repos.UserRepository, emailService, baseURL)
 
 	// Initialize Cloudinary service
 	cloudinaryService, err := services.NewCloudinaryService()

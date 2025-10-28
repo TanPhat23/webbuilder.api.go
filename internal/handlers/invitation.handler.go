@@ -57,7 +57,11 @@ func (h *InvitationHandler) GetInvitationsByProject(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, "Project ID is required", nil)
 	}
 
-	// TODO: Check if user has access to the project
+	// Check if user is the project owner
+	err := h.invitationService.CheckProjectOwnership(c.Context(), projectID, userID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusForbidden, "Only project owner can view invitations", err)
+	}
 
 	invitations, err := h.invitationService.GetInvitationsByProject(c.Context(), projectID)
 	if err != nil {
@@ -100,9 +104,23 @@ func (h *InvitationHandler) DeleteInvitation(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, "Invitation ID is required", nil)
 	}
 
-	// TODO: Check permissions
+	// Get invitation to check project ownership
+	invitation, err := h.invitationService.GetInvitationByID(c.Context(), invitationID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve invitation", err)
+	}
 
-	err := h.invitationService.DeleteInvitation(c.Context(), invitationID)
+	if invitation == nil {
+		return utils.SendError(c, fiber.StatusNotFound, "Invitation not found", nil)
+	}
+
+	// Check if user is the project owner
+	err = h.invitationService.CheckProjectOwnership(c.Context(), invitation.ProjectId, userID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusForbidden, "Only project owner can delete invitations", err)
+	}
+
+	err = h.invitationService.DeleteInvitation(c.Context(), invitationID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete invitation", err)
 	}

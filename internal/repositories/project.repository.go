@@ -61,6 +61,53 @@ func (r *ProjectRepository) GetProjectByID(ctx context.Context, projectID, userI
 	return &project, nil
 }
 
+func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
+	if projectID == "" || userID == "" {
+		return nil, errors.New("projectID and userID are required")
+	}
+
+	var project models.Project
+
+	// Check if user is owner
+	err := r.db.WithContext(ctx).
+		Model(&models.Project{}).
+		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
+		First(&project).Error
+
+	if err == nil {
+		return &project, nil
+	}
+
+	// If not owner, check if collaborator
+	var collaborator models.Collaborator
+	err = r.db.WithContext(ctx).
+		Model(&models.Collaborator{}).
+		Where("\"ProjectId\" = ? AND \"UserId\" = ?", projectID, userID).
+		First(&collaborator).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProjectUnauthorized
+		}
+		return nil, fmt.Errorf("failed to check collaborator access: %w", err)
+	}
+
+	// Get the project
+	err = r.db.WithContext(ctx).
+		Model(&models.Project{}).
+		Where("\"Id\" = ? AND \"DeletedAt\" IS NULL", projectID).
+		First(&project).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProjectNotFound
+		}
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+
+	return &project, nil
+}
+
 func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
