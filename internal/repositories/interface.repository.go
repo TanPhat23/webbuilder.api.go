@@ -24,8 +24,6 @@ type UserRepositoryInterface interface {
 }
 
 type ProjectRepositoryInterface interface {
-	// GetProjects retrieves all projects
-	GetProjects(ctx context.Context) ([]models.Project, error)
 	// GetPublicProjectByID retrieves a public project by ID
 	GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error)
 	// GetProjectByID retrieves a project by ID with user ownership verification
@@ -34,6 +32,8 @@ type ProjectRepositoryInterface interface {
 	GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
 	// GetProjectsByUserID retrieves all projects for a specific user
 	GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error)
+	// GetCollaboratorProjects retrieves all projects where the user is a collaborator
+	GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error)
 	// GetProjectPages retrieves all pages for a project with ownership verification
 	GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error)
 	// CreateProject creates a new project

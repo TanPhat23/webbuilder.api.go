@@ -24,21 +24,6 @@ func NewProjectRepository(db *gorm.DB) ProjectRepositoryInterface {
 	return &ProjectRepository{db: db}
 }
 
-func (r *ProjectRepository) GetProjects(ctx context.Context) ([]models.Project, error) {
-	var projects []models.Project
-
-	err := r.db.WithContext(ctx).
-		Where(&models.Project{DeletedAt: nil}).
-		Order("\"CreatedAt\" DESC").
-		Find(&projects).Error
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get projects: %w", err)
-	}
-
-	return projects, nil
-}
-
 func (r *ProjectRepository) GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
@@ -68,7 +53,6 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 
 	var project models.Project
 
-	// Check if user is owner
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
 		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
@@ -78,7 +62,6 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 		return &project, nil
 	}
 
-	// If not owner, check if collaborator
 	var collaborator models.Collaborator
 	err = r.db.WithContext(ctx).
 		Model(&models.Collaborator{}).
@@ -92,7 +75,6 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 		return nil, fmt.Errorf("failed to check collaborator access: %w", err)
 	}
 
-	// Get the project
 	err = r.db.WithContext(ctx).
 		Model(&models.Project{}).
 		Where("\"Id\" = ? AND \"DeletedAt\" IS NULL", projectID).
@@ -136,6 +118,7 @@ func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID stri
 
 	var projects []models.Project
 
+
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
 		Where("\"OwnerId\" = ? AND \"DeletedAt\" IS NULL", userID).
@@ -143,10 +126,42 @@ func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID stri
 		Find(&projects).Error
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get projects by user ID: %w", err)
+		return nil, fmt.Errorf("failed to get owned projects: %w", err)
 	}
 
+	var collabProjects []models.Project
+	err = r.db.WithContext(ctx).
+		Model(&models.Project{}).
+		Joins("JOIN public.\"Collaborator\" ON \"Collaborator\".\"ProjectId\" = \"Project\".\"Id\"").
+		Where("\"Collaborator\".\"UserId\" = ? AND \"Project\".\"DeletedAt\" IS NULL", userID).
+		Order("\"Project\".\"CreatedAt\" DESC").
+		Find(&collabProjects).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get collaborator projects: %w", err)
+	}
+
+	projects = append(projects, collabProjects...)
+
 	return projects, nil
+}
+
+func (r *ProjectRepository) GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error) {
+	if userID == "" {
+		return nil, errors.New("userID is required")
+	}
+
+	var collabProjects []models.Project
+	err := r.db.WithContext(ctx).
+		Model(&models.Project{}).
+		Joins("JOIN \"Collaborator\" ON \"Collaborator\".\"ProjectId\" = \"Project\".\"Id\"").
+		Where("\"Collaborator\".\"UserId\" = ? AND \"Project\".\"DeletedAt\" IS NULL", userID).
+		Order("\"Project\".\"CreatedAt\" DESC").
+		Find(&collabProjects).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get collaborator projects: %w", err)
+	}
+
+	return collabProjects, nil
 }
 
 func (r *ProjectRepository) GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {

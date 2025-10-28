@@ -28,7 +28,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 
 	group.Get("/elements/:projectid", elementHandler.GetElements)
 
-	group.Get("/projects/user", projectHandler.GetProjectByUserID)
+	group.Get("/projects/user", projectHandler.GetProjectsByUser)
 	group.Get("/projects/:projectid", projectHandler.GetProjectByID)
 	group.Get("/projects/:projectid/pages", projectHandler.GetProjectPages)
 	group.Delete("/projects/:projectid", projectHandler.DeleteProject)

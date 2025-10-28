@@ -20,7 +20,6 @@ func PublicRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 	// marketplaceHandler := handlers.NewMarketplaceHandler(repos.MarketplaceRepository)
 	group := app.Group("/api/v1")
 	group.Get("/elements/public/:projectid", elementHandler.GetElements)
-	group.Get("/projects/public", projectHandler.GetProject)
 	group.Get("/projects/public/:projectid", projectHandler.GetPublicProjectByID)
 	group.Get("/public/content", contentItemHandler.GetPublicContentItems)
 	group.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicContentItemBySlug)

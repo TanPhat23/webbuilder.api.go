@@ -18,9 +18,13 @@ func NewProjectHandler(projectRepo repositories.ProjectRepositoryInterface) *Pro
 	}
 }
 
-func (h *ProjectHandler) GetProject(c *fiber.Ctx) error {
-	userID, _ := c.Locals("userId").(string)
-	projects, err := h.projectRepository.GetProjects(c.Context())
+func (h *ProjectHandler) GetProjectsByUser(c *fiber.Ctx) error {
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+
+	projects, err := h.projectRepository.GetProjectsByUserID(c.Context(), userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve projects", err, userID)
 	}
