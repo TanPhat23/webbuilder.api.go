@@ -102,7 +102,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 
 	// Invitation routes
 	group.Post("/invitations", invitationHandler.CreateInvitation)
-	group.Get("/projects/:projectid/invitations", invitationHandler.GetInvitationsByProject)
+	group.Get("/invitations/project/:projectid", invitationHandler.GetInvitationsByProject)
 	group.Post("/invitations/accept", invitationHandler.AcceptInvitation)
 	group.Delete("/invitations/:invitationid", invitationHandler.DeleteInvitation)
 
