@@ -38,9 +38,9 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 		return err
 	}
 
-	project, err := h.projectRepository.GetProjectByID(c.Context(), projectID, userID)
+	project, err := h.projectRepository.GetProjectWithAccess(c.Context(), projectID, userID)
 	if err != nil {
-		if err.Error() == "project not found" {
+		if err.Error() == "project not found" || err.Error() == "project unauthorized" {
 			return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, userID)
 		}
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve project", err, userID)
@@ -73,6 +73,12 @@ func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
+	}
+
+	// Check access first
+	_, err = h.projectRepository.GetProjectWithAccess(c.Context(), projectID, userID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
 	pages, err := h.projectRepository.GetProjectPages(c.Context(), projectID, userID)

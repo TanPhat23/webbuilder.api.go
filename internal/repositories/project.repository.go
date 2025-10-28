@@ -154,18 +154,9 @@ func (r *ProjectRepository) GetProjectPages(ctx context.Context, projectID, user
 		return nil, errors.New("projectID and userID are required")
 	}
 
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
-		Where(&models.Project{ID: projectID, OwnerId: userID, DeletedAt: nil}).
-		Count(&count).Error
-
+	_, err := r.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify project ownership: %w", err)
-	}
-
-	if count == 0 {
-		return nil, ErrProjectUnauthorized
+		return nil, err
 	}
 
 	var pages []models.Page
