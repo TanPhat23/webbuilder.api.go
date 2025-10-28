@@ -107,7 +107,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Delete("/invitations/:invitationid", invitationHandler.DeleteInvitation)
 
 	// Collaborator routes
-	group.Get("/projects/:projectid/collaborators", collaboratorHandler.GetCollaboratorsByProject)
+	group.Get("/collaborators/project/:projectid", collaboratorHandler.GetCollaboratorsByProject)
 	group.Get("/collaborators/:collaboratorid", collaboratorHandler.GetCollaboratorByID)
 	group.Patch("/collaborators/:collaboratorid/role", collaboratorHandler.UpdateCollaboratorRole)
 	group.Delete("/collaborators/:collaboratorid", collaboratorHandler.DeleteCollaborator)
