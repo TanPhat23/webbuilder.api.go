@@ -9,11 +9,11 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService) {
+func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService, invitationService *services.InvitationService) {
 	elementHandler := handlers.NewElementHandler(repos.ElementRepository)
 	projectHandler := handlers.NewProjectHandler(repos.ProjectRepository)
 	pageHandler := handlers.NewPageHandler(repos.PageRepository)
-	snapshotHandler := handlers.NewSnapshotHandler(repos.SnapshotRepository, repos.ElementRepository)
+	snapshotHandler := handlers.NewSnapshotHandler(repos.SnapshotRepository, repos.ElementRepository, repos.ProjectRepository)
 	contentTypeHandler := handlers.NewContentTypeHandler(repos.ContentTypeRepository)
 	contentFieldHandler := handlers.NewContentFieldHandler(repos.ContentFieldRepository)
 	contentItemHandler := handlers.NewContentItemHandler(repos.ContentItemRepository)
@@ -21,6 +21,8 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	marketplaceHandler := handlers.NewMarketplaceHandler(repos.MarketplaceRepository)
 	customElementHandler := handlers.NewCustomElementHandler(repos.CustomElementRepository)
 	customElementTypeHandler := handlers.NewCustomElementTypeHandler(repos.CustomElementTypeRepository)
+	invitationHandler := handlers.NewInvitationHandler(invitationService)
+	collaboratorHandler := handlers.NewCollaboratorHandler(repos.CollaboratorRepository, repos.ProjectRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
@@ -36,6 +38,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Post("/snapshots/:projectid/save", snapshotHandler.SaveSnapshot)
 	group.Get("/snapshots/:projectid", snapshotHandler.GetSnapshots)
 	group.Get("/snapshots/:projectid/:snapshotid", snapshotHandler.GetSnapshotByID)
+	group.Delete("/snapshots/:projectid/:snapshotid", snapshotHandler.DeleteSnapshot)
 
 	group.Get("/content-types", contentTypeHandler.GetContentTypes)
 	group.Post("/content-types", contentTypeHandler.CreateContentType)
@@ -96,4 +99,16 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Post("/customelementtypes", customElementTypeHandler.CreateCustomElementType)
 	group.Patch("/customelementtypes/:id", customElementTypeHandler.UpdateCustomElementType)
 	group.Delete("/customelementtypes/:id", customElementTypeHandler.DeleteCustomElementType)
+
+	// Invitation routes
+	group.Post("/invitations", invitationHandler.CreateInvitation)
+	group.Get("/projects/:projectid/invitations", invitationHandler.GetInvitationsByProject)
+	group.Post("/invitations/accept", invitationHandler.AcceptInvitation)
+	group.Delete("/invitations/:invitationid", invitationHandler.DeleteInvitation)
+
+	// Collaborator routes
+	group.Get("/projects/:projectid/collaborators", collaboratorHandler.GetCollaboratorsByProject)
+	group.Get("/collaborators/:collaboratorid", collaboratorHandler.GetCollaboratorByID)
+	group.Patch("/collaborators/:collaboratorid/role", collaboratorHandler.UpdateCollaboratorRole)
+	group.Delete("/collaborators/:collaboratorid", collaboratorHandler.DeleteCollaborator)
 }

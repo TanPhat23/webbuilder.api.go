@@ -5,7 +5,7 @@ import (
 	"my-go-app/internal/models"
 	"time"
 
-	"github.com/lucsky/cuid"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -332,7 +332,7 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId st
 	// Clone the project
 	now := time.Now()
 	newProject := models.Project{
-		ID:          cuid.New(),
+		ID:         	uuid.New().String(),
 		Name:        item.Title + " (Copy)",
 		Description: &item.Description,
 		Styles:      originalProject.Styles,
@@ -355,10 +355,10 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId st
 		return nil, err
 	}
 
-	pageIdMap := make(map[string]string) // old page id -> new page id
+	pageIdMap := make(map[string]string)
 
 	for _, originalPage := range originalPages {
-		newPageId := cuid.New()
+		newPageId := uuid.New().String()
 		pageIdMap[originalPage.Id] = newPageId
 
 		newPage := models.Page{
@@ -385,7 +385,7 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId st
 	elementIdMap := make(map[string]string) // old element id -> new element id
 
 	for _, originalElement := range originalElements {
-		newElementId := cuid.New()
+		newElementId := uuid.New().String()
 		elementIdMap[originalElement.Id] = newElementId
 
 		// Update PageId if it exists
@@ -426,7 +426,7 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId st
 
 	// Increment download count
 	if err := r.IncrementDownloads(itemId); err != nil {
-		// Log error but don't fail the download
+		return nil, err
 	}
 
 	return &newProject, nil

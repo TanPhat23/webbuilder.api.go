@@ -240,6 +240,34 @@ type CustomElementTypeRepositoryInterface interface {
 	DeleteCustomElementType(ctx context.Context, id string) error
 }
 
+type InvitationRepositoryInterface interface {
+	// CreateInvitation creates a new invitation
+	CreateInvitation(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error)
+	// GetInvitationsByProject retrieves invitations by project ID
+	GetInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
+	// GetInvitationByToken retrieves an invitation by token
+	GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error)
+	// AcceptInvitation accepts an invitation and creates a collaborator
+	AcceptInvitation(ctx context.Context, token string, userID string) error
+	// DeleteInvitation deletes an invitation
+	DeleteInvitation(ctx context.Context, id string) error
+}
+
+type CollaboratorRepositoryInterface interface {
+	// CreateCollaborator creates a new collaborator
+	CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
+	// GetCollaboratorsByProject retrieves collaborators by project ID
+	GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error)
+	// GetCollaboratorByID retrieves a collaborator by ID
+	GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error)
+	// UpdateCollaboratorRole updates a collaborator's role
+	UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error
+	// DeleteCollaborator deletes a collaborator
+	DeleteCollaborator(ctx context.Context, id string) error
+	// IsCollaborator checks if a user is a collaborator on a project
+	IsCollaborator(ctx context.Context, projectID, userID string) (bool, error)
+}
+
 type RepositoriesInterface struct {
 	ElementRepository               ElementRepositoryInterface
 	ProjectRepository               ProjectRepositoryInterface
@@ -254,6 +282,8 @@ type RepositoriesInterface struct {
 	ImageRepository                 ImageRepositoryInterface
 	CustomElementRepository         CustomElementRepositoryInterface
 	CustomElementTypeRepository     CustomElementTypeRepositoryInterface
+	InvitationRepository            InvitationRepositoryInterface
+	CollaboratorRepository          CollaboratorRepositoryInterface
 }
 
 func NewRepositories(db *gorm.DB) *RepositoriesInterface {
@@ -273,5 +303,7 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 		ImageRepository:             NewImageRepository(db),
 		CustomElementRepository:     NewCustomElementRepository(db),
 		CustomElementTypeRepository: NewCustomElementTypeRepository(db),
+		InvitationRepository:        NewInvitationRepository(db),
+		CollaboratorRepository:      NewCollaboratorRepository(db),
 	}
 }

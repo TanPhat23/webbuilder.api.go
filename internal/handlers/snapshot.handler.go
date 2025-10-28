@@ -16,12 +16,14 @@ import (
 type SnapshotHandler struct {
 	snapshotRepo repositories.SnapshotRepositoryInterface
 	elementRepo  repositories.ElementRepositoryInterface
+	projectRepo  repositories.ProjectRepositoryInterface
 }
 
-func NewSnapshotHandler(snapshotRepo repositories.SnapshotRepositoryInterface, elementRepo repositories.ElementRepositoryInterface) *SnapshotHandler {
+func NewSnapshotHandler(snapshotRepo repositories.SnapshotRepositoryInterface, elementRepo repositories.ElementRepositoryInterface, projectRepo repositories.ProjectRepositoryInterface) *SnapshotHandler {
 	return &SnapshotHandler{
 		snapshotRepo: snapshotRepo,
 		elementRepo:  elementRepo,
+		projectRepo:  projectRepo,
 	}
 }
 
@@ -29,7 +31,7 @@ type SaveSnapshotRequest struct {
 	Id        string                 `json:"id"`
 	Name      string                 `json:"name"`
 	Type      string                 `json:"type,omitempty"` // "working" or "version"
-	Elements  []any          `json:"elements"`
+	Elements  []any          					`json:"elements"`
 	Timestamp int64                  `json:"timestamp,omitempty"` // optional, will use current if not provided
 }
 
@@ -157,15 +159,35 @@ func (h *SnapshotHandler) GetSnapshotByID(c *fiber.Ctx) error {
 }
 
 func (h *SnapshotHandler) DeleteSnapshot(c *fiber.Ctx) error {
+	projectId, err := utils.ValidateRequiredParam(c, "projectid")
+	if err != nil {
+		return err
+	}
+
 	snapshotId, err := utils.ValidateRequiredParam(c, "snapshotid")
 	if err != nil {
 		return err
 	}
 
-	// Optional: Check if snapshot exists and is not working type
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+
+	// Check if snapshot exists and belongs to the project
 	snapshot, err := h.snapshotRepo.GetSnapshotByID(c.Context(), snapshotId)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusNotFound, "Snapshot not found", err)
+	}
+
+	if snapshot.ProjectId != projectId {
+		return utils.SendError(c, fiber.StatusBadRequest, "Snapshot does not belong to the specified project", nil)
+	}
+
+	// Validate that the user owns the project
+	_, err = h.projectRepo.GetProjectByID(c.Context(), projectId, userID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusForbidden, "Access denied or project not found", err)
 	}
 
 	// Prevent deleting working snapshots

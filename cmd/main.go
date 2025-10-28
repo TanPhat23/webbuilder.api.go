@@ -42,6 +42,16 @@ func main() {
 
 	elementService := services.NewElementService(repos.SnapshotRepository, repos.ElementRepository)
 
+	// Initialize Email service
+	emailService := services.NewEmailService()
+
+	// Initialize Invitation service
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:3000" // Default for development
+	}
+	invitationService := services.NewInvitationService(repos.InvitationRepository, repos.CollaboratorRepository, repos.ProjectRepository, emailService, baseURL)
+
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -83,7 +93,7 @@ func main() {
 	}))
 
 	routes.PublicRoutes(app, repos)
-	routes.PrivateRoutes(app, repos, cloudinaryService)
+	routes.PrivateRoutes(app, repos, cloudinaryService, invitationService)
 
 	// Handle graceful shutdown
 	go func() {

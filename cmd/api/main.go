@@ -33,6 +33,15 @@ func main() {
 
 	repos := database.NewRepositories(db)
 
+	// Initialize Email service
+	emailService := services.NewEmailService()
+
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:3000" // Default for development
+	}
+	invitationService := services.NewInvitationService(repos.InvitationRepository, repos.CollaboratorRepository, repos.ProjectRepository, emailService, baseURL)
+
 	// Initialize Cloudinary service
 	cloudinaryService, err := services.NewCloudinaryService()
 	if err != nil {
@@ -48,7 +57,7 @@ func main() {
 	}))
 
 	routes.PublicRoutes(app, repos)
-	routes.PrivateRoutes(app, repos, cloudinaryService)
+	routes.PrivateRoutes(app, repos, cloudinaryService, invitationService)
 
 	port := os.Getenv("PORT")
 	if port == "" {
