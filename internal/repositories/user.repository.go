@@ -85,7 +85,7 @@ func (r *UserRepository) SearchUsers(ctx context.Context, query string) ([]model
 	var users []models.User
 	err := r.db.WithContext(ctx).
 		Where("\"Email\" ILIKE ? OR \"FirstName\" ILIKE ? OR \"LastName\" ILIKE ? OR \"Id\" ILIKE ?",
-			"%"+query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%").
+			query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%").
 		Limit(20). // Limit results for performance
 		Find(&users).Error
 
