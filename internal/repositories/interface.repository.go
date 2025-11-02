@@ -21,6 +21,10 @@ type UserRepositoryInterface interface {
 	GetUserByID(ctx context.Context, userID string) (*models.User, error)
 	// GetUserByEmail retrieves a user by email
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	// GetUserByUsername retrieves a user by username
+	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
+	// SearchUsers searches users by email or username
+	SearchUsers(ctx context.Context, query string) ([]models.User, error)
 }
 
 type ProjectRepositoryInterface interface {
@@ -288,6 +292,12 @@ type InvitationRepositoryInterface interface {
 	AcceptInvitation(ctx context.Context, token string, userID string) error
 	// DeleteInvitation deletes an invitation
 	DeleteInvitation(ctx context.Context, id string) error
+	// UpdateInvitationStatus updates the status of an invitation
+	UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error
+	// CancelInvitation cancels an invitation
+	CancelInvitation(ctx context.Context, id string) error
+	// GetPendingInvitationsByProject gets all pending invitations for a project
+	GetPendingInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
 }
 
 type CollaboratorRepositoryInterface interface {

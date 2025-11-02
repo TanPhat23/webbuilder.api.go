@@ -113,3 +113,15 @@ func (s *InvitationService) GetInvitationsByProject(ctx context.Context, project
 func (s *InvitationService) DeleteInvitation(ctx context.Context, id string) error {
 	return s.invitationRepo.DeleteInvitation(ctx, id)
 }
+
+func (s *InvitationService) CancelInvitation(ctx context.Context, id string) error {
+	return s.invitationRepo.CancelInvitation(ctx, id)
+}
+
+func (s *InvitationService) UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error {
+	return s.invitationRepo.UpdateInvitationStatus(ctx, id, status)
+}
+
+func (s *InvitationService) GetPendingInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
+	return s.invitationRepo.GetPendingInvitationsByProject(ctx, projectID)
+}

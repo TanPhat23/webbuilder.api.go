@@ -16,4 +16,7 @@ type InvitationServiceInterface interface {
 	GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error)
 	DeleteInvitation(ctx context.Context, id string) error
 	CheckProjectOwnership(ctx context.Context, projectID, userID string) error
+	CancelInvitation(ctx context.Context, id string) error
+	UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error
+	GetPendingInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
 }

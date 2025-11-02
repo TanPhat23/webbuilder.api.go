@@ -24,6 +24,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	collaboratorHandler := handlers.NewCollaboratorHandler(repos.CollaboratorRepository, repos.ProjectRepository)
 	commentHandler := handlers.NewCommentHandler(repos.CommentRepository, repos.MarketplaceRepository)
+	userHandler := handlers.NewUserHandler(repos.UserRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
@@ -124,7 +125,10 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	// Invitation routes
 	group.Post("/invitations", invitationHandler.CreateInvitation)
 	group.Get("/invitations/project/:projectid", invitationHandler.GetInvitationsByProject)
+	group.Get("/invitations/project/:projectid/pending", invitationHandler.GetPendingInvitationsByProject)
 	group.Post("/invitations/accept", invitationHandler.AcceptInvitation)
+	group.Patch("/invitations/:invitationid/cancel", invitationHandler.CancelInvitation)
+	group.Patch("/invitations/:invitationid/status", invitationHandler.UpdateInvitationStatus)
 	group.Delete("/invitations/:invitationid", invitationHandler.DeleteInvitation)
 
 	// Collaborator routes
@@ -132,4 +136,9 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/collaborators/:collaboratorid", collaboratorHandler.GetCollaboratorByID)
 	group.Patch("/collaborators/:collaboratorid/role", collaboratorHandler.UpdateCollaboratorRole)
 	group.Delete("/collaborators/:collaboratorid", collaboratorHandler.DeleteCollaborator)
+
+	// User routes
+	group.Get("/users/search", userHandler.SearchUsers)
+	group.Get("/users/email/:email", userHandler.GetUserByEmail)
+	group.Get("/users/username/:username", userHandler.GetUserByUsername)
 }
