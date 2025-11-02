@@ -30,6 +30,9 @@ func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to search users", err, "")
 	}
 	log.Printf("Found %d users matching query '%s'\n", len(users), query)
+	for _, user := range users {
+		log.Printf("User: ID=%s, Email=%s\n", user.Id, user.Email)
+	}
 	return utils.SendJSON(c, fiber.StatusOK, users)
 }
 
