@@ -4,7 +4,7 @@ import (
 	"log"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
-
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -20,7 +20,7 @@ func NewUserHandler(userRepo repositories.UserRepositoryInterface) *UserHandler 
 }
 
 func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
-	query := c.Params("q")
+	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {
 		return utils.SendError(c, fiber.StatusBadRequest, "Query parameter 'q' is required", nil, "")
 	}
