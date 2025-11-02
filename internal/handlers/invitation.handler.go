@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"my-go-app/internal/models"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
@@ -87,6 +88,7 @@ func (h *InvitationHandler) GetPendingInvitationsByProject(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve pending invitations", err, userID)
 	}
 
+	log.Printf("Pending invitations for project %s: %v\n", projectID, invitations)
 	return utils.SendJSON(c, fiber.StatusOK, invitations)
 }
 

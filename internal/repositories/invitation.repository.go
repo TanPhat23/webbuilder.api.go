@@ -66,7 +66,7 @@ func (r *InvitationRepository) AcceptInvitation(ctx context.Context, token strin
 
 	// Update invitation as accepted
 	now := time.Now()
-	return r.DB.WithContext(ctx).Model(&invitation).Updates(map[string]interface{}{
+	return r.DB.WithContext(ctx).Model(&invitation).Updates(map[string]any{
 		"Status":     models.InvitationStatusAccepted,
 		"AcceptedAt": &now,
 	}).Error
