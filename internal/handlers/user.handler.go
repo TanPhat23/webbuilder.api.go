@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
 
@@ -27,7 +28,7 @@ func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to search users", err, "")
 	}
-
+	log.Printf("Found %d users matching query '%s'\n", len(users), query)
 	return utils.SendJSON(c, fiber.StatusOK, users)
 }
 
