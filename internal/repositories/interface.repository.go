@@ -214,6 +214,32 @@ type MarketplaceRepositoryInterface interface {
 	DeleteTag(id string) error
 }
 
+// CommentRepositoryInterface defines methods for comment operations
+type CommentRepositoryInterface interface {
+	// CreateComment creates a new comment
+	CreateComment(comment models.Comment) (*models.Comment, error)
+	// GetCommentByID retrieves a comment by ID with author and reactions
+	GetCommentByID(id string) (*models.Comment, error)
+	// GetComments retrieves comments with filtering and pagination
+	GetComments(filter models.CommentFilter) ([]models.Comment, int64, error)
+	// UpdateComment updates a comment with user verification
+	UpdateComment(id string, userId string, updates map[string]any) (*models.Comment, error)
+	// DeleteComment soft deletes a comment with user verification
+	DeleteComment(id string, userId string) error
+	// CreateReaction creates or updates a reaction
+	CreateReaction(reaction models.CommentReaction) (*models.CommentReaction, error)
+	// DeleteReaction deletes a reaction
+	DeleteReaction(commentId string, userId string, reactionType string) error
+	// GetReactionsByCommentID retrieves all reactions for a comment
+	GetReactionsByCommentID(commentId string) ([]models.CommentReaction, error)
+	// GetReactionSummary retrieves reaction counts grouped by type
+	GetReactionSummary(commentId string) ([]models.ReactionSummary, error)
+	// GetCommentCountByItemID returns the number of comments for a marketplace item
+	GetCommentCountByItemID(itemId string) (int64, error)
+	// ModerateComment updates the status of a comment (for admin/moderation)
+	ModerateComment(id string, status string) error
+}
+
 // ImageRepositoryInterface defines methods for image operations
 type ImageRepositoryInterface interface {
 	// CreateImage creates a new image
@@ -296,6 +322,7 @@ type RepositoriesInterface struct {
 	CustomElementTypeRepository     CustomElementTypeRepositoryInterface
 	InvitationRepository            InvitationRepositoryInterface
 	CollaboratorRepository          CollaboratorRepositoryInterface
+	CommentRepository               CommentRepositoryInterface
 }
 
 func NewRepositories(db *gorm.DB) *RepositoriesInterface {
@@ -318,5 +345,6 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 		CustomElementTypeRepository: NewCustomElementTypeRepository(db),
 		InvitationRepository:        NewInvitationRepository(db),
 		CollaboratorRepository:      NewCollaboratorRepository(db),
+		CommentRepository:           NewCommentRepository(db),
 	}
 }

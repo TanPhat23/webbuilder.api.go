@@ -23,6 +23,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	customElementTypeHandler := handlers.NewCustomElementTypeHandler(repos.CustomElementTypeRepository)
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	collaboratorHandler := handlers.NewCollaboratorHandler(repos.CollaboratorRepository, repos.ProjectRepository)
+	commentHandler := handlers.NewCommentHandler(repos.CommentRepository, repos.MarketplaceRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
@@ -83,6 +84,26 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Post("/marketplace/tags", marketplaceHandler.CreateTag)
 	group.Get("/marketplace/tags", marketplaceHandler.GetTags)
 	group.Delete("/marketplace/tags/:tagid", marketplaceHandler.DeleteTag)
+
+	// Comment routes
+	group.Post("/comments", commentHandler.CreateComment)
+	group.Get("/comments", commentHandler.GetComments)
+	group.Get("/comments/:commentid", commentHandler.GetCommentByID)
+	group.Patch("/comments/:commentid", commentHandler.UpdateComment)
+	group.Delete("/comments/:commentid", commentHandler.DeleteComment)
+
+	// Comment reactions
+	group.Post("/comments/:commentid/reactions", commentHandler.CreateReaction)
+	group.Delete("/comments/:commentid/reactions", commentHandler.DeleteReaction)
+	group.Get("/comments/:commentid/reactions", commentHandler.GetReactionsByCommentID)
+	group.Get("/comments/:commentid/reactions/summary", commentHandler.GetReactionSummary)
+
+	// Marketplace item comments
+	group.Get("/marketplace/items/:itemid/comments", commentHandler.GetCommentsByItemID)
+	group.Get("/marketplace/items/:itemid/comments/count", commentHandler.GetCommentCount)
+
+	// Comment moderation
+	group.Patch("/comments/:commentid/moderate", commentHandler.ModerateComment)
 
 	// Custom element routes
 	group.Get("/customelements", customElementHandler.GetCustomElements)
