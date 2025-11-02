@@ -34,7 +34,8 @@ func (r *ContentItemRepository) GetContentItemsByContentType(ctx context.Context
 	err := r.db.WithContext(ctx).
 		Model(&models.ContentItem{}).
 		Where("\"ContentTypeId\" = ?", contentTypeID).
-		Preload("FieldValues").
+		Preload("FieldValues.Field").
+		Preload("ContentType").
 		Order("\"CreatedAt\" DESC").
 		Find(&contentItems).Error
 
@@ -55,7 +56,8 @@ func (r *ContentItemRepository) GetContentItemByID(ctx context.Context, id strin
 	err := r.db.WithContext(ctx).
 		Model(&models.ContentItem{}).
 		Where("\"Id\" = ?", id).
-		Preload("FieldValues").
+		Preload("FieldValues.Field").
+		Preload("ContentType").
 		First(&contentItem).Error
 
 	if err != nil {
@@ -280,7 +282,8 @@ func (r *ContentItemRepository) GetPublicContentItems(ctx context.Context, conte
 	err := r.db.WithContext(ctx).
 		Model(&models.ContentItem{}).
 		Where("\"ContentTypeId\" = ? AND \"Published\" = ?", contentTypeID, true).
-		Preload("FieldValues").
+		Preload("FieldValues.Field").
+		Preload("ContentType").
 		Order(fmt.Sprintf("\"%s\" %s", sortBy, sortOrder)).
 		Limit(limit).
 		Find(&contentItems).Error
@@ -302,7 +305,8 @@ func (r *ContentItemRepository) GetContentItemBySlug(ctx context.Context, conten
 	err := r.db.WithContext(ctx).
 		Model(&models.ContentItem{}).
 		Where("\"ContentTypeId\" = ? AND \"Slug\" = ?", contentTypeID, slug).
-		Preload("FieldValues").
+		Preload("FieldValues.Field").
+		Preload("ContentType").
 		First(&contentItem).Error
 
 	if err != nil {

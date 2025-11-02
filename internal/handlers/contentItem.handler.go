@@ -31,7 +31,7 @@ func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content items", err)
 	}
-	return utils.SendJSON(c, fiber.StatusOK, contentItems)
+	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItems(contentItems))
 }
 
 func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
@@ -47,7 +47,7 @@ func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
 		}
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content item", err)
 	}
-	return utils.SendJSON(c, fiber.StatusOK, contentItem)
+	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItem(contentItem))
 }
 
 func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
@@ -68,7 +68,7 @@ func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create content item", err)
 	}
-	return utils.SendJSON(c, fiber.StatusCreated, createdContentItem)
+	return utils.SendJSON(c, fiber.StatusCreated, h.flattenContentItem(createdContentItem))
 }
 
 func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
@@ -88,7 +88,7 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update content item", err)
 	}
-	return utils.SendJSON(c, fiber.StatusOK, updatedContentItem)
+	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItem(updatedContentItem))
 }
 
 func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
@@ -110,7 +110,6 @@ func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
 	sortBy := c.Query("sortBy", "createdAt")
 	sortOrder := c.Query("sortOrder", "desc")
 
-	// Map client sortBy to database column names
 	sortByMap := map[string]string{
 		"createdAt": "CreatedAt",
 		"updatedAt": "UpdatedAt",
@@ -133,7 +132,7 @@ func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content items", err)
 	}
-	return utils.SendJSON(c, fiber.StatusOK, contentItems)
+	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItems(contentItems))
 }
 
 func (h *ContentItemHandler) GetPublicContentItemBySlug(c *fiber.Ctx) error {
@@ -156,7 +155,7 @@ func (h *ContentItemHandler) GetPublicContentItemBySlug(c *fiber.Ctx) error {
 	if !contentItem.Published {
 		return utils.SendError(c, fiber.StatusNotFound, "Content item not found", nil)
 	}
-	return utils.SendJSON(c, fiber.StatusOK, contentItem)
+	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItem(contentItem))
 }
 
 func (h *ContentItemHandler) buildColumnUpdates(updates map[string]any) map[string]any {
@@ -176,4 +175,31 @@ func (h *ContentItemHandler) buildColumnUpdates(updates map[string]any) map[stri
 		}
 	}
 	return columnUpdates
+}
+
+func (h *ContentItemHandler) flattenContentItem(item *models.ContentItem) map[string]interface{} {
+	flattened := map[string]interface{}{
+		"contentTypeId": item.ContentTypeId,
+		"createdAt":     item.CreatedAt,
+		"id":            item.Id,
+		"published":     item.Published,
+		"slug":          item.Slug,
+		"title":         item.Title,
+		"updatedAt":     item.UpdatedAt,
+		"contentType":   item.ContentType,
+	}
+	for _, fv := range item.FieldValues {
+		if fv.Field.Name != "" {
+			flattened[fv.Field.Name] = fv.Value
+		}
+	}
+	return flattened
+}
+
+func (h *ContentItemHandler) flattenContentItems(items []models.ContentItem) []map[string]interface{} {
+	var flattened []map[string]interface{}
+	for _, item := range items {
+		flattened = append(flattened, h.flattenContentItem(&item))
+	}
+	return flattened
 }
