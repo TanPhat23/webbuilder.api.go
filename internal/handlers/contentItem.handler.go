@@ -31,7 +31,7 @@ func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content items", err)
 	}
-	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItems(contentItems))
+	return utils.SendJSON(c, fiber.StatusOK, contentItems)
 }
 
 func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
@@ -47,7 +47,7 @@ func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
 		}
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content item", err)
 	}
-	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItem(contentItem))
+	return utils.SendJSON(c, fiber.StatusOK, contentItem)
 }
 
 func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
@@ -68,7 +68,7 @@ func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create content item", err)
 	}
-	return utils.SendJSON(c, fiber.StatusCreated, h.flattenContentItem(createdContentItem))
+	return utils.SendJSON(c, fiber.StatusCreated, createdContentItem)
 }
 
 func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
@@ -82,7 +82,6 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 		return err
 	}
 
-	// Extract fieldValues before processing column updates
 	var fieldValues []models.ContentFieldValue
 	if fvData, ok := updates["fieldValues"]; ok {
 		if fvSlice, ok := fvData.([]any); ok {
@@ -100,19 +99,16 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 				}
 			}
 		}
-		// Remove fieldValues from updates map so it's not processed as a column
 		delete(updates, "fieldValues")
 	}
 
-	// Build column updates
 	columnUpdates := h.buildColumnUpdates(updates)
 
-	// Pass fieldValues separately to the repository
 	updatedContentItem, err := h.contentItemRepository.UpdateContentItem(c.Context(), id, columnUpdates, fieldValues)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update content item", err)
 	}
-	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItem(updatedContentItem))
+	return utils.SendJSON(c, fiber.StatusOK, updatedContentItem)
 }
 
 func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
