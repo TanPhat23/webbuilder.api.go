@@ -21,7 +21,7 @@ func NewContentItemHandler(contentItemRepo repositories.ContentItemRepositoryInt
 	}
 }
 
-func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
+func (h *ContentItemHandler) ContentItemsByContentType(c *fiber.Ctx) error {
 	contentTypeId, err := utils.ValidateRequiredParam(c, "contentTypeId")
 	if err != nil {
 		return err
@@ -85,9 +85,9 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 	// Extract fieldValues before processing column updates
 	var fieldValues []models.ContentFieldValue
 	if fvData, ok := updates["fieldValues"]; ok {
-		if fvSlice, ok := fvData.([]interface{}); ok {
+		if fvSlice, ok := fvData.([]any); ok {
 			for _, fv := range fvSlice {
-				if fvMap, ok := fv.(map[string]interface{}); ok {
+				if fvMap, ok := fv.(map[string]any); ok {
 					fieldID, fidOK := fvMap["fieldId"].(string)
 					value, valOK := fvMap["value"].(string)
 
@@ -116,8 +116,6 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 }
 
 func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
-</parameter>
-</invoke>
 	id, err := utils.ValidateRequiredParam(c, "itemId")
 	if err != nil {
 		return err
@@ -203,8 +201,8 @@ func (h *ContentItemHandler) buildColumnUpdates(updates map[string]any) map[stri
 	return columnUpdates
 }
 
-func (h *ContentItemHandler) flattenContentItem(item *models.ContentItem) map[string]interface{} {
-	flattened := map[string]interface{}{
+func (h *ContentItemHandler) flattenContentItem(item *models.ContentItem) map[string]any {
+	flattened := map[string]any{
 		"contentTypeId": item.ContentTypeId,
 		"createdAt":     item.CreatedAt,
 		"id":            item.Id,
@@ -222,8 +220,8 @@ func (h *ContentItemHandler) flattenContentItem(item *models.ContentItem) map[st
 	return flattened
 }
 
-func (h *ContentItemHandler) flattenContentItems(items []models.ContentItem) []map[string]interface{} {
-	var flattened []map[string]interface{}
+func (h *ContentItemHandler) flattenContentItems(items []models.ContentItem) []map[string]any {
+	var flattened []map[string]any
 	for _, item := range items {
 		flattened = append(flattened, h.flattenContentItem(&item))
 	}
