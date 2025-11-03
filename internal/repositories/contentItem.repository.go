@@ -139,84 +139,66 @@ func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *model
 		return nil, err
 	}
 
-	// Fetch and return the created item with field values
 	return r.GetContentItemByID(ctx, ci.Id)
 }
 
-func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string, updates map[string]any) (*models.ContentItem, error) {
+func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
 
-	if len(updates) == 0 {
+	if len(updates) == 0 && len(fieldValues) == 0 {
 		return nil, errors.New("no updates provided")
 	}
 
-	// Check if content item exists
 	existing, err := r.GetContentItemByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Handle field values separately
-		if fvSlice, ok := updates["fieldValues"].([]interface{}); ok {
-			// Delete existing field values
+		if len(fieldValues) > 0 {
 			if err := tx.Model(&models.ContentFieldValue{}).
 				Where("\"ContentItemId\" = ?", id).
 				Delete(&models.ContentFieldValue{}).Error; err != nil {
 				return fmt.Errorf("failed to delete existing field values: %w", err)
 			}
 
-			// Create new field values
-			for _, fv := range fvSlice {
-				if fvMap, ok := fv.(map[string]interface{}); ok {
-					fieldID, fidOK := fvMap["fieldId"].(string)
-					value, valOK := fvMap["value"].(string)
+			for i := range fieldValues {
+				if fieldValues[i].Id == "" {
+					fieldValues[i].Id = cuid.New()
+				}
+				fieldValues[i].ContentItemId = id
 
-					if fidOK && valOK {
-						cfv := models.ContentFieldValue{
-							Id:            cuid.New(),
-							ContentItemId: id,
-							FieldId:       fieldID,
-							Value:         &value,
-						}
+				if err := tx.Model(&models.ContentFieldValue{}).Create(&fieldValues[i]).Error; err != nil {
+					return fmt.Errorf("failed to create field value: %w", err)
+				}
+			}
+		}
 
-						if err := tx.Model(&models.ContentFieldValue{}).Create(&cfv).Error; err != nil {
-							return fmt.Errorf("failed to create field value: %w", err)
-						}
-					}
+		if len(updates) > 0 {
+			if newSlug, ok := updates["slug"].(string); ok {
+				var count int64
+				err := tx.Model(&models.ContentItem{}).
+					Where("\"ContentTypeId\" = ? AND \"Slug\" = ? AND \"Id\" != ?", existing.ContentTypeId, newSlug, id).
+					Count(&count).Error
+
+				if err != nil {
+					return fmt.Errorf("failed to check slug uniqueness: %w", err)
+				}
+
+				if count > 0 {
+					return ErrContentItemDuplicate
 				}
 			}
 
-			// Remove fieldValues from updates map
-			delete(updates, "fieldValues")
-		}
+			updates["UpdatedAt"] = time.Now()
 
-		// If updating slug, check for duplicates
-		if newSlug, ok := updates["slug"].(string); ok {
-			var count int64
-			err := tx.Model(&models.ContentItem{}).
-				Where("\"ContentTypeId\" = ? AND \"Slug\" = ? AND \"Id\" != ?", existing.ContentTypeId, newSlug, id).
-				Count(&count).Error
-
-			if err != nil {
-				return fmt.Errorf("failed to check slug uniqueness: %w", err)
+			if err := tx.Model(&models.ContentItem{}).
+				Where("\"Id\" = ?", id).
+				Updates(updates).Error; err != nil {
+				return fmt.Errorf("failed to update content item: %w", err)
 			}
-
-			if count > 0 {
-				return ErrContentItemDuplicate
-			}
-		}
-
-		// Always update the UpdatedAt timestamp
-		updates["UpdatedAt"] = time.Now()
-
-		// Update content item
-		if err := tx.Model(&models.ContentItem{}).
-			Where("\"Id\" = ?", id).
-			Updates(updates).Error; err != nil {
-			return fmt.Errorf("failed to update content item: %w", err)
 		}
 
 		return nil

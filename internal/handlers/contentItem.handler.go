@@ -82,9 +82,33 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 		return err
 	}
 
+	// Extract fieldValues before processing column updates
+	var fieldValues []models.ContentFieldValue
+	if fvData, ok := updates["fieldValues"]; ok {
+		if fvSlice, ok := fvData.([]interface{}); ok {
+			for _, fv := range fvSlice {
+				if fvMap, ok := fv.(map[string]interface{}); ok {
+					fieldID, fidOK := fvMap["fieldId"].(string)
+					value, valOK := fvMap["value"].(string)
+
+					if fidOK && valOK {
+						fieldValues = append(fieldValues, models.ContentFieldValue{
+							FieldId: fieldID,
+							Value:   &value,
+						})
+					}
+				}
+			}
+		}
+		// Remove fieldValues from updates map so it's not processed as a column
+		delete(updates, "fieldValues")
+	}
+
+	// Build column updates
 	columnUpdates := h.buildColumnUpdates(updates)
 
-	updatedContentItem, err := h.contentItemRepository.UpdateContentItem(c.Context(), id, columnUpdates)
+	// Pass fieldValues separately to the repository
+	updatedContentItem, err := h.contentItemRepository.UpdateContentItem(c.Context(), id, columnUpdates, fieldValues)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update content item", err)
 	}
@@ -92,6 +116,8 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 }
 
 func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
+</parameter>
+</invoke>
 	id, err := utils.ValidateRequiredParam(c, "itemId")
 	if err != nil {
 		return err

@@ -144,8 +144,8 @@ type ContentItemRepositoryInterface interface {
 	GetPublicContentItems(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error)
 	// CreateContentItem creates a new content item with field values
 	CreateContentItem(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
-	// UpdateContentItem updates a content item
-	UpdateContentItem(ctx context.Context, id string, updates map[string]any) (*models.ContentItem, error)
+	// UpdateContentItem updates a content item and its field values
+	UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
 	// DeleteContentItem deletes a content item
 	DeleteContentItem(ctx context.Context, id string) error
 }
