@@ -21,7 +21,7 @@ func NewContentItemHandler(contentItemRepo repositories.ContentItemRepositoryInt
 	}
 }
 
-func (h *ContentItemHandler) ContentItemsByContentType(c *fiber.Ctx) error {
+func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
 	contentTypeId, err := utils.ValidateRequiredParam(c, "contentTypeId")
 	if err != nil {
 		return err
