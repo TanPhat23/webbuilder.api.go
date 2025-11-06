@@ -24,6 +24,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	collaboratorHandler := handlers.NewCollaboratorHandler(repos.CollaboratorRepository, repos.ProjectRepository)
 	commentHandler := handlers.NewCommentHandler(repos.CommentRepository, repos.MarketplaceRepository)
+	elementCommentHandler := handlers.NewElementCommentHandler(repos.ElementCommentRepository)
 	userHandler := handlers.NewUserHandler(repos.UserRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
@@ -136,6 +137,15 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/collaborators/:collaboratorid", collaboratorHandler.GetCollaboratorByID)
 	group.Patch("/collaborators/:collaboratorid/role", collaboratorHandler.UpdateCollaboratorRole)
 	group.Delete("/collaborators/:collaboratorid", collaboratorHandler.DeleteCollaborator)
+
+	// Element Comment routes
+	group.Post("/element-comments", elementCommentHandler.CreateElementComment)
+	group.Get("/element-comments/:id", elementCommentHandler.GetElementCommentByID)
+	group.Get("/elements/:elementId/comments", elementCommentHandler.GetElementComments)
+	group.Patch("/element-comments/:id", elementCommentHandler.UpdateElementComment)
+	group.Delete("/element-comments/:id", elementCommentHandler.DeleteElementComment)
+	group.Patch("/element-comments/:id/toggle-resolved", elementCommentHandler.ToggleResolvedStatus)
+	group.Get("/element-comments/author/:authorId", elementCommentHandler.GetCommentsByAuthorID)
 
 	// User routes
 	group.Get("/users/search", userHandler.SearchUsers)
