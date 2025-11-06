@@ -283,3 +283,48 @@ func (h *ElementCommentHandler) GetCommentsByAuthorID(c *fiber.Ctx) error {
 
 	return utils.SendJSON(c, fiber.StatusOK, comments)
 }
+
+// GetCommentsByProjectID retrieves all comments for elements in a project
+// GET /projects/:projectId/comments
+func (h *ElementCommentHandler) GetCommentsByProjectID(c *fiber.Ctx) error {
+	projectID, err := utils.ValidateRequiredParam(c, "projectId")
+	if err != nil {
+		return err
+	}
+
+	// Parse pagination parameters
+	limit := 20
+	offset := 0
+
+	if l := c.Query("limit"); l != "" {
+		if parsedL, err := strconv.Atoi(l); err == nil && parsedL > 0 {
+			limit = parsedL
+		}
+	}
+
+	if o := c.Query("offset"); o != "" {
+		if parsedO, err := strconv.Atoi(o); err == nil && parsedO >= 0 {
+			offset = parsedO
+		}
+	}
+
+	comments, err := h.elementCommentRepo.GetElementCommentsByProjectID(c.Context(), projectID, limit, offset)
+	if err != nil {
+		log.Printf("Error retrieving comments by project: %v\n", err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve comments", err)
+	}
+
+	// Get count for pagination
+	count, err := h.elementCommentRepo.CountElementCommentsByProjectID(c.Context(), projectID)
+	if err != nil {
+		log.Printf("Error counting comments by project: %v\n", err)
+		count = 0
+	}
+
+	return c.JSON(fiber.Map{
+		"data":   comments,
+		"total":  count,
+		"limit":  limit,
+		"offset": offset,
+	})
+}

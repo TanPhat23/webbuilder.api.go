@@ -35,6 +35,10 @@ type ElementCommentRepositoryInterface interface {
 	ToggleResolvedStatus(ctx context.Context, id string) (*models.ElementComment, error)
 	// DeleteElementCommentsByElementID deletes all comments for an element (cascade delete)
 	DeleteElementCommentsByElementID(ctx context.Context, elementID string) error
+	// GetElementCommentsByProjectID retrieves all comments for elements in a project
+	GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error)
+	// CountElementCommentsByProjectID counts all comments for elements in a project
+	CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error)
 }
 
 // ProjectRepositoryInterface defines methods for project operations

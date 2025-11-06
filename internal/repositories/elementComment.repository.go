@@ -260,3 +260,52 @@ func (r *ElementCommentRepository) DeleteElementCommentsByElementID(ctx context.
 
 	return nil
 }
+
+// GetElementCommentsByProjectID retrieves all comments for elements in a project
+func (r *ElementCommentRepository) GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error) {
+	if projectID == "" {
+		return nil, errors.New("projectId is required")
+	}
+
+	var comments []models.ElementComment
+
+	query := r.db.WithContext(ctx).
+		Preload("Author").
+		Preload("Element").
+		Joins("JOIN public.\"Element\" ON public.\"Element\".\"Id\" = public.\"ElementComment\".\"ElementId\"").
+		Where("public.\"Element\".\"ProjectId\" = ? AND public.\"ElementComment\".\"DeletedAt\" IS NULL", projectID).
+		Order("public.\"ElementComment\".\"CreatedAt\" DESC")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	if err := query.Find(&comments).Error; err != nil {
+		return nil, fmt.Errorf("failed to get comments by project: %w", err)
+	}
+
+	return comments, nil
+}
+
+// CountElementCommentsByProjectID counts all comments for elements in a project
+func (r *ElementCommentRepository) CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error) {
+	if projectID == "" {
+		return 0, errors.New("projectId is required")
+	}
+
+	var count int64
+
+	if err := r.db.WithContext(ctx).
+		Model(&models.ElementComment{}).
+		Joins("JOIN public.\"Element\" ON public.\"Element\".\"Id\" = public.\"ElementComment\".\"ElementId\"").
+		Where("public.\"Element\".\"ProjectId\" = ? AND public.\"ElementComment\".\"DeletedAt\" IS NULL", projectID).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count comments by project: %w", err)
+	}
+
+	return count, nil
+}
