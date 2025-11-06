@@ -12,23 +12,26 @@ type Element struct {
 	Src            *string         `gorm:"column:Src;type:varchar(255)" json:"src,omitempty"`
 	Href           *string         `gorm:"column:Href;type:varchar(255)" json:"href,omitempty"`
 	ParentId       *string         `gorm:"column:ParentId;type:varchar(255)" json:"parentId,omitempty"`
-	PageId					*string 			`gorm:"column:PageId;type:varchar(255)" json:"pageId,omitempty"`
+	PageId         *string         `gorm:"column:PageId;type:varchar(255)" json:"pageId,omitempty"`
 	ProjectId      string          `gorm:"column:ProjectId;type:varchar(255)" json:"projectId"`
 	Order          int             `gorm:"column:Order;default:0" json:"order"`
-	Settings       *json.RawMessage  `gorm:"-" json:"settings,omitempty"`
+	Settings       *json.RawMessage `gorm:"-" json:"settings,omitempty"`
+
+	// Relations
+	Comments []ElementComment `gorm:"foreignKey:ElementId;references:Id" json:"comments,omitempty"`
 }
 
 type EditorElement interface {
-    GetElement() *Element
-    GetType() string
+	GetElement() *Element
+	GetType() string
 }
 
 func (e *Element) GetElement() *Element {
-    return e
+	return e
 }
 
 func (e *Element) GetType() string {
-    return e.Type
+	return e.Type
 }
 
 type SectionElement struct {

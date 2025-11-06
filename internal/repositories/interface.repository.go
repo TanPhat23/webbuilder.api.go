@@ -15,6 +15,28 @@ type ElementRepositoryInterface interface {
 	ReplaceElements(ctx context.Context, projectID string, elements []models.EditorElement) error
 }
 
+// ElementCommentRepositoryInterface defines methods for element comment operations
+type ElementCommentRepositoryInterface interface {
+	// CreateElementComment creates a new element comment
+	CreateElementComment(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error)
+	// GetElementCommentByID retrieves a single element comment by ID
+	GetElementCommentByID(ctx context.Context, id string) (*models.ElementComment, error)
+	// GetElementComments retrieves comments for an element with filtering and pagination
+	GetElementComments(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error)
+	// UpdateElementComment updates an existing element comment
+	UpdateElementComment(ctx context.Context, id string, updates map[string]interface{}) (*models.ElementComment, error)
+	// DeleteElementComment soft deletes an element comment
+	DeleteElementComment(ctx context.Context, id string) error
+	// GetElementCommentsByAuthorID retrieves all comments by a specific author
+	GetElementCommentsByAuthorID(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error)
+	// CountElementComments counts comments for an element
+	CountElementComments(ctx context.Context, elementID string) (int64, error)
+	// ToggleResolvedStatus toggles the resolved status of a comment
+	ToggleResolvedStatus(ctx context.Context, id string) (*models.ElementComment, error)
+	// DeleteElementCommentsByElementID deletes all comments for an element (cascade delete)
+	DeleteElementCommentsByElementID(ctx context.Context, elementID string) error
+}
+
 // ProjectRepositoryInterface defines methods for project operations
 type UserRepositoryInterface interface {
 	// GetUserByID retrieves a user by ID
@@ -317,6 +339,7 @@ type CollaboratorRepositoryInterface interface {
 
 type RepositoriesInterface struct {
 	ElementRepository               ElementRepositoryInterface
+	ElementCommentRepository        ElementCommentRepositoryInterface
 	UserRepository                  UserRepositoryInterface
 	ProjectRepository               ProjectRepositoryInterface
 	SnapshotRepository              SnapshotRepositoryInterface
@@ -340,6 +363,7 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 
 	return &RepositoriesInterface{
 		ElementRepository:           NewElementRepository(db, settingRepo),
+		ElementCommentRepository:    NewElementCommentRepository(db),
 		UserRepository:              NewUserRepository(db),
 		ProjectRepository:           NewProjectRepository(db),
 		SnapshotRepository:          NewSnapshotRepository(db),
