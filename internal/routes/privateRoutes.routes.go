@@ -146,6 +146,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Delete("/element-comments/:id", elementCommentHandler.DeleteElementComment)
 	group.Patch("/element-comments/:id/toggle-resolved", elementCommentHandler.ToggleResolvedStatus)
 	group.Get("/element-comments/author/:authorId", elementCommentHandler.GetCommentsByAuthorID)
+	group.Get("/projects/:projectId/comments", elementCommentHandler.GetCommentsByProjectID)
 
 	// User routes
 	group.Get("/users/search", userHandler.SearchUsers)
