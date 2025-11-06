@@ -128,7 +128,7 @@ func (r *ElementCommentRepository) GetElementComments(ctx context.Context, eleme
 }
 
 // UpdateElementComment updates an existing element comment
-func (r *ElementCommentRepository) UpdateElementComment(ctx context.Context, id string, updates map[string]interface{}) (*models.ElementComment, error) {
+func (r *ElementCommentRepository) UpdateElementComment(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error) {
 	if id == "" {
 		return nil, errors.New("comment id is required")
 	}

@@ -251,8 +251,8 @@ func (r *ContentTypeRepository) ExistsByID(ctx context.Context, id string) (bool
 	return count > 0, nil
 }
 
-func (r *ContentTypeRepository) GetContentTypesWithFieldCount(ctx context.Context) ([]map[string]interface{}, error) {
-	var results []map[string]interface{}
+func (r *ContentTypeRepository) GetContentTypesWithFieldCount(ctx context.Context) ([]map[string]any, error) {
+	var results []map[string]any
 
 	err := r.db.WithContext(ctx).
 		Model(&models.ContentType{}).
@@ -269,8 +269,8 @@ func (r *ContentTypeRepository) GetContentTypesWithFieldCount(ctx context.Contex
 	return results, nil
 }
 
-func (r *ContentTypeRepository) GetContentTypesWithItemCount(ctx context.Context) ([]map[string]interface{}, error) {
-	var results []map[string]interface{}
+func (r *ContentTypeRepository) GetContentTypesWithItemCount(ctx context.Context) ([]map[string]any, error) {
+	var results []map[string]any
 
 	err := r.db.WithContext(ctx).
 		Model(&models.ContentType{}).

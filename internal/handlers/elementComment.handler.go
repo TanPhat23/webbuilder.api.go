@@ -39,8 +39,8 @@ func (h *ElementCommentHandler) CreateElementComment(c *fiber.Ctx) error {
 	}
 
 	// Get user ID from context (assuming it's set by middleware)
-	userID := c.Locals("userID").(string)
-	if userID == "" {
+	userID, ok := c.Locals("userId").(string)
+	if !ok || userID == "" {
 		return utils.SendError(c, fiber.StatusUnauthorized, "User ID not found", nil)
 	}
 
@@ -164,7 +164,10 @@ func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
 	}
 
 	// Get user ID from context (for authorization check)
-	userID := c.Locals("userID").(string)
+	userID, ok := c.Locals("userId").(string)
+	if !ok || userID == "" {
+		return utils.SendError(c, fiber.StatusUnauthorized, "User ID not found", nil)
+	}
 
 	// Retrieve current comment to verify ownership
 	comment, err := h.elementCommentRepo.GetElementCommentByID(c.Context(), commentID)
@@ -177,7 +180,7 @@ func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
 	}
 
 	// Build updates map
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if req.Content != nil {
 		updates["Content"] = *req.Content
 	}
@@ -207,7 +210,10 @@ func (h *ElementCommentHandler) DeleteElementComment(c *fiber.Ctx) error {
 	}
 
 	// Get user ID from context (for authorization check)
-	userID := c.Locals("userID").(string)
+	userID, ok := c.Locals("userId").(string)
+	if !ok || userID == "" {
+		return utils.SendError(c, fiber.StatusUnauthorized, "User ID not found", nil)
+	}
 
 	// Retrieve current comment to verify ownership
 	comment, err := h.elementCommentRepo.GetElementCommentByID(c.Context(), commentID)

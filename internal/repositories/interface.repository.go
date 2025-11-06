@@ -24,7 +24,7 @@ type ElementCommentRepositoryInterface interface {
 	// GetElementComments retrieves comments for an element with filtering and pagination
 	GetElementComments(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error)
 	// UpdateElementComment updates an existing element comment
-	UpdateElementComment(ctx context.Context, id string, updates map[string]interface{}) (*models.ElementComment, error)
+	UpdateElementComment(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error)
 	// DeleteElementComment soft deletes an element comment
 	DeleteElementComment(ctx context.Context, id string) error
 	// GetElementCommentsByAuthorID retrieves all comments by a specific author

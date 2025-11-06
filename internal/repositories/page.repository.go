@@ -125,7 +125,7 @@ func (r *PageRepository) UpdatePage(ctx context.Context, page *models.Page) erro
 	return nil
 }
 
-func (r *PageRepository) UpdatePageFields(ctx context.Context, pageID string, updates map[string]interface{}) error {
+func (r *PageRepository) UpdatePageFields(ctx context.Context, pageID string, updates map[string]any) error {
 	if pageID == "" {
 		return errors.New("pageID is required")
 	}
