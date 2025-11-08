@@ -11,6 +11,11 @@ import (
 )
 
 func AuthenticateMiddleware(c *fiber.Ctx) error {
+	// Skip authentication for public routes
+	if strings.HasPrefix(c.Path(), "/api/v1/projects/public") || strings.HasPrefix(c.Path(), "/api/v1/public") || strings.HasPrefix(c.Path(), "/api/v1/elements/public") {
+		return c.Next()
+	}
+
 	// Example authentication logic
 	authHeader := c.Get("Authorization")
 	if authHeader == "" {

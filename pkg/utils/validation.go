@@ -29,3 +29,22 @@ func ValidateJSONBody(c *fiber.Ctx, v any) error {
 	}
 	return nil
 }
+
+func ValidateCollaboratorRole(role string) error {
+	validRoles := map[string]bool{
+		"owner":  true,
+		"editor": true,
+		"viewer": true,
+	}
+	if !validRoles[role] {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid collaborator role: "+role)
+	}
+	return nil
+}
+
+func ValidateCollaboratorID(collaboratorID string) error {
+	if collaboratorID == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "Collaborator ID is required")
+	}
+	return nil
+}

@@ -15,14 +15,55 @@ type ElementRepositoryInterface interface {
 	ReplaceElements(ctx context.Context, projectID string, elements []models.EditorElement) error
 }
 
+// ElementCommentRepositoryInterface defines methods for element comment operations
+type ElementCommentRepositoryInterface interface {
+	// CreateElementComment creates a new element comment
+	CreateElementComment(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error)
+	// GetElementCommentByID retrieves a single element comment by ID
+	GetElementCommentByID(ctx context.Context, id string) (*models.ElementComment, error)
+	// GetElementComments retrieves comments for an element with filtering and pagination
+	GetElementComments(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error)
+	// UpdateElementComment updates an existing element comment
+	UpdateElementComment(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error)
+	// DeleteElementComment soft deletes an element comment
+	DeleteElementComment(ctx context.Context, id string) error
+	// GetElementCommentsByAuthorID retrieves all comments by a specific author
+	GetElementCommentsByAuthorID(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error)
+	// CountElementComments counts comments for an element
+	CountElementComments(ctx context.Context, elementID string) (int64, error)
+	// ToggleResolvedStatus toggles the resolved status of a comment
+	ToggleResolvedStatus(ctx context.Context, id string) (*models.ElementComment, error)
+	// DeleteElementCommentsByElementID deletes all comments for an element (cascade delete)
+	DeleteElementCommentsByElementID(ctx context.Context, elementID string) error
+	// GetElementCommentsByProjectID retrieves all comments for elements in a project
+	GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error)
+	// CountElementCommentsByProjectID counts all comments for elements in a project
+	CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error)
+}
+
 // ProjectRepositoryInterface defines methods for project operations
+type UserRepositoryInterface interface {
+	// GetUserByID retrieves a user by ID
+	GetUserByID(ctx context.Context, userID string) (*models.User, error)
+	// GetUserByEmail retrieves a user by email
+	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	// GetUserByUsername retrieves a user by username
+	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
+	// SearchUsers searches users by email or username
+	SearchUsers(ctx context.Context, query string) ([]models.User, error)
+}
+
 type ProjectRepositoryInterface interface {
-	// GetProjects retrieves all projects
-	GetProjects(ctx context.Context) ([]models.Project, error)
+	// GetPublicProjectByID retrieves a public project by ID
+	GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error)
 	// GetProjectByID retrieves a project by ID with user ownership verification
 	GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error)
+	// GetProjectWithAccess retrieves a project by ID with access verification (owner or collaborator)
+	GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
 	// GetProjectsByUserID retrieves all projects for a specific user
 	GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error)
+	// GetCollaboratorProjects retrieves all projects where the user is a collaborator
+	GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error)
 	// GetProjectPages retrieves all pages for a project with ownership verification
 	GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error)
 	// CreateProject creates a new project
@@ -129,8 +170,8 @@ type ContentItemRepositoryInterface interface {
 	GetPublicContentItems(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error)
 	// CreateContentItem creates a new content item with field values
 	CreateContentItem(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
-	// UpdateContentItem updates a content item
-	UpdateContentItem(ctx context.Context, id string, updates map[string]any) (*models.ContentItem, error)
+	// UpdateContentItem updates a content item and its field values
+	UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
 	// DeleteContentItem deletes a content item
 	DeleteContentItem(ctx context.Context, id string) error
 }
@@ -203,6 +244,32 @@ type MarketplaceRepositoryInterface interface {
 	DeleteTag(id string) error
 }
 
+// CommentRepositoryInterface defines methods for comment operations
+type CommentRepositoryInterface interface {
+	// CreateComment creates a new comment
+	CreateComment(comment models.Comment) (*models.Comment, error)
+	// GetCommentByID retrieves a comment by ID with author and reactions
+	GetCommentByID(id string) (*models.Comment, error)
+	// GetComments retrieves comments with filtering and pagination
+	GetComments(filter models.CommentFilter) ([]models.Comment, int64, error)
+	// UpdateComment updates a comment with user verification
+	UpdateComment(id string, userId string, updates map[string]any) (*models.Comment, error)
+	// DeleteComment soft deletes a comment with user verification
+	DeleteComment(id string, userId string) error
+	// CreateReaction creates or updates a reaction
+	CreateReaction(reaction models.CommentReaction) (*models.CommentReaction, error)
+	// DeleteReaction deletes a reaction
+	DeleteReaction(commentId string, userId string, reactionType string) error
+	// GetReactionsByCommentID retrieves all reactions for a comment
+	GetReactionsByCommentID(commentId string) ([]models.CommentReaction, error)
+	// GetReactionSummary retrieves reaction counts grouped by type
+	GetReactionSummary(commentId string) ([]models.ReactionSummary, error)
+	// GetCommentCountByItemID returns the number of comments for a marketplace item
+	GetCommentCountByItemID(itemId string) (int64, error)
+	// ModerateComment updates the status of a comment (for admin/moderation)
+	ModerateComment(id string, status string) error
+}
+
 // ImageRepositoryInterface defines methods for image operations
 type ImageRepositoryInterface interface {
 	// CreateImage creates a new image
@@ -238,8 +305,46 @@ type CustomElementTypeRepositoryInterface interface {
 	DeleteCustomElementType(ctx context.Context, id string) error
 }
 
+type InvitationRepositoryInterface interface {
+	// CreateInvitation creates a new invitation
+	CreateInvitation(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error)
+	// GetInvitationsByProject retrieves invitations by project ID
+	GetInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
+	// GetInvitationByID retrieves an invitation by ID
+	GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error)
+	// GetInvitationByToken retrieves an invitation by token
+	GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error)
+	// AcceptInvitation accepts an invitation and creates a collaborator
+	AcceptInvitation(ctx context.Context, token string, userID string) error
+	// DeleteInvitation deletes an invitation
+	DeleteInvitation(ctx context.Context, id string) error
+	// UpdateInvitationStatus updates the status of an invitation
+	UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error
+	// CancelInvitation cancels an invitation
+	CancelInvitation(ctx context.Context, id string) error
+	// GetPendingInvitationsByProject gets all pending invitations for a project
+	GetPendingInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
+}
+
+type CollaboratorRepositoryInterface interface {
+	// CreateCollaborator creates a new collaborator
+	CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
+	// GetCollaboratorsByProject retrieves collaborators by project ID
+	GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error)
+	// GetCollaboratorByID retrieves a collaborator by ID
+	GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error)
+	// UpdateCollaboratorRole updates a collaborator's role
+	UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error
+	// DeleteCollaborator deletes a collaborator
+	DeleteCollaborator(ctx context.Context, id string) error
+	// IsCollaborator checks if a user is a collaborator on a project
+	IsCollaborator(ctx context.Context, projectID, userID string) (bool, error)
+}
+
 type RepositoriesInterface struct {
 	ElementRepository               ElementRepositoryInterface
+	ElementCommentRepository        ElementCommentRepositoryInterface
+	UserRepository                  UserRepositoryInterface
 	ProjectRepository               ProjectRepositoryInterface
 	SnapshotRepository              SnapshotRepositoryInterface
 	SettingRepository               SettingRepositoryInterface
@@ -252,6 +357,9 @@ type RepositoriesInterface struct {
 	ImageRepository                 ImageRepositoryInterface
 	CustomElementRepository         CustomElementRepositoryInterface
 	CustomElementTypeRepository     CustomElementTypeRepositoryInterface
+	InvitationRepository            InvitationRepositoryInterface
+	CollaboratorRepository          CollaboratorRepositoryInterface
+	CommentRepository               CommentRepositoryInterface
 }
 
 func NewRepositories(db *gorm.DB) *RepositoriesInterface {
@@ -259,6 +367,8 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 
 	return &RepositoriesInterface{
 		ElementRepository:           NewElementRepository(db, settingRepo),
+		ElementCommentRepository:    NewElementCommentRepository(db),
+		UserRepository:              NewUserRepository(db),
 		ProjectRepository:           NewProjectRepository(db),
 		SnapshotRepository:          NewSnapshotRepository(db),
 		SettingRepository:           settingRepo,
@@ -271,5 +381,8 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 		ImageRepository:             NewImageRepository(db),
 		CustomElementRepository:     NewCustomElementRepository(db),
 		CustomElementTypeRepository: NewCustomElementTypeRepository(db),
+		InvitationRepository:        NewInvitationRepository(db),
+		CollaboratorRepository:      NewCollaboratorRepository(db),
+		CommentRepository:           NewCommentRepository(db),
 	}
 }

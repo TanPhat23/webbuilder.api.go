@@ -3,17 +3,17 @@ package routes
 import (
 	"my-go-app/internal/handlers"
 	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/middleware"
-	"my-go-app/pkg/services"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService) {
+func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService, invitationService *services.InvitationService) {
 	elementHandler := handlers.NewElementHandler(repos.ElementRepository)
 	projectHandler := handlers.NewProjectHandler(repos.ProjectRepository)
 	pageHandler := handlers.NewPageHandler(repos.PageRepository)
-	snapshotHandler := handlers.NewSnapshotHandler(repos.SnapshotRepository, repos.ElementRepository)
+	snapshotHandler := handlers.NewSnapshotHandler(repos.SnapshotRepository, repos.ElementRepository, repos.ProjectRepository)
 	contentTypeHandler := handlers.NewContentTypeHandler(repos.ContentTypeRepository)
 	contentFieldHandler := handlers.NewContentFieldHandler(repos.ContentFieldRepository)
 	contentItemHandler := handlers.NewContentItemHandler(repos.ContentItemRepository)
@@ -21,12 +21,17 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	marketplaceHandler := handlers.NewMarketplaceHandler(repos.MarketplaceRepository)
 	customElementHandler := handlers.NewCustomElementHandler(repos.CustomElementRepository)
 	customElementTypeHandler := handlers.NewCustomElementTypeHandler(repos.CustomElementTypeRepository)
+	invitationHandler := handlers.NewInvitationHandler(invitationService)
+	collaboratorHandler := handlers.NewCollaboratorHandler(repos.CollaboratorRepository, repos.ProjectRepository)
+	commentHandler := handlers.NewCommentHandler(repos.CommentRepository, repos.MarketplaceRepository)
+	elementCommentHandler := handlers.NewElementCommentHandler(repos.ElementCommentRepository)
+	userHandler := handlers.NewUserHandler(repos.UserRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
 	group.Get("/elements/:projectid", elementHandler.GetElements)
 
-	group.Get("/projects/user", projectHandler.GetProjectByUserID)
+	group.Get("/projects/user", projectHandler.GetProjectsByUser)
 	group.Get("/projects/:projectid", projectHandler.GetProjectByID)
 	group.Get("/projects/:projectid/pages", projectHandler.GetProjectPages)
 	group.Delete("/projects/:projectid", projectHandler.DeleteProject)
@@ -36,6 +41,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Post("/snapshots/:projectid/save", snapshotHandler.SaveSnapshot)
 	group.Get("/snapshots/:projectid", snapshotHandler.GetSnapshots)
 	group.Get("/snapshots/:projectid/:snapshotid", snapshotHandler.GetSnapshotByID)
+	group.Delete("/snapshots/:projectid/:snapshotid", snapshotHandler.DeleteSnapshot)
 
 	group.Get("/content-types", contentTypeHandler.GetContentTypes)
 	group.Post("/content-types", contentTypeHandler.CreateContentType)
@@ -81,6 +87,26 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/marketplace/tags", marketplaceHandler.GetTags)
 	group.Delete("/marketplace/tags/:tagid", marketplaceHandler.DeleteTag)
 
+	// Comment routes
+	group.Post("/comments", commentHandler.CreateComment)
+	group.Get("/comments", commentHandler.GetComments)
+	group.Get("/comments/:commentid", commentHandler.GetCommentByID)
+	group.Patch("/comments/:commentid", commentHandler.UpdateComment)
+	group.Delete("/comments/:commentid", commentHandler.DeleteComment)
+
+	// Comment reactions
+	group.Post("/comments/:commentid/reactions", commentHandler.CreateReaction)
+	group.Delete("/comments/:commentid/reactions", commentHandler.DeleteReaction)
+	group.Get("/comments/:commentid/reactions", commentHandler.GetReactionsByCommentID)
+	group.Get("/comments/:commentid/reactions/summary", commentHandler.GetReactionSummary)
+
+	// Marketplace item comments
+	group.Get("/marketplace/items/:itemid/comments", commentHandler.GetCommentsByItemID)
+	group.Get("/marketplace/items/:itemid/comments/count", commentHandler.GetCommentCount)
+
+	// Comment moderation
+	group.Patch("/comments/:commentid/moderate", commentHandler.ModerateComment)
+
 	// Custom element routes
 	group.Get("/customelements", customElementHandler.GetCustomElements)
 	group.Get("/customelements/public", customElementHandler.GetPublicCustomElements)
@@ -96,4 +122,34 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Post("/customelementtypes", customElementTypeHandler.CreateCustomElementType)
 	group.Patch("/customelementtypes/:id", customElementTypeHandler.UpdateCustomElementType)
 	group.Delete("/customelementtypes/:id", customElementTypeHandler.DeleteCustomElementType)
+
+	// Invitation routes
+	group.Post("/invitations", invitationHandler.CreateInvitation)
+	group.Get("/invitations/project/:projectid", invitationHandler.GetInvitationsByProject)
+	group.Get("/invitations/project/:projectid/pending", invitationHandler.GetPendingInvitationsByProject)
+	group.Post("/invitations/accept", invitationHandler.AcceptInvitation)
+	group.Patch("/invitations/:invitationid/cancel", invitationHandler.CancelInvitation)
+	group.Patch("/invitations/:invitationid/status", invitationHandler.UpdateInvitationStatus)
+	group.Delete("/invitations/:invitationid", invitationHandler.DeleteInvitation)
+
+	// Collaborator routes
+	group.Get("/collaborators/project/:projectid", collaboratorHandler.GetCollaboratorsByProject)
+	group.Get("/collaborators/:collaboratorid", collaboratorHandler.GetCollaboratorByID)
+	group.Patch("/collaborators/:collaboratorid/role", collaboratorHandler.UpdateCollaboratorRole)
+	group.Delete("/collaborators/:collaboratorid", collaboratorHandler.DeleteCollaborator)
+
+	// Element Comment routes
+	group.Post("/element-comments", elementCommentHandler.CreateElementComment)
+	group.Get("/element-comments/:id", elementCommentHandler.GetElementCommentByID)
+	group.Get("/elements/:elementId/comments", elementCommentHandler.GetElementComments)
+	group.Patch("/element-comments/:id", elementCommentHandler.UpdateElementComment)
+	group.Delete("/element-comments/:id", elementCommentHandler.DeleteElementComment)
+	group.Patch("/element-comments/:id/toggle-resolved", elementCommentHandler.ToggleResolvedStatus)
+	group.Get("/element-comments/author/:authorId", elementCommentHandler.GetCommentsByAuthorID)
+	group.Get("/projects/:projectId/comments", elementCommentHandler.GetCommentsByProjectID)
+
+	// User routes
+	group.Get("/users/search", userHandler.SearchUsers)
+	group.Get("/users/email/:email", userHandler.GetUserByEmail)
+	group.Get("/users/username/:username", userHandler.GetUserByUsername)
 }

@@ -17,7 +17,7 @@ var (
 
 const (
 	SnapshotTypeWorking = "working"
-	SnapshotTypeSaved = "saved"
+	SnapshotTypeVersion = "version"
 	SnapshotTypePublished = "published"
 )
 
@@ -343,7 +343,7 @@ const (
 
 	func isValidSnapshotType(snapshotType string) bool {
 	switch snapshotType {
-	case SnapshotTypeWorking, SnapshotTypeSaved, SnapshotTypePublished:
+	case SnapshotTypeWorking, SnapshotTypeVersion, SnapshotTypePublished:
 		return true
 	default:
 		return false

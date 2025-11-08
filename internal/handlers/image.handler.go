@@ -4,7 +4,7 @@ import (
 	"context"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
-	"my-go-app/pkg/services"
+	"my-go-app/internal/services"
 	"time"
 
 	"github.com/gofiber/fiber/v2"

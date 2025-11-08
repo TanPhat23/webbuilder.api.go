@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "./proto";
+
+message Element {
+  string id = 1;
+  string type = 2;
+  optional string content = 3;
+  optional string name = 4;
+  string styles = 5; // JSON string for ResponsiveStyles
+  optional string tailwindStyles = 6;
+  optional string src = 7;
+  optional string href = 8;
+  optional string parentId = 9;
+  optional string pageId = 10;
+  string projectId = 11;
+
+  int32 order = 12;
+  optional string settings = 13; // JSON string for type-specific settings
+  repeated Element elements = 14; // Child elements
+}
+
+message SaveSnapshotRequest {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string elements = 4;
+  int64 timestamp = 5;
+  string projectId = 6;
+}
+
+message SaveSnapshotResponse {
+  string message = 1;
+}
+
+message ProjectElementsRequest {
+  string projectId = 1;
+}
+
+message ProjectElementsResponse {
+  repeated Element elements = 1;
+}
+
+service ElementService {
+  rpc SaveSnapshot(SaveSnapshotRequest) returns (SaveSnapshotResponse);
+  rpc GetProjectElements(ProjectElementsRequest) returns (ProjectElementsResponse);
+}

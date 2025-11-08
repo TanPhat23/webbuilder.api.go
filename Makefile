@@ -186,3 +186,6 @@ setup: deps-tidy ## Setup project for development
 start: build ## Build and run the application
 	@echo "Starting application..."
 	./$(BUILD_DIR)/$(APP_NAME)
+
+proto:
+	PATH=$(PATH):$(shell go env GOPATH)/bin protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./proto/service.proto

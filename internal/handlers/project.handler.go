@@ -18,9 +18,13 @@ func NewProjectHandler(projectRepo repositories.ProjectRepositoryInterface) *Pro
 	}
 }
 
-func (h *ProjectHandler) GetProject(c *fiber.Ctx) error {
-	userID, _ := c.Locals("userId").(string)
-	projects, err := h.projectRepository.GetProjects(c.Context())
+func (h *ProjectHandler) GetProjectsByUser(c *fiber.Ctx) error {
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+
+	projects, err := h.projectRepository.GetProjectsByUserID(c.Context(), userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve projects", err, userID)
 	}
@@ -38,12 +42,28 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 		return err
 	}
 
-	project, err := h.projectRepository.GetProjectByID(c.Context(), projectID, userID)
+	project, err := h.projectRepository.GetProjectWithAccess(c.Context(), projectID, userID)
 	if err != nil {
-		if err.Error() == "project not found" {
+		if err.Error() == "project not found" || err.Error() == "project unauthorized" {
 			return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, userID)
 		}
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve project", err, userID)
+	}
+	return utils.SendJSON(c, fiber.StatusOK, project)
+}
+
+func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
+	projectID, err := utils.ValidateRequiredParam(c, "projectid")
+	if err != nil {
+		return err
+	}
+
+	project, err := h.projectRepository.GetPublicProjectByID(c.Context(), projectID)
+	if err != nil {
+		if err.Error() == "project not found" {
+			return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, "")
+		}
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve project", err, "")
 	}
 	return utils.SendJSON(c, fiber.StatusOK, project)
 }
@@ -57,6 +77,12 @@ func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
+	}
+
+	// Check access first
+	_, err = h.projectRepository.GetProjectWithAccess(c.Context(), projectID, userID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
 	pages, err := h.projectRepository.GetProjectPages(c.Context(), projectID, userID)

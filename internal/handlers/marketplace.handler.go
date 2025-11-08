@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"strconv"
@@ -46,13 +47,43 @@ func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get author name from context or use a default
+	for _, tagId := range req.TagIds {
+		tag, err := h.marketplaceRepository.GetTagByID(tagId)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":        "Failed to validate tag",
+				"errorMessage": err.Error(),
+			})
+		}
+		if tag == nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":        "Validation failed",
+				"errorMessage": fmt.Sprintf("Tag with ID %s does not exist", tagId),
+			})
+		}
+	}
+
+	for _, categoryId := range req.CategoryIds {
+		category, err := h.marketplaceRepository.GetCategoryByID(categoryId)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":        "Failed to validate category",
+				"errorMessage": err.Error(),
+			})
+		}
+		if category == nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":        "Validation failed",
+				"errorMessage": fmt.Sprintf("Category with ID %s does not exist", categoryId),
+			})
+		}
+	}
+
 	authorName, ok := c.Locals("userName").(string)
 	if !ok || authorName == "" {
 		authorName = "Anonymous"
 	}
 
-	// Set default template type if not provided
 	templateType := "block"
 	if req.TemplateType != "" {
 		templateType = req.TemplateType
