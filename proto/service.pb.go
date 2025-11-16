@@ -37,6 +37,7 @@ type Element struct {
 	Order          int32                  `protobuf:"varint,12,opt,name=order,proto3" json:"order,omitempty"`
 	Settings       *string                `protobuf:"bytes,13,opt,name=settings,proto3,oneof" json:"settings,omitempty"` // JSON string for type-specific settings
 	Elements       []*Element             `protobuf:"bytes,14,rep,name=elements,proto3" json:"elements,omitempty"`       // Child elements
+	EventWorkflows *string                `protobuf:"bytes,15,opt,name=EventWorkflows,proto3,oneof" json:"EventWorkflows,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -167,6 +168,13 @@ func (x *Element) GetElements() []*Element {
 		return x.Elements
 	}
 	return nil
+}
+
+func (x *Element) GetEventWorkflows() string {
+	if x != nil && x.EventWorkflows != nil {
+		return *x.EventWorkflows
+	}
+	return ""
 }
 
 type SaveSnapshotRequest struct {
@@ -389,7 +397,7 @@ var File_proto_service_proto protoreflect.FileDescriptor
 
 const file_proto_service_proto_rawDesc = "" +
 	"\n" +
-	"\x13proto/service.proto\x12\x05proto\"\xf7\x03\n" +
+	"\x13proto/service.proto\x12\x05proto\"\xb7\x04\n" +
 	"\aElement\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1d\n" +
@@ -405,7 +413,8 @@ const file_proto_service_proto_rawDesc = "" +
 	"\tprojectId\x18\v \x01(\tR\tprojectId\x12\x14\n" +
 	"\x05order\x18\f \x01(\x05R\x05order\x12\x1f\n" +
 	"\bsettings\x18\r \x01(\tH\aR\bsettings\x88\x01\x01\x12*\n" +
-	"\belements\x18\x0e \x03(\v2\x0e.proto.ElementR\belementsB\n" +
+	"\belements\x18\x0e \x03(\v2\x0e.proto.ElementR\belements\x12+\n" +
+	"\x0eEventWorkflows\x18\x0f \x01(\tH\bR\x0eEventWorkflows\x88\x01\x01B\n" +
 	"\n" +
 	"\b_contentB\a\n" +
 	"\x05_nameB\x11\n" +
@@ -414,7 +423,8 @@ const file_proto_service_proto_rawDesc = "" +
 	"\x05_hrefB\v\n" +
 	"\t_parentIdB\t\n" +
 	"\a_pageIdB\v\n" +
-	"\t_settings\"\xa5\x01\n" +
+	"\t_settingsB\x11\n" +
+	"\x0f_EventWorkflows\"\xa5\x01\n" +
 	"\x13SaveSnapshotRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +

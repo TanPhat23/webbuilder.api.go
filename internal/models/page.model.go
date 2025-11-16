@@ -14,6 +14,7 @@ type Page struct {
 	CreatedAt time.Time       `gorm:"column:CreatedAt;precision:6" json:"CreatedAt"`
 	UpdatedAt time.Time       `gorm:"column:UpdatedAt;precision:6" json:"UpdatedAt"`
 	DeletedAt *time.Time      `gorm:"column:DeletedAt;precision:6" json:"DeletedAt,omitempty"`
+	Elements  []Element       `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"Elements,omitempty"`
 }
 
 func (Page) TableName() string {

@@ -31,7 +31,7 @@ func main() {
 
 	repos := database.NewRepositories(db)
 
-	elementService := services.NewElementService(repos.SnapshotRepository, repos.ElementRepository)
+	elementService := services.NewElementService(repos.SnapshotRepository, repos.ElementRepository, repos.EventWorkflowRepository, repos.ElementEventWorkflowRepository)
 
 	port := os.Getenv("PORT")
 	if port == "" {

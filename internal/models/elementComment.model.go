@@ -36,14 +36,14 @@ type UpdateElementCommentRequest struct {
 }
 
 type ElementCommentResponse struct {
-	Id        string              `json:"id"`
-	Content   string              `json:"content"`
-	AuthorId  string              `json:"authorId"`
-	ElementId string              `json:"elementId"`
-	CreatedAt time.Time           `json:"createdAt"`
-	UpdatedAt time.Time           `json:"updatedAt"`
-	Resolved  bool                `json:"resolved"`
-	Author    *CommentAuthor      `json:"author,omitempty"`
+	Id        string         `json:"id"`
+	Content   string         `json:"content"`
+	AuthorId  string         `json:"authorId"`
+	ElementId string         `json:"elementId"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	Resolved  bool           `json:"resolved"`
+	Author    *CommentAuthor `json:"author,omitempty"`
 }
 
 type ElementCommentFilter struct {

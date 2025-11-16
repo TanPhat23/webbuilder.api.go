@@ -20,6 +20,7 @@ message Element {
   int32 order = 12;
   optional string settings = 13; // JSON string for type-specific settings
   repeated Element elements = 14; // Child elements
+  string EventWorkflows = 15;
 }
 
 message SaveSnapshotRequest {

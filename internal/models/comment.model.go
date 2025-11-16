@@ -18,11 +18,11 @@ type Comment struct {
 	DeletedAt *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
 
 	// Relations
-	Author    *User              `gorm:"foreignKey:AuthorId;references:Id" json:"author,omitempty"`
-	Item      *MarketplaceItem   `gorm:"foreignKey:ItemId;references:Id" json:"item,omitempty"`
-	Parent    *Comment           `gorm:"foreignKey:ParentId;references:Id" json:"parent,omitempty"`
-	Replies   []Comment          `gorm:"foreignKey:ParentId;references:Id" json:"replies,omitempty"`
-	Reactions []CommentReaction  `gorm:"foreignKey:CommentId;references:Id" json:"reactions,omitempty"`
+	Author    *User             `gorm:"foreignKey:AuthorId;references:Id" json:"author,omitempty"`
+	Item      *MarketplaceItem  `gorm:"foreignKey:ItemId;references:Id" json:"item,omitempty"`
+	Parent    *Comment          `gorm:"foreignKey:ParentId;references:Id" json:"parent,omitempty"`
+	Replies   []Comment         `gorm:"foreignKey:ParentId;references:Id" json:"replies,omitempty"`
+	Reactions []CommentReaction `gorm:"foreignKey:CommentId;references:Id" json:"reactions,omitempty"`
 }
 
 func (Comment) TableName() string {
@@ -59,18 +59,18 @@ type UpdateCommentRequest struct {
 }
 
 type CommentResponse struct {
-	Id        string              `json:"id"`
-	Content   string              `json:"content"`
-	AuthorId  string              `json:"authorId"`
-	ItemId    string              `json:"itemId"`
-	ParentId  *string             `json:"parentId,omitempty"`
-	Status    string              `json:"status"`
-	Edited    bool                `json:"edited"`
-	CreatedAt time.Time           `json:"createdAt"`
-	UpdatedAt time.Time           `json:"updatedAt"`
-	Author    *CommentAuthor      `json:"author,omitempty"`
-	Replies   []CommentResponse   `json:"replies,omitempty"`
-	Reactions []ReactionSummary   `json:"reactions,omitempty"`
+	Id        string            `json:"id"`
+	Content   string            `json:"content"`
+	AuthorId  string            `json:"authorId"`
+	ItemId    string            `json:"itemId"`
+	ParentId  *string           `json:"parentId,omitempty"`
+	Status    string            `json:"status"`
+	Edited    bool              `json:"edited"`
+	CreatedAt time.Time         `json:"createdAt"`
+	UpdatedAt time.Time         `json:"updatedAt"`
+	Author    *CommentAuthor    `json:"author,omitempty"`
+	Replies   []CommentResponse `json:"replies,omitempty"`
+	Reactions []ReactionSummary `json:"reactions,omitempty"`
 }
 
 type CommentAuthor struct {
@@ -91,12 +91,12 @@ type CreateReactionRequest struct {
 }
 
 type CommentFilter struct {
-	ItemId   string
-	AuthorId string
-	Status   string
-	ParentId *string
-	Limit    int
-	Offset   int
-	SortBy   string
+	ItemId    string
+	AuthorId  string
+	Status    string
+	ParentId  *string
+	Limit     int
+	Offset    int
+	SortBy    string
 	SortOrder string
 }

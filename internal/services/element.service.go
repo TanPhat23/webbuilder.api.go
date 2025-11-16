@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
@@ -12,14 +13,23 @@ import (
 
 type ElementService struct {
 	proto.UnimplementedElementServiceServer
-	snapshotRepo repositories.SnapshotRepositoryInterface
-	elementRepo  repositories.ElementRepositoryInterface
+	snapshotRepo                repositories.SnapshotRepositoryInterface
+	elementRepo                 repositories.ElementRepositoryInterface
+	eventWorkflowRepo           *repositories.EventWorkflowRepository
+	elementEventWorkflowRepo    *repositories.ElementEventWorkflowRepository
 }
 
-func NewElementService(snapshotRepo repositories.SnapshotRepositoryInterface, elementRepo repositories.ElementRepositoryInterface) *ElementService {
+func NewElementService(
+	snapshotRepo repositories.SnapshotRepositoryInterface,
+	elementRepo repositories.ElementRepositoryInterface,
+	eventWorkflowRepo *repositories.EventWorkflowRepository,
+	elementEventWorkflowRepo *repositories.ElementEventWorkflowRepository,
+) *ElementService {
 	return &ElementService{
-		snapshotRepo: snapshotRepo,
-		elementRepo:  elementRepo,
+		snapshotRepo:             snapshotRepo,
+		elementRepo:              elementRepo,
+		eventWorkflowRepo:        eventWorkflowRepo,
+		elementEventWorkflowRepo: elementEventWorkflowRepo,
 	}
 }
 
@@ -65,6 +75,120 @@ func (s *ElementService) SaveSnapshot(ctx context.Context, req *proto.SaveSnapsh
 	}
 
 	return &proto.SaveSnapshotResponse{Message: "Snapshot saved successfully"}, nil
+}
+
+// GetElementEventWorkflows retrieves all event workflows linked to an element
+func (s *ElementService) GetElementEventWorkflows(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error) {
+	if s.elementEventWorkflowRepo == nil {
+		log.Printf("Warning: ElementEventWorkflowRepository not initialized")
+		return []models.ElementEventWorkflow{}, nil
+	}
+
+	workflows, err := s.elementEventWorkflowRepo.GetElementEventWorkflowsByElementID(ctx, elementID)
+	if err != nil {
+		log.Printf("Error retrieving event workflows for element %s: %v", elementID, err)
+		return nil, err
+	}
+
+	return workflows, nil
+}
+
+// LinkElementToWorkflow creates an association between an element and a workflow
+func (s *ElementService) LinkElementToWorkflow(ctx context.Context, elementID, workflowID, eventName string) (*models.ElementEventWorkflow, error) {
+	if s.elementEventWorkflowRepo == nil {
+		log.Printf("Error: ElementEventWorkflowRepository not initialized")
+		return nil, errors.New("element event workflow repository not initialized")
+	}
+
+	eew := &models.ElementEventWorkflow{
+		ElementId:  elementID,
+		WorkflowId: workflowID,
+		EventName:  eventName,
+	}
+
+	created, err := s.elementEventWorkflowRepo.CreateElementEventWorkflow(ctx, eew)
+	if err != nil {
+		log.Printf("Error linking element %s to workflow %s: %v", elementID, workflowID, err)
+		return nil, err
+	}
+
+	return created, nil
+}
+
+// UnlinkElementFromWorkflow removes an association between an element and a workflow
+func (s *ElementService) UnlinkElementFromWorkflow(ctx context.Context, elementID, workflowID, eventName string) error {
+	if s.elementEventWorkflowRepo == nil {
+		log.Printf("Error: ElementEventWorkflowRepository not initialized")
+		return errors.New("element event workflow repository not initialized")
+	}
+
+	// Check if the association exists
+	exists, err := s.elementEventWorkflowRepo.CheckIfWorkflowLinkedToElement(ctx, elementID, workflowID, eventName)
+	if err != nil {
+		log.Printf("Error checking workflow link: %v", err)
+		return err
+	}
+
+	if !exists {
+		log.Printf("Workflow not linked to element")
+		return errors.New("workflow not linked to element")
+	}
+
+	// Delete all associations for this element-workflow-event combination
+	err = s.elementEventWorkflowRepo.DeleteElementEventWorkflowsByElementID(ctx, elementID)
+	if err != nil {
+		log.Printf("Error unlinking element %s from workflow %s: %v", elementID, workflowID, err)
+		return err
+	}
+
+	return nil
+}
+
+// GetProjectWorkflows retrieves all workflows for a project
+func (s *ElementService) GetProjectWorkflows(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+	if s.eventWorkflowRepo == nil {
+		log.Printf("Warning: EventWorkflowRepository not initialized")
+		return []models.EventWorkflow{}, nil
+	}
+
+	workflows, err := s.eventWorkflowRepo.GetEventWorkflowsByProjectID(ctx, projectID)
+	if err != nil {
+		log.Printf("Error retrieving workflows for project %s: %v", projectID, err)
+		return nil, err
+	}
+
+	return workflows, nil
+}
+
+// GetEnabledWorkflows retrieves all enabled workflows for a project
+func (s *ElementService) GetEnabledWorkflows(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+	if s.eventWorkflowRepo == nil {
+		log.Printf("Warning: EventWorkflowRepository not initialized")
+		return []models.EventWorkflow{}, nil
+	}
+
+	workflows, err := s.eventWorkflowRepo.GetEnabledEventWorkflowsByProjectID(ctx, projectID)
+	if err != nil {
+		log.Printf("Error retrieving enabled workflows for project %s: %v", projectID, err)
+		return nil, err
+	}
+
+	return workflows, nil
+}
+
+func (s *ElementService) GetWorkflowsByEvent(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error) {
+	if s.elementEventWorkflowRepo == nil {
+		log.Printf("Warning: ElementEventWorkflowRepository not initialized")
+		return []models.ElementEventWorkflow{}, nil
+	}
+
+	workflows, err := s.elementEventWorkflowRepo.GetElementEventWorkflowsByEventName(ctx, eventName)
+	if err != nil {
+		log.Printf("Error retrieving workflows for event %s: %v", eventName, err)
+		return nil, err
+	}
+
+	return workflows, nil
 }
 
 func (s *ElementService) convertRawElementsToEditorElements(rawElements []any) ([]models.EditorElement, error) {
@@ -116,6 +240,7 @@ func (s *ElementService) convertEditorElementsToProto(elements []models.EditorEl
 			ParentId:  elem.ParentId,
 			PageId:    elem.PageId,
 			ProjectId: elem.ProjectId,
+			EventWorkflows: utils.ConvertEventWorkflowsToString(elem.EventWorkflows),
 			Order:     int32(elem.Order),
 		}
 

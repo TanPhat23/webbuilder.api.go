@@ -7,7 +7,7 @@ import (
 // ErrorResponse represents a standard error response
 type ErrorResponse struct {
 	Error        string `json:"error"`
-	ErrorMessage string `json:"errorMessage,omitempty"`
+	ErrorMessage string `json:"message,omitempty"`
 	UserID       string `json:"userId,omitempty"`
 }
 
@@ -21,7 +21,10 @@ type SuccessResponse struct {
 func SendError(c *fiber.Ctx, status int, message string, err error, userID ...string) error {
 	response := ErrorResponse{
 		Error:        message,
-		ErrorMessage: err.Error(),
+		ErrorMessage: "",
+	}
+	if err != nil {
+		response.ErrorMessage = err.Error()
 	}
 	if len(userID) > 0 {
 		response.UserID = userID[0]
