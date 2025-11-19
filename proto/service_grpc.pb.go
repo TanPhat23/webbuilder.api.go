@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ElementService_SaveSnapshot_FullMethodName       = "/proto.ElementService/SaveSnapshot"
-	ElementService_GetProjectElements_FullMethodName = "/proto.ElementService/GetProjectElements"
+	ElementService_SaveSnapshot_FullMethodName    = "/proto.ElementService/SaveSnapshot"
+	ElementService_GetPageElements_FullMethodName = "/proto.ElementService/GetPageElements"
 )
 
 // ElementServiceClient is the client API for ElementService service.
@@ -28,7 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ElementServiceClient interface {
 	SaveSnapshot(ctx context.Context, in *SaveSnapshotRequest, opts ...grpc.CallOption) (*SaveSnapshotResponse, error)
-	GetProjectElements(ctx context.Context, in *ProjectElementsRequest, opts ...grpc.CallOption) (*ProjectElementsResponse, error)
+	GetPageElements(ctx context.Context, in *PageElementsRequest, opts ...grpc.CallOption) (*PageElementsResponse, error)
 }
 
 type elementServiceClient struct {
@@ -49,10 +49,10 @@ func (c *elementServiceClient) SaveSnapshot(ctx context.Context, in *SaveSnapsho
 	return out, nil
 }
 
-func (c *elementServiceClient) GetProjectElements(ctx context.Context, in *ProjectElementsRequest, opts ...grpc.CallOption) (*ProjectElementsResponse, error) {
+func (c *elementServiceClient) GetPageElements(ctx context.Context, in *PageElementsRequest, opts ...grpc.CallOption) (*PageElementsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ProjectElementsResponse)
-	err := c.cc.Invoke(ctx, ElementService_GetProjectElements_FullMethodName, in, out, cOpts...)
+	out := new(PageElementsResponse)
+	err := c.cc.Invoke(ctx, ElementService_GetPageElements_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (c *elementServiceClient) GetProjectElements(ctx context.Context, in *Proje
 // for forward compatibility.
 type ElementServiceServer interface {
 	SaveSnapshot(context.Context, *SaveSnapshotRequest) (*SaveSnapshotResponse, error)
-	GetProjectElements(context.Context, *ProjectElementsRequest) (*ProjectElementsResponse, error)
+	GetPageElements(context.Context, *PageElementsRequest) (*PageElementsResponse, error)
 	mustEmbedUnimplementedElementServiceServer()
 }
 
@@ -78,8 +78,8 @@ type UnimplementedElementServiceServer struct{}
 func (UnimplementedElementServiceServer) SaveSnapshot(context.Context, *SaveSnapshotRequest) (*SaveSnapshotResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SaveSnapshot not implemented")
 }
-func (UnimplementedElementServiceServer) GetProjectElements(context.Context, *ProjectElementsRequest) (*ProjectElementsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetProjectElements not implemented")
+func (UnimplementedElementServiceServer) GetPageElements(context.Context, *PageElementsRequest) (*PageElementsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPageElements not implemented")
 }
 func (UnimplementedElementServiceServer) mustEmbedUnimplementedElementServiceServer() {}
 func (UnimplementedElementServiceServer) testEmbeddedByValue()                        {}
@@ -120,20 +120,20 @@ func _ElementService_SaveSnapshot_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ElementService_GetProjectElements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ProjectElementsRequest)
+func _ElementService_GetPageElements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PageElementsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ElementServiceServer).GetProjectElements(ctx, in)
+		return srv.(ElementServiceServer).GetPageElements(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ElementService_GetProjectElements_FullMethodName,
+		FullMethod: ElementService_GetPageElements_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ElementServiceServer).GetProjectElements(ctx, req.(*ProjectElementsRequest))
+		return srv.(ElementServiceServer).GetPageElements(ctx, req.(*PageElementsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -150,8 +150,8 @@ var ElementService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ElementService_SaveSnapshot_Handler,
 		},
 		{
-			MethodName: "GetProjectElements",
-			Handler:    _ElementService_GetProjectElements_Handler,
+			MethodName: "GetPageElements",
+			Handler:    _ElementService_GetPageElements_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

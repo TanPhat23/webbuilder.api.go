@@ -32,6 +32,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
 	group.Get("/elements/:projectid", elementHandler.GetElements)
+	group.Get("/elements/by-pages", elementHandler.GetElementsByPageIds)
 
 	group.Get("/projects/user", projectHandler.GetProjectsByUser)
 	group.Get("/projects/:projectid", projectHandler.GetProjectByID)
@@ -39,6 +40,12 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Delete("/projects/:projectid", projectHandler.DeleteProject)
 	group.Patch("/projects/:projectid", projectHandler.UpdateProject)
 	group.Delete("/projects/:projectid/pages/:pageid", pageHandler.DeletePage)
+
+	// Dedicated page routes
+	group.Get("/pages/:projectid", pageHandler.GetPagesByProjectID)
+	group.Get("/pages/:projectid/:pageid", pageHandler.GetPageByID)
+	group.Post("/pages/:projectid", pageHandler.CreatePage)
+	group.Patch("/pages/:projectid/:pageid", pageHandler.UpdatePage)
 
 	group.Post("/snapshots/:projectid/save", snapshotHandler.SaveSnapshot)
 	group.Get("/snapshots/:projectid", snapshotHandler.GetSnapshots)

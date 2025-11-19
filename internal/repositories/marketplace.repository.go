@@ -378,7 +378,7 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId st
 
 	// Clone all elements from the original project
 	var originalElements []models.Element
-	if err := r.DB.Table(`"Element"`).Where(`"ProjectId" = ?`, *item.ProjectId).Order(`"Order" ASC`).Find(&originalElements).Error; err != nil {
+	if err := r.DB.Table(`"Element"`).Joins("Page").Where(`"Page"."ProjectId" = ?`, *item.ProjectId).Order(`"Element"."Order" ASC`).Find(&originalElements).Error; err != nil {
 		return nil, err
 	}
 
@@ -409,7 +409,6 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId st
 			Order:          originalElement.Order,
 			ParentId:       originalElement.ParentId, // Will update this next
 			PageId:         newPageId,
-			ProjectId:      newProject.ID,
 		}
 
 		if err := r.DB.Table(`"Element"`).Create(&newElement).Error; err != nil {
@@ -420,7 +419,8 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemId string, userId st
 	// Update ParentId references in the new elements
 	for oldParentId, newParentId := range elementIdMap {
 		r.DB.Table(`"Element"`).
-			Where(`"ProjectId" = ? AND "ParentId" = ?`, newProject.ID, oldParentId).
+			Joins("Page").
+			Where(`"Page"."ProjectId" = ? AND "Element"."ParentId" = ?`, newProject.ID, oldParentId).
 			Update("ParentId", newParentId)
 	}
 

@@ -46,15 +46,18 @@ Errorf("failed to get pages by project ID: %w", err)
 }
 
 func (r *PageRepository) GetPageByID(ctx context.Context, pageID, projectID string) (*models.Page, error) {
-	if pageID == "" || projectID == "" {
-		return nil, errors.New("pageID and projectID are required")
+	if pageID == "" {
+		return nil, errors.New("pageID is required")
 	}
 
 	var page models.Page
+	query := r.db.WithContext(ctx).Where("\"Id\" = ? AND \"DeletedAt\" IS NULL", pageID)
 
-	err := r.db.WithContext(ctx).
-		Where(&models.Page{Id: pageID, ProjectId: projectID, DeletedAt: nil}).
-		First(&page).Error
+	if projectID != "" {
+		query = query.Where("\"ProjectId\" = ?", projectID)
+	}
+
+	err := query.First(&page).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

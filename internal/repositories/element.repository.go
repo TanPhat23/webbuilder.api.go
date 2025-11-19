@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"my-go-app/internal/models"
@@ -37,17 +36,25 @@ func (r *ElementRepository) getProjectMutex(projectID string) *sync.Mutex {
 }
 
 // GetElements retrieves all elements for a project with tree structure
-func (r *ElementRepository) GetElements(ctx context.Context, projectID string) ([]models.EditorElement, error) {
+// Optional pageID parameter filters elements by specific page
+func (r *ElementRepository) GetElements(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
 
 	var elements []models.Element
 
-	err := r.db.WithContext(ctx).
-		Model(&models.Element{}).
-		Where("\"ProjectId\" = ?", projectID).
-		Order("\"Order\"").
+	query := r.db.WithContext(ctx).
+		Preload("SettingRecord").
+		Joins("Page").
+		Where("\"Page\".\"ProjectId\" = ?", projectID)
+
+	// Add pageID filter if provided
+	if len(pageID) > 0 && pageID[0] != "" {
+		query = query.Where("\"Element\".\"PageId\" = ?", pageID[0])
+	}
+
+	err := query.Order("\"Element\".\"Order\"").
 		Find(&elements).Error
 
 	if err != nil {
@@ -58,27 +65,11 @@ func (r *ElementRepository) GetElements(ctx context.Context, projectID string) (
 		return []models.EditorElement{}, nil
 	}
 
-	// Extract element IDs
-	elementIDs := make([]string, len(elements))
-	for i, elem := range elements {
-		elementIDs[i] = elem.Id
-	}
-
-	settings, err := r.settingRepository.GetSettingsByElementIDs(ctx, r.db, elementIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get settings: %w", err)
-	}
-
-	settingsMap := make(map[string]json.RawMessage)
-	for _, setting := range settings {
-		settingsMap[setting.ElementId] = setting.Settings
-	}
-
 	editorElements := make([]models.EditorElement, len(elements))
 	for i, elem := range elements {
 		elemCopy := elem
-		if settingsData, exists := settingsMap[elem.Id]; exists {
-			elemCopy.Settings = &settingsData
+		if elem.SettingRecord != nil {
+			elemCopy.Settings = &elem.SettingRecord.Settings
 		}
 		editorElements[i] = &elemCopy
 	}
@@ -95,6 +86,7 @@ func (r *ElementRepository) GetElementByID(ctx context.Context, elementID string
 	var element models.Element
 
 	err := r.db.WithContext(ctx).
+		Preload("Page").
 		Where("\"Id\" = ?", elementID).
 		First(&element).Error
 
@@ -143,6 +135,7 @@ func (r *ElementRepository) GetElementsByPageID(ctx context.Context, pageID stri
 	var elements []models.Element
 
 	err := r.db.WithContext(ctx).
+		Preload("SettingRecord").
 		Where("\"PageId\" = ?", pageID).
 		Order("\"Order\"").
 		Find(&elements).Error
@@ -152,6 +145,40 @@ func (r *ElementRepository) GetElementsByPageID(ctx context.Context, pageID stri
 	}
 
 	return elements, nil
+}
+
+// GetElementsByPageIds retrieves all elements for multiple pages with tree structure
+func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, pageIDs []string) ([]models.EditorElement, error) {
+	if len(pageIDs) == 0 {
+		return nil, errors.New("pageIDs is required")
+	}
+
+	var elements []models.Element
+
+	err := r.db.WithContext(ctx).
+		Preload("SettingRecord").
+		Where("\"PageId\" IN ?", pageIDs).
+		Order("\"Order\"").
+		Find(&elements).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get elements by page IDs: %w", err)
+	}
+
+	if len(elements) == 0 {
+		return []models.EditorElement{}, nil
+	}
+
+	editorElements := make([]models.EditorElement, len(elements))
+	for i, elem := range elements {
+		elemCopy := elem
+		if elem.SettingRecord != nil {
+			elemCopy.Settings = &elem.SettingRecord.Settings
+		}
+		editorElements[i] = &elemCopy
+	}
+
+	return utils.BuildElementTree(editorElements), nil
 }
 
 // GetChildElements retrieves child elements of a parent element
@@ -183,8 +210,9 @@ func (r *ElementRepository) GetRootElements(ctx context.Context, projectID strin
 	var elements []models.Element
 
 	err := r.db.WithContext(ctx).
-		Where("\"ProjectId\" = ? AND \"ParentId\" IS NULL", projectID).
-		Order("\"Order\"").
+		Joins("Page").
+		Where("\"Page\".\"ProjectId\" = ? AND \"Element\".\"ParentId\" IS NULL", projectID).
+		Order("\"Element\".\"Order\"").
 		Find(&elements).Error
 
 	if err != nil {
@@ -221,10 +249,6 @@ func (r *ElementRepository) CreateElement(ctx context.Context, element *models.E
 
 	if element.Id == "" {
 		element.Id = uuid.NewString()
-	}
-
-	if element.ProjectId == "" {
-		return errors.New("projectId is required")
 	}
 
 	if element.Type == "" {
@@ -333,7 +357,8 @@ func (r *ElementRepository) DeleteElementsByProjectID(ctx context.Context, proje
 	}
 
 	result := r.db.WithContext(ctx).
-		Where("\"ProjectId\" = ?", projectID).
+		Joins("Page").
+		Where("\"Page\".\"ProjectId\" = ?", projectID).
 		Delete(&models.Element{})
 
 	if result.Error != nil {
@@ -351,7 +376,8 @@ func (r *ElementRepository) CountElementsByProjectID(ctx context.Context, projec
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&models.Element{}).
-		Where("\"ProjectId\" = ?", projectID).
+		Joins("Page").
+		Where("\"Page\".\"ProjectId\" = ?", projectID).
 		Count(&count).Error
 
 	if err != nil {
@@ -374,9 +400,7 @@ func (r *ElementRepository) ReplaceElements(ctx context.Context, projectID strin
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Delete existing elements
-		err := tx.Model(&models.Element{}).
-			Where("\"ProjectId\" = ?", projectID).
-			Delete(&models.Element{}).Error
+		err := tx.Where("\"PageId\" IN (SELECT \"Id\" FROM \"Page\" WHERE \"ProjectId\" = ?)", projectID).Delete(&models.Element{}).Error
 
 		if err != nil {
 			return fmt.Errorf("failed to delete existing elements: %w", err)
@@ -459,7 +483,7 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 			base.ParentId = item.parentID
 		}
 
-		base.ProjectId = projectID
+
 
 		// Track parent keys
 		if base.ParentId == nil {
@@ -517,21 +541,21 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 		}
 
 		q := tx.Model(&models.Element{}).
-			Select("\"ParentId\", COALESCE(MAX(\"Order\"), 0) as max_order").
-			Where("\"ProjectId\" = ?", projectID)
+			Select("\"Element\".\"ParentId\", COALESCE(MAX(\"Element\".\"Order\"), 0) as max_order").
+			Where("\"PageId\" IN (SELECT \"Id\" FROM \"Page\" WHERE \"ProjectId\" = ?)", projectID)
 
 		if len(parentIDList) > 0 {
-			q = q.Where("\"ParentId\" IN (?)", parentIDList)
+			q = q.Where("\"Element\".\"ParentId\" IN (?)", parentIDList)
 		}
 		if hasNull {
 			if len(parentIDList) > 0 {
-				q = q.Or("\"ParentId\" IS NULL")
+				q = q.Or("\"Element\".\"ParentId\" IS NULL")
 			} else {
-				q = q.Where("\"ParentId\" IS NULL")
+				q = q.Where("\"Element\".\"ParentId\" IS NULL")
 			}
 		}
 
-		err := q.Group("\"ParentId\"").Scan(&results).Error
+		err := q.Group("\"Element\".\"ParentId\"").Scan(&results).Error
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get max order: %w", err)
 		}

@@ -13,10 +13,9 @@ func ConvertElementToProto(elem *models.Element) *proto.Element {
 	}
 
 	protoElem := &proto.Element{
-		Id:        elem.Id,
-		Type:      elem.Type,
-		ProjectId: elem.ProjectId,
-		Order:     int32(elem.Order),
+		Id:    elem.Id,
+		Type:  elem.Type,
+		Order: int32(elem.Order),
 	}
 
 	// Handle optional string fields
@@ -76,10 +75,9 @@ func ConvertProtoToElement(protoElem *proto.Element) *models.Element {
 	}
 
 	elem := &models.Element{
-		Id:        protoElem.Id,
-		Type:      protoElem.Type,
-		ProjectId: protoElem.ProjectId,
-		Order:     int(protoElem.Order),
+		Id:    protoElem.Id,
+		Type:  protoElem.Type,
+		Order: int(protoElem.Order),
 	}
 
 	// Handle optional string fields

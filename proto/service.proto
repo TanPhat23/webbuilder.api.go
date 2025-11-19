@@ -15,12 +15,11 @@ message Element {
   optional string href = 8;
   optional string parentId = 9;
   optional string pageId = 10;
-  string projectId = 11;
 
-  int32 order = 12;
-  optional string settings = 13; // JSON string for type-specific settings
-  repeated Element elements = 14; // Child elements
-  string EventWorkflows = 15;
+  int32 order = 11;
+  optional string settings = 12; // JSON string for type-specific settings
+  repeated Element elements = 13; // Child elements
+  optional string eventWorkflows = 14;
 }
 
 message SaveSnapshotRequest {
@@ -29,22 +28,24 @@ message SaveSnapshotRequest {
   string type = 3;
   string elements = 4;
   int64 timestamp = 5;
-  string projectId = 6;
+  string pageId = 6;
+  string projectId = 7;
 }
 
 message SaveSnapshotResponse {
   string message = 1;
 }
 
-message ProjectElementsRequest {
-  string projectId = 1;
+message PageElementsRequest {
+  string pageId = 1;
+  string projectId = 2;
 }
 
-message ProjectElementsResponse {
+message PageElementsResponse {
   repeated Element elements = 1;
 }
 
 service ElementService {
   rpc SaveSnapshot(SaveSnapshotRequest) returns (SaveSnapshotResponse);
-  rpc GetProjectElements(ProjectElementsRequest) returns (ProjectElementsResponse);
+  rpc GetPageElements(PageElementsRequest) returns (PageElementsResponse);
 }

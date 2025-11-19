@@ -19,7 +19,6 @@ type Project struct {
 	DeletedAt   *time.Time       `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
 
 	// Relations
-	Elements        []Element        `gorm:"foreignKey:ProjectId;references:Id;constraint:OnDelete:Cascade" json:"elements,omitempty"`
 	Pages           []Page           `gorm:"foreignKey:ProjectId;references:Id;constraint:OnDelete:Cascade" json:"pages,omitempty"`
 	Owner           User             `gorm:"foreignKey:OwnerId" json:"owner,omitempty"`
 	Snapshots       []Snapshot       `gorm:"foreignKey:ProjectId;references:Id;constraint:OnDelete:Cascade" json:"snapshots,omitempty"`

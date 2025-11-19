@@ -13,8 +13,7 @@ type Element struct {
 	Href           *string         `gorm:"column:Href;type:varchar(255)" json:"href,omitempty"`
 	ParentId       *string         `gorm:"column:ParentId;type:varchar(255);index" json:"parentId,omitempty"`
 	PageId         *string         `gorm:"column:PageId;type:varchar(255);index" json:"pageId,omitempty"`
-	ProjectId      string          `gorm:"column:ProjectId;type:varchar(255);not null;index:idx_project_order,priority:1" json:"projectId"`
-	Order          int             `gorm:"column:Order;default:0;index:idx_project_order,priority:2" json:"order"`
+	Order          int             `gorm:"column:Order;default:0" json:"order"`
 
 	// Temporary field for backward compatibility (not persisted)
 	Settings *json.RawMessage `gorm:"-" json:"settings,omitempty"`
@@ -23,7 +22,6 @@ type Element struct {
 	Page               *Page                    `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"-"`
 	Parent             *Element                 `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
 	Elements           []Element                `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
-	Project            Project                  `gorm:"foreignKey:ProjectId;references:Id;constraint:OnDelete:Cascade" json:"-"`
 	EventWorkflows     []ElementEventWorkflow   `gorm:"foreignKey:ElementId;references:Id;constraint:OnDelete:Cascade" json:"-"`
 	SettingRecord      *Setting                 `gorm:"foreignKey:ElementId;references:Id;constraint:OnDelete:Cascade" json:"-"`
 	Comments           []ElementComment         `gorm:"foreignKey:ElementId;references:Id" json:"-"`

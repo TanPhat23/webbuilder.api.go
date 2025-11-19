@@ -26,37 +26,49 @@ const (
 	}
 
 	func NewSnapshotRepository(db *gorm.DB) SnapshotRepositoryInterface {
-		return &SnapshotRepository{db: db}
+			return &SnapshotRepository{db: db}
+		}
+
+		func (r *SnapshotRepository) SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
+		if snapshot == nil {
+			return errors.New("snapshot cannot be nil")
+		}
+
+		if projectID == "" {
+			return errors.New("projectID is required")
+		}
+
+		if snapshot.Type == "" {
+			return errors.New("snapshot type is required")
+		}
+
+		// Validate snapshot type
+		if !isValidSnapshotType(snapshot.Type) {
+			return ErrInvalidSnapshotType
+		}
+
+		// Validate that the project exists and is not soft-deleted to avoid FK violations
+		var project models.Project
+		err := r.db.WithContext(ctx).
+			Model(&models.Project{}).
+			Where("\"Id\" = ? AND \"DeletedAt\" IS NULL", projectID).
+			First(&project).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("project not found")
+			}
+			return fmt.Errorf("failed to validate project existence: %w", err)
+		}
+
+		snapshot.ProjectId = projectID
+
+		if snapshot.Type == SnapshotTypeWorking {
+			return r.upsertWorkingSnapshot(ctx, snapshot)
+		}
+
+		// For other snapshot types, always create new
+		return r.createSnapshot(ctx, snapshot)
 	}
-
-	func (r *SnapshotRepository) SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
-	if snapshot == nil {
-		return errors.New("snapshot cannot be nil")
-	}
-
-	if projectID == "" {
-		return errors.New("projectID is required")
-	}
-
-	if snapshot.Type == "" {
-		return errors.New("snapshot type is required")
-	}
-
-	// Validate snapshot type
-	if !isValidSnapshotType(snapshot.Type) {
-		return ErrInvalidSnapshotType
-	}
-
-	snapshot.ProjectId = projectID
-
-	// For working snapshots, update if exists, otherwise create
-	if snapshot.Type == SnapshotTypeWorking {
-		return r.upsertWorkingSnapshot(ctx, snapshot)
-	}
-
-	// For other snapshot types, always create new
-	return r.createSnapshot(ctx, snapshot)
-}
 
 	func (r *SnapshotRepository) upsertWorkingSnapshot(ctx context.Context, snapshot *models.Snapshot) error {
 	var existing models.Snapshot

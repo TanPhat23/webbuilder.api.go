@@ -53,22 +53,33 @@ func (s *ElementService) SaveSnapshot(ctx context.Context, req *proto.SaveSnapsh
 		return nil, err
 	}
 
+	// Use projectId from request
+	if req.PageId == "" {
+		return nil, errors.New("pageId is required")
+	}
+	if req.ProjectId == "" {
+		return nil, errors.New("projectId is required")
+	}
+
+	projectId := req.ProjectId
+	log.Printf("SaveSnapshot: pageId=%s, projectId=%s, timestamp=%d, elements count=%d", req.PageId, projectId, req.Timestamp, len(elements))
+
 	snapshot := models.Snapshot{
 		Id:        req.Id,
-		ProjectId: req.ProjectId,
+		ProjectId: projectId,
 		Name:      req.Name,
 		Type:      req.Type,
 		Elements:  elementsJSON,
 		Timestamp: req.Timestamp,
 	}
 
-	err = s.snapshotRepo.SaveSnapshot(ctx, req.ProjectId, &snapshot)
+	err = s.snapshotRepo.SaveSnapshot(ctx, projectId, &snapshot)
 	if err != nil {
 		log.Printf("Error saving snapshot: %v", err)
 		return nil, err
 	}
 
-	err = s.elementRepo.ReplaceElements(ctx, req.ProjectId, elements)
+	err = s.elementRepo.ReplaceElements(ctx, projectId, elements)
 	if err != nil {
 		log.Printf("Error replacing elements: %v", err)
 		return nil, err
@@ -203,16 +214,38 @@ func (s *ElementService) convertRawElementsToEditorElements(rawElements []any) (
 	return elements, nil
 }
 
-func (s *ElementService) GetProjectElements(ctx context.Context, req *proto.ProjectElementsRequest) (*proto.ProjectElementsResponse, error) {
-	elements, err := s.elementRepo.GetElements(ctx, req.ProjectId)
+// GetPageElements retrieves elements for a specific page (called by realtime service)
+func (s *ElementService) GetPageElements(ctx context.Context, req *proto.PageElementsRequest) (*proto.PageElementsResponse, error) {
+	if req.PageId == "" {
+		return nil, errors.New("pageId is required")
+	}
+	if req.ProjectId == "" {
+		return nil, errors.New("projectId is required")
+	}
+
+	log.Printf("GetPageElements called for pageId=%s, projectId=%s", req.PageId, req.ProjectId)
+
+	elements, err := s.elementRepo.GetElementsByPageID(ctx, req.PageId)
 	if err != nil {
-		log.Printf("Error retrieving elements for project %s: %v", req.ProjectId, err)
+		log.Printf("Error retrieving elements for page %s: %v", req.PageId, err)
 		return nil, err
 	}
 
-	protoElements := s.convertEditorElementsToProto(elements)
+	// Convert to EditorElements for tree structure
+	editorElements := make([]models.EditorElement, len(elements))
+	for i, elem := range elements {
+		elemCopy := elem
+		if elem.SettingRecord != nil {
+			elemCopy.Settings = &elem.SettingRecord.Settings
+		}
+		editorElements[i] = &elemCopy
+	}
 
-	return &proto.ProjectElementsResponse{Elements: protoElements}, nil
+	protoElements := s.convertEditorElementsToProto(editorElements)
+
+	log.Printf("Returning %d elements for pageId=%s, projectId=%s", len(protoElements), req.PageId, req.ProjectId)
+
+	return &proto.PageElementsResponse{Elements: protoElements}, nil
 }
 
 func (s *ElementService) convertEditorElementsToProto(elements []models.EditorElement) []*proto.Element {
@@ -239,7 +272,6 @@ func (s *ElementService) convertEditorElementsToProto(elements []models.EditorEl
 			Href:      elem.Href,
 			ParentId:  elem.ParentId,
 			PageId:    elem.PageId,
-			ProjectId: elem.ProjectId,
 			EventWorkflows: utils.ConvertEventWorkflowsToString(elem.EventWorkflows),
 			Order:     int32(elem.Order),
 		}

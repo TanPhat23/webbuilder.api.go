@@ -53,7 +53,7 @@ func (h *ElementEventWorkflowHandler) CreateElementEventWorkflow(c *fiber.Ctx) e
 	}
 
 	// Verify user has access to the project
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied to project", err, userID)
 	}
@@ -65,7 +65,7 @@ func (h *ElementEventWorkflowHandler) CreateElementEventWorkflow(c *fiber.Ctx) e
 	}
 
 	// Verify workflow belongs to the same project
-	if workflow.ProjectId != element.ProjectId {
+	if workflow.ProjectId != element.Page.ProjectId {
 		return utils.SendError(c, fiber.StatusBadRequest, "Workflow and element must belong to the same project", nil)
 	}
 
@@ -120,7 +120,7 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c *fiber.Ctx) 
 		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
@@ -150,7 +150,7 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) err
 		}
 
 		// Verify user has access to the project
-		_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+		_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 		if err != nil {
 			return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 		}
@@ -182,7 +182,7 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) err
 				continue
 			}
 
-			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 			if errAccess == nil {
 				filteredEEWs = append(filteredEEWs, eew)
 			}
@@ -200,7 +200,7 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) err
 				continue
 			}
 
-			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 			if errAccess == nil {
 				filteredEEWs = append(filteredEEWs, eew)
 			}
@@ -218,7 +218,7 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) err
 				continue
 			}
 
-			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 			if errAccess == nil {
 				filteredEEWs = append(filteredEEWs, eew)
 			}
@@ -260,7 +260,7 @@ func (h *ElementEventWorkflowHandler) UpdateElementEventWorkflow(c *fiber.Ctx) e
 		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
@@ -326,7 +326,7 @@ func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflow(c *fiber.Ctx) e
 		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
@@ -356,7 +356,7 @@ func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByElement(c *fi
 		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.ProjectId, userID)
+	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}

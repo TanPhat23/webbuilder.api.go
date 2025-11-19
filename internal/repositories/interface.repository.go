@@ -9,14 +9,16 @@ import (
 
 // ElementRepositoryInterface defines methods for element operations
 type ElementRepositoryInterface interface {
-	// GetElements retrieves elements for a project
-	GetElements(ctx context.Context, projectID string) ([]models.EditorElement, error)
+	// GetElements retrieves elements for a project, optionally filtered by pageID
+	GetElements(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error)
 	// ReplaceElements replaces all elements for a project
 	ReplaceElements(ctx context.Context, projectID string, elements []models.EditorElement) error
 	// GetElementByID retrieves a single element by ID with all relations
 	GetElementByID(ctx context.Context, elementID string) (*models.Element, error)
 	// GetElementsByPageID retrieves all elements for a specific page
 	GetElementsByPageID(ctx context.Context, pageID string) ([]models.Element, error)
+	// GetElementsByPageIds retrieves all elements for multiple pages with tree structure
+	GetElementsByPageIds(ctx context.Context, pageIDs []string) ([]models.EditorElement, error)
 	// GetChildElements retrieves child elements of a parent element
 	GetChildElements(ctx context.Context, parentID string) ([]models.Element, error)
 	// GetRootElements retrieves elements without a parent (root level)
@@ -150,6 +152,8 @@ type PageRepositoryInterface interface {
 	CreatePage(ctx context.Context, page *models.Page) error
 	// UpdatePage updates a page
 	UpdatePage(ctx context.Context, page *models.Page) error
+	// UpdatePageFields updates specific fields of a page
+	UpdatePageFields(ctx context.Context, pageID string, updates map[string]any) error
 	// DeletePage deletes a page by ID
 	DeletePage(ctx context.Context, pageID string) error
 	// DeletePageByProjectID deletes a page by ID with project and user verification
