@@ -241,7 +241,9 @@ func (s *ElementService) GetPageElements(ctx context.Context, req *proto.PageEle
 		editorElements[i] = &elemCopy
 	}
 
+	log.Printf("Building element tree for %d elements", len(editorElements))
 	editorElements = utils.BuildElementTree(editorElements)
+	log.Printf("Element tree built, root elements: %d", len(editorElements))
 
 	protoElements := s.convertEditorElementsToProto(editorElements)
 
