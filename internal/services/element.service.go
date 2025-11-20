@@ -13,10 +13,10 @@ import (
 
 type ElementService struct {
 	proto.UnimplementedElementServiceServer
-	snapshotRepo                repositories.SnapshotRepositoryInterface
-	elementRepo                 repositories.ElementRepositoryInterface
-	eventWorkflowRepo           *repositories.EventWorkflowRepository
-	elementEventWorkflowRepo    *repositories.ElementEventWorkflowRepository
+	snapshotRepo             repositories.SnapshotRepositoryInterface
+	elementRepo              repositories.ElementRepositoryInterface
+	eventWorkflowRepo        *repositories.EventWorkflowRepository
+	elementEventWorkflowRepo *repositories.ElementEventWorkflowRepository
 }
 
 func NewElementService(
@@ -241,6 +241,8 @@ func (s *ElementService) GetPageElements(ctx context.Context, req *proto.PageEle
 		editorElements[i] = &elemCopy
 	}
 
+	editorElements = utils.BuildElementTree(editorElements)
+
 	protoElements := s.convertEditorElementsToProto(editorElements)
 
 	log.Printf("Returning %d elements for pageId=%s, projectId=%s", len(protoElements), req.PageId, req.ProjectId)
@@ -262,18 +264,18 @@ func (s *ElementService) convertEditorElementsToProto(elements []models.EditorEl
 		}
 
 		protoElem := &proto.Element{
-			Id:        elem.Id,
-			Type:      elem.Type,
-			Content:   elem.Content,
-			Name:      elem.Name,
-			Styles:    string(elem.Styles),
+			Id:             elem.Id,
+			Type:           elem.Type,
+			Content:        elem.Content,
+			Name:           elem.Name,
+			Styles:         string(elem.Styles),
 			TailwindStyles: elem.TailwindStyles,
-			Src:       elem.Src,
-			Href:      elem.Href,
-			ParentId:  elem.ParentId,
-			PageId:    elem.PageId,
+			Src:            elem.Src,
+			Href:           elem.Href,
+			ParentId:       elem.ParentId,
+			PageId:         elem.PageId,
 			EventWorkflows: utils.ConvertEventWorkflowsToString(elem.EventWorkflows),
-			Order:     int32(elem.Order),
+			Order:          int32(elem.Order),
 		}
 
 		if elem.Settings != nil {
