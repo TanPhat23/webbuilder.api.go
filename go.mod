@@ -1,6 +1,6 @@
 module my-go-app
 
-go 1.23
+go 1.24.5
 
 require (
 	github.com/clerk/clerk-sdk-go/v2 v2.3.1
