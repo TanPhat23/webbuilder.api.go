@@ -9,10 +9,38 @@ import (
 
 // ElementRepositoryInterface defines methods for element operations
 type ElementRepositoryInterface interface {
-	// GetElements retrieves elements for a project
-	GetElements(ctx context.Context, projectID string) ([]models.EditorElement, error)
+	// GetElements retrieves elements for a project, optionally filtered by pageID
+	GetElements(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error)
 	// ReplaceElements replaces all elements for a project
 	ReplaceElements(ctx context.Context, projectID string, elements []models.EditorElement) error
+	// GetElementByID retrieves a single element by ID with all relations
+	GetElementByID(ctx context.Context, elementID string) (*models.Element, error)
+	// GetElementsByPageID retrieves all elements for a specific page
+	GetElementsByPageID(ctx context.Context, pageID string) ([]models.Element, error)
+	// GetElementsByPageIds retrieves all elements for multiple pages with tree structure
+	GetElementsByPageIds(ctx context.Context, pageIDs []string) ([]models.EditorElement, error)
+	// GetChildElements retrieves child elements of a parent element
+	GetChildElements(ctx context.Context, parentID string) ([]models.Element, error)
+	// GetRootElements retrieves elements without a parent (root level)
+	GetRootElements(ctx context.Context, projectID string) ([]models.Element, error)
+	// CreateElement creates a single element
+	CreateElement(ctx context.Context, element *models.Element) error
+	// UpdateElement updates a single element
+	UpdateElement(ctx context.Context, element *models.Element) error
+	// UpdateEventWorkflows updates the event workflows for an element
+	UpdateEventWorkflows(ctx context.Context, elementID string, workflows []byte) error
+	// DeleteElementByID deletes a single element by ID
+	DeleteElementByID(ctx context.Context, elementID string) error
+	// DeleteElementsByPageID deletes all elements in a page
+	DeleteElementsByPageID(ctx context.Context, pageID string) error
+	// DeleteElementsByProjectID deletes all elements in a project
+	DeleteElementsByProjectID(ctx context.Context, projectID string) error
+	// CountElementsByProjectID counts elements in a project
+	CountElementsByProjectID(ctx context.Context, projectID string) (int64, error)
+	// GetElementWithRelations retrieves element with all relations loaded
+	GetElementWithRelations(ctx context.Context, elementID string) (*models.Element, error)
+	// GetElementsByIDs retrieves multiple elements by IDs
+	GetElementsByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error)
 }
 
 // ElementCommentRepositoryInterface defines methods for element comment operations
@@ -124,6 +152,8 @@ type PageRepositoryInterface interface {
 	CreatePage(ctx context.Context, page *models.Page) error
 	// UpdatePage updates a page
 	UpdatePage(ctx context.Context, page *models.Page) error
+	// UpdatePageFields updates specific fields of a page
+	UpdatePageFields(ctx context.Context, pageID string, updates map[string]any) error
 	// DeletePage deletes a page by ID
 	DeletePage(ctx context.Context, pageID string) error
 	// DeletePageByProjectID deletes a page by ID with project and user verification
@@ -341,6 +371,61 @@ type CollaboratorRepositoryInterface interface {
 	IsCollaborator(ctx context.Context, projectID, userID string) (bool, error)
 }
 
+
+type EventWorkflowRepositoryInterface interface {
+	// CreateEventWorkflow creates a new event workflow
+	CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
+	// GetEventWorkflowByID retrieves an event workflow by ID
+	GetEventWorkflowByID(ctx context.Context, id string) (*models.EventWorkflow, error)
+	// GetEventWorkflowsByProjectID retrieves all event workflows for a project
+	GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	// GetEventWorkflowsByProjectIDWithElements retrieves all event workflows for a project with element details
+	GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	// GetEnabledEventWorkflowsByProjectID retrieves all enabled event workflows for a project
+	GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	// GetEventWorkflowsByName retrieves event workflows by name in a project
+	GetEventWorkflowsByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error)
+	// UpdateEventWorkflow updates an event workflow
+	UpdateEventWorkflow(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
+	// UpdateEventWorkflowEnabled updates the enabled status of an event workflow
+	UpdateEventWorkflowEnabled(ctx context.Context, id string, enabled bool) error
+	// DeleteEventWorkflow deletes an event workflow
+	DeleteEventWorkflow(ctx context.Context, id string) error
+	// DeleteEventWorkflowsByProjectID deletes all event workflows for a project
+	DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error
+	// CountEventWorkflowsByProjectID counts event workflows in a project
+	CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error)
+	// CheckIfWorkflowNameExists checks if a workflow name already exists in a project
+	CheckIfWorkflowNameExists(ctx context.Context, projectID, name string, excludeID string) (bool, error)
+	// GetEventWorkflowsWithFilters retrieves event workflows with optional filters
+	GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
+}
+
+type ElementEventWorkflowRepositoryInterface interface {
+	// CreateElementEventWorkflow creates a new element event workflow association
+	CreateElementEventWorkflow(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
+	// GetElementEventWorkflowByID retrieves an element event workflow by ID
+	GetElementEventWorkflowByID(ctx context.Context, id string) (*models.ElementEventWorkflow, error)
+	// GetElementEventWorkflowsByElementID retrieves all event workflows for a specific element
+	GetElementEventWorkflowsByElementID(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error)
+	// GetElementEventWorkflowsByWorkflowID retrieves all elements linked to a specific workflow
+	GetElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error)
+	// GetElementEventWorkflowsByEventName retrieves all workflows for a specific event type
+	GetElementEventWorkflowsByEventName(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error)
+	// GetElementEventWorkflowsByFilters retrieves element event workflows with optional filters
+	GetElementEventWorkflowsByFilters(ctx context.Context, elementID, workflowID, eventName string) ([]models.ElementEventWorkflow, error)
+	// UpdateElementEventWorkflow updates an element event workflow
+	UpdateElementEventWorkflow(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
+	// DeleteElementEventWorkflow deletes an element event workflow
+	DeleteElementEventWorkflow(ctx context.Context, id string) error
+	// DeleteElementEventWorkflowsByElementID deletes all event workflows for a specific element
+	DeleteElementEventWorkflowsByElementID(ctx context.Context, elementID string) error
+	// DeleteElementEventWorkflowsByWorkflowID deletes all element associations for a specific workflow
+	DeleteElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) error
+	// CheckIfWorkflowLinkedToElement checks if a workflow is already linked to an element with a specific event
+	CheckIfWorkflowLinkedToElement(ctx context.Context, elementID, workflowID, eventName string) (bool, error)
+}
+
 type RepositoriesInterface struct {
 	ElementRepository               ElementRepositoryInterface
 	ElementCommentRepository        ElementCommentRepositoryInterface
@@ -360,6 +445,8 @@ type RepositoriesInterface struct {
 	InvitationRepository            InvitationRepositoryInterface
 	CollaboratorRepository          CollaboratorRepositoryInterface
 	CommentRepository               CommentRepositoryInterface
+	EventWorkflowRepository             *EventWorkflowRepository
+	ElementEventWorkflowRepository   *ElementEventWorkflowRepository
 }
 
 func NewRepositories(db *gorm.DB) *RepositoriesInterface {
@@ -383,6 +470,8 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 		CustomElementTypeRepository: NewCustomElementTypeRepository(db),
 		InvitationRepository:        NewInvitationRepository(db),
 		CollaboratorRepository:      NewCollaboratorRepository(db),
+		EventWorkflowRepository:             NewEventWorkflowRepository(db),
+		ElementEventWorkflowRepository:   NewElementEventWorkflowRepository(db),
 		CommentRepository:           NewCommentRepository(db),
 	}
 }

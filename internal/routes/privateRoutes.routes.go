@@ -26,10 +26,13 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	commentHandler := handlers.NewCommentHandler(repos.CommentRepository, repos.MarketplaceRepository)
 	elementCommentHandler := handlers.NewElementCommentHandler(repos.ElementCommentRepository)
 	userHandler := handlers.NewUserHandler(repos.UserRepository)
+	eventWorkflowHandler := handlers.NewEventWorkflowHandler(repos.EventWorkflowRepository, repos.ProjectRepository, repos.ElementRepository, repos.ElementEventWorkflowRepository)
+	elementEventWorkflowHandler := handlers.NewElementEventWorkflowHandler(repos.ElementEventWorkflowRepository, repos.ElementRepository, repos.EventWorkflowRepository, repos.ProjectRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
 	group.Get("/elements/:projectid", elementHandler.GetElements)
+	group.Get("/elements/by-pages", elementHandler.GetElementsByPageIds)
 
 	group.Get("/projects/user", projectHandler.GetProjectsByUser)
 	group.Get("/projects/:projectid", projectHandler.GetProjectByID)
@@ -37,6 +40,12 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Delete("/projects/:projectid", projectHandler.DeleteProject)
 	group.Patch("/projects/:projectid", projectHandler.UpdateProject)
 	group.Delete("/projects/:projectid/pages/:pageid", pageHandler.DeletePage)
+
+	// Dedicated page routes
+	group.Get("/pages/:projectid", pageHandler.GetPagesByProjectID)
+	group.Get("/pages/:projectid/:pageid", pageHandler.GetPageByID)
+	group.Post("/pages/:projectid", pageHandler.CreatePage)
+	group.Patch("/pages/:projectid/:pageid", pageHandler.UpdatePage)
 
 	group.Post("/snapshots/:projectid/save", snapshotHandler.SaveSnapshot)
 	group.Get("/snapshots/:projectid", snapshotHandler.GetSnapshots)
@@ -152,4 +161,22 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/users/search", userHandler.SearchUsers)
 	group.Get("/users/email/:email", userHandler.GetUserByEmail)
 	group.Get("/users/username/:username", userHandler.GetUserByUsername)
+
+	// Element Event Workflow routes
+	group.Post("/element-event-workflows", elementEventWorkflowHandler.CreateElementEventWorkflow)
+	group.Get("/element-event-workflows", elementEventWorkflowHandler.GetElementEventWorkflows)
+	group.Get("/element-event-workflows/:id", elementEventWorkflowHandler.GetElementEventWorkflowByID)
+	group.Patch("/element-event-workflows/:id", elementEventWorkflowHandler.UpdateElementEventWorkflow)
+	group.Delete("/element-event-workflows/:id", elementEventWorkflowHandler.DeleteElementEventWorkflow)
+	group.Delete("/element-event-workflows/element/:elementId", elementEventWorkflowHandler.DeleteElementEventWorkflowsByElement)
+	group.Delete("/element-event-workflows/workflow/:workflowId", elementEventWorkflowHandler.DeleteElementEventWorkflowsByWorkflow)
+
+	// Event Workflow routes
+	group.Post("/event-workflows", eventWorkflowHandler.CreateEventWorkflow)
+	group.Get("/projects/:projectid/event-workflows", eventWorkflowHandler.GetEventWorkflowsByProject)
+	group.Get("/event-workflows/:id", eventWorkflowHandler.GetEventWorkflowByID)
+	group.Patch("/event-workflows/:id", eventWorkflowHandler.UpdateEventWorkflow)
+	group.Patch("/event-workflows/:id/enabled", eventWorkflowHandler.UpdateEventWorkflowEnabled)
+	group.Delete("/event-workflows/:id", eventWorkflowHandler.DeleteEventWorkflow)
+	group.Get("/event-workflows/:id/elements", eventWorkflowHandler.GetEventWorkflowElements)
 }

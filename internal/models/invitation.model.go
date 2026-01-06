@@ -40,9 +40,9 @@ func (Invitation) TableName() string {
 
 // Request/Response DTOs
 type CreateInvitationRequest struct {
-	ProjectID string              `json:"projectId" validate:"required"`
-	Email     string              `json:"email" validate:"required,email"`
-	Role      CollaboratorRole    `json:"role"`
+	ProjectID string           `json:"projectId" validate:"required"`
+	Email     string           `json:"email" validate:"required,email"`
+	Role      CollaboratorRole `json:"role"`
 }
 
 type InvitationResponse struct {

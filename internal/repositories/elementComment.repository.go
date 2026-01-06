@@ -272,8 +272,8 @@ func (r *ElementCommentRepository) GetElementCommentsByProjectID(ctx context.Con
 	query := r.db.WithContext(ctx).
 		Preload("Author").
 		Preload("Element").
-		Joins("JOIN public.\"Element\" ON public.\"Element\".\"Id\" = public.\"ElementComment\".\"ElementId\"").
-		Where("public.\"Element\".\"ProjectId\" = ? AND public.\"ElementComment\".\"DeletedAt\" IS NULL", projectID).
+		Joins("JOIN public.\"Element\" ON public.\"Element\".\"Id\" = public.\"ElementComment\".\"ElementId\" JOIN public.\"Page\" ON public.\"Element\".\"PageId\" = public.\"Page\".\"Id\"").
+		Where("public.\"Page\".\"ProjectId\" = ? AND public.\"ElementComment\".\"DeletedAt\" IS NULL", projectID).
 		Order("public.\"ElementComment\".\"CreatedAt\" DESC")
 
 	if limit > 0 {
@@ -301,8 +301,8 @@ func (r *ElementCommentRepository) CountElementCommentsByProjectID(ctx context.C
 
 	if err := r.db.WithContext(ctx).
 		Model(&models.ElementComment{}).
-		Joins("JOIN public.\"Element\" ON public.\"Element\".\"Id\" = public.\"ElementComment\".\"ElementId\"").
-		Where("public.\"Element\".\"ProjectId\" = ? AND public.\"ElementComment\".\"DeletedAt\" IS NULL", projectID).
+		Joins("JOIN public.\"Element\" ON public.\"Element\".\"Id\" = public.\"ElementComment\".\"ElementId\" JOIN public.\"Page\" ON public.\"Element\".\"PageId\" = public.\"Page\".\"Id\"").
+		Where("public.\"Page\".\"ProjectId\" = ? AND public.\"ElementComment\".\"DeletedAt\" IS NULL", projectID).
 		Count(&count).Error; err != nil {
 		return 0, fmt.Errorf("failed to count comments by project: %w", err)
 	}

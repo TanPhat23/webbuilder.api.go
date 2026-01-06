@@ -33,10 +33,10 @@ type Element struct {
 	Href           *string                `protobuf:"bytes,8,opt,name=href,proto3,oneof" json:"href,omitempty"`
 	ParentId       *string                `protobuf:"bytes,9,opt,name=parentId,proto3,oneof" json:"parentId,omitempty"`
 	PageId         *string                `protobuf:"bytes,10,opt,name=pageId,proto3,oneof" json:"pageId,omitempty"`
-	ProjectId      string                 `protobuf:"bytes,11,opt,name=projectId,proto3" json:"projectId,omitempty"`
-	Order          int32                  `protobuf:"varint,12,opt,name=order,proto3" json:"order,omitempty"`
-	Settings       *string                `protobuf:"bytes,13,opt,name=settings,proto3,oneof" json:"settings,omitempty"` // JSON string for type-specific settings
-	Elements       []*Element             `protobuf:"bytes,14,rep,name=elements,proto3" json:"elements,omitempty"`       // Child elements
+	Order          int32                  `protobuf:"varint,11,opt,name=order,proto3" json:"order,omitempty"`
+	Settings       *string                `protobuf:"bytes,12,opt,name=settings,proto3,oneof" json:"settings,omitempty"` // JSON string for type-specific settings
+	Elements       []*Element             `protobuf:"bytes,13,rep,name=elements,proto3" json:"elements,omitempty"`       // Child elements
+	EventWorkflows *string                `protobuf:"bytes,14,opt,name=eventWorkflows,proto3,oneof" json:"eventWorkflows,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -141,13 +141,6 @@ func (x *Element) GetPageId() string {
 	return ""
 }
 
-func (x *Element) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
 func (x *Element) GetOrder() int32 {
 	if x != nil {
 		return x.Order
@@ -169,6 +162,13 @@ func (x *Element) GetElements() []*Element {
 	return nil
 }
 
+func (x *Element) GetEventWorkflows() string {
+	if x != nil && x.EventWorkflows != nil {
+		return *x.EventWorkflows
+	}
+	return ""
+}
+
 type SaveSnapshotRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -176,7 +176,8 @@ type SaveSnapshotRequest struct {
 	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
 	Elements      string                 `protobuf:"bytes,4,opt,name=elements,proto3" json:"elements,omitempty"`
 	Timestamp     int64                  `protobuf:"varint,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	ProjectId     string                 `protobuf:"bytes,6,opt,name=projectId,proto3" json:"projectId,omitempty"`
+	PageId        string                 `protobuf:"bytes,6,opt,name=pageId,proto3" json:"pageId,omitempty"`
+	ProjectId     string                 `protobuf:"bytes,7,opt,name=projectId,proto3" json:"projectId,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -246,6 +247,13 @@ func (x *SaveSnapshotRequest) GetTimestamp() int64 {
 	return 0
 }
 
+func (x *SaveSnapshotRequest) GetPageId() string {
+	if x != nil {
+		return x.PageId
+	}
+	return ""
+}
+
 func (x *SaveSnapshotRequest) GetProjectId() string {
 	if x != nil {
 		return x.ProjectId
@@ -297,27 +305,28 @@ func (x *SaveSnapshotResponse) GetMessage() string {
 	return ""
 }
 
-type ProjectElementsRequest struct {
+type PageElementsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=projectId,proto3" json:"projectId,omitempty"`
+	PageId        string                 `protobuf:"bytes,1,opt,name=pageId,proto3" json:"pageId,omitempty"`
+	ProjectId     string                 `protobuf:"bytes,2,opt,name=projectId,proto3" json:"projectId,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ProjectElementsRequest) Reset() {
-	*x = ProjectElementsRequest{}
+func (x *PageElementsRequest) Reset() {
+	*x = PageElementsRequest{}
 	mi := &file_proto_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ProjectElementsRequest) String() string {
+func (x *PageElementsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ProjectElementsRequest) ProtoMessage() {}
+func (*PageElementsRequest) ProtoMessage() {}
 
-func (x *ProjectElementsRequest) ProtoReflect() protoreflect.Message {
+func (x *PageElementsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -329,39 +338,46 @@ func (x *ProjectElementsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProjectElementsRequest.ProtoReflect.Descriptor instead.
-func (*ProjectElementsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use PageElementsRequest.ProtoReflect.Descriptor instead.
+func (*PageElementsRequest) Descriptor() ([]byte, []int) {
 	return file_proto_service_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ProjectElementsRequest) GetProjectId() string {
+func (x *PageElementsRequest) GetPageId() string {
+	if x != nil {
+		return x.PageId
+	}
+	return ""
+}
+
+func (x *PageElementsRequest) GetProjectId() string {
 	if x != nil {
 		return x.ProjectId
 	}
 	return ""
 }
 
-type ProjectElementsResponse struct {
+type PageElementsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Elements      []*Element             `protobuf:"bytes,1,rep,name=elements,proto3" json:"elements,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ProjectElementsResponse) Reset() {
-	*x = ProjectElementsResponse{}
+func (x *PageElementsResponse) Reset() {
+	*x = PageElementsResponse{}
 	mi := &file_proto_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ProjectElementsResponse) String() string {
+func (x *PageElementsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ProjectElementsResponse) ProtoMessage() {}
+func (*PageElementsResponse) ProtoMessage() {}
 
-func (x *ProjectElementsResponse) ProtoReflect() protoreflect.Message {
+func (x *PageElementsResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -373,12 +389,12 @@ func (x *ProjectElementsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProjectElementsResponse.ProtoReflect.Descriptor instead.
-func (*ProjectElementsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use PageElementsResponse.ProtoReflect.Descriptor instead.
+func (*PageElementsResponse) Descriptor() ([]byte, []int) {
 	return file_proto_service_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *ProjectElementsResponse) GetElements() []*Element {
+func (x *PageElementsResponse) GetElements() []*Element {
 	if x != nil {
 		return x.Elements
 	}
@@ -389,7 +405,7 @@ var File_proto_service_proto protoreflect.FileDescriptor
 
 const file_proto_service_proto_rawDesc = "" +
 	"\n" +
-	"\x13proto/service.proto\x12\x05proto\"\xf7\x03\n" +
+	"\x13proto/service.proto\x12\x05proto\"\x99\x04\n" +
 	"\aElement\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1d\n" +
@@ -401,11 +417,11 @@ const file_proto_service_proto_rawDesc = "" +
 	"\x04href\x18\b \x01(\tH\x04R\x04href\x88\x01\x01\x12\x1f\n" +
 	"\bparentId\x18\t \x01(\tH\x05R\bparentId\x88\x01\x01\x12\x1b\n" +
 	"\x06pageId\x18\n" +
-	" \x01(\tH\x06R\x06pageId\x88\x01\x01\x12\x1c\n" +
-	"\tprojectId\x18\v \x01(\tR\tprojectId\x12\x14\n" +
-	"\x05order\x18\f \x01(\x05R\x05order\x12\x1f\n" +
-	"\bsettings\x18\r \x01(\tH\aR\bsettings\x88\x01\x01\x12*\n" +
-	"\belements\x18\x0e \x03(\v2\x0e.proto.ElementR\belementsB\n" +
+	" \x01(\tH\x06R\x06pageId\x88\x01\x01\x12\x14\n" +
+	"\x05order\x18\v \x01(\x05R\x05order\x12\x1f\n" +
+	"\bsettings\x18\f \x01(\tH\aR\bsettings\x88\x01\x01\x12*\n" +
+	"\belements\x18\r \x03(\v2\x0e.proto.ElementR\belements\x12+\n" +
+	"\x0eeventWorkflows\x18\x0e \x01(\tH\bR\x0eeventWorkflows\x88\x01\x01B\n" +
 	"\n" +
 	"\b_contentB\a\n" +
 	"\x05_nameB\x11\n" +
@@ -414,23 +430,26 @@ const file_proto_service_proto_rawDesc = "" +
 	"\x05_hrefB\v\n" +
 	"\t_parentIdB\t\n" +
 	"\a_pageIdB\v\n" +
-	"\t_settings\"\xa5\x01\n" +
+	"\t_settingsB\x11\n" +
+	"\x0f_eventWorkflows\"\xbd\x01\n" +
 	"\x13SaveSnapshotRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x03 \x01(\tR\x04type\x12\x1a\n" +
 	"\belements\x18\x04 \x01(\tR\belements\x12\x1c\n" +
-	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\x12\x1c\n" +
-	"\tprojectId\x18\x06 \x01(\tR\tprojectId\"0\n" +
+	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\x12\x16\n" +
+	"\x06pageId\x18\x06 \x01(\tR\x06pageId\x12\x1c\n" +
+	"\tprojectId\x18\a \x01(\tR\tprojectId\"0\n" +
 	"\x14SaveSnapshotResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"6\n" +
-	"\x16ProjectElementsRequest\x12\x1c\n" +
-	"\tprojectId\x18\x01 \x01(\tR\tprojectId\"E\n" +
-	"\x17ProjectElementsResponse\x12*\n" +
-	"\belements\x18\x01 \x03(\v2\x0e.proto.ElementR\belements2\xae\x01\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"K\n" +
+	"\x13PageElementsRequest\x12\x16\n" +
+	"\x06pageId\x18\x01 \x01(\tR\x06pageId\x12\x1c\n" +
+	"\tprojectId\x18\x02 \x01(\tR\tprojectId\"B\n" +
+	"\x14PageElementsResponse\x12*\n" +
+	"\belements\x18\x01 \x03(\v2\x0e.proto.ElementR\belements2\xa5\x01\n" +
 	"\x0eElementService\x12G\n" +
-	"\fSaveSnapshot\x12\x1a.proto.SaveSnapshotRequest\x1a\x1b.proto.SaveSnapshotResponse\x12S\n" +
-	"\x12GetProjectElements\x12\x1d.proto.ProjectElementsRequest\x1a\x1e.proto.ProjectElementsResponseB\tZ\a./protob\x06proto3"
+	"\fSaveSnapshot\x12\x1a.proto.SaveSnapshotRequest\x1a\x1b.proto.SaveSnapshotResponse\x12J\n" +
+	"\x0fGetPageElements\x12\x1a.proto.PageElementsRequest\x1a\x1b.proto.PageElementsResponseB\tZ\a./protob\x06proto3"
 
 var (
 	file_proto_service_proto_rawDescOnce sync.Once
@@ -446,19 +465,19 @@ func file_proto_service_proto_rawDescGZIP() []byte {
 
 var file_proto_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_proto_service_proto_goTypes = []any{
-	(*Element)(nil),                 // 0: proto.Element
-	(*SaveSnapshotRequest)(nil),     // 1: proto.SaveSnapshotRequest
-	(*SaveSnapshotResponse)(nil),    // 2: proto.SaveSnapshotResponse
-	(*ProjectElementsRequest)(nil),  // 3: proto.ProjectElementsRequest
-	(*ProjectElementsResponse)(nil), // 4: proto.ProjectElementsResponse
+	(*Element)(nil),              // 0: proto.Element
+	(*SaveSnapshotRequest)(nil),  // 1: proto.SaveSnapshotRequest
+	(*SaveSnapshotResponse)(nil), // 2: proto.SaveSnapshotResponse
+	(*PageElementsRequest)(nil),  // 3: proto.PageElementsRequest
+	(*PageElementsResponse)(nil), // 4: proto.PageElementsResponse
 }
 var file_proto_service_proto_depIdxs = []int32{
 	0, // 0: proto.Element.elements:type_name -> proto.Element
-	0, // 1: proto.ProjectElementsResponse.elements:type_name -> proto.Element
+	0, // 1: proto.PageElementsResponse.elements:type_name -> proto.Element
 	1, // 2: proto.ElementService.SaveSnapshot:input_type -> proto.SaveSnapshotRequest
-	3, // 3: proto.ElementService.GetProjectElements:input_type -> proto.ProjectElementsRequest
+	3, // 3: proto.ElementService.GetPageElements:input_type -> proto.PageElementsRequest
 	2, // 4: proto.ElementService.SaveSnapshot:output_type -> proto.SaveSnapshotResponse
-	4, // 5: proto.ElementService.GetProjectElements:output_type -> proto.ProjectElementsResponse
+	4, // 5: proto.ElementService.GetPageElements:output_type -> proto.PageElementsResponse
 	4, // [4:6] is the sub-list for method output_type
 	2, // [2:4] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name

@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+bin/
+dist/
+*.o
+*.a
+*.so
+
+# Test files
+*.test
+*.out
+coverage.*
+*.coverprofile
+
+# Documentation
+docs/
+README.md
+CONTRIBUTING.md
+LICENSE
+
+# Dependencies
+vendor/
+go.work
+go.work.sum
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Node (if applicable)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Misc
+.editorconfig
+Makefile

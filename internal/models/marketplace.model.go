@@ -2,7 +2,6 @@ package models
 
 import (
 	"time"
-
 )
 
 type MarketplaceItem struct {

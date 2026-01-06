@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
@@ -12,14 +13,23 @@ import (
 
 type ElementService struct {
 	proto.UnimplementedElementServiceServer
-	snapshotRepo repositories.SnapshotRepositoryInterface
-	elementRepo  repositories.ElementRepositoryInterface
+	snapshotRepo             repositories.SnapshotRepositoryInterface
+	elementRepo              repositories.ElementRepositoryInterface
+	eventWorkflowRepo        *repositories.EventWorkflowRepository
+	elementEventWorkflowRepo *repositories.ElementEventWorkflowRepository
 }
 
-func NewElementService(snapshotRepo repositories.SnapshotRepositoryInterface, elementRepo repositories.ElementRepositoryInterface) *ElementService {
+func NewElementService(
+	snapshotRepo repositories.SnapshotRepositoryInterface,
+	elementRepo repositories.ElementRepositoryInterface,
+	eventWorkflowRepo *repositories.EventWorkflowRepository,
+	elementEventWorkflowRepo *repositories.ElementEventWorkflowRepository,
+) *ElementService {
 	return &ElementService{
-		snapshotRepo: snapshotRepo,
-		elementRepo:  elementRepo,
+		snapshotRepo:             snapshotRepo,
+		elementRepo:              elementRepo,
+		eventWorkflowRepo:        eventWorkflowRepo,
+		elementEventWorkflowRepo: elementEventWorkflowRepo,
 	}
 }
 
@@ -43,28 +53,153 @@ func (s *ElementService) SaveSnapshot(ctx context.Context, req *proto.SaveSnapsh
 		return nil, err
 	}
 
+	// Use projectId from request
+	if req.PageId == "" {
+		return nil, errors.New("pageId is required")
+	}
+	if req.ProjectId == "" {
+		return nil, errors.New("projectId is required")
+	}
+
+	projectId := req.ProjectId
+	log.Printf("SaveSnapshot: pageId=%s, projectId=%s, timestamp=%d, elements count=%d", req.PageId, projectId, req.Timestamp, len(elements))
+
 	snapshot := models.Snapshot{
 		Id:        req.Id,
-		ProjectId: req.ProjectId,
+		ProjectId: projectId,
 		Name:      req.Name,
 		Type:      req.Type,
 		Elements:  elementsJSON,
 		Timestamp: req.Timestamp,
 	}
 
-	err = s.snapshotRepo.SaveSnapshot(ctx, req.ProjectId, &snapshot)
+	err = s.snapshotRepo.SaveSnapshot(ctx, projectId, &snapshot)
 	if err != nil {
 		log.Printf("Error saving snapshot: %v", err)
 		return nil, err
 	}
 
-	err = s.elementRepo.ReplaceElements(ctx, req.ProjectId, elements)
+	err = s.elementRepo.ReplaceElements(ctx, projectId, elements)
 	if err != nil {
 		log.Printf("Error replacing elements: %v", err)
 		return nil, err
 	}
 
 	return &proto.SaveSnapshotResponse{Message: "Snapshot saved successfully"}, nil
+}
+
+// GetElementEventWorkflows retrieves all event workflows linked to an element
+func (s *ElementService) GetElementEventWorkflows(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error) {
+	if s.elementEventWorkflowRepo == nil {
+		log.Printf("Warning: ElementEventWorkflowRepository not initialized")
+		return []models.ElementEventWorkflow{}, nil
+	}
+
+	workflows, err := s.elementEventWorkflowRepo.GetElementEventWorkflowsByElementID(ctx, elementID)
+	if err != nil {
+		log.Printf("Error retrieving event workflows for element %s: %v", elementID, err)
+		return nil, err
+	}
+
+	return workflows, nil
+}
+
+// LinkElementToWorkflow creates an association between an element and a workflow
+func (s *ElementService) LinkElementToWorkflow(ctx context.Context, elementID, workflowID, eventName string) (*models.ElementEventWorkflow, error) {
+	if s.elementEventWorkflowRepo == nil {
+		log.Printf("Error: ElementEventWorkflowRepository not initialized")
+		return nil, errors.New("element event workflow repository not initialized")
+	}
+
+	eew := &models.ElementEventWorkflow{
+		ElementId:  elementID,
+		WorkflowId: workflowID,
+		EventName:  eventName,
+	}
+
+	created, err := s.elementEventWorkflowRepo.CreateElementEventWorkflow(ctx, eew)
+	if err != nil {
+		log.Printf("Error linking element %s to workflow %s: %v", elementID, workflowID, err)
+		return nil, err
+	}
+
+	return created, nil
+}
+
+// UnlinkElementFromWorkflow removes an association between an element and a workflow
+func (s *ElementService) UnlinkElementFromWorkflow(ctx context.Context, elementID, workflowID, eventName string) error {
+	if s.elementEventWorkflowRepo == nil {
+		log.Printf("Error: ElementEventWorkflowRepository not initialized")
+		return errors.New("element event workflow repository not initialized")
+	}
+
+	// Check if the association exists
+	exists, err := s.elementEventWorkflowRepo.CheckIfWorkflowLinkedToElement(ctx, elementID, workflowID, eventName)
+	if err != nil {
+		log.Printf("Error checking workflow link: %v", err)
+		return err
+	}
+
+	if !exists {
+		log.Printf("Workflow not linked to element")
+		return errors.New("workflow not linked to element")
+	}
+
+	// Delete all associations for this element-workflow-event combination
+	err = s.elementEventWorkflowRepo.DeleteElementEventWorkflowsByElementID(ctx, elementID)
+	if err != nil {
+		log.Printf("Error unlinking element %s from workflow %s: %v", elementID, workflowID, err)
+		return err
+	}
+
+	return nil
+}
+
+// GetProjectWorkflows retrieves all workflows for a project
+func (s *ElementService) GetProjectWorkflows(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+	if s.eventWorkflowRepo == nil {
+		log.Printf("Warning: EventWorkflowRepository not initialized")
+		return []models.EventWorkflow{}, nil
+	}
+
+	workflows, err := s.eventWorkflowRepo.GetEventWorkflowsByProjectID(ctx, projectID)
+	if err != nil {
+		log.Printf("Error retrieving workflows for project %s: %v", projectID, err)
+		return nil, err
+	}
+
+	return workflows, nil
+}
+
+// GetEnabledWorkflows retrieves all enabled workflows for a project
+func (s *ElementService) GetEnabledWorkflows(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+	if s.eventWorkflowRepo == nil {
+		log.Printf("Warning: EventWorkflowRepository not initialized")
+		return []models.EventWorkflow{}, nil
+	}
+
+	workflows, err := s.eventWorkflowRepo.GetEnabledEventWorkflowsByProjectID(ctx, projectID)
+	if err != nil {
+		log.Printf("Error retrieving enabled workflows for project %s: %v", projectID, err)
+		return nil, err
+	}
+
+	return workflows, nil
+}
+
+func (s *ElementService) GetWorkflowsByEvent(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error) {
+	if s.elementEventWorkflowRepo == nil {
+		log.Printf("Warning: ElementEventWorkflowRepository not initialized")
+		return []models.ElementEventWorkflow{}, nil
+	}
+
+	workflows, err := s.elementEventWorkflowRepo.GetElementEventWorkflowsByEventName(ctx, eventName)
+	if err != nil {
+		log.Printf("Error retrieving workflows for event %s: %v", eventName, err)
+		return nil, err
+	}
+
+	return workflows, nil
 }
 
 func (s *ElementService) convertRawElementsToEditorElements(rawElements []any) ([]models.EditorElement, error) {
@@ -79,16 +214,42 @@ func (s *ElementService) convertRawElementsToEditorElements(rawElements []any) (
 	return elements, nil
 }
 
-func (s *ElementService) GetProjectElements(ctx context.Context, req *proto.ProjectElementsRequest) (*proto.ProjectElementsResponse, error) {
-	elements, err := s.elementRepo.GetElements(ctx, req.ProjectId)
+// GetPageElements retrieves elements for a specific page (called by realtime service)
+func (s *ElementService) GetPageElements(ctx context.Context, req *proto.PageElementsRequest) (*proto.PageElementsResponse, error) {
+	if req.PageId == "" {
+		return nil, errors.New("pageId is required")
+	}
+	if req.ProjectId == "" {
+		return nil, errors.New("projectId is required")
+	}
+
+	log.Printf("GetPageElements called for pageId=%s, projectId=%s", req.PageId, req.ProjectId)
+
+	elements, err := s.elementRepo.GetElementsByPageID(ctx, req.PageId)
 	if err != nil {
-		log.Printf("Error retrieving elements for project %s: %v", req.ProjectId, err)
+		log.Printf("Error retrieving elements for page %s: %v", req.PageId, err)
 		return nil, err
 	}
 
-	protoElements := s.convertEditorElementsToProto(elements)
+	// Convert to EditorElements for tree structure
+	editorElements := make([]models.EditorElement, len(elements))
+	for i, elem := range elements {
+		elemCopy := elem
+		if elem.SettingRecord != nil {
+			elemCopy.Settings = &elem.SettingRecord.Settings
+		}
+		editorElements[i] = &elemCopy
+	}
 
-	return &proto.ProjectElementsResponse{Elements: protoElements}, nil
+	log.Printf("Building element tree for %d elements", len(editorElements))
+	editorElements = utils.BuildElementTree(editorElements)
+	log.Printf("Element tree built, root elements: %d", len(editorElements))
+
+	protoElements := s.convertEditorElementsToProto(editorElements)
+
+	log.Printf("Returning %d elements for pageId=%s, projectId=%s", len(protoElements), req.PageId, req.ProjectId)
+
+	return &proto.PageElementsResponse{Elements: protoElements}, nil
 }
 
 func (s *ElementService) convertEditorElementsToProto(elements []models.EditorElement) []*proto.Element {
@@ -105,18 +266,18 @@ func (s *ElementService) convertEditorElementsToProto(elements []models.EditorEl
 		}
 
 		protoElem := &proto.Element{
-			Id:        elem.Id,
-			Type:      elem.Type,
-			Content:   elem.Content,
-			Name:      elem.Name,
-			Styles:    string(elem.Styles),
+			Id:             elem.Id,
+			Type:           elem.Type,
+			Content:        elem.Content,
+			Name:           elem.Name,
+			Styles:         string(elem.Styles),
 			TailwindStyles: elem.TailwindStyles,
-			Src:       elem.Src,
-			Href:      elem.Href,
-			ParentId:  elem.ParentId,
-			PageId:    elem.PageId,
-			ProjectId: elem.ProjectId,
-			Order:     int32(elem.Order),
+			Src:            elem.Src,
+			Href:           elem.Href,
+			ParentId:       elem.ParentId,
+			PageId:         elem.PageId,
+			EventWorkflows: utils.ConvertEventWorkflowsToString(elem.EventWorkflows),
+			Order:          int32(elem.Order),
 		}
 
 		if elem.Settings != nil {
