@@ -50,18 +50,14 @@ func (h *CustomElementTypeHandler) GetCustomElementTypeByID(c *fiber.Ctx) error 
 
 func (h *CustomElementTypeHandler) CreateCustomElementType(c *fiber.Ctx) error {
 	var req struct {
-		Name        string  `json:"name"`
+		Name        string  `json:"name"        validate:"required"`
 		Description *string `json:"description"`
 		Category    *string `json:"category"`
 		Icon        *string `json:"icon"`
 	}
 
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
-	}
-
-	if req.Name == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Name is required", nil)
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
 	customElementType := &models.CustomElementType{
@@ -91,8 +87,8 @@ func (h *CustomElementTypeHandler) UpdateCustomElementType(c *fiber.Ctx) error {
 	}
 
 	var req map[string]any
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
+	if err := utils.ValidateJSONBody(c, &req); err != nil {
+		return err
 	}
 
 	delete(req, "id")
@@ -116,8 +112,7 @@ func (h *CustomElementTypeHandler) DeleteCustomElementType(c *fiber.Ctx) error {
 		return err
 	}
 
-	err = h.customElementTypeRepo.DeleteCustomElementType(c.Context(), id)
-	if err != nil {
+	if err := h.customElementTypeRepo.DeleteCustomElementType(c.Context(), id); err != nil {
 		if err == repositories.ErrCustomElementTypeNotFound {
 			return utils.SendError(c, fiber.StatusNotFound, "Custom element type not found", err)
 		}
@@ -125,7 +120,5 @@ func (h *CustomElementTypeHandler) DeleteCustomElementType(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete custom element type", err)
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
-		"message": "Custom element type deleted successfully",
-	})
+	return utils.SendSuccess(c, fiber.StatusOK, "Custom element type deleted successfully")
 }

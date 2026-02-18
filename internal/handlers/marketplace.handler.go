@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
+	"my-go-app/pkg/utils"
 	"strconv"
 	"time"
 
@@ -21,61 +22,35 @@ func NewMarketplaceHandler(marketplaceRepo repositories.MarketplaceRepositoryInt
 	}
 }
 
-// CreateMarketplaceItem creates a new marketplace item
+// CreateMarketplaceItem creates a new marketplace item.
 func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to create marketplace items",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	var req models.CreateMarketplaceItemRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid request body",
-			"errorMessage": err.Error(),
-		})
-	}
-
-	// Validate required fields
-	if req.Title == "" || req.Description == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Validation failed",
-			"errorMessage": "Title and description are required",
-		})
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
 	for _, tagId := range req.TagIds {
 		tag, err := h.marketplaceRepository.GetTagByID(tagId)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error":        "Failed to validate tag",
-				"errorMessage": err.Error(),
-			})
+			return utils.SendError(c, fiber.StatusInternalServerError, "Failed to validate tag", err)
 		}
 		if tag == nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error":        "Validation failed",
-				"errorMessage": fmt.Sprintf("Tag with ID %s does not exist", tagId),
-			})
+			return utils.SendError(c, fiber.StatusBadRequest, fmt.Sprintf("Tag with ID %s does not exist", tagId), nil)
 		}
 	}
 
 	for _, categoryId := range req.CategoryIds {
 		category, err := h.marketplaceRepository.GetCategoryByID(categoryId)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error":        "Failed to validate category",
-				"errorMessage": err.Error(),
-			})
+			return utils.SendError(c, fiber.StatusInternalServerError, "Failed to validate category", err)
 		}
 		if category == nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error":        "Validation failed",
-				"errorMessage": fmt.Sprintf("Category with ID %s does not exist", categoryId),
-			})
+			return utils.SendError(c, fiber.StatusBadRequest, fmt.Sprintf("Category with ID %s does not exist", categoryId), nil)
 		}
 	}
 
@@ -110,18 +85,14 @@ func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
 
 	createdItem, err := h.marketplaceRepository.CreateMarketplaceItem(item, req.TagIds, req.CategoryIds)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to create marketplace item",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create marketplace item", err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(createdItem)
+	return utils.SendJSON(c, fiber.StatusCreated, createdItem)
 }
 
-// GetMarketplaceItems retrieves marketplace items with filtering
+// GetMarketplaceItems retrieves marketplace items with filtering and pagination.
 func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
-	// Parse query parameters
 	filter := repositories.MarketplaceFilter{
 		TemplateType: c.Query("templateType"),
 		CategoryId:   c.Query("categoryId"),
@@ -132,13 +103,11 @@ func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
 		SortOrder:    c.Query("sortOrder", "desc"),
 	}
 
-	// Parse featured filter
 	if featuredStr := c.Query("featured"); featuredStr != "" {
 		featured := featuredStr == "true"
 		filter.Featured = &featured
 	}
 
-	// Parse pagination
 	limit, _ := strconv.Atoi(c.Query("limit", "20"))
 	offset, _ := strconv.Atoi(c.Query("offset", "0"))
 	filter.Limit = limit
@@ -146,13 +115,10 @@ func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
 
 	items, total, err := h.marketplaceRepository.GetMarketplaceItems(filter)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve marketplace items",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve marketplace items", err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
 		"data":   items,
 		"total":  total,
 		"limit":  limit,
@@ -160,59 +126,41 @@ func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
 	})
 }
 
-// GetMarketplaceItemByID retrieves a single marketplace item
+// GetMarketplaceItemByID retrieves a single marketplace item.
 func (h *MarketplaceHandler) GetMarketplaceItemByID(c *fiber.Ctx) error {
-	itemID := c.Params("itemid")
-	if itemID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Item ID is required",
-			"errorMessage": "Missing itemid parameter in URL",
-		})
+	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	if err != nil {
+		return err
 	}
 
 	item, err := h.marketplaceRepository.GetMarketplaceItemByID(itemID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve marketplace item",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve marketplace item", err)
 	}
 	if item == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Marketplace item not found",
-		})
+		return utils.SendError(c, fiber.StatusNotFound, "Marketplace item not found", nil)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(item)
+	return utils.SendJSON(c, fiber.StatusOK, item)
 }
 
-// UpdateMarketplaceItem updates a marketplace item
+// UpdateMarketplaceItem updates a marketplace item.
 func (h *MarketplaceHandler) UpdateMarketplaceItem(c *fiber.Ctx) error {
-	itemID := c.Params("itemid")
-	if itemID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Item ID is required",
-			"errorMessage": "Missing itemid parameter in URL",
-		})
+	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	if err != nil {
+		return err
 	}
 
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to update marketplace items",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	var req models.UpdateMarketplaceItemRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid request body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	// Build updates map
 	updates := make(map[string]any)
 	if req.Title != nil {
 		updates["Title"] = *req.Title
@@ -241,289 +189,181 @@ func (h *MarketplaceHandler) UpdateMarketplaceItem(c *fiber.Ctx) error {
 
 	updatedItem, err := h.marketplaceRepository.UpdateMarketplaceItem(itemID, userID, updates)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to update marketplace item",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update marketplace item", err)
 	}
 	if updatedItem == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Marketplace item not found or you don't have permission to update it",
-		})
+		return utils.SendError(c, fiber.StatusNotFound, "Marketplace item not found or you don't have permission to update it", nil)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(updatedItem)
+	return utils.SendJSON(c, fiber.StatusOK, updatedItem)
 }
 
-// DeleteMarketplaceItem deletes a marketplace item
+// DeleteMarketplaceItem deletes a marketplace item.
 func (h *MarketplaceHandler) DeleteMarketplaceItem(c *fiber.Ctx) error {
-	itemID := c.Params("itemid")
-	if itemID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Item ID is required",
-			"errorMessage": "Missing itemid parameter in URL",
-		})
-	}
-
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to delete marketplace items",
-		})
-	}
-
-	err := h.marketplaceRepository.DeleteMarketplaceItem(itemID, userID)
+	itemID, err := utils.ValidateRequiredParam(c, "itemid")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to delete marketplace item",
-			"errorMessage": err.Error(),
-		})
+		return err
 	}
 
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+
+	if err := h.marketplaceRepository.DeleteMarketplaceItem(itemID, userID); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete marketplace item", err)
+	}
+
+	return utils.SendNoContent(c)
 }
 
-// DownloadMarketplaceItem downloads a marketplace item by cloning its project
+// DownloadMarketplaceItem clones a marketplace item's project for the authenticated user.
 func (h *MarketplaceHandler) DownloadMarketplaceItem(c *fiber.Ctx) error {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to download marketplace items",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
-	itemID := c.Params("itemid")
-	if itemID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Item ID is required",
-			"errorMessage": "Missing itemid parameter in URL",
-		})
+	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	if err != nil {
+		return err
 	}
 
 	project, err := h.marketplaceRepository.DownloadMarketplaceItem(itemID, userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to download marketplace item",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to download marketplace item", err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+	return utils.SendJSON(c, fiber.StatusCreated, fiber.Map{
 		"message": "Marketplace item downloaded successfully",
 		"project": project,
 	})
 }
 
-// IncrementDownloads increments the download count for an item
+// IncrementDownloads increments the download count for an item.
 func (h *MarketplaceHandler) IncrementDownloads(c *fiber.Ctx) error {
-	itemID := c.Params("itemid")
-	if itemID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Item ID is required",
-			"errorMessage": "Missing itemid parameter in URL",
-		})
-	}
-
-	err := h.marketplaceRepository.IncrementDownloads(itemID)
+	itemID, err := utils.ValidateRequiredParam(c, "itemid")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to increment downloads",
-			"errorMessage": err.Error(),
-		})
+		return err
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Download count incremented",
-	})
+	if err := h.marketplaceRepository.IncrementDownloads(itemID); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to increment downloads", err)
+	}
+
+	return utils.SendSuccess(c, fiber.StatusOK, "Download count incremented")
 }
 
-// IncrementLikes increments the like count for an item
+// IncrementLikes increments the like count for an item.
 func (h *MarketplaceHandler) IncrementLikes(c *fiber.Ctx) error {
-	itemID := c.Params("itemid")
-	if itemID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Item ID is required",
-			"errorMessage": "Missing itemid parameter in URL",
-		})
-	}
-
-	err := h.marketplaceRepository.IncrementLikes(itemID)
+	itemID, err := utils.ValidateRequiredParam(c, "itemid")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to increment likes",
-			"errorMessage": err.Error(),
-		})
+		return err
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Like count incremented",
-	})
+	if err := h.marketplaceRepository.IncrementLikes(itemID); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to increment likes", err)
+	}
+
+	return utils.SendSuccess(c, fiber.StatusOK, "Like count incremented")
 }
 
-// CreateCategory creates a new category
+// CreateCategory creates a new category.
 func (h *MarketplaceHandler) CreateCategory(c *fiber.Ctx) error {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to create categories",
-		})
+	if _, err := utils.ValidateUserID(c); err != nil {
+		return err
 	}
 
 	var req models.CreateCategoryRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid request body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	if req.Name == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Validation failed",
-			"errorMessage": "Category name is required",
-		})
-	}
-
-	category := models.Category{
+	createdCategory, err := h.marketplaceRepository.CreateCategory(models.Category{
 		Id:   cuid.New(),
 		Name: req.Name,
-	}
-
-	createdCategory, err := h.marketplaceRepository.CreateCategory(category)
+	})
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to create category",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create category", err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(createdCategory)
+	return utils.SendJSON(c, fiber.StatusCreated, createdCategory)
 }
 
-// GetCategories retrieves all categories
+// GetCategories retrieves all categories.
 func (h *MarketplaceHandler) GetCategories(c *fiber.Ctx) error {
 	categories, err := h.marketplaceRepository.GetCategories()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve categories",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve categories", err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(categories)
+	return utils.SendJSON(c, fiber.StatusOK, categories)
 }
 
-// DeleteCategory deletes a category
+// DeleteCategory deletes a category.
 func (h *MarketplaceHandler) DeleteCategory(c *fiber.Ctx) error {
-	categoryID := c.Params("categoryid")
-	if categoryID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Category ID is required",
-			"errorMessage": "Missing categoryid parameter in URL",
-		})
-	}
-
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to delete categories",
-		})
-	}
-
-	err := h.marketplaceRepository.DeleteCategory(categoryID)
+	categoryID, err := utils.ValidateRequiredParam(c, "categoryid")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to delete category",
-			"errorMessage": err.Error(),
-		})
+		return err
 	}
 
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	if _, err := utils.ValidateUserID(c); err != nil {
+		return err
+	}
+
+	if err := h.marketplaceRepository.DeleteCategory(categoryID); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete category", err)
+	}
+
+	return utils.SendNoContent(c)
 }
 
-// CreateTag creates a new tag
+// CreateTag creates a new tag.
 func (h *MarketplaceHandler) CreateTag(c *fiber.Ctx) error {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to create tags",
-		})
+	if _, err := utils.ValidateUserID(c); err != nil {
+		return err
 	}
 
 	var req models.CreateTagRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid request body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	if req.Name == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Validation failed",
-			"errorMessage": "Tag name is required",
-		})
-	}
-
-	tag := models.Tag{
+	createdTag, err := h.marketplaceRepository.CreateTag(models.Tag{
 		Id:   cuid.New(),
 		Name: req.Name,
-	}
-
-	createdTag, err := h.marketplaceRepository.CreateTag(tag)
+	})
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to create tag",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create tag", err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(createdTag)
+	return utils.SendJSON(c, fiber.StatusCreated, createdTag)
 }
 
-// GetTags retrieves all tags
+// GetTags retrieves all tags.
 func (h *MarketplaceHandler) GetTags(c *fiber.Ctx) error {
 	tags, err := h.marketplaceRepository.GetTags()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve tags",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve tags", err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(tags)
+	return utils.SendJSON(c, fiber.StatusOK, tags)
 }
 
-// DeleteTag deletes a tag
+// DeleteTag deletes a tag.
 func (h *MarketplaceHandler) DeleteTag(c *fiber.Ctx) error {
-	tagID := c.Params("tagid")
-	if tagID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Tag ID is required",
-			"errorMessage": "Missing tagid parameter in URL",
-		})
-	}
-
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to delete tags",
-		})
-	}
-
-	err := h.marketplaceRepository.DeleteTag(tagID)
+	tagID, err := utils.ValidateRequiredParam(c, "tagid")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to delete tag",
-			"errorMessage": err.Error(),
-		})
+		return err
 	}
 
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	if _, err := utils.ValidateUserID(c); err != nil {
+		return err
+	}
+
+	if err := h.marketplaceRepository.DeleteTag(tagID); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete tag", err)
+	}
+
+	return utils.SendNoContent(c)
 }

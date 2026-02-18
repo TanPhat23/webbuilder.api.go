@@ -44,7 +44,7 @@ func (h *ContentTypeHandler) GetContentTypeByID(c *fiber.Ctx) error {
 
 func (h *ContentTypeHandler) CreateContentType(c *fiber.Ctx) error {
 	var contentType models.ContentType
-	if err := utils.ValidateJSONBody(c, &contentType); err != nil {
+	if err := utils.ValidateAndParseBody(c, &contentType); err != nil {
 		return err
 	}
 
@@ -81,8 +81,7 @@ func (h *ContentTypeHandler) DeleteContentType(c *fiber.Ctx) error {
 		return err
 	}
 
-	err = h.contentTypeRepository.DeleteContentType(c.Context(), id)
-	if err != nil {
+	if err := h.contentTypeRepository.DeleteContentType(c.Context(), id); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete content type", err)
 	}
 	return utils.SendNoContent(c)

@@ -59,14 +59,14 @@ func (h *SnapshotHandler) SaveSnapshot(c *fiber.Ctx) error {
 }
 
 func (h *SnapshotHandler) validateAndParseRequest(c *fiber.Ctx) (string, SaveSnapshotRequest, error) {
-	projectId := c.Params("projectid")
-	if projectId == "" {
-		return "", SaveSnapshotRequest{}, fiber.NewError(fiber.StatusBadRequest, "Project ID is required")
+	projectId, err := utils.ValidateRequiredParam(c, "projectid")
+	if err != nil {
+		return "", SaveSnapshotRequest{}, err
 	}
 
 	var req SaveSnapshotRequest
-	if err := c.BodyParser(&req); err != nil {
-		return "", SaveSnapshotRequest{}, fiber.NewError(fiber.StatusBadRequest, "Invalid request body: "+err.Error())
+	if err := utils.ValidateJSONBody(c, &req); err != nil {
+		return "", SaveSnapshotRequest{}, err
 	}
 
 	if req.Id == "" {

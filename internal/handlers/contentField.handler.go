@@ -54,7 +54,7 @@ func (h *ContentFieldHandler) CreateContentField(c *fiber.Ctx) error {
 	}
 
 	var contentField models.ContentField
-	if err := utils.ValidateJSONBody(c, &contentField); err != nil {
+	if err := utils.ValidateAndParseBody(c, &contentField); err != nil {
 		return err
 	}
 	contentField.ContentTypeId = contentTypeId
@@ -92,8 +92,7 @@ func (h *ContentFieldHandler) DeleteContentField(c *fiber.Ctx) error {
 		return err
 	}
 
-	err = h.contentFieldRepository.DeleteContentField(c.Context(), id)
-	if err != nil {
+	if err := h.contentFieldRepository.DeleteContentField(c.Context(), id); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete content field", err)
 	}
 	return utils.SendNoContent(c)

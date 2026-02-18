@@ -422,6 +422,8 @@ type ElementEventWorkflowRepositoryInterface interface {
 	DeleteElementEventWorkflowsByElementID(ctx context.Context, elementID string) error
 	// DeleteElementEventWorkflowsByWorkflowID deletes all element associations for a specific workflow
 	DeleteElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) error
+	// GetElementEventWorkflowsByPageID retrieves all element event workflows for elements belonging to a specific page
+	GetElementEventWorkflowsByPageID(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error)
 	// CheckIfWorkflowLinkedToElement checks if a workflow is already linked to an element with a specific event
 	CheckIfWorkflowLinkedToElement(ctx context.Context, elementID, workflowID, eventName string) (bool, error)
 }

@@ -23,9 +23,9 @@ func NewCustomElementHandler(customElementRepo repositories.CustomElementReposit
 }
 
 func (h *CustomElementHandler) GetCustomElements(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	isPublicStr := c.Query("isPublic")
@@ -48,9 +48,9 @@ func (h *CustomElementHandler) GetCustomElements(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) GetCustomElementByID(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	id, err := utils.ValidateRequiredParam(c, "id")
@@ -71,35 +71,27 @@ func (h *CustomElementHandler) GetCustomElementByID(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	var req struct {
-		Name         string          `json:"name"`
+		Name         string          `json:"name"      validate:"required"`
+		Structure    json.RawMessage `json:"structure" validate:"required"`
 		TypeId       *string         `json:"typeId"`
 		Description  *string         `json:"description"`
 		Category     *string         `json:"category"`
 		Icon         *string         `json:"icon"`
 		Thumbnail    *string         `json:"thumbnail"`
-		Structure    json.RawMessage `json:"structure"`
 		DefaultProps json.RawMessage `json:"defaultProps"`
 		Tags         *string         `json:"tags"`
 		IsPublic     bool            `json:"isPublic"`
 		Version      string          `json:"version"`
 	}
 
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
-	}
-
-	if req.Name == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Name is required", nil)
-	}
-
-	if req.Structure == nil || len(req.Structure) == 0 {
-		return utils.SendError(c, fiber.StatusBadRequest, "Structure is required", nil)
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
 	if req.Version == "" {
@@ -135,9 +127,9 @@ func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	id, err := utils.ValidateRequiredParam(c, "id")
@@ -146,8 +138,8 @@ func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
 	}
 
 	var req map[string]any
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
+	if err := utils.ValidateJSONBody(c, &req); err != nil {
+		return err
 	}
 
 	delete(req, "id")
@@ -167,9 +159,9 @@ func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	id, err := utils.ValidateRequiredParam(c, "id")
@@ -177,8 +169,7 @@ func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
 		return err
 	}
 
-	err = h.customElementRepo.DeleteCustomElement(c.Context(), id, userID)
-	if err != nil {
+	if err := h.customElementRepo.DeleteCustomElement(c.Context(), id, userID); err != nil {
 		if err == repositories.ErrCustomElementUnauthorized {
 			return utils.SendError(c, fiber.StatusForbidden, "Unauthorized to delete this custom element", err)
 		}
@@ -186,22 +177,18 @@ func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete custom element", err)
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
-		"message": "Custom element deleted successfully",
-	})
+	return utils.SendSuccess(c, fiber.StatusOK, "Custom element deleted successfully")
 }
 
 func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
 	category := c.Query("category")
-	limitStr := c.Query("limit", "20")
-	offsetStr := c.Query("offset", "0")
 
-	limit, err := strconv.Atoi(limitStr)
+	limit, err := strconv.Atoi(c.Query("limit", "20"))
 	if err != nil {
 		limit = 20
 	}
 
-	offset, err := strconv.Atoi(offsetStr)
+	offset, err := strconv.Atoi(c.Query("offset", "0"))
 	if err != nil {
 		offset = 0
 	}
@@ -221,9 +208,9 @@ func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) DuplicateCustomElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	id, err := utils.ValidateRequiredParam(c, "id")
@@ -232,15 +219,11 @@ func (h *CustomElementHandler) DuplicateCustomElement(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		NewName string `json:"newName"`
+		NewName string `json:"newName" validate:"required"`
 	}
 
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
-	}
-
-	if req.NewName == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "New name is required", nil)
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
 	duplicate, err := h.customElementRepo.DuplicateCustomElement(c.Context(), id, userID, req.NewName)

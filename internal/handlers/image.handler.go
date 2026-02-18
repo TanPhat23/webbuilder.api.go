@@ -5,6 +5,7 @@ import (
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
+	"my-go-app/pkg/utils"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -23,65 +24,43 @@ func NewImageHandler(imageRepo repositories.ImageRepositoryInterface, cloudinary
 	}
 }
 
-// UploadImage handles image upload to Cloudinary and saves metadata to database
+// UploadImage handles image upload to Cloudinary and saves metadata to database.
 func (h *ImageHandler) UploadImage(c *fiber.Ctx) error {
-	// Get user ID from context
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to upload images",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
-	// Get the uploaded file
 	fileHeader, err := c.FormFile("image")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "No file uploaded",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusBadRequest, "No file uploaded", err)
 	}
 
-	// Validate the image file
 	if err := services.ValidateImageFile(fileHeader); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid image file",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusBadRequest, "Invalid image file", err)
 	}
 
-	// Open the file
 	file, err := fileHeader.Open()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to open uploaded file",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to open uploaded file", err)
 	}
 	defer file.Close()
 
-	// Get optional image name from form data
 	imageName := c.FormValue("imageName")
 	var imageNamePtr *string
 	if imageName != "" {
 		imageNamePtr = &imageName
 	}
 
-	// Upload to Cloudinary
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	folder := "webbuilder/" + userID
 	uploadResult, err := h.cloudinaryService.UploadImage(ctx, file, fileHeader.Filename, folder)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to upload image to Cloudinary",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to upload image to Cloudinary", err)
 	}
 
-	// Create image record in database
 	now := time.Now()
 	image := models.Image{
 		ImageId:   cuid.New(),
@@ -94,172 +73,108 @@ func (h *ImageHandler) UploadImage(c *fiber.Ctx) error {
 
 	createdImage, err := h.imageRepository.CreateImage(image)
 	if err != nil {
-		// Try to cleanup Cloudinary upload if database insert fails
 		_ = h.cloudinaryService.DeleteImage(ctx, uploadResult.PublicID)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to save image metadata",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save image metadata", err)
 	}
 
-	// Return response
-	response := models.ImageUploadResponse{
+	return utils.SendJSON(c, fiber.StatusCreated, models.ImageUploadResponse{
 		ImageId:   createdImage.ImageId,
 		ImageLink: createdImage.ImageLink,
 		ImageName: createdImage.ImageName,
 		CreatedAt: createdImage.CreatedAt,
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(response)
+	})
 }
 
-// GetUserImages retrieves all images for the authenticated user
+// GetUserImages retrieves all images for the authenticated user.
 func (h *ImageHandler) GetUserImages(c *fiber.Ctx) error {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to access images",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	images, err := h.imageRepository.GetImagesByUserID(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve images",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve images", err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(images)
+	return utils.SendJSON(c, fiber.StatusOK, images)
 }
 
-// GetImageByID retrieves a specific image by ID
+// GetImageByID retrieves a specific image by ID.
 func (h *ImageHandler) GetImageByID(c *fiber.Ctx) error {
-	imageID := c.Params("imageid")
-	if imageID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Image ID is required",
-			"errorMessage": "Missing imageid parameter in URL",
-		})
+	imageID, err := utils.ValidateRequiredParam(c, "imageid")
+	if err != nil {
+		return err
 	}
 
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to access images",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	image, err := h.imageRepository.GetImageByID(imageID, userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve image",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve image", err)
 	}
 	if image == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Image not found",
-		})
+		return utils.SendError(c, fiber.StatusNotFound, "Image not found", nil)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(image)
+	return utils.SendJSON(c, fiber.StatusOK, image)
 }
 
-// DeleteImage deletes an image from both Cloudinary and database
+// DeleteImage deletes an image from both Cloudinary and database.
 func (h *ImageHandler) DeleteImage(c *fiber.Ctx) error {
-	imageID := c.Params("imageid")
-	if imageID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Image ID is required",
-			"errorMessage": "Missing imageid parameter in URL",
-		})
+	imageID, err := utils.ValidateRequiredParam(c, "imageid")
+	if err != nil {
+		return err
 	}
 
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to delete images",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
-	// Get image to extract Cloudinary public ID
 	image, err := h.imageRepository.GetImageByID(imageID, userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to retrieve image",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve image", err)
 	}
 	if image == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Image not found",
-		})
+		return utils.SendError(c, fiber.StatusNotFound, "Image not found", nil)
 	}
 
-	// Extract public ID from Cloudinary URL (simplified approach)
-	// Note: In production, you might want to store the public ID separately
-	// For now, we'll attempt to delete from Cloudinary but continue even if it fails
-
-	// Soft delete the image in database
-	err = h.imageRepository.SoftDeleteImage(imageID, userID)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to delete image",
-			"errorMessage": err.Error(),
-		})
+	if err := h.imageRepository.SoftDeleteImage(imageID, userID); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete image", err)
 	}
 
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	return utils.SendNoContent(c)
 }
 
-// UploadBase64Image handles base64 image upload
+// UploadBase64Image handles base64 image upload.
 func (h *ImageHandler) UploadBase64Image(c *fiber.Ctx) error {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":        "Unauthorized",
-			"errorMessage": "You must be logged in to upload images",
-		})
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
-	type Base64Request struct {
-		ImageData string  `json:"imageData"`
+	var req struct {
+		ImageData string  `json:"imageData" validate:"required"`
 		ImageName *string `json:"imageName"`
 	}
 
-	var req Base64Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Invalid request body",
-			"errorMessage": err.Error(),
-		})
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	if req.ImageData == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":        "Image data is required",
-			"errorMessage": "imageData field cannot be empty",
-		})
-	}
-
-	// Upload to Cloudinary
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	folder := "webbuilder/" + userID
 	uploadResult, err := h.cloudinaryService.UploadBase64Image(ctx, req.ImageData, folder)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to upload image to Cloudinary",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to upload image to Cloudinary", err)
 	}
 
-	// Create image record in database
 	now := time.Now()
 	image := models.Image{
 		ImageId:   cuid.New(),
@@ -272,21 +187,14 @@ func (h *ImageHandler) UploadBase64Image(c *fiber.Ctx) error {
 
 	createdImage, err := h.imageRepository.CreateImage(image)
 	if err != nil {
-		// Try to cleanup Cloudinary upload if database insert fails
 		_ = h.cloudinaryService.DeleteImage(ctx, uploadResult.PublicID)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":        "Failed to save image metadata",
-			"errorMessage": err.Error(),
-		})
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save image metadata", err)
 	}
 
-	// Return response
-	response := models.ImageUploadResponse{
+	return utils.SendJSON(c, fiber.StatusCreated, models.ImageUploadResponse{
 		ImageId:   createdImage.ImageId,
 		ImageLink: createdImage.ImageLink,
 		ImageName: createdImage.ImageName,
 		CreatedAt: createdImage.CreatedAt,
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(response)
+	})
 }

@@ -38,8 +38,7 @@ func (h *PageHandler) DeletePage(c *fiber.Ctx) error {
 		return err
 	}
 
-	err = h.pageRepository.DeletePageByProjectID(c.Context(), pageID, projectID, userID)
-	if err != nil {
+	if err := h.pageRepository.DeletePageByProjectID(c.Context(), pageID, projectID, userID); err != nil {
 		if err.Error() == "record not found" {
 			return utils.SendError(c, fiber.StatusNotFound, "Page not found or not owned by user", nil)
 		}
@@ -49,7 +48,7 @@ func (h *PageHandler) DeletePage(c *fiber.Ctx) error {
 	return utils.SendNoContent(c)
 }
 
-// GetPagesByProjectID retrieves all pages for a project
+// GetPagesByProjectID retrieves all pages for a project.
 func (h *PageHandler) GetPagesByProjectID(c *fiber.Ctx) error {
 	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
@@ -65,7 +64,7 @@ func (h *PageHandler) GetPagesByProjectID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, pages)
 }
 
-// GetPageByID retrieves a single page by ID
+// GetPageByID retrieves a single page by ID.
 func (h *PageHandler) GetPageByID(c *fiber.Ctx) error {
 	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
@@ -89,7 +88,7 @@ func (h *PageHandler) GetPageByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, page)
 }
 
-// CreatePage creates a new page
+// CreatePage creates a new page.
 func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
@@ -97,21 +96,13 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		Name   string          `json:"name"`
-		Type   string          `json:"type"`
+		Name   string          `json:"name"   validate:"required"`
+		Type   string          `json:"type"   validate:"required"`
 		Styles json.RawMessage `json:"styles,omitempty"`
 	}
 
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
-	}
-
-	if req.Name == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Page name is required", nil)
-	}
-
-	if req.Type == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Page type is required", nil)
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
 	page := &models.Page{
@@ -132,7 +123,7 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, page)
 }
 
-// UpdatePage updates a page
+// UpdatePage updates a page's fields.
 func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
 	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
@@ -144,7 +135,7 @@ func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
 		return err
 	}
 
-	// First verify the page exists and belongs to the project
+	// Verify the page exists and belongs to the project before applying updates.
 	existingPage, err := h.pageRepository.GetPageByID(c.Context(), pageID, projectID)
 	if err != nil {
 		if err == repositories.ErrPageNotFound {
@@ -153,28 +144,30 @@ func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to verify page", err)
 	}
 
-	var req map[string]any
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
+	var req struct {
+		Name   *string         `json:"name"`
+		Type   *string         `json:"type"`
+		Styles json.RawMessage `json:"styles,omitempty"`
 	}
 
-	// Build update fields
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
+	}
+
 	updates := make(map[string]any)
 
-	if name, ok := req["name"].(string); ok && name != "" {
-		updates["Name"] = name
+	if req.Name != nil && *req.Name != "" {
+		updates["Name"] = *req.Name
 	}
-
-	if pageType, ok := req["type"].(string); ok && pageType != "" {
-		updates["Type"] = pageType
+	if req.Type != nil && *req.Type != "" {
+		updates["Type"] = *req.Type
 	}
-
-	if styles, ok := req["styles"]; ok {
-		updates["Styles"] = styles
+	if req.Styles != nil {
+		updates["Styles"] = req.Styles
 	}
 
 	if len(updates) == 0 {
-		return utils.SendError(c, fiber.StatusBadRequest, "No valid fields to update", nil)
+		return fiber.NewError(fiber.StatusBadRequest, "No valid fields to update")
 	}
 
 	if err := h.pageRepository.UpdatePageFields(c.Context(), pageID, updates); err != nil {
@@ -185,10 +178,9 @@ func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update page", err)
 	}
 
-	// Get the updated page
 	updatedPage, err := h.pageRepository.GetPageByID(c.Context(), pageID, projectID)
 	if err != nil {
-		// If we can't get the updated page, return the existing one with updates applied
+		// Best-effort: patch the in-memory copy and return it rather than failing.
 		for key, value := range updates {
 			switch key {
 			case "Name":

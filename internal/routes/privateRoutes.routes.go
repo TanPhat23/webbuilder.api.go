@@ -27,7 +27,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	elementCommentHandler := handlers.NewElementCommentHandler(repos.ElementCommentRepository)
 	userHandler := handlers.NewUserHandler(repos.UserRepository)
 	eventWorkflowHandler := handlers.NewEventWorkflowHandler(repos.EventWorkflowRepository, repos.ProjectRepository, repos.ElementRepository, repos.ElementEventWorkflowRepository)
-	elementEventWorkflowHandler := handlers.NewElementEventWorkflowHandler(repos.ElementEventWorkflowRepository, repos.ElementRepository, repos.EventWorkflowRepository, repos.ProjectRepository)
+	elementEventWorkflowHandler := handlers.NewElementEventWorkflowHandler(repos.ElementEventWorkflowRepository, repos.ElementRepository, repos.EventWorkflowRepository, repos.ProjectRepository, repos.PageRepository)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
@@ -168,6 +168,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/element-event-workflows/:id", elementEventWorkflowHandler.GetElementEventWorkflowByID)
 	group.Patch("/element-event-workflows/:id", elementEventWorkflowHandler.UpdateElementEventWorkflow)
 	group.Delete("/element-event-workflows/:id", elementEventWorkflowHandler.DeleteElementEventWorkflow)
+	group.Get("/element-event-workflows/page/:pageId", elementEventWorkflowHandler.GetElementEventWorkflowsByPageId)
 	group.Delete("/element-event-workflows/element/:elementId", elementEventWorkflowHandler.DeleteElementEventWorkflowsByElement)
 	group.Delete("/element-event-workflows/workflow/:workflowId", elementEventWorkflowHandler.DeleteElementEventWorkflowsByWorkflow)
 

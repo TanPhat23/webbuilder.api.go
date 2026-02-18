@@ -159,6 +159,20 @@ func (r *ElementEventWorkflowRepository) DeleteElementEventWorkflowsByWorkflowID
 		Delete(&models.ElementEventWorkflow{}).Error
 }
 
+// GetElementEventWorkflowsByPageID retrieves all element event workflows for elements belonging to a specific page
+func (r *ElementEventWorkflowRepository) GetElementEventWorkflowsByPageID(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error) {
+	var eews []models.ElementEventWorkflow
+	err := r.DB.WithContext(ctx).
+		Preload("Workflow").
+		Joins(`JOIN public."Element" ON public."Element"."Id" = "ElementEventWorkflow"."ElementId"`).
+		Where(`public."Element"."PageId" = ?`, pageID).
+		Find(&eews).Error
+	if err != nil {
+		return nil, err
+	}
+	return eews, nil
+}
+
 // CheckIfWorkflowLinkedToElement checks if a workflow is already linked to an element with a specific event
 func (r *ElementEventWorkflowRepository) CheckIfWorkflowLinkedToElement(ctx context.Context, elementID, workflowID, eventName string) (bool, error) {
 	var count int64
