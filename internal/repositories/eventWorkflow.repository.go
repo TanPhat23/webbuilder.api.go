@@ -101,11 +101,24 @@ func (r *EventWorkflowRepository) GetEventWorkflowsByName(ctx context.Context, p
 
 // UpdateEventWorkflow updates an event workflow
 func (r *EventWorkflowRepository) UpdateEventWorkflow(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
-	err := r.DB.WithContext(ctx).
+	updates := map[string]interface{}{
+		"\"Name\"":        workflow.Name,
+		"\"Description\"": workflow.Description,
+		"\"Enabled\"":     workflow.Enabled,
+		"\"UpdatedAt\"":   workflow.UpdatedAt,
+	}
+
+	if len(workflow.CanvasData) > 0 {
+		updates["\"CanvasData\""] = workflow.CanvasData
+	}
+	if len(workflow.Handlers) > 0 {
+		updates["\"Handlers\""] = workflow.Handlers
+	}
+
+	if err := r.DB.WithContext(ctx).
 		Model(&models.EventWorkflow{}).
 		Where("\"EventWorkflow\".\"Id\" = ?", id).
-		Updates(workflow).Error
-	if err != nil {
+		Updates(updates).Error; err != nil {
 		return nil, err
 	}
 

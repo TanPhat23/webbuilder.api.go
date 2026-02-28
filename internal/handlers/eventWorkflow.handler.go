@@ -42,6 +42,7 @@ func (h *EventWorkflowHandler) CreateEventWorkflow(c *fiber.Ctx) error {
 		Name        string          `json:"name"        validate:"required"`
 		Description *string         `json:"description"`
 		CanvasData  json.RawMessage `json:"canvasData"`
+		Handlers    json.RawMessage `json:"handlers"`
 		Enabled     *bool           `json:"enabled"`
 	}
 
@@ -72,6 +73,7 @@ func (h *EventWorkflowHandler) CreateEventWorkflow(c *fiber.Ctx) error {
 		Name:        req.Name,
 		Description: req.Description,
 		CanvasData:  req.CanvasData,
+		Handlers:    req.Handlers,
 		Enabled:     enabled,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -176,6 +178,7 @@ func (h *EventWorkflowHandler) UpdateEventWorkflow(c *fiber.Ctx) error {
 		Name        string          `json:"name"`
 		Description *string         `json:"description"`
 		CanvasData  json.RawMessage `json:"canvasData"`
+		Handlers    json.RawMessage `json:"handlers"`
 		Enabled     *bool           `json:"enabled"`
 	}
 
@@ -199,6 +202,9 @@ func (h *EventWorkflowHandler) UpdateEventWorkflow(c *fiber.Ctx) error {
 	}
 	if len(req.CanvasData) > 0 {
 		existingWorkflow.CanvasData = req.CanvasData
+	}
+	if len(req.Handlers) > 0 {
+		existingWorkflow.Handlers = req.Handlers
 	}
 	if req.Enabled != nil {
 		existingWorkflow.Enabled = *req.Enabled
