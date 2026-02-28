@@ -105,7 +105,6 @@ func (r *EventWorkflowRepository) UpdateEventWorkflow(ctx context.Context, id st
 		"\"Name\"":        workflow.Name,
 		"\"Description\"": workflow.Description,
 		"\"Enabled\"":     workflow.Enabled,
-		"\"UpdatedAt\"":   workflow.UpdatedAt,
 	}
 
 	if len(workflow.CanvasData) > 0 {
@@ -116,8 +115,7 @@ func (r *EventWorkflowRepository) UpdateEventWorkflow(ctx context.Context, id st
 	}
 
 	if err := r.DB.WithContext(ctx).
-		Model(&models.EventWorkflow{}).
-		Where("\"EventWorkflow\".\"Id\" = ?", id).
+		Model(&models.EventWorkflow{Id: id}).
 		Updates(updates).Error; err != nil {
 		return nil, err
 	}
