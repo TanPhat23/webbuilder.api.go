@@ -9,8 +9,6 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-
-
 func InitDB() (*gorm.DB, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{

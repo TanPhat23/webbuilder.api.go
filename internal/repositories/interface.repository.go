@@ -277,43 +277,43 @@ type MarketplaceRepositoryInterface interface {
 // CommentRepositoryInterface defines methods for comment operations
 type CommentRepositoryInterface interface {
 	// CreateComment creates a new comment
-	CreateComment(comment models.Comment) (*models.Comment, error)
+	CreateComment(ctx context.Context, comment models.Comment) (*models.Comment, error)
 	// GetCommentByID retrieves a comment by ID with author and reactions
-	GetCommentByID(id string) (*models.Comment, error)
+	GetCommentByID(ctx context.Context, id string) (*models.Comment, error)
 	// GetComments retrieves comments with filtering and pagination
-	GetComments(filter models.CommentFilter) ([]models.Comment, int64, error)
+	GetComments(ctx context.Context, filter models.CommentFilter) ([]models.Comment, int64, error)
 	// UpdateComment updates a comment with user verification
-	UpdateComment(id string, userId string, updates map[string]any) (*models.Comment, error)
+	UpdateComment(ctx context.Context, id string, userID string, updates map[string]any) (*models.Comment, error)
 	// DeleteComment soft deletes a comment with user verification
-	DeleteComment(id string, userId string) error
+	DeleteComment(ctx context.Context, id string, userID string) error
 	// CreateReaction creates or updates a reaction
-	CreateReaction(reaction models.CommentReaction) (*models.CommentReaction, error)
+	CreateReaction(ctx context.Context, reaction models.CommentReaction) (*models.CommentReaction, error)
 	// DeleteReaction deletes a reaction
-	DeleteReaction(commentId string, userId string, reactionType string) error
+	DeleteReaction(ctx context.Context, commentID string, userID string, reactionType string) error
 	// GetReactionsByCommentID retrieves all reactions for a comment
-	GetReactionsByCommentID(commentId string) ([]models.CommentReaction, error)
+	GetReactionsByCommentID(ctx context.Context, commentID string) ([]models.CommentReaction, error)
 	// GetReactionSummary retrieves reaction counts grouped by type
-	GetReactionSummary(commentId string) ([]models.ReactionSummary, error)
+	GetReactionSummary(ctx context.Context, commentID string) ([]models.ReactionSummary, error)
 	// GetCommentCountByItemID returns the number of comments for a marketplace item
-	GetCommentCountByItemID(itemId string) (int64, error)
+	GetCommentCountByItemID(ctx context.Context, itemID string) (int64, error)
 	// ModerateComment updates the status of a comment (for admin/moderation)
-	ModerateComment(id string, status string) error
+	ModerateComment(ctx context.Context, id string, status string) error
 }
 
 // ImageRepositoryInterface defines methods for image operations
 type ImageRepositoryInterface interface {
 	// CreateImage creates a new image
-	CreateImage(image models.Image) (*models.Image, error)
+	CreateImage(ctx context.Context, image models.Image) (*models.Image, error)
 	// GetImagesByUserID retrieves images by user ID
-	GetImagesByUserID(userID string) ([]models.Image, error)
+	GetImagesByUserID(ctx context.Context, userID string) ([]models.Image, error)
 	// GetImageByID retrieves an image by ID with user verification
-	GetImageByID(imageID string, userID string) (*models.Image, error)
+	GetImageByID(ctx context.Context, imageID string, userID string) (*models.Image, error)
 	// DeleteImage deletes an image with user verification
-	DeleteImage(imageID string, userID string) error
+	DeleteImage(ctx context.Context, imageID string, userID string) error
 	// SoftDeleteImage soft deletes an image with user verification
-	SoftDeleteImage(imageID string, userID string) error
+	SoftDeleteImage(ctx context.Context, imageID string, userID string) error
 	// GetAllImages retrieves all images with pagination
-	GetAllImages(limit int, offset int) ([]models.Image, error)
+	GetAllImages(ctx context.Context, limit int, offset int) ([]models.Image, error)
 }
 
 type CustomElementRepositoryInterface interface {
@@ -406,6 +406,8 @@ type ElementEventWorkflowRepositoryInterface interface {
 	CreateElementEventWorkflow(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
 	// GetElementEventWorkflowByID retrieves an element event workflow by ID
 	GetElementEventWorkflowByID(ctx context.Context, id string) (*models.ElementEventWorkflow, error)
+	// GetAllElementEventWorkflows retrieves all element event workflows
+	GetAllElementEventWorkflows(ctx context.Context) ([]models.ElementEventWorkflow, error)
 	// GetElementEventWorkflowsByElementID retrieves all event workflows for a specific element
 	GetElementEventWorkflowsByElementID(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error)
 	// GetElementEventWorkflowsByWorkflowID retrieves all elements linked to a specific workflow
@@ -429,51 +431,51 @@ type ElementEventWorkflowRepositoryInterface interface {
 }
 
 type RepositoriesInterface struct {
-	ElementRepository               ElementRepositoryInterface
-	ElementCommentRepository        ElementCommentRepositoryInterface
-	UserRepository                  UserRepositoryInterface
-	ProjectRepository               ProjectRepositoryInterface
-	SnapshotRepository              SnapshotRepositoryInterface
-	SettingRepository               SettingRepositoryInterface
-	PageRepository                  PageRepositoryInterface
-	ContentTypeRepository           ContentTypeRepositoryInterface
-	ContentFieldRepository          ContentFieldRepositoryInterface
-	ContentItemRepository           ContentItemRepositoryInterface
-	ContentFieldValueRepository     ContentFieldValueRepositoryInterface
-	MarketplaceRepository           MarketplaceRepositoryInterface
-	ImageRepository                 ImageRepositoryInterface
-	CustomElementRepository         CustomElementRepositoryInterface
-	CustomElementTypeRepository     CustomElementTypeRepositoryInterface
-	InvitationRepository            InvitationRepositoryInterface
-	CollaboratorRepository          CollaboratorRepositoryInterface
-	CommentRepository               CommentRepositoryInterface
-	EventWorkflowRepository             *EventWorkflowRepository
-	ElementEventWorkflowRepository   *ElementEventWorkflowRepository
+	ElementRepository              ElementRepositoryInterface
+	ElementCommentRepository       ElementCommentRepositoryInterface
+	UserRepository                 UserRepositoryInterface
+	ProjectRepository              ProjectRepositoryInterface
+	SnapshotRepository             SnapshotRepositoryInterface
+	SettingRepository              SettingRepositoryInterface
+	PageRepository                 PageRepositoryInterface
+	ContentTypeRepository          ContentTypeRepositoryInterface
+	ContentFieldRepository         ContentFieldRepositoryInterface
+	ContentItemRepository          ContentItemRepositoryInterface
+	ContentFieldValueRepository    ContentFieldValueRepositoryInterface
+	MarketplaceRepository          MarketplaceRepositoryInterface
+	ImageRepository                ImageRepositoryInterface
+	CustomElementRepository        CustomElementRepositoryInterface
+	CustomElementTypeRepository    CustomElementTypeRepositoryInterface
+	InvitationRepository           InvitationRepositoryInterface
+	CollaboratorRepository         CollaboratorRepositoryInterface
+	CommentRepository              CommentRepositoryInterface
+	EventWorkflowRepository        EventWorkflowRepositoryInterface
+	ElementEventWorkflowRepository ElementEventWorkflowRepositoryInterface
 }
 
 func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 	settingRepo := NewSettingRepository(db)
 
 	return &RepositoriesInterface{
-		ElementRepository:           NewElementRepository(db, settingRepo),
-		ElementCommentRepository:    NewElementCommentRepository(db),
-		UserRepository:              NewUserRepository(db),
-		ProjectRepository:           NewProjectRepository(db),
-		SnapshotRepository:          NewSnapshotRepository(db),
-		SettingRepository:           settingRepo,
-		PageRepository:              NewPageRepository(db),
-		ContentTypeRepository:       NewContentTypeRepository(db),
-		ContentFieldRepository:      NewContentFieldRepository(db),
-		ContentItemRepository:       NewContentItemRepository(db),
-		ContentFieldValueRepository: NewContentFieldValueRepository(db),
-		MarketplaceRepository:       NewMarketplaceRepository(db),
-		ImageRepository:             NewImageRepository(db),
-		CustomElementRepository:     NewCustomElementRepository(db),
-		CustomElementTypeRepository: NewCustomElementTypeRepository(db),
-		InvitationRepository:        NewInvitationRepository(db),
-		CollaboratorRepository:      NewCollaboratorRepository(db),
-		EventWorkflowRepository:             NewEventWorkflowRepository(db),
-		ElementEventWorkflowRepository:   NewElementEventWorkflowRepository(db),
-		CommentRepository:           NewCommentRepository(db),
+		ElementRepository:              NewElementRepository(db, settingRepo),
+		ElementCommentRepository:       NewElementCommentRepository(db),
+		UserRepository:                 NewUserRepository(db),
+		ProjectRepository:              NewProjectRepository(db),
+		SnapshotRepository:             NewSnapshotRepository(db),
+		SettingRepository:              settingRepo,
+		PageRepository:                 NewPageRepository(db),
+		ContentTypeRepository:          NewContentTypeRepository(db),
+		ContentFieldRepository:         NewContentFieldRepository(db),
+		ContentItemRepository:          NewContentItemRepository(db),
+		ContentFieldValueRepository:    NewContentFieldValueRepository(db),
+		MarketplaceRepository:          NewMarketplaceRepository(db),
+		ImageRepository:                NewImageRepository(db),
+		CustomElementRepository:        NewCustomElementRepository(db),
+		CustomElementTypeRepository:    NewCustomElementTypeRepository(db),
+		InvitationRepository:           NewInvitationRepository(db),
+		CollaboratorRepository:         NewCollaboratorRepository(db),
+		EventWorkflowRepository:        NewEventWorkflowRepository(db),
+		ElementEventWorkflowRepository: NewElementEventWorkflowRepository(db),
+		CommentRepository:              NewCommentRepository(db),
 	}
 }

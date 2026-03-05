@@ -18,6 +18,49 @@ func ValidateRequiredParam(c *fiber.Ctx, paramName string) (string, error) {
 	return value, nil
 }
 
+// MustParams extracts multiple URL params at once, returning an error on the
+// first missing one. The returned slice preserves the order of names.
+//
+//	ids, err := utils.MustParams(c, "projectid", "pageid")
+//	projectID, pageID := ids[0], ids[1]
+func MustParams(c *fiber.Ctx, names ...string) ([]string, error) {
+	values := make([]string, len(names))
+	for i, name := range names {
+		v := c.Params(name)
+		if v == "" {
+			return nil, fiber.NewError(fiber.StatusBadRequest, name+" is required")
+		}
+		values[i] = v
+	}
+	return values, nil
+}
+
+// MustUserAndParams is the most common combo: authenticated user ID plus one or
+// more URL params. It validates the user first, then the params.
+//
+//	userID, ids, err := utils.MustUserAndParams(c, "projectid", "pageid")
+//	projectID, pageID := ids[0], ids[1]
+func MustUserAndParams(c *fiber.Ctx, names ...string) (string, []string, error) {
+	userID, err := ValidateUserID(c)
+	if err != nil {
+		return "", nil, err
+	}
+	ids, err := MustParams(c, names...)
+	if err != nil {
+		return "", nil, err
+	}
+	return userID, ids, nil
+}
+
+// RequireUpdates returns a 400 error when the updates map is empty, preventing
+// no-op PATCH requests from reaching the database.
+func RequireUpdates(updates map[string]any) error {
+	if len(updates) == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "No valid fields to update")
+	}
+	return nil
+}
+
 // ValidateUserID extracts and validates the authenticated user ID from context locals.
 func ValidateUserID(c *fiber.Ctx) (string, error) {
 	userID, ok := c.Locals("userId").(string)

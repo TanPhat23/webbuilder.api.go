@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
 	"strings"
@@ -27,36 +26,33 @@ func (h *ElementHandler) GetElements(c *fiber.Ctx) error {
 
 	elements, err := h.elementRepo.GetElements(c.Context(), projectID)
 	if err != nil {
-		log.Println("Error retrieving elements:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve elements", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
 	}
+
 	return utils.SendJSON(c, fiber.StatusOK, elements)
 }
 
 func (h *ElementHandler) GetElementsByPageIds(c *fiber.Ctx) error {
-	// Get pageIds from query parameter (comma-separated)
 	pageIdsParam := c.Query("pageIds")
 	if pageIdsParam == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "pageIds query parameter is required", nil)
+		return fiber.NewError(fiber.StatusBadRequest, "pageIds query parameter is required")
 	}
 
-	// Split the comma-separated page IDs
-	pageIDs := []string{}
+	var pageIDs []string
 	for _, id := range strings.Split(pageIdsParam, ",") {
-		trimmedID := strings.TrimSpace(id)
-		if trimmedID != "" {
-			pageIDs = append(pageIDs, trimmedID)
+		if trimmed := strings.TrimSpace(id); trimmed != "" {
+			pageIDs = append(pageIDs, trimmed)
 		}
 	}
 
 	if len(pageIDs) == 0 {
-		return utils.SendError(c, fiber.StatusBadRequest, "At least one valid pageId is required", nil)
+		return fiber.NewError(fiber.StatusBadRequest, "At least one valid pageId is required")
 	}
 
 	elements, err := h.elementRepo.GetElementsByPageIds(c.Context(), pageIDs)
 	if err != nil {
-		log.Println("Error retrieving elements by page IDs:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve elements", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
 	}
+
 	return utils.SendJSON(c, fiber.StatusOK, elements)
 }

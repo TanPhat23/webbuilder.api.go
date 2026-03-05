@@ -22,7 +22,6 @@ func NewMarketplaceHandler(marketplaceRepo repositories.MarketplaceRepositoryInt
 	}
 }
 
-// CreateMarketplaceItem creates a new marketplace item.
 func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
@@ -37,20 +36,20 @@ func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
 	for _, tagId := range req.TagIds {
 		tag, err := h.marketplaceRepository.GetTagByID(tagId)
 		if err != nil {
-			return utils.SendError(c, fiber.StatusInternalServerError, "Failed to validate tag", err)
+			return utils.HandleRepoError(c, err, "", "Failed to validate tag")
 		}
 		if tag == nil {
-			return utils.SendError(c, fiber.StatusBadRequest, fmt.Sprintf("Tag with ID %s does not exist", tagId), nil)
+			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Tag with ID %s does not exist", tagId))
 		}
 	}
 
 	for _, categoryId := range req.CategoryIds {
 		category, err := h.marketplaceRepository.GetCategoryByID(categoryId)
 		if err != nil {
-			return utils.SendError(c, fiber.StatusInternalServerError, "Failed to validate category", err)
+			return utils.HandleRepoError(c, err, "", "Failed to validate category")
 		}
 		if category == nil {
-			return utils.SendError(c, fiber.StatusBadRequest, fmt.Sprintf("Category with ID %s does not exist", categoryId), nil)
+			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Category with ID %s does not exist", categoryId))
 		}
 	}
 
@@ -85,13 +84,12 @@ func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
 
 	createdItem, err := h.marketplaceRepository.CreateMarketplaceItem(item, req.TagIds, req.CategoryIds)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create marketplace item", err)
+		return utils.HandleRepoError(c, err, "", "Failed to create marketplace item")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, createdItem)
 }
 
-// GetMarketplaceItems retrieves marketplace items with filtering and pagination.
 func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
 	filter := repositories.MarketplaceFilter{
 		TemplateType: c.Query("templateType"),
@@ -115,7 +113,7 @@ func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
 
 	items, total, err := h.marketplaceRepository.GetMarketplaceItems(filter)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve marketplace items", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve marketplace items")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
@@ -126,35 +124,30 @@ func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
 	})
 }
 
-// GetMarketplaceItemByID retrieves a single marketplace item.
 func (h *MarketplaceHandler) GetMarketplaceItemByID(c *fiber.Ctx) error {
-	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	ids, err := utils.MustParams(c, "itemid")
 	if err != nil {
 		return err
 	}
+	itemID := ids[0]
 
 	item, err := h.marketplaceRepository.GetMarketplaceItemByID(itemID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve marketplace item", err)
+		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to retrieve marketplace item")
 	}
 	if item == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Marketplace item not found", nil)
+		return fiber.NewError(fiber.StatusNotFound, "Marketplace item not found")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, item)
 }
 
-// UpdateMarketplaceItem updates a marketplace item.
 func (h *MarketplaceHandler) UpdateMarketplaceItem(c *fiber.Ctx) error {
-	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	userID, ids, err := utils.MustUserAndParams(c, "itemid")
 	if err != nil {
 		return err
 	}
-
-	userID, err := utils.ValidateUserID(c)
-	if err != nil {
-		return err
-	}
+	itemID := ids[0]
 
 	var req models.UpdateMarketplaceItemRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -162,76 +155,54 @@ func (h *MarketplaceHandler) UpdateMarketplaceItem(c *fiber.Ctx) error {
 	}
 
 	updates := make(map[string]any)
-	if req.Title != nil {
-		updates["Title"] = *req.Title
-	}
-	if req.Description != nil {
-		updates["Description"] = *req.Description
-	}
-	if req.Preview != nil {
-		updates["Preview"] = *req.Preview
-	}
-	if req.TemplateType != nil {
-		updates["TemplateType"] = *req.TemplateType
-	}
-	if req.Featured != nil {
-		updates["Featured"] = *req.Featured
-	}
-	if req.PageCount != nil {
-		updates["PageCount"] = *req.PageCount
-	}
-	if req.TagIds != nil {
-		updates["TagIds"] = req.TagIds
-	}
-	if req.CategoryIds != nil {
-		updates["CategoryIds"] = req.CategoryIds
+	if req.Title != nil        { updates["Title"] = *req.Title }
+	if req.Description != nil  { updates["Description"] = *req.Description }
+	if req.Preview != nil      { updates["Preview"] = *req.Preview }
+	if req.TemplateType != nil { updates["TemplateType"] = *req.TemplateType }
+	if req.Featured != nil     { updates["Featured"] = *req.Featured }
+	if req.PageCount != nil    { updates["PageCount"] = *req.PageCount }
+	if req.TagIds != nil       { updates["TagIds"] = req.TagIds }
+	if req.CategoryIds != nil  { updates["CategoryIds"] = req.CategoryIds }
+
+	if err := utils.RequireUpdates(updates); err != nil {
+		return err
 	}
 
-	updatedItem, err := h.marketplaceRepository.UpdateMarketplaceItem(itemID, userID, updates)
+	updated, err := h.marketplaceRepository.UpdateMarketplaceItem(itemID, userID, updates)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update marketplace item", err)
+		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to update marketplace item")
 	}
-	if updatedItem == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Marketplace item not found or you don't have permission to update it", nil)
+	if updated == nil {
+		return fiber.NewError(fiber.StatusNotFound, "Marketplace item not found or you don't have permission to update it")
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, updatedItem)
+	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-// DeleteMarketplaceItem deletes a marketplace item.
 func (h *MarketplaceHandler) DeleteMarketplaceItem(c *fiber.Ctx) error {
-	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	userID, ids, err := utils.MustUserAndParams(c, "itemid")
 	if err != nil {
 		return err
 	}
-
-	userID, err := utils.ValidateUserID(c)
-	if err != nil {
-		return err
-	}
+	itemID := ids[0]
 
 	if err := h.marketplaceRepository.DeleteMarketplaceItem(itemID, userID); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete marketplace item", err)
+		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to delete marketplace item")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-// DownloadMarketplaceItem clones a marketplace item's project for the authenticated user.
 func (h *MarketplaceHandler) DownloadMarketplaceItem(c *fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+	userID, ids, err := utils.MustUserAndParams(c, "itemid")
 	if err != nil {
 		return err
 	}
-
-	itemID, err := utils.ValidateRequiredParam(c, "itemid")
-	if err != nil {
-		return err
-	}
+	itemID := ids[0]
 
 	project, err := h.marketplaceRepository.DownloadMarketplaceItem(itemID, userID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to download marketplace item", err)
+		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to download marketplace item")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, fiber.Map{
@@ -240,35 +211,20 @@ func (h *MarketplaceHandler) DownloadMarketplaceItem(c *fiber.Ctx) error {
 	})
 }
 
-// IncrementDownloads increments the download count for an item.
-func (h *MarketplaceHandler) IncrementDownloads(c *fiber.Ctx) error {
-	itemID, err := utils.ValidateRequiredParam(c, "itemid")
-	if err != nil {
-		return err
-	}
-
-	if err := h.marketplaceRepository.IncrementDownloads(itemID); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to increment downloads", err)
-	}
-
-	return utils.SendSuccess(c, fiber.StatusOK, "Download count incremented")
-}
-
-// IncrementLikes increments the like count for an item.
 func (h *MarketplaceHandler) IncrementLikes(c *fiber.Ctx) error {
-	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	ids, err := utils.MustParams(c, "itemid")
 	if err != nil {
 		return err
 	}
+	itemID := ids[0]
 
 	if err := h.marketplaceRepository.IncrementLikes(itemID); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to increment likes", err)
+		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to increment likes")
 	}
 
 	return utils.SendSuccess(c, fiber.StatusOK, "Like count incremented")
 }
 
-// CreateCategory creates a new category.
 func (h *MarketplaceHandler) CreateCategory(c *fiber.Ctx) error {
 	if _, err := utils.ValidateUserID(c); err != nil {
 		return err
@@ -279,46 +235,40 @@ func (h *MarketplaceHandler) CreateCategory(c *fiber.Ctx) error {
 		return err
 	}
 
-	createdCategory, err := h.marketplaceRepository.CreateCategory(models.Category{
+	created, err := h.marketplaceRepository.CreateCategory(models.Category{
 		Id:   cuid.New(),
 		Name: req.Name,
 	})
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create category", err)
+		return utils.HandleRepoError(c, err, "", "Failed to create category")
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, createdCategory)
+	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-// GetCategories retrieves all categories.
 func (h *MarketplaceHandler) GetCategories(c *fiber.Ctx) error {
 	categories, err := h.marketplaceRepository.GetCategories()
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve categories", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve categories")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, categories)
 }
 
-// DeleteCategory deletes a category.
 func (h *MarketplaceHandler) DeleteCategory(c *fiber.Ctx) error {
-	categoryID, err := utils.ValidateRequiredParam(c, "categoryid")
+	_, ids, err := utils.MustUserAndParams(c, "categoryid")
 	if err != nil {
 		return err
 	}
-
-	if _, err := utils.ValidateUserID(c); err != nil {
-		return err
-	}
+	categoryID := ids[0]
 
 	if err := h.marketplaceRepository.DeleteCategory(categoryID); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete category", err)
+		return utils.HandleRepoError(c, err, "Category not found", "Failed to delete category")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-// CreateTag creates a new tag.
 func (h *MarketplaceHandler) CreateTag(c *fiber.Ctx) error {
 	if _, err := utils.ValidateUserID(c); err != nil {
 		return err
@@ -329,40 +279,35 @@ func (h *MarketplaceHandler) CreateTag(c *fiber.Ctx) error {
 		return err
 	}
 
-	createdTag, err := h.marketplaceRepository.CreateTag(models.Tag{
+	created, err := h.marketplaceRepository.CreateTag(models.Tag{
 		Id:   cuid.New(),
 		Name: req.Name,
 	})
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create tag", err)
+		return utils.HandleRepoError(c, err, "", "Failed to create tag")
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, createdTag)
+	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-// GetTags retrieves all tags.
 func (h *MarketplaceHandler) GetTags(c *fiber.Ctx) error {
 	tags, err := h.marketplaceRepository.GetTags()
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve tags", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve tags")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, tags)
 }
 
-// DeleteTag deletes a tag.
 func (h *MarketplaceHandler) DeleteTag(c *fiber.Ctx) error {
-	tagID, err := utils.ValidateRequiredParam(c, "tagid")
+	_, ids, err := utils.MustUserAndParams(c, "tagid")
 	if err != nil {
 		return err
 	}
-
-	if _, err := utils.ValidateUserID(c); err != nil {
-		return err
-	}
+	tagID := ids[0]
 
 	if err := h.marketplaceRepository.DeleteTag(tagID); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete tag", err)
+		return utils.HandleRepoError(c, err, "Tag not found", "Failed to delete tag")
 	}
 
 	return utils.SendNoContent(c)

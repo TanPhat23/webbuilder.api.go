@@ -2,8 +2,10 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v2"
 )
 
 // FieldError holds the per-field validation failure detail.
@@ -36,6 +38,24 @@ func NewValidationError(errs validator.ValidationErrors) *ValidationError {
 		})
 	}
 	return &ValidationError{Fields: fields}
+}
+
+// HandleRepoError maps common repository sentinel errors to the appropriate HTTP
+// response. Pass a non-empty notFoundMsg to enable the not-found check; pass an
+// empty string to skip it and always return 500.
+//
+//	if err != nil { return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user") }
+func HandleRepoError(c *fiber.Ctx, err error, notFoundMsg, internalMsg string) error {
+	if err == nil {
+		return nil
+	}
+	if notFoundMsg != "" {
+		msg := err.Error()
+		if msg == "record not found" || strings.HasSuffix(msg, "not found") {
+			return SendError(c, fiber.StatusNotFound, notFoundMsg, err)
+		}
+	}
+	return SendError(c, fiber.StatusInternalServerError, internalMsg, err)
 }
 
 // humanizeValidationError turns a single validator.FieldError into a readable

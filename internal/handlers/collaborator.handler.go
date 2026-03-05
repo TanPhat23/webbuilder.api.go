@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"my-go-app/internal/models"
+	"my-go-app/internal/dto"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
 
@@ -24,45 +24,34 @@ func NewCollaboratorHandler(
 }
 
 func (h *CollaboratorHandler) GetCollaboratorsByProject(c *fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
-
-	projectID, err := utils.ValidateRequiredParam(c, "projectid")
-	if err != nil {
-		return err
-	}
+	projectID := ids[0]
 
 	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), projectID, userID); err != nil {
-		if err.Error() == "project not found" {
-			return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, userID)
-		}
-		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
+		return utils.HandleRepoError(c, err, "Project not found", "Access denied")
 	}
 
 	collaborators, err := h.collaboratorRepo.GetCollaboratorsByProject(c.Context(), projectID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve collaborators", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve collaborators")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"collaborators": collaborators})
 }
 
 func (h *CollaboratorHandler) GetCollaboratorByID(c *fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
-
-	collaboratorID, err := utils.ValidateRequiredParam(c, "collaboratorid")
-	if err != nil {
-		return err
-	}
+	collaboratorID := ids[0]
 
 	collaborator, err := h.collaboratorRepo.GetCollaboratorByID(c.Context(), collaboratorID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Collaborator not found", err)
+		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to retrieve collaborator")
 	}
 
 	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), collaborator.ProjectId, userID); err != nil {
@@ -73,26 +62,20 @@ func (h *CollaboratorHandler) GetCollaboratorByID(c *fiber.Ctx) error {
 }
 
 func (h *CollaboratorHandler) UpdateCollaboratorRole(c *fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
+	collaboratorID := ids[0]
 
-	collaboratorID, err := utils.ValidateRequiredParam(c, "collaboratorid")
-	if err != nil {
-		return err
-	}
-
-	var req struct {
-		Role models.CollaboratorRole `json:"role" validate:"required,oneof=owner editor viewer"`
-	}
+	var req dto.UpdateCollaboratorRoleRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
 		return err
 	}
 
 	collaborator, err := h.collaboratorRepo.GetCollaboratorByID(c.Context(), collaboratorID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Collaborator not found", err)
+		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to retrieve collaborator")
 	}
 
 	project, err := h.projectRepo.GetProjectByID(c.Context(), collaborator.ProjectId, userID)
@@ -105,26 +88,22 @@ func (h *CollaboratorHandler) UpdateCollaboratorRole(c *fiber.Ctx) error {
 	}
 
 	if err := h.collaboratorRepo.UpdateCollaboratorRole(c.Context(), collaboratorID, req.Role); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update collaborator role", err)
+		return utils.HandleRepoError(c, err, "", "Failed to update collaborator role")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"message": "Role updated successfully"})
 }
 
 func (h *CollaboratorHandler) DeleteCollaborator(c *fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
-
-	collaboratorID, err := utils.ValidateRequiredParam(c, "collaboratorid")
-	if err != nil {
-		return err
-	}
+	collaboratorID := ids[0]
 
 	collaborator, err := h.collaboratorRepo.GetCollaboratorByID(c.Context(), collaboratorID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Collaborator not found", err)
+		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to retrieve collaborator")
 	}
 
 	project, err := h.projectRepo.GetProjectByID(c.Context(), collaborator.ProjectId, userID)
@@ -137,7 +116,7 @@ func (h *CollaboratorHandler) DeleteCollaborator(c *fiber.Ctx) error {
 	}
 
 	if err := h.collaboratorRepo.DeleteCollaborator(c.Context(), collaboratorID); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete collaborator", err)
+		return utils.HandleRepoError(c, err, "", "Failed to delete collaborator")
 	}
 
 	return utils.SendNoContent(c)

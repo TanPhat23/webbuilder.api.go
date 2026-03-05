@@ -15,15 +15,15 @@ type ElementService struct {
 	proto.UnimplementedElementServiceServer
 	snapshotRepo             repositories.SnapshotRepositoryInterface
 	elementRepo              repositories.ElementRepositoryInterface
-	eventWorkflowRepo        *repositories.EventWorkflowRepository
-	elementEventWorkflowRepo *repositories.ElementEventWorkflowRepository
+	eventWorkflowRepo        repositories.EventWorkflowRepositoryInterface
+	elementEventWorkflowRepo repositories.ElementEventWorkflowRepositoryInterface
 }
 
 func NewElementService(
 	snapshotRepo repositories.SnapshotRepositoryInterface,
 	elementRepo repositories.ElementRepositoryInterface,
-	eventWorkflowRepo *repositories.EventWorkflowRepository,
-	elementEventWorkflowRepo *repositories.ElementEventWorkflowRepository,
+	eventWorkflowRepo repositories.EventWorkflowRepositoryInterface,
+	elementEventWorkflowRepo repositories.ElementEventWorkflowRepositoryInterface,
 ) *ElementService {
 	return &ElementService{
 		snapshotRepo:             snapshotRepo,

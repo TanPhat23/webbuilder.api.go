@@ -33,7 +33,7 @@ func (r *ProjectRepository) GetProjectByID(ctx context.Context, projectID, userI
 
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
+		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
 		First(&project).Error
 
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
+		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
 		First(&project).Error
 
 	if err == nil {
@@ -65,7 +65,7 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 	var collaborator models.Collaborator
 	err = r.db.WithContext(ctx).
 		Model(&models.Collaborator{}).
-		Where("\"ProjectId\" = ? AND \"UserId\" = ?", projectID, userID).
+		Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, userID).
 		First(&collaborator).Error
 
 	if err != nil {
@@ -77,7 +77,7 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 
 	err = r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where("\"Id\" = ? AND \"DeletedAt\" IS NULL", projectID).
+		Where(`"Id" = ? AND "DeletedAt" IS NULL`, projectID).
 		First(&project).Error
 
 	if err != nil {
@@ -98,7 +98,7 @@ func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID 
 	var project models.Project
 
 	err := r.db.WithContext(ctx).
-		Where("\"Id\" = ? AND \"Published\" = true AND \"DeletedAt\" IS NULL", projectID).
+		Where(`"Id" = ? AND "Published" = true AND "DeletedAt" IS NULL`, projectID).
 		First(&project).Error
 
 	if err != nil {
@@ -118,11 +118,10 @@ func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID stri
 
 	var projects []models.Project
 
-
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where("\"OwnerId\" = ? AND \"DeletedAt\" IS NULL", userID).
-		Order("\"CreatedAt\" DESC").
+		Where(`"OwnerId" = ? AND "DeletedAt" IS NULL`, userID).
+		Order(`"CreatedAt" DESC`).
 		Find(&projects).Error
 
 	if err != nil {
@@ -132,9 +131,9 @@ func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID stri
 	var collabProjects []models.Project
 	err = r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Joins("JOIN public.\"Collaborator\" ON \"Collaborator\".\"ProjectId\" = \"Project\".\"Id\"").
-		Where("\"Collaborator\".\"UserId\" = ? AND \"Project\".\"DeletedAt\" IS NULL", userID).
-		Order("\"Project\".\"CreatedAt\" DESC").
+		Joins(`JOIN "Collaborator" ON "Collaborator"."ProjectId" = "Project"."Id"`).
+		Where(`"Collaborator"."UserId" = ? AND "Project"."DeletedAt" IS NULL`, userID).
+		Order(`"Project"."CreatedAt" DESC`).
 		Find(&collabProjects).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get collaborator projects: %w", err)
@@ -153,9 +152,9 @@ func (r *ProjectRepository) GetCollaboratorProjects(ctx context.Context, userID 
 	var collabProjects []models.Project
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Joins("JOIN \"Collaborator\" ON \"Collaborator\".\"ProjectId\" = \"Project\".\"Id\"").
-		Where("\"Collaborator\".\"UserId\" = ? AND \"Project\".\"DeletedAt\" IS NULL", userID).
-		Order("\"Project\".\"CreatedAt\" DESC").
+		Joins(`JOIN "Collaborator" ON "Collaborator"."ProjectId" = "Project"."Id"`).
+		Where(`"Collaborator"."UserId" = ? AND "Project"."DeletedAt" IS NULL`, userID).
+		Order(`"Project"."CreatedAt" DESC`).
 		Find(&collabProjects).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get collaborator projects: %w", err)
@@ -177,7 +176,7 @@ func (r *ProjectRepository) GetProjectPages(ctx context.Context, projectID, user
 	var pages []models.Page
 	err = r.db.WithContext(ctx).
 		Where(&models.Page{ProjectId: projectID, DeletedAt: nil}).
-		Order("\"CreatedAt\" ASC").
+		Order(`"CreatedAt" ASC`).
 		Find(&pages).Error
 
 	if err != nil {
@@ -228,7 +227,7 @@ func (r *ProjectRepository) UpdateProject(ctx context.Context, projectID, userID
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
+		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
 		Count(&count).Error
 
 	if err != nil {
@@ -239,33 +238,15 @@ func (r *ProjectRepository) UpdateProject(ctx context.Context, projectID, userID
 		return nil, ErrProjectUnauthorized
 	}
 
-	// Map JSON field names to database column names
-	updateMap := make(map[string]any)
-	for k, v := range updates {
-		switch k {
-		case "Name":
-			updateMap["Name"] = v
-		case "Description":
-			updateMap["Description"] = v
-		case "Styles":
-			updateMap["Styles"] = v
-		case "Header":
-			updateMap["Header"] = v
-		case "Published":
-			updateMap["Published"] = v
-		case "Subdomain":
-			updateMap["Subdomain"] = v
-		}
-	}
-
-	// Always update the UpdatedAt timestamp
-	updateMap["UpdatedAt"] = time.Now()
+	// Callers (handlers) are expected to pass a pre-built, allowlisted map.
+	// We only stamp UpdatedAt here so it is always consistent.
+	updates["UpdatedAt"] = time.Now()
 
 	// Perform update
 	err = r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
-		Updates(updateMap).Error
+		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
+		Updates(updates).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update project: %w", err)
@@ -284,7 +265,7 @@ func (r *ProjectRepository) DeleteProject(ctx context.Context, projectID, userID
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
+		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
 		Count(&count).Error
 
 	if err != nil {
@@ -300,7 +281,7 @@ func (r *ProjectRepository) DeleteProject(ctx context.Context, projectID, userID
 	err = r.db.WithContext(ctx).
 		Model(&models.Project{}).
 		Where(&models.Project{ID: projectID, OwnerId: userID}).
-		Update("\"DeletedAt\"", now).Error
+		Update(`"DeletedAt"`, now).Error
 
 	if err != nil {
 		return fmt.Errorf("failed to delete project: %w", err)
@@ -339,7 +320,7 @@ func (r *ProjectRepository) RestoreProject(ctx context.Context, projectID, userI
 		Model(&models.Project{}).
 		Where(&models.Project{ID: projectID, OwnerId: userID}).
 		Where("DeletedAt IS NOT NULL").
-		Update("\"DeletedAt\"", nil)
+		Update(`"DeletedAt"`, nil)
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore project: %w", result.Error)
@@ -360,7 +341,7 @@ func (r *ProjectRepository) ExistsForUser(ctx context.Context, projectID, userID
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
+		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
 		Count(&count).Error
 
 	if err != nil {
@@ -380,7 +361,7 @@ func (r *ProjectRepository) GetProjectWithLock(ctx context.Context, projectID, u
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("\"Id\" = ? AND \"OwnerId\" = ? AND \"DeletedAt\" IS NULL", projectID, userID).
+		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
 		First(&project).Error
 
 	if err != nil {

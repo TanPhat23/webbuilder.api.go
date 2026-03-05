@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
@@ -21,7 +20,6 @@ func NewElementCommentHandler(elementCommentRepo repositories.ElementCommentRepo
 	}
 }
 
-// CreateElementComment creates a new element comment.
 // POST /element-comments
 func (h *ElementCommentHandler) CreateElementComment(c *fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
@@ -41,39 +39,37 @@ func (h *ElementCommentHandler) CreateElementComment(c *fiber.Ctx) error {
 		AuthorId:  userID,
 	}
 
-	createdComment, err := h.elementCommentRepo.CreateElementComment(c.Context(), comment)
+	created, err := h.elementCommentRepo.CreateElementComment(c.Context(), comment)
 	if err != nil {
-		log.Printf("Error creating element comment: %v\n", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create comment", err)
+		return utils.HandleRepoError(c, err, "", "Failed to create comment")
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, createdComment)
+	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-// GetElementCommentByID retrieves a single element comment by ID.
 // GET /element-comments/:id
 func (h *ElementCommentHandler) GetElementCommentByID(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "id")
+	ids, err := utils.MustParams(c, "id")
 	if err != nil {
 		return err
 	}
+	commentID := ids[0]
 
 	comment, err := h.elementCommentRepo.GetElementCommentByID(c.Context(), commentID)
 	if err != nil {
-		log.Printf("Error retrieving element comment: %v\n", err)
-		return utils.SendError(c, fiber.StatusNotFound, "Comment not found", err)
+		return utils.HandleRepoError(c, err, "Comment not found", "Failed to retrieve comment")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, comment)
 }
 
-// GetElementComments retrieves comments for an element with filtering and pagination.
 // GET /elements/:elementId/comments
 func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
-	elementID, err := utils.ValidateRequiredParam(c, "elementId")
+	ids, err := utils.MustParams(c, "elementId")
 	if err != nil {
 		return err
 	}
+	elementID := ids[0]
 
 	filter := &models.ElementCommentFilter{
 		Limit:     20,
@@ -82,15 +78,11 @@ func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
 		SortOrder: "DESC",
 	}
 
-	if limit := c.Query("limit"); limit != "" {
-		if l, err := strconv.Atoi(limit); err == nil && l > 0 {
-			filter.Limit = l
-		}
+	if l, err := strconv.Atoi(c.Query("limit", "20")); err == nil && l > 0 {
+		filter.Limit = l
 	}
-	if offset := c.Query("offset"); offset != "" {
-		if o, err := strconv.Atoi(offset); err == nil && o >= 0 {
-			filter.Offset = o
-		}
+	if o, err := strconv.Atoi(c.Query("offset", "0")); err == nil && o >= 0 {
+		filter.Offset = o
 	}
 	if authorID := c.Query("authorId"); authorID != "" {
 		filter.AuthorId = authorID
@@ -109,13 +101,11 @@ func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
 
 	comments, err := h.elementCommentRepo.GetElementComments(c.Context(), elementID, filter)
 	if err != nil {
-		log.Printf("Error retrieving element comments: %v\n", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve comments", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
 
 	count, err := h.elementCommentRepo.CountElementComments(c.Context(), elementID)
 	if err != nil {
-		log.Printf("Error counting comments: %v\n", err)
 		count = 0
 	}
 
@@ -127,18 +117,13 @@ func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateElementComment updates an existing element comment.
 // PATCH /element-comments/:id
 func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
-
-	userID, err := utils.ValidateUserID(c)
-	if err != nil {
-		return err
-	}
+	commentID := ids[0]
 
 	var req models.UpdateElementCommentRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -147,50 +132,40 @@ func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
 
 	comment, err := h.elementCommentRepo.GetElementCommentByID(c.Context(), commentID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Comment not found", err)
+		return utils.HandleRepoError(c, err, "Comment not found", "Failed to retrieve comment")
 	}
 
 	if comment.AuthorId != userID {
 		return fiber.NewError(fiber.StatusForbidden, "You can only update your own comments")
 	}
 
-	updates := make(map[string]any)
-	if req.Content != nil {
-		updates["Content"] = *req.Content
-	}
-	if req.Resolved != nil {
-		updates["Resolved"] = *req.Resolved
+	updates := map[string]any{}
+	if req.Content != nil  { updates["Content"] = *req.Content }
+	if req.Resolved != nil { updates["Resolved"] = *req.Resolved }
+
+	if err := utils.RequireUpdates(updates); err != nil {
+		return err
 	}
 
-	if len(updates) == 0 {
-		return fiber.NewError(fiber.StatusBadRequest, "No fields to update")
-	}
-
-	updatedComment, err := h.elementCommentRepo.UpdateElementComment(c.Context(), commentID, updates)
+	updated, err := h.elementCommentRepo.UpdateElementComment(c.Context(), commentID, updates)
 	if err != nil {
-		log.Printf("Error updating element comment: %v\n", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update comment", err)
+		return utils.HandleRepoError(c, err, "Comment not found", "Failed to update comment")
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, updatedComment)
+	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-// DeleteElementComment deletes an element comment.
 // DELETE /element-comments/:id
 func (h *ElementCommentHandler) DeleteElementComment(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
-
-	userID, err := utils.ValidateUserID(c)
-	if err != nil {
-		return err
-	}
+	commentID := ids[0]
 
 	comment, err := h.elementCommentRepo.GetElementCommentByID(c.Context(), commentID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Comment not found", err)
+		return utils.HandleRepoError(c, err, "Comment not found", "Failed to retrieve comment")
 	}
 
 	if comment.AuthorId != userID {
@@ -198,92 +173,77 @@ func (h *ElementCommentHandler) DeleteElementComment(c *fiber.Ctx) error {
 	}
 
 	if err := h.elementCommentRepo.DeleteElementComment(c.Context(), commentID); err != nil {
-		log.Printf("Error deleting element comment: %v\n", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete comment", err)
+		return utils.HandleRepoError(c, err, "", "Failed to delete comment")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-// ToggleResolvedStatus toggles the resolved status of a comment.
 // PATCH /element-comments/:id/toggle-resolved
 func (h *ElementCommentHandler) ToggleResolvedStatus(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "id")
+	ids, err := utils.MustParams(c, "id")
 	if err != nil {
 		return err
 	}
+	commentID := ids[0]
 
 	comment, err := h.elementCommentRepo.ToggleResolvedStatus(c.Context(), commentID)
 	if err != nil {
-		log.Printf("Error toggling comment resolved status: %v\n", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to toggle resolved status", err)
+		return utils.HandleRepoError(c, err, "Comment not found", "Failed to toggle resolved status")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, comment)
 }
 
-// GetCommentsByAuthorID retrieves all comments by a specific author.
 // GET /element-comments/author/:authorId
 func (h *ElementCommentHandler) GetCommentsByAuthorID(c *fiber.Ctx) error {
-	authorID, err := utils.ValidateRequiredParam(c, "authorId")
+	ids, err := utils.MustParams(c, "authorId")
 	if err != nil {
 		return err
 	}
+	authorID := ids[0]
 
 	limit := 20
 	offset := 0
-
-	if l := c.Query("limit"); l != "" {
-		if parsedL, err := strconv.Atoi(l); err == nil && parsedL > 0 {
-			limit = parsedL
-		}
+	if l, err := strconv.Atoi(c.Query("limit", "20")); err == nil && l > 0 {
+		limit = l
 	}
-	if o := c.Query("offset"); o != "" {
-		if parsedO, err := strconv.Atoi(o); err == nil && parsedO >= 0 {
-			offset = parsedO
-		}
+	if o, err := strconv.Atoi(c.Query("offset", "0")); err == nil && o >= 0 {
+		offset = o
 	}
 
 	comments, err := h.elementCommentRepo.GetElementCommentsByAuthorID(c.Context(), authorID, limit, offset)
 	if err != nil {
-		log.Printf("Error retrieving comments by author: %v\n", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve comments", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, comments)
 }
 
-// GetCommentsByProjectID retrieves all comments for elements in a project.
 // GET /projects/:projectId/comments
 func (h *ElementCommentHandler) GetCommentsByProjectID(c *fiber.Ctx) error {
-	projectID, err := utils.ValidateRequiredParam(c, "projectId")
+	ids, err := utils.MustParams(c, "projectId")
 	if err != nil {
 		return err
 	}
+	projectID := ids[0]
 
 	limit := 20
 	offset := 0
-
-	if l := c.Query("limit"); l != "" {
-		if parsedL, err := strconv.Atoi(l); err == nil && parsedL > 0 {
-			limit = parsedL
-		}
+	if l, err := strconv.Atoi(c.Query("limit", "20")); err == nil && l > 0 {
+		limit = l
 	}
-	if o := c.Query("offset"); o != "" {
-		if parsedO, err := strconv.Atoi(o); err == nil && parsedO >= 0 {
-			offset = parsedO
-		}
+	if o, err := strconv.Atoi(c.Query("offset", "0")); err == nil && o >= 0 {
+		offset = o
 	}
 
 	comments, err := h.elementCommentRepo.GetElementCommentsByProjectID(c.Context(), projectID, limit, offset)
 	if err != nil {
-		log.Printf("Error retrieving comments by project: %v\n", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve comments", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
 
 	count, err := h.elementCommentRepo.CountElementCommentsByProjectID(c.Context(), projectID)
 	if err != nil {
-		log.Printf("Error counting comments by project: %v\n", err)
 		count = 0
 	}
 
