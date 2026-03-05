@@ -22,5 +22,7 @@ var (
 	_ repositories.ContentItemRepositoryInterface          = (*MockContentItemRepository)(nil)
 	_ repositories.ContentFieldValueRepositoryInterface    = (*MockContentFieldValueRepository)(nil)
 	_ repositories.MarketplaceRepositoryInterface          = (*MockMarketplaceRepository)(nil)
-	_ repositories.SettingRepositoryInterface              = (*MockSettingRepository)(nil)
+
+	_ repositories.CommentRepositoryInterface              = (*MockCommentRepository)(nil)
+	_ repositories.InvitationRepositoryInterface           = (*MockInvitationRepository)(nil)
 )

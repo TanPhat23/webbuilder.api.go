@@ -122,26 +122,6 @@ type SnapshotRepositoryInterface interface {
 	DeleteSnapshot(ctx context.Context, snapshotID string) error
 }
 
-// SettingRepositoryInterface defines methods for setting operations
-type SettingRepositoryInterface interface {
-	// GetSettingByElementID retrieves a setting by element ID
-	GetSettingByElementID(ctx context.Context, db *gorm.DB, elementID string) (*models.Setting, error)
-	// GetSettingsByElementIDs retrieves settings by element IDs
-	GetSettingsByElementIDs(ctx context.Context, db *gorm.DB, elementIDs []string) ([]models.Setting, error)
-	// CreateSetting creates a new setting
-	CreateSetting(ctx context.Context, db *gorm.DB, setting *models.Setting) error
-	// CreateSettings creates multiple settings
-	CreateSettings(ctx context.Context, db *gorm.DB, settings []models.Setting) error
-	// UpdateSetting updates a setting
-	UpdateSetting(ctx context.Context, db *gorm.DB, setting *models.Setting) error
-	// UpdateSettings updates multiple settings
-	UpdateSettings(ctx context.Context, db *gorm.DB, settings []models.Setting) error
-	// DeleteSetting deletes a setting by element ID
-	DeleteSetting(ctx context.Context, db *gorm.DB, elementID string) error
-	// DeleteSettings deletes settings by element IDs
-	DeleteSettings(ctx context.Context, db *gorm.DB, elementIDs []string) error
-}
-
 // PageRepositoryInterface defines methods for page operations
 type PageRepositoryInterface interface {
 	// GetPagesByProjectID retrieves pages by project ID
@@ -436,7 +416,6 @@ type RepositoriesInterface struct {
 	UserRepository                 UserRepositoryInterface
 	ProjectRepository              ProjectRepositoryInterface
 	SnapshotRepository             SnapshotRepositoryInterface
-	SettingRepository              SettingRepositoryInterface
 	PageRepository                 PageRepositoryInterface
 	ContentTypeRepository          ContentTypeRepositoryInterface
 	ContentFieldRepository         ContentFieldRepositoryInterface
@@ -454,15 +433,12 @@ type RepositoriesInterface struct {
 }
 
 func NewRepositories(db *gorm.DB) *RepositoriesInterface {
-	settingRepo := NewSettingRepository(db)
-
 	return &RepositoriesInterface{
-		ElementRepository:              NewElementRepository(db, settingRepo),
+		ElementRepository:              NewElementRepository(db),
 		ElementCommentRepository:       NewElementCommentRepository(db),
 		UserRepository:                 NewUserRepository(db),
 		ProjectRepository:              NewProjectRepository(db),
 		SnapshotRepository:             NewSnapshotRepository(db),
-		SettingRepository:              settingRepo,
 		PageRepository:                 NewPageRepository(db),
 		ContentTypeRepository:          NewContentTypeRepository(db),
 		ContentFieldRepository:         NewContentFieldRepository(db),
