@@ -60,12 +60,23 @@ func (h *EventWorkflowHandler) CreateEventWorkflow(c *fiber.Ctx) error {
 	}
 
 	now := time.Now()
+
+	handlers := req.Handlers
+	if len(handlers) == 0 {
+		handlers = json.RawMessage("[]")
+	}
+
+	canvasData := req.CanvasData
+	if len(canvasData) == 0 {
+		canvasData = json.RawMessage("{}")
+	}
+
 	workflow := &models.EventWorkflow{
 		ProjectId:   req.ProjectID,
 		Name:        req.Name,
 		Description: req.Description,
-		CanvasData:  req.CanvasData,
-		Handlers:    req.Handlers,
+		CanvasData:  canvasData,
+		Handlers:    handlers,
 		Enabled:     enabled,
 		CreatedAt:   now,
 		UpdatedAt:   now,
