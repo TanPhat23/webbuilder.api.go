@@ -103,6 +103,15 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 		return err
 	}
 
+	// Prevent no-op PATCHes: if there are no column updates and no field-value updates,
+	// mirror other handlers by requiring at least one update.
+	hasFieldValueUpdates := req.FieldValues != nil && len(req.FieldValues) > 0
+	if !hasFieldValueUpdates {
+		if err := utils.RequireUpdates(columnUpdates); err != nil {
+			return err
+		}
+	}
+
 	updated, err := h.contentItemRepository.UpdateContentItem(c.Context(), itemID, columnUpdates, req.FieldValues)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to update content item")
