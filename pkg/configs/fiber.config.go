@@ -43,7 +43,6 @@ func jsonErrorHandler(c *fiber.Ctx, err error) error {
 
 	// 3. Fallback — unexpected / unhandled errors
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"error":   "Internal server error",
-		"message": err.Error(),
+		"error": "Internal server error",
 	})
 }
