@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	ErrCommentNotFound    = errors.New("comment not found")
+	ErrCommentNotFound     = errors.New("comment not found")
 	ErrCommentUnauthorized = errors.New("unauthorized to modify comment")
+	ErrReactionNotFound    = errors.New("reaction not found")
 )
 
 type CommentRepository struct {
@@ -251,7 +252,7 @@ func (r *CommentRepository) DeleteReaction(ctx context.Context, commentID string
 		return fmt.Errorf("failed to delete reaction: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return ErrCommentNotFound
+		return ErrReactionNotFound
 	}
 	return nil
 }
