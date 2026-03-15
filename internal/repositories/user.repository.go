@@ -60,9 +60,8 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 	return &user, nil
 }
 
-// GetUserByUsername queries by the Email column, which serves as the unique
-// human-readable username in this schema. The previous implementation
-// mistakenly queried the "Id" column.
+// GetUserByUsername queries by the Username column, returning the user whose
+// "Username" matches the provided value.
 func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	if username == "" {
 		return nil, errors.New("username is required")
@@ -70,7 +69,7 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 
 	var user models.User
 	err := r.db.WithContext(ctx).
-		Where(`"Email" = ?`, username).
+		Where(`"Username" = ?`, username).
 		First(&user).Error
 
 	if err != nil {
