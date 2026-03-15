@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"encoding/json"
 	"log"
+	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
@@ -23,83 +23,77 @@ func NewCustomElementHandler(customElementRepo repositories.CustomElementReposit
 }
 
 func (h *CustomElementHandler) GetCustomElements(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
-	isPublicStr := c.Query("isPublic")
-
 	var isPublicPtr *bool
-	if isPublicStr != "" {
-		isPublic, err := strconv.ParseBool(isPublicStr)
-		if err == nil {
+	if isPublicStr := c.Query("isPublic"); isPublicStr != "" {
+		if isPublic, err := strconv.ParseBool(isPublicStr); err == nil {
 			isPublicPtr = &isPublic
 		}
 	}
 
 	customElements, err := h.customElementRepo.GetCustomElements(c.Context(), userID, isPublicPtr)
 	if err != nil {
-		log.Println("Error retrieving custom elements:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve custom elements", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve custom elements")
+	}
+
+	return utils.SendJSON(c, fiber.StatusOK, customElements)
+}
+
+func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
+	limit, err := strconv.Atoi(c.Query("limit", "20"))
+	if err != nil {
+		limit = 20
+	}
+
+	offset, err := strconv.Atoi(c.Query("offset", "0"))
+	if err != nil {
+		offset = 0
+	}
+
+	var categoryPtr *string
+	if category := c.Query("category"); category != "" {
+		categoryPtr = &category
+	}
+
+	customElements, err := h.customElementRepo.GetPublicCustomElements(c.Context(), categoryPtr, limit, offset)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve public custom elements")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, customElements)
 }
 
 func (h *CustomElementHandler) GetCustomElementByID(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
-	}
-
-	id, err := utils.ValidateRequiredParam(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
+	id := ids[0]
 
 	customElement, err := h.customElementRepo.GetCustomElementByID(c.Context(), id, userID)
 	if err != nil {
 		if err == repositories.ErrCustomElementNotFound {
-			return utils.SendError(c, fiber.StatusNotFound, "Custom element not found", err)
+			return fiber.NewError(fiber.StatusNotFound, "Custom element not found")
 		}
-		log.Println("Error retrieving custom element:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve custom element", err)
+		return utils.HandleRepoError(c, err, "Custom element not found", "Failed to retrieve custom element")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, customElement)
 }
 
 func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
-	var req struct {
-		Name         string          `json:"name"`
-		TypeId       *string         `json:"typeId"`
-		Description  *string         `json:"description"`
-		Category     *string         `json:"category"`
-		Icon         *string         `json:"icon"`
-		Thumbnail    *string         `json:"thumbnail"`
-		Structure    json.RawMessage `json:"structure"`
-		DefaultProps json.RawMessage `json:"defaultProps"`
-		Tags         *string         `json:"tags"`
-		IsPublic     bool            `json:"isPublic"`
-		Version      string          `json:"version"`
-	}
-
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
-	}
-
-	if req.Name == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Name is required", nil)
-	}
-
-	if req.Structure == nil || len(req.Structure) == 0 {
-		return utils.SendError(c, fiber.StatusBadRequest, "Structure is required", nil)
+	var req dto.CreateCustomElementRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
 	if req.Version == "" {
@@ -125,131 +119,91 @@ func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
 	created, err := h.customElementRepo.CreateCustomElement(c.Context(), customElement)
 	if err != nil {
 		if err == repositories.ErrCustomElementAlreadyExists {
-			return utils.SendError(c, fiber.StatusConflict, "Custom element with this name already exists", err)
+			return fiber.NewError(fiber.StatusConflict, "Custom element with this name already exists")
 		}
 		log.Println("Error creating custom element:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create custom element", err)
+		return utils.HandleRepoError(c, err, "", "Failed to create custom element")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
 func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
-	}
-
-	id, err := utils.ValidateRequiredParam(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
+	id := ids[0]
 
-	var req map[string]any
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
+	var req dto.UpdateCustomElementRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	delete(req, "id")
-	delete(req, "userId")
-	delete(req, "createdAt")
+	// Build a clean map from the typed DTO, stripping immutable fields.
+	updates := map[string]any{}
+	if req.Name != nil        { updates["name"] = *req.Name }
+	if req.TypeId != nil      { updates["typeId"] = *req.TypeId }
+	if req.Description != nil { updates["description"] = *req.Description }
+	if req.Category != nil    { updates["category"] = *req.Category }
+	if req.Icon != nil        { updates["icon"] = *req.Icon }
+	if req.Thumbnail != nil   { updates["thumbnail"] = *req.Thumbnail }
+	if req.Tags != nil        { updates["tags"] = *req.Tags }
+	if req.IsPublic != nil    { updates["isPublic"] = *req.IsPublic }
+	if req.Version != nil     { updates["version"] = *req.Version }
+	if req.Structure != nil   { updates["structure"] = req.Structure }
+	if req.DefaultProps != nil { updates["defaultProps"] = req.DefaultProps }
 
-	updated, err := h.customElementRepo.UpdateCustomElement(c.Context(), id, userID, req)
+	if err := utils.RequireUpdates(updates); err != nil {
+		return err
+	}
+
+	updated, err := h.customElementRepo.UpdateCustomElement(c.Context(), id, userID, updates)
 	if err != nil {
 		if err == repositories.ErrCustomElementUnauthorized {
-			return utils.SendError(c, fiber.StatusForbidden, "Unauthorized to update this custom element", err)
+			return fiber.NewError(fiber.StatusForbidden, "Unauthorized to update this custom element")
 		}
-		log.Println("Error updating custom element:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update custom element", err)
+		return utils.HandleRepoError(c, err, "Custom element not found", "Failed to update custom element")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
 func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
-	}
-
-	id, err := utils.ValidateRequiredParam(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
+	id := ids[0]
 
-	err = h.customElementRepo.DeleteCustomElement(c.Context(), id, userID)
-	if err != nil {
+	if err := h.customElementRepo.DeleteCustomElement(c.Context(), id, userID); err != nil {
 		if err == repositories.ErrCustomElementUnauthorized {
-			return utils.SendError(c, fiber.StatusForbidden, "Unauthorized to delete this custom element", err)
+			return fiber.NewError(fiber.StatusForbidden, "Unauthorized to delete this custom element")
 		}
-		log.Println("Error deleting custom element:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete custom element", err)
+		return utils.HandleRepoError(c, err, "Custom element not found", "Failed to delete custom element")
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
-		"message": "Custom element deleted successfully",
-	})
-}
-
-func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
-	category := c.Query("category")
-	limitStr := c.Query("limit", "20")
-	offsetStr := c.Query("offset", "0")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 20
-	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil {
-		offset = 0
-	}
-
-	var categoryPtr *string
-	if category != "" {
-		categoryPtr = &category
-	}
-
-	customElements, err := h.customElementRepo.GetPublicCustomElements(c.Context(), categoryPtr, limit, offset)
-	if err != nil {
-		log.Println("Error retrieving public custom elements:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve public custom elements", err)
-	}
-
-	return utils.SendJSON(c, fiber.StatusOK, customElements)
+	return utils.SendSuccess(c, fiber.StatusOK, "Custom element deleted successfully")
 }
 
 func (h *CustomElementHandler) DuplicateCustomElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
-	}
-
-	id, err := utils.ValidateRequiredParam(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
+	id := ids[0]
 
-	var req struct {
-		NewName string `json:"newName"`
-	}
-
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
-	}
-
-	if req.NewName == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "New name is required", nil)
+	var req dto.DuplicateCustomElementRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
 	duplicate, err := h.customElementRepo.DuplicateCustomElement(c.Context(), id, userID, req.NewName)
 	if err != nil {
 		if err == repositories.ErrCustomElementNotFound {
-			return utils.SendError(c, fiber.StatusNotFound, "Custom element not found", err)
+			return fiber.NewError(fiber.StatusNotFound, "Custom element not found")
 		}
-		log.Println("Error duplicating custom element:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to duplicate custom element", err)
+		return utils.HandleRepoError(c, err, "", "Failed to duplicate custom element")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, duplicate)

@@ -59,6 +59,11 @@ test: ## Run tests
 	@echo "Running tests..."
 	go test -v ./...
 
+.PHONY: test-handlers
+test-handlers: ## Run tests for handlers
+	@echo "Running handler tests..."
+	go test -v ./tests/handlers/...	
+
 .PHONY: test-cover
 test-cover: ## Run tests with coverage
 	@echo "Running tests with coverage..."

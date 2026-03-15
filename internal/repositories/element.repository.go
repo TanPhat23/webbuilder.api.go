@@ -18,15 +18,13 @@ var (
 )
 
 type ElementRepository struct {
-	db                *gorm.DB
-	settingRepository SettingRepositoryInterface
-	projectLocks      sync.Map
+	db           *gorm.DB
+	projectLocks sync.Map
 }
 
-func NewElementRepository(db *gorm.DB, settingRepo SettingRepositoryInterface) ElementRepositoryInterface {
+func NewElementRepository(db *gorm.DB) ElementRepositoryInterface {
 	return &ElementRepository{
-		db:                db,
-		settingRepository: settingRepo,
+		db: db,
 	}
 }
 
@@ -45,7 +43,6 @@ func (r *ElementRepository) GetElements(ctx context.Context, projectID string, p
 	var elements []models.Element
 
 	query := r.db.WithContext(ctx).
-		Preload("SettingRecord").
 		Joins("Page").
 		Where("\"Page\".\"ProjectId\" = ?", projectID)
 
@@ -68,9 +65,6 @@ func (r *ElementRepository) GetElements(ctx context.Context, projectID string, p
 	editorElements := make([]models.EditorElement, len(elements))
 	for i, elem := range elements {
 		elemCopy := elem
-		if elem.SettingRecord != nil {
-			elemCopy.Settings = &elem.SettingRecord.Settings
-		}
 		editorElements[i] = &elemCopy
 	}
 
@@ -111,8 +105,6 @@ func (r *ElementRepository) GetElementWithRelations(ctx context.Context, element
 	err := r.db.WithContext(ctx).
 		Preload("Page").
 		Preload("Parent").
-		Preload("Project").
-		Preload("Settings").
 		Where("\"Id\" = ?", elementID).
 		First(&element).Error
 
@@ -135,7 +127,6 @@ func (r *ElementRepository) GetElementsByPageID(ctx context.Context, pageID stri
 	var elements []models.Element
 
 	err := r.db.WithContext(ctx).
-		Preload("SettingRecord").
 		Where("\"PageId\" = ?", pageID).
 		Order("\"Order\"").
 		Find(&elements).Error
@@ -156,7 +147,6 @@ func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, pageIDs []
 	var elements []models.Element
 
 	err := r.db.WithContext(ctx).
-		Preload("SettingRecord").
 		Where("\"PageId\" IN ?", pageIDs).
 		Order("\"Order\"").
 		Find(&elements).Error
@@ -172,9 +162,6 @@ func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, pageIDs []
 	editorElements := make([]models.EditorElement, len(elements))
 	for i, elem := range elements {
 		elemCopy := elem
-		if elem.SettingRecord != nil {
-			elemCopy.Settings = &elem.SettingRecord.Settings
-		}
 		editorElements[i] = &elemCopy
 	}
 
@@ -411,7 +398,7 @@ func (r *ElementRepository) ReplaceElements(ctx context.Context, projectID strin
 }
 
 func (r *ElementRepository) createElementsAndSettings(ctx context.Context, tx *gorm.DB, elements []models.EditorElement, projectID string) error {
-	flatElements, flatSettings, err := r.flattenElementsForInsert(ctx, tx, elements, projectID)
+	flatElements, err := r.flattenElementsForInsert(ctx, tx, elements, projectID)
 	if err != nil {
 		return err
 	}
@@ -426,15 +413,10 @@ func (r *ElementRepository) createElementsAndSettings(ctx context.Context, tx *g
 		}
 	}
 
-	// Create settings
-	if err := r.settingRepository.CreateSettings(ctx, tx, flatSettings); err != nil {
-		return fmt.Errorf("failed to create settings: %w", err)
-	}
-
 	return nil
 }
 
-func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *gorm.DB, rootElements []models.EditorElement, projectID string) ([]models.Element, []models.Setting, error) {
+func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *gorm.DB, rootElements []models.EditorElement, projectID string) ([]models.Element, error) {
 	type queueItem struct {
 		element  models.EditorElement
 		parentID *string
@@ -452,7 +434,6 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 	}
 
 	flattened := make([]models.Element, 0, 256)
-	settings := make([]models.Setting, 0, 128)
 
 	// Process queue
 	for len(queue) > 0 {
@@ -468,24 +449,18 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 			continue
 		}
 
-		// Generate ID if not provided
 		if base.Id == "" {
 			base.Id = uuid.NewString()
 		}
 
-		// Clean up empty parent ID
 		if base.ParentId != nil && *base.ParentId == "" {
 			base.ParentId = nil
 		}
 
-		// Set parent from queue item if provided
 		if item.parentID != nil {
 			base.ParentId = item.parentID
 		}
 
-
-
-		// Track parent keys
 		if base.ParentId == nil {
 			hasNull = true
 		}
@@ -493,24 +468,11 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 
 		flattened = append(flattened, *base)
 
-		// Create setting if settings exist
-		if base.Settings != nil && string(*base.Settings) != "{}" {
-			setting := models.Setting{
-				Id:          uuid.NewString(),
-				Name:        "default",
-				SettingType: base.GetType(),
-				Settings:    *base.Settings,
-				ElementId:   base.Id,
-			}
-			settings = append(settings, setting)
-		}
-
-		// Add children to queue
 		children := utils.GetChildrenFromEditorElement(item.element)
 		for _, child := range children {
 			childEditor, err := utils.ConvertToEditorElement(child)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to convert child element: %w", err)
+				return nil, fmt.Errorf("failed to convert child element: %w", err)
 			}
 			parentID := base.Id
 			parentKeys[r.buildParentKey(projectID, &parentID)] = true
@@ -557,7 +519,7 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 
 		err := q.Group("\"Element\".\"ParentId\"").Scan(&results).Error
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get max order: %w", err)
+			return nil, fmt.Errorf("failed to get max order: %w", err)
 		}
 
 		for _, res := range results {
@@ -582,7 +544,7 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 		elem.Order = orderCounters[key]
 	}
 
-	return flattened, settings, nil
+	return flattened, nil
 }
 
 func (r *ElementRepository) buildParentKey(projectID string, parentID *string) string {

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
@@ -9,392 +10,329 @@ import (
 )
 
 type ElementEventWorkflowHandler struct {
-	eewRepo      *repositories.ElementEventWorkflowRepository
+	eewRepo      repositories.ElementEventWorkflowRepositoryInterface
 	elementRepo  repositories.ElementRepositoryInterface
 	workflowRepo repositories.EventWorkflowRepositoryInterface
 	projectRepo  repositories.ProjectRepositoryInterface
+	pageRepo     repositories.PageRepositoryInterface
 }
 
 func NewElementEventWorkflowHandler(
-	eewRepo *repositories.ElementEventWorkflowRepository,
+	eewRepo repositories.ElementEventWorkflowRepositoryInterface,
 	elementRepo repositories.ElementRepositoryInterface,
 	workflowRepo repositories.EventWorkflowRepositoryInterface,
 	projectRepo repositories.ProjectRepositoryInterface,
+	pageRepo repositories.PageRepositoryInterface,
 ) *ElementEventWorkflowHandler {
 	return &ElementEventWorkflowHandler{
 		eewRepo:      eewRepo,
 		elementRepo:  elementRepo,
 		workflowRepo: workflowRepo,
 		projectRepo:  projectRepo,
+		pageRepo:     pageRepo,
 	}
 }
 
-// CreateElementEventWorkflow creates a new element event workflow association
+// CreateElementEventWorkflow creates a new element event workflow association.
 func (h *ElementEventWorkflowHandler) CreateElementEventWorkflow(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
-	}
-
-	var req struct {
-		ElementID  string `json:"elementId" validate:"required"`
-		WorkflowID string `json:"workflowId" validate:"required"`
-		EventName  string `json:"eventName" validate:"required"`
-	}
-
-	if err := utils.ValidateJSONBody(c, &req); err != nil {
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
 		return err
 	}
 
-	// Get element to verify it exists and check project access
-	element, err := h.elementRepo.GetElementByID(c.Context(), req.ElementID)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
+	var req dto.CreateElementEventWorkflowRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	// Verify user has access to the project
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
+	element, err := h.elementRepo.GetElementByID(c.Context(), req.ElementID)
 	if err != nil {
+		return utils.HandleRepoError(c, err, "Element not found", "Failed to retrieve element")
+	}
+
+	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied to project", err, userID)
 	}
 
-	// Get workflow to verify it exists
 	workflow, err := h.workflowRepo.GetEventWorkflowByID(c.Context(), req.WorkflowID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Workflow not found", err)
+		return utils.HandleRepoError(c, err, "Workflow not found", "Failed to retrieve workflow")
 	}
 
-	// Verify workflow belongs to the same project
 	if workflow.ProjectId != element.Page.ProjectId {
-		return utils.SendError(c, fiber.StatusBadRequest, "Workflow and element must belong to the same project", nil)
+		return fiber.NewError(fiber.StatusBadRequest, "Workflow and element must belong to the same project")
 	}
 
-	// Check if association already exists
 	exists, err := h.eewRepo.CheckIfWorkflowLinkedToElement(c.Context(), req.ElementID, req.WorkflowID, req.EventName)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to check existing association", err)
+		return utils.HandleRepoError(c, err, "", "Failed to check existing association")
 	}
-
 	if exists {
-		return utils.SendError(c, fiber.StatusBadRequest, "This workflow is already linked to this element for this event", nil)
+		return fiber.NewError(fiber.StatusBadRequest, "This workflow is already linked to this element for this event")
 	}
 
-	eew := &models.ElementEventWorkflow{
+	created, err := h.eewRepo.CreateElementEventWorkflow(c.Context(), &models.ElementEventWorkflow{
 		ElementId:  req.ElementID,
 		WorkflowId: req.WorkflowID,
 		EventName:  req.EventName,
-	}
-
-	createdEEW, err := h.eewRepo.CreateElementEventWorkflow(c.Context(), eew)
+	})
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create element event workflow", err)
+		return utils.HandleRepoError(c, err, "", "Failed to create element event workflow")
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, createdEEW)
+	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-// GetElementEventWorkflowByID retrieves a specific element event workflow
+// GetElementEventWorkflowByID retrieves a specific element event workflow.
 func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
-	}
-
-	id := c.Params("id")
-	if id == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Element event workflow ID is required", nil)
-	}
-
-	eew, err := h.eewRepo.GetElementEventWorkflowByID(c.Context(), id)
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve element event workflow", err)
+		return err
 	}
+	eewID := ids[0]
 
+	eew, err := h.eewRepo.GetElementEventWorkflowByID(c.Context(), eewID)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to retrieve element event workflow")
+	}
 	if eew == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Element event workflow not found", nil)
+		return fiber.NewError(fiber.StatusNotFound, "Element event workflow not found")
 	}
 
-	// Verify user has access to the project
 	element, err := h.elementRepo.GetElementByID(c.Context(), eew.ElementId)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
+		return utils.HandleRepoError(c, err, "Element not found", "Failed to retrieve element")
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
-	if err != nil {
+	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, eew)
 }
 
-// GetElementEventWorkflows retrieves element event workflows with optional filters
+// GetElementEventWorkflowsByPageId retrieves all element event workflows for a page.
+func (h *ElementEventWorkflowHandler) GetElementEventWorkflowsByPageId(c *fiber.Ctx) error {
+	userID, ids, err := utils.MustUserAndParams(c, "pageId")
+	if err != nil {
+		return err
+	}
+	pageID := ids[0]
+
+	page, err := h.pageRepo.GetPageByID(c.Context(), pageID, "")
+	if err != nil {
+		return utils.HandleRepoError(c, err, "Page not found", "Failed to retrieve page")
+	}
+
+	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), page.ProjectId, userID); err != nil {
+		return utils.SendError(c, fiber.StatusForbidden, "Access denied to project", err, userID)
+	}
+
+	eews, err := h.eewRepo.GetElementEventWorkflowsByPageID(c.Context(), pageID)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve element event workflows")
+	}
+
+	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"data": eews, "count": len(eews)})
+}
+
+// GetElementEventWorkflows retrieves element event workflows with optional filters.
 func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	elementID := c.Query("elementId")
 	workflowID := c.Query("workflowId")
 	eventName := c.Query("eventName")
 
-	eews := []models.ElementEventWorkflow{}
-	var err error
+	var (
+		eews     []models.ElementEventWorkflow
+		fetchErr error
+	)
 
-	if elementID != "" && workflowID == "" && eventName == "" {
-		// Get workflows for a specific element
+	switch {
+	case elementID != "" && workflowID == "" && eventName == "":
 		element, err := h.elementRepo.GetElementByID(c.Context(), elementID)
 		if err != nil {
-			return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
+			return utils.HandleRepoError(c, err, "Element not found", "Failed to retrieve element")
 		}
-
-		// Verify user has access to the project
-		_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
-		if err != nil {
+		if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID); err != nil {
 			return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 		}
+		eews, fetchErr = h.eewRepo.GetElementEventWorkflowsByElementID(c.Context(), elementID)
 
-		eews, err = h.eewRepo.GetElementEventWorkflowsByElementID(c.Context(), elementID)
-	} else if workflowID != "" && elementID == "" && eventName == "" {
-		// Get elements for a specific workflow
+	case workflowID != "" && elementID == "" && eventName == "":
 		workflow, err := h.workflowRepo.GetEventWorkflowByID(c.Context(), workflowID)
 		if err != nil {
-			return utils.SendError(c, fiber.StatusNotFound, "Workflow not found", err)
+			return utils.HandleRepoError(c, err, "Workflow not found", "Failed to retrieve workflow")
 		}
-
-		// Verify user has access to the project
-		_, err = h.projectRepo.GetProjectWithAccess(c.Context(), workflow.ProjectId, userID)
-		if err != nil {
+		if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), workflow.ProjectId, userID); err != nil {
 			return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 		}
+		eews, fetchErr = h.eewRepo.GetElementEventWorkflowsByWorkflowID(c.Context(), workflowID)
 
-		eews, err = h.eewRepo.GetElementEventWorkflowsByWorkflowID(c.Context(), workflowID)
-	} else if eventName != "" && elementID == "" && workflowID == "" {
-		// Get all workflows for a specific event
-		eews, err = h.eewRepo.GetElementEventWorkflowsByEventName(c.Context(), eventName)
-
-		// Filter results to only include workflows in projects the user has access to
-		var filteredEEWs []models.ElementEventWorkflow
-		for _, eew := range eews {
-			element, errElement := h.elementRepo.GetElementByID(c.Context(), eew.ElementId)
-			if errElement != nil {
-				continue
-			}
-
-			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
-			if errAccess == nil {
-				filteredEEWs = append(filteredEEWs, eew)
-			}
+	default:
+		if elementID != "" || workflowID != "" || eventName != "" {
+			eews, fetchErr = h.eewRepo.GetElementEventWorkflowsByFilters(c.Context(), elementID, workflowID, eventName)
+		} else {
+			eews, fetchErr = h.eewRepo.GetAllElementEventWorkflows(c.Context())
 		}
-		eews = filteredEEWs
-	} else if elementID != "" || workflowID != "" || eventName != "" {
-		// Use filters if any combination is provided
-		eews, err = h.eewRepo.GetElementEventWorkflowsByFilters(c.Context(), elementID, workflowID, eventName)
-
-		// Filter results to only include workflows in projects the user has access to
-		var filteredEEWs []models.ElementEventWorkflow
-		for _, eew := range eews {
-			element, errElement := h.elementRepo.GetElementByID(c.Context(), eew.ElementId)
-			if errElement != nil {
-				continue
-			}
-
-			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
-			if errAccess == nil {
-				filteredEEWs = append(filteredEEWs, eew)
-			}
+		if fetchErr != nil {
+			return utils.HandleRepoError(c, fetchErr, "", "Failed to retrieve element event workflows")
 		}
-		eews = filteredEEWs
-	} else {
-		// Get all element event workflows
-		eews, err = h.eewRepo.GetAllElementEventWorkflows(c.Context())
-
-		// Filter results to only include workflows in projects the user has access to
-		var filteredEEWs []models.ElementEventWorkflow
-		for _, eew := range eews {
-			element, errElement := h.elementRepo.GetElementByID(c.Context(), eew.ElementId)
-			if errElement != nil {
-				continue
-			}
-
-			_, errAccess := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
-			if errAccess == nil {
-				filteredEEWs = append(filteredEEWs, eew)
-			}
-		}
-		eews = filteredEEWs
+		eews = h.filterByAccess(c, eews, userID)
 	}
 
-	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve element event workflows", err)
+	if fetchErr != nil {
+		return utils.HandleRepoError(c, fetchErr, "", "Failed to retrieve element event workflows")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"data": eews, "count": len(eews)})
 }
 
-// UpdateElementEventWorkflow updates an element event workflow
+// UpdateElementEventWorkflow updates the event name of an element event workflow.
 func (h *ElementEventWorkflowHandler) UpdateElementEventWorkflow(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
-	}
-
-	id := c.Params("id")
-	if id == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Element event workflow ID is required", nil)
-	}
-
-	// Get existing eew to verify access
-	existingEEW, err := h.eewRepo.GetElementEventWorkflowByID(c.Context(), id)
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve element event workflow", err)
+		return err
 	}
+	eewID := ids[0]
 
-	if existingEEW == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Element event workflow not found", nil)
-	}
-
-	element, err := h.elementRepo.GetElementByID(c.Context(), existingEEW.ElementId)
+	existing, err := h.eewRepo.GetElementEventWorkflowByID(c.Context(), eewID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
+		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to retrieve element event workflow")
+	}
+	if existing == nil {
+		return fiber.NewError(fiber.StatusNotFound, "Element event workflow not found")
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
+	element, err := h.elementRepo.GetElementByID(c.Context(), existing.ElementId)
 	if err != nil {
+		return utils.HandleRepoError(c, err, "Element not found", "Failed to retrieve element")
+	}
+
+	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	var req struct {
-		EventName string `json:"eventName"`
-	}
-
-	if err := utils.ValidateJSONBody(c, &req); err != nil {
+	var req dto.UpdateElementEventWorkflowRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
 		return err
 	}
 
-	if req.EventName == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "EventName is required", nil)
-	}
-
-	// Check if new association would conflict
-	if req.EventName != existingEEW.EventName {
-		exists, err := h.eewRepo.CheckIfWorkflowLinkedToElement(c.Context(), existingEEW.ElementId, existingEEW.WorkflowId, req.EventName)
+	if req.EventName != existing.EventName {
+		exists, err := h.eewRepo.CheckIfWorkflowLinkedToElement(c.Context(), existing.ElementId, existing.WorkflowId, req.EventName)
 		if err != nil {
-			return utils.SendError(c, fiber.StatusInternalServerError, "Failed to check existing association", err)
+			return utils.HandleRepoError(c, err, "", "Failed to check existing association")
 		}
-
 		if exists {
-			return utils.SendError(c, fiber.StatusBadRequest, "This workflow is already linked to this element for this event", nil)
+			return fiber.NewError(fiber.StatusBadRequest, "This workflow is already linked to this element for this event")
 		}
 	}
 
-	existingEEW.EventName = req.EventName
+	existing.EventName = req.EventName
 
-	updatedEEW, err := h.eewRepo.UpdateElementEventWorkflow(c.Context(), id, existingEEW)
+	updated, err := h.eewRepo.UpdateElementEventWorkflow(c.Context(), eewID, existing)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update element event workflow", err)
+		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to update element event workflow")
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, updatedEEW)
+	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-// DeleteElementEventWorkflow deletes an element event workflow
+// DeleteElementEventWorkflow deletes an element event workflow.
 func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflow(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
-	}
-
-	id := c.Params("id")
-	if id == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Element event workflow ID is required", nil)
-	}
-
-	// Get eew to verify access
-	eew, err := h.eewRepo.GetElementEventWorkflowByID(c.Context(), id)
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve element event workflow", err)
+		return err
 	}
+	eewID := ids[0]
 
+	eew, err := h.eewRepo.GetElementEventWorkflowByID(c.Context(), eewID)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to retrieve element event workflow")
+	}
 	if eew == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Element event workflow not found", nil)
+		return fiber.NewError(fiber.StatusNotFound, "Element event workflow not found")
 	}
 
 	element, err := h.elementRepo.GetElementByID(c.Context(), eew.ElementId)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
+		return utils.HandleRepoError(c, err, "Element not found", "Failed to retrieve element")
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
-	if err != nil {
+	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	err = h.eewRepo.DeleteElementEventWorkflow(c.Context(), id)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete element event workflow", err)
+	if err := h.eewRepo.DeleteElementEventWorkflow(c.Context(), eewID); err != nil {
+		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to delete element event workflow")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-// DeleteElementEventWorkflowsByElement deletes all event workflows for a specific element
+// DeleteElementEventWorkflowsByElement deletes all event workflow links for a specific element.
 func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByElement(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, ids, err := utils.MustUserAndParams(c, "elementId")
+	if err != nil {
+		return err
 	}
-
-	elementID := c.Params("elementId")
-	if elementID == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Element ID is required", nil)
-	}
+	elementID := ids[0]
 
 	element, err := h.elementRepo.GetElementByID(c.Context(), elementID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Element not found", err)
+		return utils.HandleRepoError(c, err, "Element not found", "Failed to retrieve element")
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID)
-	if err != nil {
+	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	err = h.eewRepo.DeleteElementEventWorkflowsByElementID(c.Context(), elementID)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete element event workflows", err)
+	if err := h.eewRepo.DeleteElementEventWorkflowsByElementID(c.Context(), elementID); err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to delete element event workflows")
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"message": "Element event workflows deleted successfully"})
+	return utils.SendSuccess(c, fiber.StatusOK, "Element event workflows deleted successfully")
 }
 
-// DeleteElementEventWorkflowsByWorkflow deletes all element associations for a specific workflow
+// DeleteElementEventWorkflowsByWorkflow deletes all element associations for a specific workflow.
 func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByWorkflow(c *fiber.Ctx) error {
-	userID := c.Locals("userId").(string)
-	if userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	userID, ids, err := utils.MustUserAndParams(c, "workflowId")
+	if err != nil {
+		return err
 	}
-
-	workflowID := c.Params("workflowId")
-	if workflowID == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Workflow ID is required", nil)
-	}
+	workflowID := ids[0]
 
 	workflow, err := h.workflowRepo.GetEventWorkflowByID(c.Context(), workflowID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Workflow not found", err)
+		return utils.HandleRepoError(c, err, "Workflow not found", "Failed to retrieve workflow")
 	}
 
-	_, err = h.projectRepo.GetProjectWithAccess(c.Context(), workflow.ProjectId, userID)
-	if err != nil {
+	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), workflow.ProjectId, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	err = h.eewRepo.DeleteElementEventWorkflowsByWorkflowID(c.Context(), workflowID)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete element event workflows", err)
+	if err := h.eewRepo.DeleteElementEventWorkflowsByWorkflowID(c.Context(), workflowID); err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to delete element event workflows")
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"message": "Element event workflows deleted successfully"})
+	return utils.SendSuccess(c, fiber.StatusOK, "Element event workflows deleted successfully")
+}
+
+// filterByAccess removes any EEW entries whose element's project the user cannot access.
+func (h *ElementEventWorkflowHandler) filterByAccess(c *fiber.Ctx, eews []models.ElementEventWorkflow, userID string) []models.ElementEventWorkflow {
+	filtered := make([]models.ElementEventWorkflow, 0, len(eews))
+	for _, eew := range eews {
+		element, err := h.elementRepo.GetElementByID(c.Context(), eew.ElementId)
+		if err != nil {
+			continue
+		}
+		if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), element.Page.ProjectId, userID); err == nil {
+			filtered = append(filtered, eew)
+		}
+	}
+	return filtered
 }

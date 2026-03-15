@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
@@ -24,50 +25,35 @@ func NewCommentHandler(commentRepo repositories.CommentRepositoryInterface, mark
 	}
 }
 
-// CreateComment creates a new comment on a marketplace item
 func (h *CommentHandler) CreateComment(c *fiber.Ctx) error {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized", fiber.NewError(fiber.StatusUnauthorized, "You must be logged in to create comments"))
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
 	}
 
 	var req models.CreateCommentRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	// Validate required fields
-	if req.Content == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "Content is required"))
-	}
-
-	if req.ItemId == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "ItemId is required"))
-	}
-
-	// Verify marketplace item exists
 	item, err := h.marketplaceRepository.GetMarketplaceItemByID(req.ItemId)
 	if err != nil {
-		log.Println("Error validating marketplace item:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to validate marketplace item", err)
+		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to validate marketplace item")
 	}
 	if item == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Marketplace item not found", fiber.NewError(fiber.StatusNotFound, "The marketplace item does not exist"))
+		return fiber.NewError(fiber.StatusNotFound, "Marketplace item not found")
 	}
 
-	// If ParentId is provided, verify parent comment exists
 	if req.ParentId != nil && *req.ParentId != "" {
-		parentComment, err := h.commentRepository.GetCommentByID(*req.ParentId)
+		parentComment, err := h.commentRepository.GetCommentByID(c.Context(), *req.ParentId)
 		if err != nil {
-			log.Println("Error validating parent comment:", err)
-			return utils.SendError(c, fiber.StatusInternalServerError, "Failed to validate parent comment", err)
+			if errors.Is(err, repositories.ErrCommentNotFound) {
+				return fiber.NewError(fiber.StatusNotFound, "Parent comment not found")
+			}
+			return utils.HandleRepoError(c, err, "", "Failed to validate parent comment")
 		}
-		if parentComment == nil {
-			return utils.SendError(c, fiber.StatusNotFound, "Parent comment not found", fiber.NewError(fiber.StatusNotFound, "The parent comment does not exist"))
-		}
-		// Verify parent comment belongs to the same item
 		if parentComment.ItemId != req.ItemId {
-			return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "Parent comment does not belong to the specified item"))
+			return fiber.NewError(fiber.StatusBadRequest, "Parent comment does not belong to the specified item")
 		}
 	}
 
@@ -84,27 +70,29 @@ func (h *CommentHandler) CreateComment(c *fiber.Ctx) error {
 		UpdatedAt: now,
 	}
 
-	createdComment, err := h.commentRepository.CreateComment(comment)
+	created, err := h.commentRepository.CreateComment(c.Context(), comment)
 	if err != nil {
 		log.Println("Error creating comment:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create comment", err)
+		return utils.HandleRepoError(c, err, "", "Failed to create comment")
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, createdComment)
+	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-// GetComments retrieves comments with filtering
 func (h *CommentHandler) GetComments(c *fiber.Ctx) error {
-	// Parse query parameters
+	limit, _ := strconv.Atoi(c.Query("limit", "50"))
+	offset, _ := strconv.Atoi(c.Query("offset", "0"))
+
 	filter := models.CommentFilter{
 		ItemId:    c.Query("itemId"),
 		AuthorId:  c.Query("authorId"),
 		Status:    c.Query("status", "published"),
 		SortBy:    c.Query("sortBy", "createdAt"),
 		SortOrder: c.Query("sortOrder", "desc"),
+		Limit:     limit,
+		Offset:    offset,
 	}
 
-	// Parse parentId filter
 	if parentIdStr := c.Query("parentId"); parentIdStr != "" {
 		filter.ParentId = &parentIdStr
 	} else if c.Query("topLevel") == "true" {
@@ -112,110 +100,90 @@ func (h *CommentHandler) GetComments(c *fiber.Ctx) error {
 		filter.ParentId = &emptyStr
 	}
 
-	// Parse pagination
-	limit, _ := strconv.Atoi(c.Query("limit", "50"))
-	offset, _ := strconv.Atoi(c.Query("offset", "0"))
-	filter.Limit = limit
-	filter.Offset = offset
-
-	comments, total, err := h.commentRepository.GetComments(filter)
+	comments, total, err := h.commentRepository.GetComments(c.Context(), filter)
 	if err != nil {
-		log.Println("Error retrieving comments:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve comments", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
 
-	response := fiber.Map{
+	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
 		"data":   comments,
 		"total":  total,
 		"limit":  limit,
 		"offset": offset,
-	}
-	return utils.SendJSON(c, fiber.StatusOK, response)
+	})
 }
 
-// GetCommentByID retrieves a single comment
 func (h *CommentHandler) GetCommentByID(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "commentid")
+	ids, err := utils.MustParams(c, "commentid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Comment ID is required", err)
+		return err
 	}
+	commentID := ids[0]
 
-	comment, err := h.commentRepository.GetCommentByID(commentID)
+	comment, err := h.commentRepository.GetCommentByID(c.Context(), commentID)
 	if err != nil {
-		log.Println("Error retrieving comment:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve comment", err)
-	}
-	if comment == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Comment not found", fiber.NewError(fiber.StatusNotFound, "Comment not found"))
+		if errors.Is(err, repositories.ErrCommentNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "Comment not found")
+		}
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve comment")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, comment)
 }
 
-// GetCommentsByItemID retrieves all comments for a marketplace item
 func (h *CommentHandler) GetCommentsByItemID(c *fiber.Ctx) error {
-	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	ids, err := utils.MustParams(c, "itemid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Item ID is required", err)
+		return err
 	}
+	itemID := ids[0]
 
-	// Parse query parameters
+	limit, _ := strconv.Atoi(c.Query("limit", "50"))
+	offset, _ := strconv.Atoi(c.Query("offset", "0"))
+
 	filter := models.CommentFilter{
 		ItemId:    itemID,
 		Status:    c.Query("status", "published"),
 		SortBy:    c.Query("sortBy", "createdAt"),
 		SortOrder: c.Query("sortOrder", "desc"),
+		Limit:     limit,
+		Offset:    offset,
 	}
 
-	// Only get top-level comments by default
 	if c.Query("includeReplies") != "false" {
 		emptyStr := ""
 		filter.ParentId = &emptyStr
 	}
 
-	// Parse pagination
-	limit, _ := strconv.Atoi(c.Query("limit", "50"))
-	offset, _ := strconv.Atoi(c.Query("offset", "0"))
-	filter.Limit = limit
-	filter.Offset = offset
-
-	comments, total, err := h.commentRepository.GetComments(filter)
+	comments, total, err := h.commentRepository.GetComments(c.Context(), filter)
 	if err != nil {
-		log.Println("Error retrieving comments:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve comments", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
 
-	response := fiber.Map{
+	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
 		"data":   comments,
 		"total":  total,
 		"limit":  limit,
 		"offset": offset,
-	}
-	return utils.SendJSON(c, fiber.StatusOK, response)
+	})
 }
 
-// UpdateComment updates a comment
 func (h *CommentHandler) UpdateComment(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "commentid")
+	userID, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Comment ID is required", err)
+		return err
 	}
-
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized", fiber.NewError(fiber.StatusUnauthorized, "You must be logged in to update comments"))
-	}
+	commentID := ids[0]
 
 	var req models.UpdateCommentRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	// Build updates map
 	updates := make(map[string]any)
 	if req.Content != nil {
 		if *req.Content == "" {
-			return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "Content cannot be empty"))
+			return fiber.NewError(fiber.StatusBadRequest, "Content cannot be empty")
 		}
 		updates["Content"] = *req.Content
 	}
@@ -223,72 +191,55 @@ func (h *CommentHandler) UpdateComment(c *fiber.Ctx) error {
 		updates["Status"] = *req.Status
 	}
 
-	if len(updates) == 0 {
-		return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "No fields to update"))
+	if err := utils.RequireUpdates(updates); err != nil {
+		return err
 	}
 
-	updatedComment, err := h.commentRepository.UpdateComment(commentID, userID, updates)
+	updated, err := h.commentRepository.UpdateComment(c.Context(), commentID, userID, updates)
 	if err != nil {
-		log.Println("Error updating comment:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update comment", err)
-	}
-	if updatedComment == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Comment not found or you don't have permission to update it", fiber.NewError(fiber.StatusNotFound, "Comment not found or you don't have permission to update it"))
+		if errors.Is(err, repositories.ErrCommentUnauthorized) {
+			return fiber.NewError(fiber.StatusForbidden, "You do not have permission to update this comment")
+		}
+		return utils.HandleRepoError(c, err, "Comment not found", "Failed to update comment")
 	}
 
-	return utils.SendJSON(c, fiber.StatusOK, updatedComment)
+	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-// DeleteComment deletes a comment
 func (h *CommentHandler) DeleteComment(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "commentid")
+	userID, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Comment ID is required", err)
+		return err
+	}
+	commentID := ids[0]
+
+	if err := h.commentRepository.DeleteComment(c.Context(), commentID, userID); err != nil {
+		if errors.Is(err, repositories.ErrCommentUnauthorized) {
+			return fiber.NewError(fiber.StatusForbidden, "You do not have permission to delete this comment")
+		}
+		return utils.HandleRepoError(c, err, "Comment not found", "Failed to delete comment")
 	}
 
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized", fiber.NewError(fiber.StatusUnauthorized, "You must be logged in to delete comments"))
-	}
-
-	err = h.commentRepository.DeleteComment(commentID, userID)
-	if err != nil {
-		log.Println("Error deleting comment:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete comment", err)
-	}
-
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	return utils.SendNoContent(c)
 }
 
-// CreateReaction creates a reaction on a comment
 func (h *CommentHandler) CreateReaction(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "commentid")
+	userID, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Comment ID is required", err)
+		return err
 	}
-
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized", fiber.NewError(fiber.StatusUnauthorized, "You must be logged in to react to comments"))
-	}
+	commentID := ids[0]
 
 	var req models.CreateReactionRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	if req.Type == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "Reaction type is required"))
-	}
-
-	// Verify comment exists
-	comment, err := h.commentRepository.GetCommentByID(commentID)
-	if err != nil {
-		log.Println("Error validating comment:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to validate comment", err)
-	}
-	if comment == nil {
-		return utils.SendError(c, fiber.StatusNotFound, "Comment not found", fiber.NewError(fiber.StatusNotFound, "The comment does not exist"))
+	if _, err := h.commentRepository.GetCommentByID(c.Context(), commentID); err != nil {
+		if errors.Is(err, repositories.ErrCommentNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "Comment not found")
+		}
+		return utils.HandleRepoError(c, err, "", "Failed to validate comment")
 	}
 
 	now := time.Now()
@@ -300,143 +251,107 @@ func (h *CommentHandler) CreateReaction(c *fiber.Ctx) error {
 		CreatedAt: now,
 	}
 
-	createdReaction, err := h.commentRepository.CreateReaction(reaction)
+	created, err := h.commentRepository.CreateReaction(c.Context(), reaction)
 	if err != nil {
-		log.Println("Error creating reaction:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create reaction", err)
+		return utils.HandleRepoError(c, err, "", "Failed to create reaction")
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, createdReaction)
+	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-// DeleteReaction deletes a reaction from a comment
 func (h *CommentHandler) DeleteReaction(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "commentid")
+	userID, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Comment ID is required", err)
+		return err
 	}
-
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized", fiber.NewError(fiber.StatusUnauthorized, "You must be logged in to remove reactions"))
-	}
+	commentID := ids[0]
 
 	reactionType := c.Query("type")
 	if reactionType == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "Reaction type is required"))
+		return fiber.NewError(fiber.StatusBadRequest, "Reaction type query parameter is required")
 	}
 
-	err = h.commentRepository.DeleteReaction(commentID, userID, reactionType)
-	if err != nil {
-		log.Println("Error deleting reaction:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete reaction", err)
+	if err := h.commentRepository.DeleteReaction(c.Context(), commentID, userID, reactionType); err != nil {
+		if errors.Is(err, repositories.ErrCommentNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "Reaction not found")
+		}
+		return utils.HandleRepoError(c, err, "", "Failed to delete reaction")
 	}
 
-	return c.Status(fiber.StatusNoContent).Send(nil)
+	return utils.SendNoContent(c)
 }
 
-// GetReactionsByCommentID retrieves all reactions for a comment
 func (h *CommentHandler) GetReactionsByCommentID(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "commentid")
+	ids, err := utils.MustParams(c, "commentid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Comment ID is required", err)
+		return err
 	}
+	commentID := ids[0]
 
-	reactions, err := h.commentRepository.GetReactionsByCommentID(commentID)
+	reactions, err := h.commentRepository.GetReactionsByCommentID(c.Context(), commentID)
 	if err != nil {
-		log.Println("Error retrieving reactions:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve reactions", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve reactions")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, reactions)
 }
 
-// GetReactionSummary retrieves reaction summary for a comment
 func (h *CommentHandler) GetReactionSummary(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "commentid")
+	ids, err := utils.MustParams(c, "commentid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Comment ID is required", err)
+		return err
 	}
+	commentID := ids[0]
 
-	summary, err := h.commentRepository.GetReactionSummary(commentID)
+	summary, err := h.commentRepository.GetReactionSummary(c.Context(), commentID)
 	if err != nil {
-		log.Println("Error retrieving reaction summary:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve reaction summary", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve reaction summary")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, summary)
 }
 
-// GetCommentCount retrieves the total number of comments for a marketplace item
 func (h *CommentHandler) GetCommentCount(c *fiber.Ctx) error {
-	itemID, err := utils.ValidateRequiredParam(c, "itemid")
+	ids, err := utils.MustParams(c, "itemid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Item ID is required", err)
+		return err
+	}
+	itemID := ids[0]
+
+	count, err := h.commentRepository.GetCommentCountByItemID(c.Context(), itemID)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve comment count")
 	}
 
-	count, err := h.commentRepository.GetCommentCountByItemID(itemID)
-	if err != nil {
-		log.Println("Error retrieving comment count:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve comment count", err)
-	}
-
-	response := fiber.Map{
+	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
 		"itemId": itemID,
 		"count":  count,
-	}
-	return utils.SendJSON(c, fiber.StatusOK, response)
+	})
 }
 
-// ModerateComment updates the status of a comment (admin/moderator only)
 func (h *CommentHandler) ModerateComment(c *fiber.Ctx) error {
-	commentID, err := utils.ValidateRequiredParam(c, "commentid")
+	_, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Comment ID is required", err)
+		return err
+	}
+	commentID := ids[0]
+
+	var req struct {
+		Status string `json:"status" validate:"required,oneof=published pending flagged deleted"`
+	}
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
 	}
 
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
-		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized", fiber.NewError(fiber.StatusUnauthorized, "You must be logged in to moderate comments"))
+	if err := h.commentRepository.ModerateComment(c.Context(), commentID, req.Status); err != nil {
+		if errors.Is(err, repositories.ErrCommentNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "Comment not found")
+		}
+		return utils.HandleRepoError(c, err, "Comment not found", "Failed to moderate comment")
 	}
 
-	// TODO: Add admin/moderator role check here
-	// For now, we'll allow any authenticated user to moderate
-	// In production, you should check user roles
-
-	type ModerateRequest struct {
-		Status string `json:"status" validate:"required"`
-	}
-
-	var req ModerateRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body", err)
-	}
-
-	if req.Status == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "Status is required"))
-	}
-
-	// Validate status values
-	validStatuses := map[string]bool{
-		"published": true,
-		"pending":   true,
-		"flagged":   true,
-		"deleted":   true,
-	}
-
-	if !validStatuses[req.Status] {
-		return utils.SendError(c, fiber.StatusBadRequest, "Validation failed", fiber.NewError(fiber.StatusBadRequest, "Invalid status value"))
-	}
-
-	err = h.commentRepository.ModerateComment(commentID, req.Status)
-	if err != nil {
-		log.Println("Error moderating comment:", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to moderate comment", err)
-	}
-
-	response := fiber.Map{
+	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{
 		"message": "Comment moderated successfully",
 		"status":  req.Status,
-	}
-	return utils.SendJSON(c, fiber.StatusOK, response)
+	})
 }

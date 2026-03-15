@@ -3,11 +3,14 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"my-go-app/internal/models"
 
 	"gorm.io/gorm"
 )
+
+var ErrUserNotFound = errors.New("user not found")
 
 type UserRepository struct {
 	db *gorm.DB
@@ -24,14 +27,14 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*model
 
 	var user models.User
 	err := r.db.WithContext(ctx).
-		Where("\"Id\" = ?", userID).
+		Where(`"Id" = ?`, userID).
 		First(&user).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, ErrUserNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get user by ID: %w", err)
 	}
 
 	return &user, nil
@@ -44,19 +47,21 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 
 	var user models.User
 	err := r.db.WithContext(ctx).
-		Where("\"Email\" = ?", email).
+		Where(`"Email" = ?`, email).
 		First(&user).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, ErrUserNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
 	return &user, nil
 }
 
+// GetUserByUsername queries by the Username column, returning the user whose
+// "Username" matches the provided value.
 func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	if username == "" {
 		return nil, errors.New("username is required")
@@ -64,14 +69,14 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 
 	var user models.User
 	err := r.db.WithContext(ctx).
-		Where("\"Id\" = ?", username).
+		Where(`"Username" = ?`, username).
 		First(&user).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, ErrUserNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get user by username: %w", err)
 	}
 
 	return &user, nil
@@ -84,14 +89,16 @@ func (r *UserRepository) SearchUsers(ctx context.Context, query string) ([]model
 
 	var users []models.User
 	err := r.db.WithContext(ctx).
-		Select("\"Id\", \"Email\", \"FirstName\", \"LastName\", \"ImageUrl\", \"CreatedAt\", \"UpdatedAt\"").
-		Where("\"Email\" ILIKE ? OR \"FirstName\" ILIKE ? OR \"LastName\" ILIKE ? OR \"Id\" ILIKE ?",
-			query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%").
-		Limit(20). // Limit results for performance
+		Select(`"Id", "Email", "FirstName", "LastName", "ImageUrl", "CreatedAt", "UpdatedAt"`).
+		Where(
+			`"Email" ILIKE ? OR "FirstName" ILIKE ? OR "LastName" ILIKE ? OR "Id" ILIKE ?`,
+			query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%",
+		).
+		Limit(20).
 		Find(&users).Error
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to search users: %w", err)
 	}
 
 	return users, nil

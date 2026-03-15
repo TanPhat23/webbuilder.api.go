@@ -1,12 +1,18 @@
 package handlers
 
 import (
+	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
 )
+
+var contentTypeAllowedCols = map[string]string{
+	"name":        "Name",
+	"description": "Description",
+}
 
 type ContentTypeHandler struct {
 	contentTypeRepository repositories.ContentTypeRepositoryInterface
@@ -21,86 +27,88 @@ func NewContentTypeHandler(contentTypeRepo repositories.ContentTypeRepositoryInt
 func (h *ContentTypeHandler) GetContentTypes(c *fiber.Ctx) error {
 	contentTypes, err := h.contentTypeRepository.GetContentTypes(c.Context())
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content types", err)
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve content types")
 	}
+
 	return utils.SendJSON(c, fiber.StatusOK, contentTypes)
 }
 
 func (h *ContentTypeHandler) GetContentTypeByID(c *fiber.Ctx) error {
-	id, err := utils.ValidateRequiredParam(c, "id")
+	ids, err := utils.MustParams(c, "id")
 	if err != nil {
 		return err
 	}
+	id := ids[0]
 
 	contentType, err := h.contentTypeRepository.GetContentTypeByID(c.Context(), id)
 	if err != nil {
-		if err.Error() == "content type not found" {
-			return utils.SendError(c, fiber.StatusNotFound, "Content type not found", err)
-		}
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to retrieve content type", err)
+		return utils.HandleRepoError(c, err, "Content type not found", "Failed to retrieve content type")
 	}
+
 	return utils.SendJSON(c, fiber.StatusOK, contentType)
 }
 
 func (h *ContentTypeHandler) CreateContentType(c *fiber.Ctx) error {
-	var contentType models.ContentType
-	if err := utils.ValidateJSONBody(c, &contentType); err != nil {
+	var req dto.CreateContentTypeRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
 		return err
 	}
 
-	createdContentType, err := h.contentTypeRepository.CreateContentType(c.Context(), &contentType)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create content type", err)
+	contentType := &models.ContentType{
+		Name:        req.Name,
+		Description: req.Description,
 	}
-	return utils.SendJSON(c, fiber.StatusCreated, createdContentType)
+
+	created, err := h.contentTypeRepository.CreateContentType(c.Context(), contentType)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to create content type")
+	}
+
+	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
 func (h *ContentTypeHandler) UpdateContentType(c *fiber.Ctx) error {
-	id, err := utils.ValidateRequiredParam(c, "id")
+	ids, err := utils.MustParams(c, "id")
 	if err != nil {
 		return err
 	}
+	id := ids[0]
 
-	var updates map[string]any
-	if err := utils.ValidateJSONBody(c, &updates); err != nil {
+	var req dto.UpdateContentTypeRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
 		return err
 	}
 
-	columnUpdates := h.buildColumnUpdates(updates)
+	rawBody := map[string]any{}
+	if req.Name != nil        { rawBody["name"] = *req.Name }
+	if req.Description != nil { rawBody["description"] = *req.Description }
 
-	updatedContentType, err := h.contentTypeRepository.UpdateContentType(c.Context(), id, columnUpdates)
+	updates, err := utils.BuildColumnUpdates(rawBody, contentTypeAllowedCols)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to update content type", err)
+		return err
 	}
-	return utils.SendJSON(c, fiber.StatusOK, updatedContentType)
+	if err := utils.RequireUpdates(updates); err != nil {
+		return err
+	}
+
+	updated, err := h.contentTypeRepository.UpdateContentType(c.Context(), id, updates)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "Content type not found", "Failed to update content type")
+	}
+
+	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
 func (h *ContentTypeHandler) DeleteContentType(c *fiber.Ctx) error {
-	id, err := utils.ValidateRequiredParam(c, "id")
+	ids, err := utils.MustParams(c, "id")
 	if err != nil {
 		return err
 	}
+	id := ids[0]
 
-	err = h.contentTypeRepository.DeleteContentType(c.Context(), id)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to delete content type", err)
+	if err := h.contentTypeRepository.DeleteContentType(c.Context(), id); err != nil {
+		return utils.HandleRepoError(c, err, "Content type not found", "Failed to delete content type")
 	}
+
 	return utils.SendNoContent(c)
-}
-
-func (h *ContentTypeHandler) buildColumnUpdates(updates map[string]any) map[string]any {
-	columnUpdates := make(map[string]any)
-	for k, v := range updates {
-		switch k {
-		case "description":
-			columnUpdates["Description"] = v
-		case "name":
-			columnUpdates["Name"] = v
-		case "updatedAt":
-			columnUpdates["UpdatedAt"] = v
-		default:
-			columnUpdates[k] = v
-		}
-	}
-	return columnUpdates
 }

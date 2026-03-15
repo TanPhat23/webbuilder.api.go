@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"my-go-app/internal/models"
 	"time"
@@ -8,73 +10,74 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	ErrCommentNotFound     = errors.New("comment not found")
+	ErrCommentUnauthorized = errors.New("unauthorized to modify comment")
+	ErrReactionNotFound    = errors.New("reaction not found")
+)
+
 type CommentRepository struct {
-	DB *gorm.DB
+	db *gorm.DB
 }
 
-func NewCommentRepository(db *gorm.DB) *CommentRepository {
-	return &CommentRepository{
-		DB: db,
+func NewCommentRepository(db *gorm.DB) CommentRepositoryInterface {
+	return &CommentRepository{db: db}
+}
+
+func (r *CommentRepository) CreateComment(ctx context.Context, comment models.Comment) (*models.Comment, error) {
+	if err := r.db.WithContext(ctx).Create(&comment).Error; err != nil {
+		return nil, fmt.Errorf("failed to create comment: %w", err)
 	}
+	return r.GetCommentByID(ctx, comment.Id)
 }
 
-// CreateComment creates a new comment
-func (r *CommentRepository) CreateComment(comment models.Comment) (*models.Comment, error) {
-	if err := r.DB.Create(&comment).Error; err != nil {
-		return nil, err
+func (r *CommentRepository) GetCommentByID(ctx context.Context, id string) (*models.Comment, error) {
+	if id == "" {
+		return nil, errors.New("id is required")
 	}
 
-	return r.GetCommentByID(comment.Id)
-}
-
-// GetCommentByID retrieves a comment by its ID with author and reactions
-func (r *CommentRepository) GetCommentByID(id string) (*models.Comment, error) {
 	var comment models.Comment
-	err := r.DB.Where(`"Id" = ? AND "DeletedAt" IS NULL`, id).
+	err := r.db.WithContext(ctx).
+		Where(`"Id" = ? AND "DeletedAt" IS NULL`, id).
 		First(&comment).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCommentNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get comment: %w", err)
 	}
 
-	// Load author information
+	// Load author
 	var author models.User
-	if err := r.DB.Where(`"Id" = ?`, comment.AuthorId).First(&author).Error; err == nil {
+	if err := r.db.WithContext(ctx).Where(`"Id" = ?`, comment.AuthorId).First(&author).Error; err == nil {
 		comment.Author = &author
 	}
 
 	// Load reactions
 	var reactions []models.CommentReaction
-	r.DB.Where(`"CommentId" = ?`, comment.Id).Find(&reactions)
+	_ = r.db.WithContext(ctx).Where(`"CommentId" = ?`, comment.Id).Find(&reactions).Error
 	comment.Reactions = reactions
 
 	return &comment, nil
 }
 
-// GetComments retrieves comments with filtering and pagination
-func (r *CommentRepository) GetComments(filter models.CommentFilter) ([]models.Comment, int64, error) {
+func (r *CommentRepository) GetComments(ctx context.Context, filter models.CommentFilter) ([]models.Comment, int64, error) {
 	var comments []models.Comment
 	var total int64
 
-	query := r.DB.Model(&models.Comment{}).
+	query := r.db.WithContext(ctx).
+		Model(&models.Comment{}).
 		Where(`"DeletedAt" IS NULL`)
 
-	// Apply filters
 	if filter.ItemId != "" {
 		query = query.Where(`"ItemId" = ?`, filter.ItemId)
 	}
-
 	if filter.AuthorId != "" {
 		query = query.Where(`"AuthorId" = ?`, filter.AuthorId)
 	}
-
 	if filter.Status != "" {
 		query = query.Where(`"Status" = ?`, filter.Status)
 	}
-
-	// Filter by parent (top-level comments or replies)
 	if filter.ParentId != nil {
 		if *filter.ParentId == "" {
 			query = query.Where(`"ParentId" IS NULL`)
@@ -83,30 +86,20 @@ func (r *CommentRepository) GetComments(filter models.CommentFilter) ([]models.C
 		}
 	}
 
-	// Get total count
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to count comments: %w", err)
 	}
 
-	// Apply sorting
 	sortBy := "CreatedAt"
-	if filter.SortBy != "" {
-		switch filter.SortBy {
-		case "createdAt":
-			sortBy = "CreatedAt"
-		case "updatedAt":
-			sortBy = "UpdatedAt"
-		}
+	if filter.SortBy == "updatedAt" {
+		sortBy = "UpdatedAt"
 	}
-
 	sortOrder := "DESC"
 	if filter.SortOrder == "asc" {
 		sortOrder = "ASC"
 	}
-
 	query = query.Order(`"` + sortBy + `" ` + sortOrder)
 
-	// Apply pagination
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
 	}
@@ -114,209 +107,212 @@ func (r *CommentRepository) GetComments(filter models.CommentFilter) ([]models.C
 		query = query.Offset(filter.Offset)
 	}
 
-	// Execute query
 	if err := query.Find(&comments).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to get comments: %w", err)
 	}
 
-	// Load authors and reactions for all comments
-	if len(comments) > 0 {
-		commentIds := make([]string, len(comments))
-		authorIds := make([]string, len(comments))
-		for i, comment := range comments {
-			commentIds[i] = comment.Id
-			authorIds[i] = comment.AuthorId
+	if len(comments) == 0 {
+		return comments, total, nil
+	}
+
+	// Bulk-load authors and reactions.
+	commentIDs := make([]string, len(comments))
+	authorIDs := make([]string, len(comments))
+	for i, c := range comments {
+		commentIDs[i] = c.Id
+		authorIDs[i] = c.AuthorId
+	}
+
+	var authors []models.User
+	_ = r.db.WithContext(ctx).Where(`"Id" IN ?`, authorIDs).Find(&authors).Error
+	authorMap := make(map[string]*models.User, len(authors))
+	for i := range authors {
+		authorMap[authors[i].Id] = &authors[i]
+	}
+
+	var reactions []models.CommentReaction
+	_ = r.db.WithContext(ctx).Where(`"CommentId" IN ?`, commentIDs).Find(&reactions).Error
+	reactionMap := make(map[string][]models.CommentReaction)
+	for _, rxn := range reactions {
+		reactionMap[rxn.CommentId] = append(reactionMap[rxn.CommentId], rxn)
+	}
+
+	for i := range comments {
+		if a, ok := authorMap[comments[i].AuthorId]; ok {
+			comments[i].Author = a
+		}
+		if r2, ok := reactionMap[comments[i].Id]; ok {
+			comments[i].Reactions = r2
 		}
 
-		// Load all authors
-		var authors []models.User
-		r.DB.Where(`"Id" IN ?`, authorIds).Find(&authors)
-		authorMap := make(map[string]*models.User)
-		for i := range authors {
-			authorMap[authors[i].Id] = &authors[i]
-		}
-
-		// Load all reactions
-		var reactions []models.CommentReaction
-		r.DB.Where(`"CommentId" IN ?`, commentIds).Find(&reactions)
-		reactionMap := make(map[string][]models.CommentReaction)
-		for _, reaction := range reactions {
-			reactionMap[reaction.CommentId] = append(reactionMap[reaction.CommentId], reaction)
-		}
-
-		// Load replies count
-		type ReplyCount struct {
-			ParentId string
-			Count    int64
-		}
-		var replyCounts []ReplyCount
-		r.DB.Model(&models.Comment{}).
-			Select(`"ParentId", COUNT(*) as count`).
-			Where(`"ParentId" IN ? AND "DeletedAt" IS NULL`, commentIds).
-			Group(`"ParentId"`).
-			Scan(&replyCounts)
-		replyCountMap := make(map[string]int64)
-		for _, rc := range replyCounts {
-			replyCountMap[rc.ParentId] = rc.Count
-		}
-
-		// Assign to comments
-		for i := range comments {
-			if author, ok := authorMap[comments[i].AuthorId]; ok {
-				comments[i].Author = author
-			}
-			if reactions, ok := reactionMap[comments[i].Id]; ok {
-				comments[i].Reactions = reactions
-			}
-			// Load replies if requested
-			if filter.ParentId == nil || (filter.ParentId != nil && *filter.ParentId == "") {
-				// This is a top-level comment, optionally load replies
-				var replies []models.Comment
-				r.DB.Where(`"ParentId" = ? AND "DeletedAt" IS NULL`, comments[i].Id).
-					Order(`"CreatedAt" ASC`).
-					Find(&replies)
-
-				// Load authors for replies
-				for j := range replies {
-					if author, ok := authorMap[replies[j].AuthorId]; ok {
-						replies[j].Author = author
-					}
-					if reactions, ok := reactionMap[replies[j].Id]; ok {
-						replies[j].Reactions = reactions
-					}
+		// Load replies for top-level comments.
+		if filter.ParentId == nil || *filter.ParentId == "" {
+			var replies []models.Comment
+			_ = r.db.WithContext(ctx).
+				Where(`"ParentId" = ? AND "DeletedAt" IS NULL`, comments[i].Id).
+				Order(`"CreatedAt" ASC`).
+				Find(&replies).Error
+			for j := range replies {
+				if a, ok := authorMap[replies[j].AuthorId]; ok {
+					replies[j].Author = a
 				}
-				comments[i].Replies = replies
+				if r2, ok := reactionMap[replies[j].Id]; ok {
+					replies[j].Reactions = r2
+				}
 			}
+			comments[i].Replies = replies
 		}
 	}
 
 	return comments, total, nil
 }
 
-// UpdateComment updates a comment
-func (r *CommentRepository) UpdateComment(id string, userId string, updates map[string]any) (*models.Comment, error) {
-	// Verify ownership
-	var count int64
-	if err := r.DB.Model(&models.Comment{}).
-		Where(`"Id" = ? AND "AuthorId" = ? AND "DeletedAt" IS NULL`, id, userId).
-		Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count == 0 {
-		return nil, fmt.Errorf("comment not found or unauthorized")
+func (r *CommentRepository) UpdateComment(ctx context.Context, id string, userID string, updates map[string]any) (*models.Comment, error) {
+	if id == "" || userID == "" {
+		return nil, errors.New("id and userID are required")
 	}
 
-	// Mark as edited if content is being updated
+	// First, ensure the comment exists and is not deleted.
+	if _, err := r.GetCommentByID(ctx, id); err != nil {
+		if errors.Is(err, ErrCommentNotFound) {
+			return nil, ErrCommentNotFound
+		}
+		return nil, fmt.Errorf("failed to verify comment existence: %w", err)
+	}
+
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&models.Comment{}).
+		Where(`"Id" = ? AND "AuthorId" = ? AND "DeletedAt" IS NULL`, id, userID).
+		Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("failed to verify comment ownership: %w", err)
+	}
+	if count == 0 {
+		return nil, ErrCommentUnauthorized
+	}
+
 	if _, hasContent := updates["Content"]; hasContent {
 		updates["Edited"] = true
 	}
-
 	updates["UpdatedAt"] = time.Now()
 
-	if err := r.DB.Model(&models.Comment{}).
+	if err := r.db.WithContext(ctx).
+		Model(&models.Comment{}).
 		Where(`"Id" = ?`, id).
 		Updates(updates).Error; err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update comment: %w", err)
 	}
 
-	return r.GetCommentByID(id)
+	return r.GetCommentByID(ctx, id)
 }
 
-// DeleteComment soft deletes a comment
-func (r *CommentRepository) DeleteComment(id string, userId string) error {
-	result := r.DB.Model(&models.Comment{}).
-		Where(`"Id" = ? AND "AuthorId" = ? AND "DeletedAt" IS NULL`, id, userId).
-		Update("DeletedAt", time.Now())
+func (r *CommentRepository) DeleteComment(ctx context.Context, id string, userID string) error {
+	if id == "" || userID == "" {
+		return errors.New("id and userID are required")
+	}
+
+	result := r.db.WithContext(ctx).
+		Model(&models.Comment{}).
+		Where(`"Id" = ? AND "AuthorId" = ? AND "DeletedAt" IS NULL`, id, userID).
+		Update(`"DeletedAt"`, time.Now())
 	if result.Error != nil {
-		return result.Error
+		return fmt.Errorf("failed to delete comment: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+		return ErrCommentUnauthorized
 	}
 	return nil
 }
 
-// CreateReaction creates or updates a reaction
-func (r *CommentRepository) CreateReaction(reaction models.CommentReaction) (*models.CommentReaction, error) {
-	// Check if reaction already exists
+func (r *CommentRepository) CreateReaction(ctx context.Context, reaction models.CommentReaction) (*models.CommentReaction, error) {
 	var existing models.CommentReaction
-	err := r.DB.Where(`"CommentId" = ? AND "UserId" = ? AND "Type" = ?`,
-		reaction.CommentId, reaction.UserId, reaction.Type).
+	err := r.db.WithContext(ctx).
+		Where(`"CommentId" = ? AND "UserId" = ? AND "Type" = ?`,
+			reaction.CommentId, reaction.UserId, reaction.Type).
 		First(&existing).Error
 
 	if err == nil {
-		// Reaction already exists
 		return &existing, nil
 	}
-
-	if err != gorm.ErrRecordNotFound {
-		return nil, err
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to check reaction: %w", err)
 	}
 
-	// Create new reaction
-	if err := r.DB.Create(&reaction).Error; err != nil {
-		return nil, err
+	if err := r.db.WithContext(ctx).Create(&reaction).Error; err != nil {
+		return nil, fmt.Errorf("failed to create reaction: %w", err)
 	}
-
 	return &reaction, nil
 }
 
-// DeleteReaction deletes a reaction
-func (r *CommentRepository) DeleteReaction(commentId string, userId string, reactionType string) error {
-	result := r.DB.Where(`"CommentId" = ? AND "UserId" = ? AND "Type" = ?`,
-		commentId, userId, reactionType).
+func (r *CommentRepository) DeleteReaction(ctx context.Context, commentID string, userID string, reactionType string) error {
+	result := r.db.WithContext(ctx).
+		Where(`"CommentId" = ? AND "UserId" = ? AND "Type" = ?`, commentID, userID, reactionType).
 		Delete(&models.CommentReaction{})
 	if result.Error != nil {
-		return result.Error
+		return fmt.Errorf("failed to delete reaction: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+		return ErrReactionNotFound
 	}
 	return nil
 }
 
-// GetReactionsByCommentID retrieves all reactions for a comment
-func (r *CommentRepository) GetReactionsByCommentID(commentId string) ([]models.CommentReaction, error) {
+func (r *CommentRepository) GetReactionsByCommentID(ctx context.Context, commentID string) ([]models.CommentReaction, error) {
+	if commentID == "" {
+		return nil, errors.New("commentID is required")
+	}
 	var reactions []models.CommentReaction
-	if err := r.DB.Where(`"CommentId" = ?`, commentId).Find(&reactions).Error; err != nil {
-		return nil, err
+	if err := r.db.WithContext(ctx).Where(`"CommentId" = ?`, commentID).Find(&reactions).Error; err != nil {
+		return nil, fmt.Errorf("failed to get reactions: %w", err)
 	}
 	return reactions, nil
 }
 
-// GetReactionSummary retrieves reaction counts grouped by type
-func (r *CommentRepository) GetReactionSummary(commentId string) ([]models.ReactionSummary, error) {
+func (r *CommentRepository) GetReactionSummary(ctx context.Context, commentID string) ([]models.ReactionSummary, error) {
+	if commentID == "" {
+		return nil, errors.New("commentID is required")
+	}
 	var summary []models.ReactionSummary
-	err := r.DB.Model(&models.CommentReaction{}).
+	err := r.db.WithContext(ctx).
+		Model(&models.CommentReaction{}).
 		Select(`"Type" as type, COUNT(*) as count`).
-		Where(`"CommentId" = ?`, commentId).
+		Where(`"CommentId" = ?`, commentID).
 		Group(`"Type"`).
 		Scan(&summary).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get reaction summary: %w", err)
 	}
 	return summary, nil
 }
 
-// GetCommentCountByItemID returns the number of comments for a marketplace item
-func (r *CommentRepository) GetCommentCountByItemID(itemId string) (int64, error) {
+func (r *CommentRepository) GetCommentCountByItemID(ctx context.Context, itemID string) (int64, error) {
+	if itemID == "" {
+		return 0, errors.New("itemID is required")
+	}
 	var count int64
-	err := r.DB.Model(&models.Comment{}).
-		Where(`"ItemId" = ? AND "DeletedAt" IS NULL`, itemId).
+	err := r.db.WithContext(ctx).
+		Model(&models.Comment{}).
+		Where(`"ItemId" = ? AND "DeletedAt" IS NULL`, itemID).
 		Count(&count).Error
-	return count, err
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comments: %w", err)
+	}
+	return count, nil
 }
 
-// ModerateComment updates the status of a comment (for admin/moderation)
-func (r *CommentRepository) ModerateComment(id string, status string) error {
-	result := r.DB.Model(&models.Comment{}).
+func (r *CommentRepository) ModerateComment(ctx context.Context, id string, status string) error {
+	if id == "" {
+		return errors.New("id is required")
+	}
+	result := r.db.WithContext(ctx).
+		Model(&models.Comment{}).
 		Where(`"Id" = ? AND "DeletedAt" IS NULL`, id).
 		Update("Status", status)
 	if result.Error != nil {
-		return result.Error
+		return fmt.Errorf("failed to moderate comment: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+		return ErrCommentNotFound
 	}
 	return nil
 }

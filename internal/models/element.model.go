@@ -15,16 +15,14 @@ type Element struct {
 	PageId         *string         `gorm:"column:PageId;type:varchar(255);index" json:"pageId,omitempty"`
 	Order          int             `gorm:"column:Order;default:0" json:"order"`
 
-	// Temporary field for backward compatibility (not persisted)
-	Settings *json.RawMessage `gorm:"-" json:"settings,omitempty"`
+	Settings *json.RawMessage `gorm:"column:Settings;type:jsonb" json:"settings,omitempty"`
 
 	// Relations
-	Page               *Page                    `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"-"`
-	Parent             *Element                 `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
-	Elements           []Element                `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
-	EventWorkflows     []ElementEventWorkflow   `gorm:"foreignKey:ElementId;references:Id;constraint:OnDelete:Cascade" json:"-"`
-	SettingRecord      *Setting                 `gorm:"foreignKey:ElementId;references:Id;constraint:OnDelete:Cascade" json:"-"`
-	Comments           []ElementComment         `gorm:"foreignKey:ElementId;references:Id" json:"-"`
+	Page           *Page                  `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"-"`
+	Parent         *Element               `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
+	Elements       []Element              `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
+	EventWorkflows []ElementEventWorkflow `gorm:"foreignKey:ElementId;references:Id;constraint:OnDelete:Cascade" json:"-"`
+	Comments       []ElementComment       `gorm:"foreignKey:ElementId;references:Id" json:"-"`
 }
 
 type EditorElement interface {

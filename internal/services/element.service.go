@@ -15,15 +15,15 @@ type ElementService struct {
 	proto.UnimplementedElementServiceServer
 	snapshotRepo             repositories.SnapshotRepositoryInterface
 	elementRepo              repositories.ElementRepositoryInterface
-	eventWorkflowRepo        *repositories.EventWorkflowRepository
-	elementEventWorkflowRepo *repositories.ElementEventWorkflowRepository
+	eventWorkflowRepo        repositories.EventWorkflowRepositoryInterface
+	elementEventWorkflowRepo repositories.ElementEventWorkflowRepositoryInterface
 }
 
 func NewElementService(
 	snapshotRepo repositories.SnapshotRepositoryInterface,
 	elementRepo repositories.ElementRepositoryInterface,
-	eventWorkflowRepo *repositories.EventWorkflowRepository,
-	elementEventWorkflowRepo *repositories.ElementEventWorkflowRepository,
+	eventWorkflowRepo repositories.EventWorkflowRepositoryInterface,
+	elementEventWorkflowRepo repositories.ElementEventWorkflowRepositoryInterface,
 ) *ElementService {
 	return &ElementService{
 		snapshotRepo:             snapshotRepo,
@@ -231,13 +231,9 @@ func (s *ElementService) GetPageElements(ctx context.Context, req *proto.PageEle
 		return nil, err
 	}
 
-	// Convert to EditorElements for tree structure
 	editorElements := make([]models.EditorElement, len(elements))
 	for i, elem := range elements {
 		elemCopy := elem
-		if elem.SettingRecord != nil {
-			elemCopy.Settings = &elem.SettingRecord.Settings
-		}
 		editorElements[i] = &elemCopy
 	}
 

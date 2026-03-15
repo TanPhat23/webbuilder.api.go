@@ -11,6 +11,7 @@ type EventWorkflow struct {
 	Name        string          `gorm:"column:Name;type:varchar(255);not null" json:"name"`
 	Description *string         `gorm:"column:Description;type:text" json:"description,omitempty"`
 	CanvasData  json.RawMessage `gorm:"column:CanvasData;type:jsonb" json:"canvasData,omitempty"`
+	Handlers		json.RawMessage `gorm:"column:Handlers;type:jsonb" json:"handlers,omitempty"`
 	Enabled     bool            `gorm:"column:Enabled;not null;default:true" json:"enabled"`
 	CreatedAt   time.Time       `gorm:"column:CreatedAt;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
 	UpdatedAt   time.Time       `gorm:"column:UpdatedAt;type:timestamp;default:CURRENT_TIMESTAMP" json:"updatedAt"`
