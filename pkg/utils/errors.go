@@ -1,11 +1,12 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 // FieldError holds the per-field validation failure detail.
@@ -49,11 +50,8 @@ func HandleRepoError(c *fiber.Ctx, err error, notFoundMsg, internalMsg string) e
 	if err == nil {
 		return nil
 	}
-	if notFoundMsg != "" {
-		msg := err.Error()
-		if msg == "record not found" || strings.HasSuffix(msg, "not found") {
-			return SendError(c, fiber.StatusNotFound, notFoundMsg, err)
-		}
+	if notFoundMsg != "" && errors.Is(err, gorm.ErrRecordNotFound) {
+		return SendError(c, fiber.StatusNotFound, notFoundMsg, err)
 	}
 	return SendError(c, fiber.StatusInternalServerError, internalMsg, err)
 }
