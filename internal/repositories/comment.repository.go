@@ -171,6 +171,14 @@ func (r *CommentRepository) UpdateComment(ctx context.Context, id string, userID
 		return nil, errors.New("id and userID are required")
 	}
 
+	// First, ensure the comment exists and is not deleted.
+	if _, err := r.GetCommentByID(ctx, id); err != nil {
+		if errors.Is(err, ErrCommentNotFound) {
+			return nil, ErrCommentNotFound
+		}
+		return nil, fmt.Errorf("failed to verify comment existence: %w", err)
+	}
+
 	var count int64
 	if err := r.db.WithContext(ctx).
 		Model(&models.Comment{}).
