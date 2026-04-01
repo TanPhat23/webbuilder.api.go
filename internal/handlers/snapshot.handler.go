@@ -7,6 +7,7 @@ import (
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"time"
 
@@ -15,20 +16,17 @@ import (
 )
 
 type SnapshotHandler struct {
-	snapshotRepo repositories.SnapshotRepositoryInterface
-	elementRepo  repositories.ElementRepositoryInterface
-	projectRepo  repositories.ProjectRepositoryInterface
+	snapshotService services.SnapshotServiceInterface
+	elementRepo     repositories.ElementRepositoryInterface
 }
 
 func NewSnapshotHandler(
-	snapshotRepo repositories.SnapshotRepositoryInterface,
+	snapshotService services.SnapshotServiceInterface,
 	elementRepo repositories.ElementRepositoryInterface,
-	projectRepo repositories.ProjectRepositoryInterface,
 ) *SnapshotHandler {
 	return &SnapshotHandler{
-		snapshotRepo: snapshotRepo,
-		elementRepo:  elementRepo,
-		projectRepo:  projectRepo,
+		snapshotService: snapshotService,
+		elementRepo:     elementRepo,
 	}
 }
 
@@ -58,7 +56,7 @@ func (h *SnapshotHandler) SaveSnapshot(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to build snapshot", err)
 	}
 
-	if err := h.saveAndSyncSnapshot(c.Context(), projectID, snapshot, elements); err != nil {
+	if err := h.saveSnapshot(c.Context(), projectID, snapshot, elements); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save and sync snapshot", err)
 	}
 
@@ -72,7 +70,7 @@ func (h *SnapshotHandler) GetSnapshots(c *fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	snapshots, err := h.snapshotRepo.GetSnapshotsByProjectID(c.Context(), projectID)
+	snapshots, err := h.snapshotService.GetSnapshotsByProjectID(c.Context(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to get snapshots")
 	}
@@ -87,7 +85,7 @@ func (h *SnapshotHandler) GetSnapshotByID(c *fiber.Ctx) error {
 	}
 	snapshotID := ids[0]
 
-	snapshot, err := h.snapshotRepo.GetSnapshotByID(c.Context(), snapshotID)
+	snapshot, err := h.snapshotService.GetSnapshotByID(c.Context(), snapshotID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Snapshot not found", "Failed to get snapshot")
 	}
@@ -102,24 +100,7 @@ func (h *SnapshotHandler) DeleteSnapshot(c *fiber.Ctx) error {
 	}
 	projectID, snapshotID := ids[0], ids[1]
 
-	snapshot, err := h.snapshotRepo.GetSnapshotByID(c.Context(), snapshotID)
-	if err != nil {
-		return utils.HandleRepoError(c, err, "Snapshot not found", "Failed to retrieve snapshot")
-	}
-
-	if snapshot.ProjectId != projectID {
-		return utils.SendError(c, fiber.StatusBadRequest, "Snapshot does not belong to the specified project", nil)
-	}
-
-	if _, err := h.projectRepo.GetProjectByID(c.Context(), projectID, userID); err != nil {
-		return utils.SendError(c, fiber.StatusForbidden, "Access denied or project not found", err)
-	}
-
-	if snapshot.Type == "working" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Cannot delete working snapshots", nil)
-	}
-
-	if err := h.snapshotRepo.DeleteSnapshot(c.Context(), snapshotID); err != nil {
+	if err := h.snapshotService.DeleteSnapshotWithAccess(c.Context(), snapshotID, projectID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Snapshot not found", "Failed to delete snapshot")
 	}
 
@@ -166,8 +147,8 @@ func (h *SnapshotHandler) buildSnapshot(projectID string, req dto.SaveSnapshotRe
 	}, nil
 }
 
-func (h *SnapshotHandler) saveAndSyncSnapshot(ctx context.Context, projectID string, snapshot models.Snapshot, elements []models.EditorElement) error {
-	if err := h.snapshotRepo.SaveSnapshot(ctx, projectID, &snapshot); err != nil {
+func (h *SnapshotHandler) saveSnapshot(ctx context.Context, projectID string, snapshot models.Snapshot, elements []models.EditorElement) error {
+	if err := h.snapshotService.SaveSnapshot(ctx, projectID, &snapshot); err != nil {
 		log.Printf("Error saving snapshot for project %s: %v", projectID, err)
 		return err
 	}

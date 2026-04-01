@@ -3,7 +3,7 @@ package handlers
 import (
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"strconv"
 
@@ -18,12 +18,12 @@ var contentItemAllowedCols = map[string]string{
 }
 
 type ContentItemHandler struct {
-	contentItemRepository repositories.ContentItemRepositoryInterface
+	contentItemService services.ContentItemServiceInterface
 }
 
-func NewContentItemHandler(contentItemRepo repositories.ContentItemRepositoryInterface) *ContentItemHandler {
+func NewContentItemHandler(contentItemService services.ContentItemServiceInterface) *ContentItemHandler {
 	return &ContentItemHandler{
-		contentItemRepository: contentItemRepo,
+		contentItemService: contentItemService,
 	}
 }
 
@@ -34,7 +34,7 @@ func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
 	}
 	contentTypeID := ids[0]
 
-	contentItems, err := h.contentItemRepository.GetContentItemsByContentType(c.Context(), contentTypeID)
+	contentItems, err := h.contentItemService.GetContentItemsByContentType(c.Context(), contentTypeID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve content items")
 	}
@@ -49,7 +49,7 @@ func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
 	}
 	itemID := ids[0]
 
-	contentItem, err := h.contentItemRepository.GetContentItemByID(c.Context(), itemID)
+	contentItem, err := h.contentItemService.GetContentItemByID(c.Context(), itemID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to retrieve content item")
 	}
@@ -73,7 +73,7 @@ func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
 	contentItem.FieldValues = nil
 	contentItem.ContentTypeId = contentTypeID
 
-	created, err := h.contentItemRepository.CreateContentItem(c.Context(), &contentItem, fieldValues)
+	created, err := h.contentItemService.CreateContentItem(c.Context(), &contentItem, fieldValues)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create content item")
 	}
@@ -112,7 +112,7 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 		}
 	}
 
-	updated, err := h.contentItemRepository.UpdateContentItem(c.Context(), itemID, columnUpdates, req.FieldValues)
+	updated, err := h.contentItemService.UpdateContentItem(c.Context(), itemID, columnUpdates, req.FieldValues)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to update content item")
 	}
@@ -127,7 +127,7 @@ func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
 	}
 	itemID := ids[0]
 
-	if err := h.contentItemRepository.DeleteContentItem(c.Context(), itemID); err != nil {
+	if err := h.contentItemService.DeleteContentItem(c.Context(), itemID); err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to delete content item")
 	}
 
@@ -155,7 +155,7 @@ func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
 		limit = l
 	}
 
-	contentItems, err := h.contentItemRepository.GetPublicContentItems(c.Context(), contentTypeId, limit, sortBy, sortOrder)
+	contentItems, err := h.contentItemService.GetPublicContentItems(c.Context(), contentTypeId, limit, sortBy, sortOrder)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve content items")
 	}
@@ -170,7 +170,7 @@ func (h *ContentItemHandler) GetPublicContentItemBySlug(c *fiber.Ctx) error {
 	}
 	contentTypeID, slug := ids[0], ids[1]
 
-	contentItem, err := h.contentItemRepository.GetContentItemBySlug(c.Context(), contentTypeID, slug)
+	contentItem, err := h.contentItemService.GetContentItemBySlug(c.Context(), contentTypeID, slug)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to retrieve content item")
 	}

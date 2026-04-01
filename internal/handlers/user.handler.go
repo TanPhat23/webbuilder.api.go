@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"log"
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"strings"
 
@@ -10,12 +10,12 @@ import (
 )
 
 type UserHandler struct {
-	userRepository repositories.UserRepositoryInterface
+	userService services.UserServiceInterface
 }
 
-func NewUserHandler(userRepo repositories.UserRepositoryInterface) *UserHandler {
+func NewUserHandler(userService services.UserServiceInterface) *UserHandler {
 	return &UserHandler{
-		userRepository: userRepo,
+		userService: userService,
 	}
 }
 
@@ -25,7 +25,7 @@ func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Query parameter 'q' is required")
 	}
 
-	users, err := h.userRepository.SearchUsers(c.Context(), query)
+	users, err := h.userService.SearchUsers(c.Context(), query)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to search users")
 	}
@@ -40,7 +40,7 @@ func (h *UserHandler) GetUserByEmail(c *fiber.Ctx) error {
 		return err
 	}
 
-	user, err := h.userRepository.GetUserByEmail(c.Context(), email)
+	user, err := h.userService.GetUserByEmail(c.Context(), email)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user")
 	}
@@ -54,7 +54,7 @@ func (h *UserHandler) GetUserByUsername(c *fiber.Ctx) error {
 		return err
 	}
 
-	user, err := h.userRepository.GetUserByUsername(c.Context(), username)
+	user, err := h.userService.GetUserByUsername(c.Context(), username)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user")
 	}

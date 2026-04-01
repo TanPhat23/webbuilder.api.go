@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"strings"
 
@@ -9,12 +9,12 @@ import (
 )
 
 type ElementHandler struct {
-	elementRepo repositories.ElementRepositoryInterface
+	elementService services.ElementServiceInterface
 }
 
-func NewElementHandler(elementRepo repositories.ElementRepositoryInterface) *ElementHandler {
+func NewElementHandler(elementService services.ElementServiceInterface) *ElementHandler {
 	return &ElementHandler{
-		elementRepo: elementRepo,
+		elementService: elementService,
 	}
 }
 
@@ -24,7 +24,7 @@ func (h *ElementHandler) GetElements(c *fiber.Ctx) error {
 		return err
 	}
 
-	elements, err := h.elementRepo.GetElements(c.Context(), projectID)
+	elements, err := h.elementService.GetElements(c.Context(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
 	}
@@ -49,7 +49,7 @@ func (h *ElementHandler) GetElementsByPageIds(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "At least one valid pageId is required")
 	}
 
-	elements, err := h.elementRepo.GetElementsByPageIds(c.Context(), pageIDs)
+	elements, err := h.elementService.GetElementsByPageIds(c.Context(), pageIDs)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
 	}

@@ -4,21 +4,22 @@ import (
 	"log"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
 type CustomElementHandler struct {
-	customElementRepo repositories.CustomElementRepositoryInterface
+	customElementService services.CustomElementServiceInterface
 }
 
-func NewCustomElementHandler(customElementRepo repositories.CustomElementRepositoryInterface) *CustomElementHandler {
+func NewCustomElementHandler(customElementService services.CustomElementServiceInterface) *CustomElementHandler {
 	return &CustomElementHandler{
-		customElementRepo: customElementRepo,
+		customElementService: customElementService,
 	}
 }
 
@@ -35,7 +36,7 @@ func (h *CustomElementHandler) GetCustomElements(c *fiber.Ctx) error {
 		}
 	}
 
-	customElements, err := h.customElementRepo.GetCustomElements(c.Context(), userID, isPublicPtr)
+	customElements, err := h.customElementService.GetCustomElements(c.Context(), userID, isPublicPtr)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve custom elements")
 	}
@@ -59,7 +60,7 @@ func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
 		categoryPtr = &category
 	}
 
-	customElements, err := h.customElementRepo.GetPublicCustomElements(c.Context(), categoryPtr, limit, offset)
+	customElements, err := h.customElementService.GetPublicCustomElements(c.Context(), categoryPtr, limit, offset)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve public custom elements")
 	}
@@ -74,9 +75,9 @@ func (h *CustomElementHandler) GetCustomElementByID(c *fiber.Ctx) error {
 	}
 	id := ids[0]
 
-	customElement, err := h.customElementRepo.GetCustomElementByID(c.Context(), id, userID)
+	customElement, err := h.customElementService.GetCustomElementByID(c.Context(), id, userID)
 	if err != nil {
-		if err == repositories.ErrCustomElementNotFound {
+		if strings.Contains(err.Error(), "not found") {
 			return fiber.NewError(fiber.StatusNotFound, "Custom element not found")
 		}
 		return utils.HandleRepoError(c, err, "Custom element not found", "Failed to retrieve custom element")
@@ -116,9 +117,9 @@ func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
 		Version:      req.Version,
 	}
 
-	created, err := h.customElementRepo.CreateCustomElement(c.Context(), customElement)
+	created, err := h.customElementService.CreateCustomElement(c.Context(), customElement)
 	if err != nil {
-		if err == repositories.ErrCustomElementAlreadyExists {
+		if strings.Contains(err.Error(), "already exists") {
 			return fiber.NewError(fiber.StatusConflict, "Custom element with this name already exists")
 		}
 		log.Println("Error creating custom element:", err)
@@ -158,9 +159,9 @@ func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.customElementRepo.UpdateCustomElement(c.Context(), id, userID, updates)
+	updated, err := h.customElementService.UpdateCustomElement(c.Context(), id, userID, updates)
 	if err != nil {
-		if err == repositories.ErrCustomElementUnauthorized {
+		if strings.Contains(err.Error(), "unauthorized") {
 			return fiber.NewError(fiber.StatusForbidden, "Unauthorized to update this custom element")
 		}
 		return utils.HandleRepoError(c, err, "Custom element not found", "Failed to update custom element")
@@ -176,8 +177,8 @@ func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
 	}
 	id := ids[0]
 
-	if err := h.customElementRepo.DeleteCustomElement(c.Context(), id, userID); err != nil {
-		if err == repositories.ErrCustomElementUnauthorized {
+	if err := h.customElementService.DeleteCustomElement(c.Context(), id, userID); err != nil {
+		if strings.Contains(err.Error(), "unauthorized") {
 			return fiber.NewError(fiber.StatusForbidden, "Unauthorized to delete this custom element")
 		}
 		return utils.HandleRepoError(c, err, "Custom element not found", "Failed to delete custom element")
@@ -198,9 +199,9 @@ func (h *CustomElementHandler) DuplicateCustomElement(c *fiber.Ctx) error {
 		return err
 	}
 
-	duplicate, err := h.customElementRepo.DuplicateCustomElement(c.Context(), id, userID, req.NewName)
+	duplicate, err := h.customElementService.DuplicateCustomElement(c.Context(), id, userID, req.NewName)
 	if err != nil {
-		if err == repositories.ErrCustomElementNotFound {
+		if strings.Contains(err.Error(), "not found") {
 			return fiber.NewError(fiber.StatusNotFound, "Custom element not found")
 		}
 		return utils.HandleRepoError(c, err, "", "Failed to duplicate custom element")

@@ -10,9 +10,9 @@ import (
 )
 
 type EmailService struct {
-	dialer     *gomail.Dialer
-	from       string
-	sendgrid   *sendgrid.Client
+	dialer      *gomail.Dialer
+	from        string
+	sendgrid    *sendgrid.Client
 	useSendgrid bool
 }
 

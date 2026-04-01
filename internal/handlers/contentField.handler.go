@@ -3,7 +3,7 @@ package handlers
 import (
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
@@ -16,12 +16,12 @@ var contentFieldAllowedCols = map[string]string{
 }
 
 type ContentFieldHandler struct {
-	contentFieldRepository repositories.ContentFieldRepositoryInterface
+	contentFieldService services.ContentFieldServiceInterface
 }
 
-func NewContentFieldHandler(contentFieldRepo repositories.ContentFieldRepositoryInterface) *ContentFieldHandler {
+func NewContentFieldHandler(contentFieldService services.ContentFieldServiceInterface) *ContentFieldHandler {
 	return &ContentFieldHandler{
-		contentFieldRepository: contentFieldRepo,
+		contentFieldService: contentFieldService,
 	}
 }
 
@@ -32,7 +32,7 @@ func (h *ContentFieldHandler) GetContentFieldsByContentType(c *fiber.Ctx) error 
 	}
 	contentTypeID := ids[0]
 
-	contentFields, err := h.contentFieldRepository.GetContentFieldsByContentType(c.Context(), contentTypeID)
+	contentFields, err := h.contentFieldService.GetContentFieldsByContentType(c.Context(), contentTypeID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve content fields")
 	}
@@ -47,7 +47,7 @@ func (h *ContentFieldHandler) GetContentFieldByID(c *fiber.Ctx) error {
 	}
 	fieldID := ids[0]
 
-	contentField, err := h.contentFieldRepository.GetContentFieldByID(c.Context(), fieldID)
+	contentField, err := h.contentFieldService.GetContentFieldByID(c.Context(), fieldID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to retrieve content field")
 	}
@@ -74,7 +74,7 @@ func (h *ContentFieldHandler) CreateContentField(c *fiber.Ctx) error {
 		ContentTypeId: contentTypeID,
 	}
 
-	created, err := h.contentFieldRepository.CreateContentField(c.Context(), contentField)
+	created, err := h.contentFieldService.CreateContentField(c.Context(), contentField)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create content field")
 	}
@@ -107,7 +107,7 @@ func (h *ContentFieldHandler) UpdateContentField(c *fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.contentFieldRepository.UpdateContentField(c.Context(), fieldID, updates)
+	updated, err := h.contentFieldService.UpdateContentField(c.Context(), fieldID, updates)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to update content field")
 	}
@@ -122,7 +122,7 @@ func (h *ContentFieldHandler) DeleteContentField(c *fiber.Ctx) error {
 	}
 	fieldID := ids[0]
 
-	if err := h.contentFieldRepository.DeleteContentField(c.Context(), fieldID); err != nil {
+	if err := h.contentFieldService.DeleteContentField(c.Context(), fieldID); err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to delete content field")
 	}
 

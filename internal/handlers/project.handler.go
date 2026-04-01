@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"my-go-app/internal/dto"
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/models"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,12 +20,12 @@ var projectAllowedCols = map[string]string{
 }
 
 type ProjectHandler struct {
-	projectRepository repositories.ProjectRepositoryInterface
+	projectService services.ProjectServiceInterface
 }
 
-func NewProjectHandler(projectRepo repositories.ProjectRepositoryInterface) *ProjectHandler {
+func NewProjectHandler(projectService services.ProjectServiceInterface) *ProjectHandler {
 	return &ProjectHandler{
-		projectRepository: projectRepo,
+		projectService: projectService,
 	}
 }
 
@@ -33,7 +35,7 @@ func (h *ProjectHandler) GetProjectsByUser(c *fiber.Ctx) error {
 		return err
 	}
 
-	projects, err := h.projectRepository.GetProjectsByUserID(c.Context(), userID)
+	projects, err := h.projectService.GetProjectsByUserID(c.Context(), userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve projects")
 	}
@@ -48,7 +50,7 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	project, err := h.projectRepository.GetProjectWithAccess(c.Context(), projectID, userID)
+	project, err := h.projectService.GetProjectWithAccess(c.Context(), projectID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve project")
 	}
@@ -63,7 +65,7 @@ func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	project, err := h.projectRepository.GetPublicProjectByID(c.Context(), projectID)
+	project, err := h.projectService.GetPublicProjectByID(c.Context(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve project")
 	}
@@ -78,11 +80,11 @@ func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	if _, err := h.projectRepository.GetProjectWithAccess(c.Context(), projectID, userID); err != nil {
+	if _, err := h.projectService.GetProjectWithAccess(c.Context(), projectID, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	pages, err := h.projectRepository.GetProjectPages(c.Context(), projectID, userID)
+	pages, err := h.projectService.GetProjectPages(c.Context(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve project pages")
 	}
@@ -96,7 +98,7 @@ func (h *ProjectHandler) GetProjectByUserID(c *fiber.Ctx) error {
 		return err
 	}
 
-	projects, err := h.projectRepository.GetProjectsByUserID(c.Context(), userID)
+	projects, err := h.projectService.GetProjectsByUserID(c.Context(), userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve projects by user ID")
 	}
@@ -111,7 +113,7 @@ func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	if err := h.projectRepository.DeleteProject(c.Context(), projectID, userID); err != nil {
+	if err := h.projectService.DeleteProject(c.Context(), projectID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to delete project")
 	}
 
@@ -130,7 +132,6 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 		return err
 	}
 
-	// Build a raw map from the validated DTO so BuildColumnUpdates can apply the allowlist.
 	rawBody := map[string]any{}
 	if req.Name != nil        { rawBody["name"] = *req.Name }
 	if req.Description != nil { rawBody["description"] = *req.Description }
@@ -147,7 +148,36 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 		return err
 	}
 
-	updatedProject, err := h.projectRepository.UpdateProject(c.Context(), projectID, userID, columnUpdates)
+	project := &models.Project{}
+
+	if name, ok := columnUpdates["Name"]; ok {
+		project.Name = name.(string)
+	}
+	if description, ok := columnUpdates["Description"]; ok {
+		desc := description.(string)
+		project.Description = &desc
+	}
+	if published, ok := columnUpdates["Published"]; ok {
+		project.Published = published.(bool)
+	}
+	if subdomain, ok := columnUpdates["Subdomain"]; ok {
+		sub := subdomain.(string)
+		project.Subdomain = &sub
+	}
+	if styles, ok := columnUpdates["Styles"]; ok {
+		if styleBytes, err := json.Marshal(styles); err == nil {
+			msg := json.RawMessage(styleBytes)
+			project.Styles = &msg
+		}
+	}
+	if header, ok := columnUpdates["Header"]; ok {
+		if headerBytes, err := json.Marshal(header); err == nil {
+			msg := json.RawMessage(headerBytes)
+			project.Header = &msg
+		}
+	}
+
+	updatedProject, err := h.projectService.UpdateProject(c.Context(), projectID, userID, project)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to update project")
 	}

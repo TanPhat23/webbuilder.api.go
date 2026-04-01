@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"fmt"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"strconv"
 	"time"
@@ -13,12 +13,12 @@ import (
 )
 
 type MarketplaceHandler struct {
-	marketplaceRepository repositories.MarketplaceRepositoryInterface
+	marketplaceService services.MarketplaceServiceInterface
 }
 
-func NewMarketplaceHandler(marketplaceRepo repositories.MarketplaceRepositoryInterface) *MarketplaceHandler {
+func NewMarketplaceHandler(marketplaceService services.MarketplaceServiceInterface) *MarketplaceHandler {
 	return &MarketplaceHandler{
-		marketplaceRepository: marketplaceRepo,
+		marketplaceService: marketplaceService,
 	}
 }
 
@@ -31,26 +31,6 @@ func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
 	var req models.CreateMarketplaceItemRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
 		return err
-	}
-
-	for _, tagId := range req.TagIds {
-		tag, err := h.marketplaceRepository.GetTagByID(tagId)
-		if err != nil {
-			return utils.HandleRepoError(c, err, "", "Failed to validate tag")
-		}
-		if tag == nil {
-			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Tag with ID %s does not exist", tagId))
-		}
-	}
-
-	for _, categoryId := range req.CategoryIds {
-		category, err := h.marketplaceRepository.GetCategoryByID(categoryId)
-		if err != nil {
-			return utils.HandleRepoError(c, err, "", "Failed to validate category")
-		}
-		if category == nil {
-			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Category with ID %s does not exist", categoryId))
-		}
 	}
 
 	authorName, ok := c.Locals("userName").(string)
@@ -82,7 +62,7 @@ func (h *MarketplaceHandler) CreateMarketplaceItem(c *fiber.Ctx) error {
 		UpdatedAt:    now,
 	}
 
-	createdItem, err := h.marketplaceRepository.CreateMarketplaceItem(item, req.TagIds, req.CategoryIds)
+	createdItem, err := h.marketplaceService.CreateMarketplaceItem(c.Context(), item, req.TagIds, req.CategoryIds)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create marketplace item")
 	}
@@ -111,7 +91,7 @@ func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
 	filter.Limit = limit
 	filter.Offset = offset
 
-	items, total, err := h.marketplaceRepository.GetMarketplaceItems(filter)
+	items, total, err := h.marketplaceService.GetMarketplaceItems(c.Context(), filter)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve marketplace items")
 	}
@@ -131,7 +111,7 @@ func (h *MarketplaceHandler) GetMarketplaceItemByID(c *fiber.Ctx) error {
 	}
 	itemID := ids[0]
 
-	item, err := h.marketplaceRepository.GetMarketplaceItemByID(itemID)
+	item, err := h.marketplaceService.GetMarketplaceItemByID(c.Context(), itemID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to retrieve marketplace item")
 	}
@@ -154,21 +134,37 @@ func (h *MarketplaceHandler) UpdateMarketplaceItem(c *fiber.Ctx) error {
 		return err
 	}
 
-	updates := make(map[string]any)
-	if req.Title != nil        { updates["Title"] = *req.Title }
-	if req.Description != nil  { updates["Description"] = *req.Description }
-	if req.Preview != nil      { updates["Preview"] = *req.Preview }
-	if req.TemplateType != nil { updates["TemplateType"] = *req.TemplateType }
-	if req.Featured != nil     { updates["Featured"] = *req.Featured }
-	if req.PageCount != nil    { updates["PageCount"] = *req.PageCount }
-	if req.TagIds != nil       { updates["TagIds"] = req.TagIds }
-	if req.CategoryIds != nil  { updates["CategoryIds"] = req.CategoryIds }
-
-	if err := utils.RequireUpdates(updates); err != nil {
-		return err
+	updateItem := &models.MarketplaceItem{
+		Id:          itemID,
+		Title:       "",
+		Description: "",
+		Preview:     nil,
+		TemplateType: "",
+		Featured:    false,
+		PageCount:   nil,
+		ProjectId:   nil,
 	}
 
-	updated, err := h.marketplaceRepository.UpdateMarketplaceItem(itemID, userID, updates)
+	if req.Title != nil {
+		updateItem.Title = *req.Title
+	}
+	if req.Description != nil {
+		updateItem.Description = *req.Description
+	}
+	if req.Preview != nil {
+		updateItem.Preview = req.Preview
+	}
+	if req.TemplateType != nil {
+		updateItem.TemplateType = *req.TemplateType
+	}
+	if req.Featured != nil {
+		updateItem.Featured = *req.Featured
+	}
+	if req.PageCount != nil {
+		updateItem.PageCount = req.PageCount
+	}
+
+	updated, err := h.marketplaceService.UpdateMarketplaceItem(c.Context(), itemID, updateItem, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to update marketplace item")
 	}
@@ -186,7 +182,7 @@ func (h *MarketplaceHandler) DeleteMarketplaceItem(c *fiber.Ctx) error {
 	}
 	itemID := ids[0]
 
-	if err := h.marketplaceRepository.DeleteMarketplaceItem(itemID, userID); err != nil {
+	if err := h.marketplaceService.DeleteMarketplaceItem(c.Context(), itemID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to delete marketplace item")
 	}
 
@@ -200,14 +196,12 @@ func (h *MarketplaceHandler) DownloadMarketplaceItem(c *fiber.Ctx) error {
 	}
 	itemID := ids[0]
 
-	project, err := h.marketplaceRepository.DownloadMarketplaceItem(itemID, userID)
-	if err != nil {
+	if err := h.marketplaceService.DownloadMarketplaceItem(c.Context(), itemID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to download marketplace item")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, fiber.Map{
 		"message": "Marketplace item downloaded successfully",
-		"project": project,
 	})
 }
 
@@ -218,7 +212,7 @@ func (h *MarketplaceHandler) IncrementLikes(c *fiber.Ctx) error {
 	}
 	itemID := ids[0]
 
-	if err := h.marketplaceRepository.IncrementLikes(itemID); err != nil {
+	if err := h.marketplaceService.IncrementLikes(c.Context(), itemID); err != nil {
 		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to increment likes")
 	}
 
@@ -235,7 +229,7 @@ func (h *MarketplaceHandler) CreateCategory(c *fiber.Ctx) error {
 		return err
 	}
 
-	created, err := h.marketplaceRepository.CreateCategory(models.Category{
+	created, err := h.marketplaceService.CreateCategory(c.Context(), &models.Category{
 		Id:   cuid.New(),
 		Name: req.Name,
 	})
@@ -247,7 +241,7 @@ func (h *MarketplaceHandler) CreateCategory(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) GetCategories(c *fiber.Ctx) error {
-	categories, err := h.marketplaceRepository.GetCategories()
+	categories, err := h.marketplaceService.GetCategories(c.Context())
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve categories")
 	}
@@ -262,7 +256,7 @@ func (h *MarketplaceHandler) DeleteCategory(c *fiber.Ctx) error {
 	}
 	categoryID := ids[0]
 
-	if err := h.marketplaceRepository.DeleteCategory(categoryID); err != nil {
+	if err := h.marketplaceService.DeleteCategory(c.Context(), categoryID); err != nil {
 		return utils.HandleRepoError(c, err, "Category not found", "Failed to delete category")
 	}
 
@@ -279,7 +273,7 @@ func (h *MarketplaceHandler) CreateTag(c *fiber.Ctx) error {
 		return err
 	}
 
-	created, err := h.marketplaceRepository.CreateTag(models.Tag{
+	created, err := h.marketplaceService.CreateTag(c.Context(), &models.Tag{
 		Id:   cuid.New(),
 		Name: req.Name,
 	})
@@ -291,7 +285,7 @@ func (h *MarketplaceHandler) CreateTag(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) GetTags(c *fiber.Ctx) error {
-	tags, err := h.marketplaceRepository.GetTags()
+	tags, err := h.marketplaceService.GetTags(c.Context())
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve tags")
 	}
@@ -306,7 +300,7 @@ func (h *MarketplaceHandler) DeleteTag(c *fiber.Ctx) error {
 	}
 	tagID := ids[0]
 
-	if err := h.marketplaceRepository.DeleteTag(tagID); err != nil {
+	if err := h.marketplaceService.DeleteTag(c.Context(), tagID); err != nil {
 		return utils.HandleRepoError(c, err, "Tag not found", "Failed to delete tag")
 	}
 

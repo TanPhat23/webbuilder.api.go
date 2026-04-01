@@ -4,24 +4,22 @@ import (
 	"context"
 	"errors"
 	"my-go-app/internal/dto"
-	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/lucsky/cuid"
 )
 
 type ImageHandler struct {
-	imageRepository   repositories.ImageRepositoryInterface
+	imageService      services.ImageServiceInterface
 	cloudinaryService *services.CloudinaryService
 }
 
-func NewImageHandler(imageRepo repositories.ImageRepositoryInterface, cloudinaryService *services.CloudinaryService) *ImageHandler {
+func NewImageHandler(imageService services.ImageServiceInterface, cloudinaryService *services.CloudinaryService) *ImageHandler {
 	return &ImageHandler{
-		imageRepository:   imageRepo,
+		imageService:      imageService,
 		cloudinaryService: cloudinaryService,
 	}
 }
@@ -55,33 +53,12 @@ func (h *ImageHandler) UploadImage(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	uploadResult, err := h.cloudinaryService.UploadImage(ctx, file, fileHeader.Filename, "webbuilder/"+userID)
+	uploadResponse, err := h.imageService.CreateUploadedImage(ctx, userID, fileHeader.Filename, imageNamePtr, file)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to upload image to Cloudinary", err)
-	}
-
-	now := time.Now()
-	image := models.Image{
-		ImageId:   cuid.New(),
-		ImageLink: uploadResult.SecureURL,
-		ImageName: imageNamePtr,
-		UserId:    userID,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	created, err := h.imageRepository.CreateImage(ctx, image)
-	if err != nil {
-		_ = h.cloudinaryService.DeleteImage(ctx, uploadResult.PublicID)
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save image metadata", err)
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, models.ImageUploadResponse{
-		ImageId:   created.ImageId,
-		ImageLink: created.ImageLink,
-		ImageName: created.ImageName,
-		CreatedAt: created.CreatedAt,
-	})
+	return utils.SendJSON(c, fiber.StatusCreated, uploadResponse)
 }
 
 func (h *ImageHandler) UploadBase64Image(c *fiber.Ctx) error {
@@ -98,33 +75,12 @@ func (h *ImageHandler) UploadBase64Image(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	uploadResult, err := h.cloudinaryService.UploadBase64Image(ctx, req.ImageData, "webbuilder/"+userID)
+	uploadResponse, err := h.imageService.CreateBase64UploadedImage(ctx, userID, req.ImageData, req.ImageName)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to upload image to Cloudinary", err)
-	}
-
-	now := time.Now()
-	image := models.Image{
-		ImageId:   cuid.New(),
-		ImageLink: uploadResult.SecureURL,
-		ImageName: req.ImageName,
-		UserId:    userID,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	created, err := h.imageRepository.CreateImage(ctx, image)
-	if err != nil {
-		_ = h.cloudinaryService.DeleteImage(ctx, uploadResult.PublicID)
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save image metadata", err)
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, models.ImageUploadResponse{
-		ImageId:   created.ImageId,
-		ImageLink: created.ImageLink,
-		ImageName: created.ImageName,
-		CreatedAt: created.CreatedAt,
-	})
+	return utils.SendJSON(c, fiber.StatusCreated, uploadResponse)
 }
 
 func (h *ImageHandler) GetUserImages(c *fiber.Ctx) error {
@@ -135,7 +91,7 @@ func (h *ImageHandler) GetUserImages(c *fiber.Ctx) error {
 
 	ctx := c.Context()
 
-	images, err := h.imageRepository.GetImagesByUserID(ctx, userID)
+	images, err := h.imageService.GetImagesByUserID(ctx, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve images")
 	}
@@ -152,7 +108,7 @@ func (h *ImageHandler) GetImageByID(c *fiber.Ctx) error {
 
 	ctx := c.Context()
 
-	image, err := h.imageRepository.GetImageByID(ctx, imageID, userID)
+	image, err := h.imageService.GetImageByID(ctx, imageID, userID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrImageNotFound) {
 			return fiber.NewError(fiber.StatusNotFound, "Image not found")
@@ -172,15 +128,7 @@ func (h *ImageHandler) DeleteImage(c *fiber.Ctx) error {
 
 	ctx := c.Context()
 
-	// Verify the image exists and belongs to the user before soft-deleting.
-	if _, err := h.imageRepository.GetImageByID(ctx, imageID, userID); err != nil {
-		if errors.Is(err, repositories.ErrImageNotFound) {
-			return fiber.NewError(fiber.StatusNotFound, "Image not found")
-		}
-		return utils.HandleRepoError(c, err, "Image not found", "Failed to retrieve image")
-	}
-
-	if err := h.imageRepository.SoftDeleteImage(ctx, imageID, userID); err != nil {
+	if err := h.imageService.DeleteImage(ctx, imageID, userID); err != nil {
 		if errors.Is(err, repositories.ErrImageNotFound) {
 			return fiber.NewError(fiber.StatusNotFound, "Image not found")
 		}

@@ -3,7 +3,7 @@ package handlers
 import (
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,17 +11,17 @@ import (
 )
 
 type CustomElementTypeHandler struct {
-	customElementTypeRepo repositories.CustomElementTypeRepositoryInterface
+	customElementTypeService services.CustomElementTypeServiceInterface
 }
 
-func NewCustomElementTypeHandler(customElementTypeRepo repositories.CustomElementTypeRepositoryInterface) *CustomElementTypeHandler {
+func NewCustomElementTypeHandler(customElementTypeService services.CustomElementTypeServiceInterface) *CustomElementTypeHandler {
 	return &CustomElementTypeHandler{
-		customElementTypeRepo: customElementTypeRepo,
+		customElementTypeService: customElementTypeService,
 	}
 }
 
 func (h *CustomElementTypeHandler) GetCustomElementTypes(c *fiber.Ctx) error {
-	customElementTypes, err := h.customElementTypeRepo.GetCustomElementTypes(c.Context())
+	customElementTypes, err := h.customElementTypeService.GetCustomElementTypes(c.Context())
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve custom element types")
 	}
@@ -36,11 +36,8 @@ func (h *CustomElementTypeHandler) GetCustomElementTypeByID(c *fiber.Ctx) error 
 	}
 	id := ids[0]
 
-	customElementType, err := h.customElementTypeRepo.GetCustomElementTypeByID(c.Context(), id)
+	customElementType, err := h.customElementTypeService.GetCustomElementTypeByID(c.Context(), id)
 	if err != nil {
-		if err == repositories.ErrCustomElementTypeNotFound {
-			return fiber.NewError(fiber.StatusNotFound, "Custom element type not found")
-		}
 		return utils.HandleRepoError(c, err, "Custom element type not found", "Failed to retrieve custom element type")
 	}
 
@@ -61,11 +58,8 @@ func (h *CustomElementTypeHandler) CreateCustomElementType(c *fiber.Ctx) error {
 		Icon:        req.Icon,
 	}
 
-	created, err := h.customElementTypeRepo.CreateCustomElementType(c.Context(), customElementType)
+	created, err := h.customElementTypeService.CreateCustomElementType(c.Context(), customElementType)
 	if err != nil {
-		if err == repositories.ErrCustomElementTypeAlreadyExists {
-			return fiber.NewError(fiber.StatusConflict, "Custom element type with this name already exists")
-		}
 		return utils.HandleRepoError(c, err, "", "Failed to create custom element type")
 	}
 
@@ -94,11 +88,8 @@ func (h *CustomElementTypeHandler) UpdateCustomElementType(c *fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.customElementTypeRepo.UpdateCustomElementType(c.Context(), id, updates)
+	updated, err := h.customElementTypeService.UpdateCustomElementType(c.Context(), id, updates)
 	if err != nil {
-		if err == repositories.ErrCustomElementTypeNotFound {
-			return fiber.NewError(fiber.StatusNotFound, "Custom element type not found")
-		}
 		return utils.HandleRepoError(c, err, "Custom element type not found", "Failed to update custom element type")
 	}
 
@@ -112,10 +103,7 @@ func (h *CustomElementTypeHandler) DeleteCustomElementType(c *fiber.Ctx) error {
 	}
 	id := ids[0]
 
-	if err := h.customElementTypeRepo.DeleteCustomElementType(c.Context(), id); err != nil {
-		if err == repositories.ErrCustomElementTypeNotFound {
-			return fiber.NewError(fiber.StatusNotFound, "Custom element type not found")
-		}
+	if err := h.customElementTypeService.DeleteCustomElementType(c.Context(), id); err != nil {
 		return utils.HandleRepoError(c, err, "Custom element type not found", "Failed to delete custom element type")
 	}
 

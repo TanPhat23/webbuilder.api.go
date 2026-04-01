@@ -3,7 +3,7 @@ package handlers
 import (
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"time"
 
@@ -18,12 +18,12 @@ var pageAllowedCols = map[string]string{
 }
 
 type PageHandler struct {
-	pageRepository repositories.PageRepositoryInterface
+	pageService services.PageServiceInterface
 }
 
-func NewPageHandler(pageRepo repositories.PageRepositoryInterface) *PageHandler {
+func NewPageHandler(pageService services.PageServiceInterface) *PageHandler {
 	return &PageHandler{
-		pageRepository: pageRepo,
+		pageService: pageService,
 	}
 }
 
@@ -32,9 +32,10 @@ func (h *PageHandler) DeletePage(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	projectID, pageID := ids[0], ids[1]
+	projectID := ids[0]
+	pageID := ids[1]
 
-	if err := h.pageRepository.DeletePageByProjectID(c.Context(), pageID, projectID, userID); err != nil {
+	if err := h.pageService.DeletePageByProjectID(c.Context(), pageID, projectID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Page not found or not owned by user", "Failed to delete page")
 	}
 
@@ -48,7 +49,7 @@ func (h *PageHandler) GetPagesByProjectID(c *fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	pages, err := h.pageRepository.GetPagesByProjectID(c.Context(), projectID)
+	pages, err := h.pageService.GetPagesByProjectID(c.Context(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve pages")
 	}
@@ -61,9 +62,9 @@ func (h *PageHandler) GetPageByID(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	projectID, pageID := ids[0], ids[1]
+	pageID := ids[1]
 
-	page, err := h.pageRepository.GetPageByID(c.Context(), pageID, projectID)
+	page, err := h.pageService.GetPageByID(c.Context(), pageID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to retrieve page")
 	}
@@ -94,11 +95,12 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 		UpdatedAt: now,
 	}
 
-	if err := h.pageRepository.CreatePage(c.Context(), page); err != nil {
+	createdPage, err := h.pageService.CreatePage(c.Context(), page)
+	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create page")
 	}
 
-	return utils.SendJSON(c, fiber.StatusCreated, page)
+	return utils.SendJSON(c, fiber.StatusCreated, createdPage)
 }
 
 func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
@@ -106,9 +108,9 @@ func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	projectID, pageID := ids[0], ids[1]
+	pageID := ids[1]
 
-	if _, err := h.pageRepository.GetPageByID(c.Context(), pageID, projectID); err != nil {
+	if _, err := h.pageService.GetPageByID(c.Context(), pageID); err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to verify page")
 	}
 
@@ -130,11 +132,11 @@ func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
 		return err
 	}
 
-	if err := h.pageRepository.UpdatePageFields(c.Context(), pageID, updates); err != nil {
+	if err := h.pageService.UpdatePageFields(c.Context(), pageID, updates); err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to update page")
 	}
 
-	updated, err := h.pageRepository.GetPageByID(c.Context(), pageID, projectID)
+	updated, err := h.pageService.GetPageByID(c.Context(), pageID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to fetch updated page")
 	}

@@ -2,39 +2,31 @@ package handlers
 
 import (
 	"my-go-app/internal/dto"
-	"my-go-app/internal/repositories"
+	"my-go-app/internal/models"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 type CollaboratorHandler struct {
-	collaboratorRepo repositories.CollaboratorRepositoryInterface
-	projectRepo      repositories.ProjectRepositoryInterface
+	collaboratorService services.CollaboratorServiceInterface
 }
 
-func NewCollaboratorHandler(
-	collaboratorRepo repositories.CollaboratorRepositoryInterface,
-	projectRepo repositories.ProjectRepositoryInterface,
-) *CollaboratorHandler {
+func NewCollaboratorHandler(collaboratorService services.CollaboratorServiceInterface) *CollaboratorHandler {
 	return &CollaboratorHandler{
-		collaboratorRepo: collaboratorRepo,
-		projectRepo:      projectRepo,
+		collaboratorService: collaboratorService,
 	}
 }
 
 func (h *CollaboratorHandler) GetCollaboratorsByProject(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	ids, err := utils.MustParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), projectID, userID); err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Access denied")
-	}
-
-	collaborators, err := h.collaboratorRepo.GetCollaboratorsByProject(c.Context(), projectID)
+	collaborators, err := h.collaboratorService.GetCollaboratorsByProject(c.Context(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve collaborators")
 	}
@@ -43,26 +35,22 @@ func (h *CollaboratorHandler) GetCollaboratorsByProject(c *fiber.Ctx) error {
 }
 
 func (h *CollaboratorHandler) GetCollaboratorByID(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
+	ids, err := utils.MustParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
 	collaboratorID := ids[0]
 
-	collaborator, err := h.collaboratorRepo.GetCollaboratorByID(c.Context(), collaboratorID)
+	collaborator, err := h.collaboratorService.GetCollaboratorByID(c.Context(), collaboratorID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to retrieve collaborator")
-	}
-
-	if _, err := h.projectRepo.GetProjectWithAccess(c.Context(), collaborator.ProjectId, userID); err != nil {
-		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, collaborator)
 }
 
 func (h *CollaboratorHandler) UpdateCollaboratorRole(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
+	ids, err := utils.MustParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
@@ -73,21 +61,7 @@ func (h *CollaboratorHandler) UpdateCollaboratorRole(c *fiber.Ctx) error {
 		return err
 	}
 
-	collaborator, err := h.collaboratorRepo.GetCollaboratorByID(c.Context(), collaboratorID)
-	if err != nil {
-		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to retrieve collaborator")
-	}
-
-	project, err := h.projectRepo.GetProjectByID(c.Context(), collaborator.ProjectId, userID)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusForbidden, "Only project owner can update roles", err, userID)
-	}
-
-	if project.OwnerId != userID {
-		return utils.SendError(c, fiber.StatusForbidden, "Only project owner can update roles", nil, userID)
-	}
-
-	if err := h.collaboratorRepo.UpdateCollaboratorRole(c.Context(), collaboratorID, req.Role); err != nil {
+	if err := h.collaboratorService.UpdateCollaboratorRole(c.Context(), collaboratorID, req.Role); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to update collaborator role")
 	}
 
@@ -95,29 +69,35 @@ func (h *CollaboratorHandler) UpdateCollaboratorRole(c *fiber.Ctx) error {
 }
 
 func (h *CollaboratorHandler) DeleteCollaborator(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
+	ids, err := utils.MustParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
 	collaboratorID := ids[0]
 
-	collaborator, err := h.collaboratorRepo.GetCollaboratorByID(c.Context(), collaboratorID)
-	if err != nil {
-		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to retrieve collaborator")
-	}
-
-	project, err := h.projectRepo.GetProjectByID(c.Context(), collaborator.ProjectId, userID)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
-	}
-
-	if project.OwnerId != userID && collaborator.UserId != userID {
-		return utils.SendError(c, fiber.StatusForbidden, "Only project owner or the collaborator can remove access", nil, userID)
-	}
-
-	if err := h.collaboratorRepo.DeleteCollaborator(c.Context(), collaboratorID); err != nil {
+	if err := h.collaboratorService.DeleteCollaborator(c.Context(), collaboratorID); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to delete collaborator")
 	}
 
 	return utils.SendNoContent(c)
+}
+
+func (h *CollaboratorHandler) CreateCollaborator(c *fiber.Ctx) error {
+	var req dto.CreateCollaboratorRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
+	}
+
+	collaborator := &models.Collaborator{
+		ProjectId: req.ProjectID,
+		UserId:    req.UserID,
+		Role:      req.Role,
+	}
+
+	created, err := h.collaboratorService.CreateCollaborator(c.Context(), collaborator)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to create collaborator")
+	}
+
+	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
