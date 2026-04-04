@@ -94,9 +94,15 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 	}
 
 	rawBody := map[string]any{}
-	if req.Published != nil { rawBody["published"] = *req.Published }
-	if req.Slug != nil      { rawBody["slug"] = *req.Slug }
-	if req.Title != nil     { rawBody["title"] = *req.Title }
+	if req.Published != nil {
+		rawBody["published"] = *req.Published
+	}
+	if req.Slug != nil {
+		rawBody["slug"] = *req.Slug
+	}
+	if req.Title != nil {
+		rawBody["title"] = *req.Title
+	}
 
 	columnUpdates, err := utils.BuildColumnUpdates(rawBody, contentItemAllowedCols)
 	if err != nil {

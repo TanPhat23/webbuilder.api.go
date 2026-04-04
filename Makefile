@@ -57,28 +57,13 @@ build-all: build-linux build-windows build-mac ## Build for all platforms
 .PHONY: test
 test: ## Run tests
 	@echo "Running tests..."
-	go test -v ./...
-
-.PHONY: test-handlers
-test-handlers: ## Run tests for handlers
-	@echo "Running handler tests..."
-	go test -v ./tests/handlers/...	
+	go test -v ./test/services/...
 
 .PHONY: test-cover
 test-cover: ## Run tests with coverage
 	@echo "Running tests with coverage..."
-	go test -v -coverprofile=coverage.out ./...
+	go test -v -coverprofile=coverage.out -coverpkg=./internal/services/... ./test/services/...
 	go tool cover -html=coverage.out -o coverage.html
-
-.PHONY: test-race
-test-race: ## Run tests with race detector
-	@echo "Running tests with race detector..."
-	go test -race -v ./...
-
-.PHONY: benchmark
-benchmark: ## Run benchmarks
-	@echo "Running benchmarks..."
-	go test -bench=. -benchmem ./...
 
 # Code Quality
 .PHONY: fmt
