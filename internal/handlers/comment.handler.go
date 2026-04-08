@@ -47,8 +47,10 @@ func (h *CommentHandler) CreateComment(c *fiber.Ctx) error {
 		ParentId:  parentCommentID,
 		Status:    "published",
 		Edited:    false,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		AuditFields: models.AuditFields{
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
 	}
 
 	created, err := h.commentService.CreateComment(c.Context(), comment)

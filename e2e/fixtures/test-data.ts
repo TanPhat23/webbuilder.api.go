@@ -1,6 +1,6 @@
 export const testData = {
-  validUserEmail: 'test@example.com',
-  validUsername: 'testuser',
+  validUserEmail: 'ptp112004`@example.com',
+  validUsername: '2318_Phan Tấn',
   invalidEmail: 'invalid-email',
   searchQuery: 'test',
   

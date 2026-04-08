@@ -60,8 +60,8 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 	return &user, nil
 }
 
-// GetUserByUsername queries by the Username column, returning the user whose
-// "Username" matches the provided value.
+// GetUserByUsername searches by FirstName or LastName, returning the user whose
+// first name or last name matches the provided value.
 func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	if username == "" {
 		return nil, errors.New("username is required")
@@ -69,7 +69,7 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 
 	var user models.User
 	err := r.db.WithContext(ctx).
-		Where(`"Username" = ?`, username).
+		Where(`"FirstName" ILIKE ? OR "LastName" ILIKE ?`, "%"+username+"%", "%"+username+"%").
 		First(&user).Error
 
 	if err != nil {

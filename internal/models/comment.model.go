@@ -6,23 +6,26 @@ import (
 
 // Comment represents a comment on a marketplace item
 type Comment struct {
-	Id        string     `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
-	Content   string     `gorm:"column:Content;type:text;not null" json:"content"`
-	AuthorId  string     `gorm:"column:AuthorId;type:varchar(255);not null" json:"authorId"`
-	ItemId    string     `gorm:"column:ItemId;type:varchar(255);not null" json:"itemId"`
-	ParentId  *string    `gorm:"column:ParentId;type:varchar(255)" json:"parentId,omitempty"`
-	Status    string     `gorm:"column:Status;type:varchar(50);not null;default:'published'" json:"status"`
-	Edited    bool       `gorm:"column:Edited;not null;default:false" json:"edited"`
-	CreatedAt time.Time  `gorm:"column:CreatedAt" json:"createdAt"`
-	UpdatedAt time.Time  `gorm:"column:UpdatedAt" json:"updatedAt"`
-	DeletedAt *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
-
-	// Relations
+	// Relations/Slices
+	Replies   []Comment         `gorm:"foreignKey:ParentId;references:Id" json:"replies,omitempty"`
+	Reactions []CommentReaction `gorm:"foreignKey:CommentId;references:Id" json:"reactions,omitempty"`
 	Author    *User             `gorm:"foreignKey:AuthorId;references:Id" json:"author,omitempty"`
 	Item      *MarketplaceItem  `gorm:"foreignKey:ItemId;references:Id" json:"item,omitempty"`
 	Parent    *Comment          `gorm:"foreignKey:ParentId;references:Id" json:"parent,omitempty"`
-	Replies   []Comment         `gorm:"foreignKey:ParentId;references:Id" json:"replies,omitempty"`
-	Reactions []CommentReaction `gorm:"foreignKey:CommentId;references:Id" json:"reactions,omitempty"`
+
+	// Embedded Audit Fields (16-byte types: time.Time)
+	AuditFields
+
+	// Strings
+	Id       string  `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	AuthorId string  `gorm:"column:AuthorId;type:varchar(255);not null" json:"authorId"`
+	ItemId   string  `gorm:"column:ItemId;type:varchar(255);not null" json:"itemId"`
+	Status   string  `gorm:"column:Status;type:varchar(50);not null;default:'published'" json:"status"`
+	Content  string  `gorm:"column:Content;type:text;not null" json:"content"`
+	ParentId *string `gorm:"column:ParentId;type:varchar(255)" json:"parentId,omitempty"`
+
+	// Bools
+	Edited bool `gorm:"column:Edited;not null;default:false" json:"edited"`
 }
 
 func (Comment) TableName() string {
@@ -31,15 +34,18 @@ func (Comment) TableName() string {
 
 // CommentReaction represents a user's reaction to a comment
 type CommentReaction struct {
-	Id        string    `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
-	CommentId string    `gorm:"column:CommentId;type:varchar(255);not null" json:"commentId"`
-	UserId    string    `gorm:"column:UserId;type:varchar(255);not null" json:"userId"`
-	Type      string    `gorm:"column:Type;type:varchar(50);not null" json:"type"`
-	CreatedAt time.Time `gorm:"column:CreatedAt" json:"createdAt"`
-
-	// Relations
+	// Relations/Pointers
 	Comment *Comment `gorm:"foreignKey:CommentId;references:Id" json:"comment,omitempty"`
 	User    *User    `gorm:"foreignKey:UserId;references:Id" json:"user,omitempty"`
+
+	// 16-byte type (time.Time)
+	CreatedAt time.Time `gorm:"column:CreatedAt" json:"createdAt"`
+
+	// Strings
+	Id        string `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	CommentId string `gorm:"column:CommentId;type:varchar(255);not null" json:"commentId"`
+	UserId    string `gorm:"column:UserId;type:varchar(255);not null" json:"userId"`
+	Type      string `gorm:"column:Type;type:varchar(50);not null" json:"type"`
 }
 
 func (CommentReaction) TableName() string {

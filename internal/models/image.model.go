@@ -5,13 +5,11 @@ import (
 )
 
 type Image struct {
-	ImageId   string     `gorm:"primaryKey;column:ImageId;type:varchar(255)" json:"imageId"`
-	ImageLink string     `gorm:"column:ImageLink;type:text;not null;default:''" json:"imageLink"`
-	ImageName *string    `gorm:"column:ImageName;type:varchar(255)" json:"imageName,omitempty"`
-	UserId    string     `gorm:"column:UserId;type:varchar(255);not null" json:"userId"`
-	CreatedAt time.Time  `gorm:"column:CreatedAt" json:"createdAt,omitempty"`
-	DeletedAt *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
-	UpdatedAt time.Time  `gorm:"column:UpdatedAt" json:"updatedAt,omitempty"`
+	AuditFields
+	ImageId   string  `gorm:"primaryKey;column:ImageId;type:varchar(255)" json:"image_id"`
+	ImageLink string  `gorm:"column:ImageLink;type:text;not null;default:''" json:"image_link"`
+	UserId    string  `gorm:"column:UserId;type:varchar(255);not null" json:"user_id"`
+	ImageName *string `gorm:"column:ImageName;type:varchar(255)" json:"image_name,omitempty"`
 }
 
 func (Image) TableName() string {
@@ -19,12 +17,12 @@ func (Image) TableName() string {
 }
 
 type CreateImageRequest struct {
-	ImageName *string `json:"imageName"`
+	ImageName *string `json:"image_name"`
 }
 
 type ImageUploadResponse struct {
-	ImageId   string    `json:"imageId"`
-	ImageLink string    `json:"imageLink"`
-	ImageName *string   `json:"imageName"`
-	CreatedAt time.Time `json:"createdAt"`
+	ImageId   string    `json:"image_id"`
+	ImageLink string    `json:"image_link"`
+	ImageName *string   `json:"image_name"`
+	CreatedAt time.Time `json:"created_at"`
 }

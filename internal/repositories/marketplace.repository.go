@@ -326,8 +326,10 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemID string, userID st
 		Published:   false,
 		Subdomain:   nil,
 		OwnerId:     userID,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		AuditFields: &models.AuditFields{
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
 	}
 
 	// Create the new project
@@ -353,8 +355,10 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemID string, userID st
 			Type:      originalPage.Type,
 			Styles:    originalPage.Styles,
 			ProjectId: newProject.ID,
-			CreatedAt: now,
-			UpdatedAt: now,
+			AuditFields: models.AuditFields{
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
 		}
 
 		if err := r.db.Table(`"Page"`).Create(&newPage).Error; err != nil {

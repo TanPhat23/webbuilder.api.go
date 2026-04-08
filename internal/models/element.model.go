@@ -2,27 +2,64 @@ package models
 
 import "encoding/json"
 
+// Type classification maps for optimized type checking
+var (
+	containerTypes = map[string]bool{
+		"Section":          true,
+		"Frame":            true,
+		"Carousel":         true,
+		"List":             true,
+		"Select":           true,
+		"Form":             true,
+		"DataLoader":       true,
+		"CMSContentList":   true,
+		"CMSContentItem":   true,
+		"CMSContentGrid":   true,
+	}
+
+	cmsTypes = map[string]bool{
+		"CMSContentList": true,
+		"CMSContentItem": true,
+		"CMSContentGrid": true,
+	}
+
+	mediaTypes = map[string]bool{
+		"Image":  true,
+		"Video":  true,
+		"Iframe": true,
+	}
+
+	contentTypes = map[string]bool{
+		"Button": true,
+		"Text":   true,
+		"Input":  true,
+		"Select": true,
+	}
+
+	hrefTypes = map[string]bool{
+		"Button": true,
+		"Text":   true,
+	}
+)
+
 type Element struct {
-	Id             string          `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
-	Type           string          `gorm:"column:Type;type:varchar(32);not null" json:"type"`
-	Content        *string         `gorm:"column:Content;type:text" json:"content,omitempty"`
-	Name           *string         `gorm:"column:Name;type:varchar(255)" json:"name,omitempty"`
-	Styles         json.RawMessage `gorm:"column:Styles;type:jsonb" json:"styles,omitempty"`
-	TailwindStyles *string         `gorm:"column:TailwindStyles;type:varchar(255)" json:"tailwindStyles,omitempty"`
-	Src            *string         `gorm:"column:Src;type:varchar(255)" json:"src,omitempty"`
-	Href           *string         `gorm:"column:Href;type:varchar(255)" json:"href,omitempty"`
-	ParentId       *string         `gorm:"column:ParentId;type:varchar(255);index" json:"parentId,omitempty"`
-	PageId         *string         `gorm:"column:PageId;type:varchar(255);index" json:"pageId,omitempty"`
-	Order          int             `gorm:"column:Order;default:0" json:"order"`
-
-	Settings *json.RawMessage `gorm:"column:Settings;type:jsonb" json:"settings,omitempty"`
-
-	// Relations
-	Page           *Page                  `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"-"`
-	Parent         *Element               `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
 	Elements       []Element              `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
 	EventWorkflows []ElementEventWorkflow `gorm:"foreignKey:ElementId;references:Id;constraint:OnDelete:Cascade" json:"-"`
 	Comments       []ElementComment       `gorm:"foreignKey:ElementId;references:Id" json:"-"`
+	Page           *Page                  `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"-"`
+	Parent         *Element               `gorm:"foreignKey:ParentId;references:Id;constraint:OnDelete:Cascade" json:"-"`
+	Id             string                 `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	Type           string                 `gorm:"column:Type;type:varchar(32);not null" json:"type"`
+	PageId         *string                `gorm:"column:PageId;type:varchar(255);index" json:"pageId,omitempty"`
+	ParentId       *string                `gorm:"column:ParentId;type:varchar(255);index" json:"parentId,omitempty"`
+	Name           *string                `gorm:"column:Name;type:varchar(255)" json:"name,omitempty"`
+	Content        *string                `gorm:"column:Content;type:text" json:"content,omitempty"`
+	Href           *string                `gorm:"column:Href;type:varchar(255)" json:"href,omitempty"`
+	Src            *string                `gorm:"column:Src;type:varchar(255)" json:"src,omitempty"`
+	TailwindStyles *string                `gorm:"column:TailwindStyles;type:varchar(255)" json:"tailwindStyles,omitempty"`
+	Styles         json.RawMessage        `gorm:"column:Styles;type:jsonb" json:"styles,omitempty"`
+	Settings       *json.RawMessage       `gorm:"column:Settings;type:jsonb" json:"settings,omitempty"`
+	Order          int                    `gorm:"column:Order;default:0" json:"order"`
 }
 
 type EditorElement interface {
@@ -39,13 +76,7 @@ func (e *Element) GetType() string {
 }
 
 func (e *Element) IsContainer() bool {
-	switch e.Type {
-	case "Section", "Frame", "Carousel", "List", "Select", "Form", "DataLoader",
-		"CMSContentList", "CMSContentItem", "CMSContentGrid":
-		return true
-	default:
-		return false
-	}
+	return containerTypes[e.Type]
 }
 
 func (e *Element) HasElements() bool {
@@ -93,12 +124,7 @@ func (e *Element) IsDataLoader() bool {
 }
 
 func (e *Element) IsCMSContent() bool {
-	switch e.Type {
-	case "CMSContentList", "CMSContentItem", "CMSContentGrid":
-		return true
-	default:
-		return false
-	}
+	return cmsTypes[e.Type]
 }
 
 func (e *Element) IsCMSContentList() bool {
@@ -118,25 +144,15 @@ func (e *Element) IsCustomElement() bool {
 }
 
 func (e *Element) CanHaveHref() bool {
-	return e.Type == "Button" || e.Type == "Text"
+	return hrefTypes[e.Type]
 }
 
 func (e *Element) CanHaveSrc() bool {
-	switch e.Type {
-	case "Image", "Video", "Iframe":
-		return true
-	default:
-		return false
-	}
+	return mediaTypes[e.Type]
 }
 
 func (e *Element) CanHaveContent() bool {
-	switch e.Type {
-	case "Button", "Text", "Input", "Select":
-		return true
-	default:
-		return false
-	}
+	return contentTypes[e.Type]
 }
 
 func (Element) TableName() string {

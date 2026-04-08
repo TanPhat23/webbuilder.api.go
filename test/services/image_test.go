@@ -140,13 +140,17 @@ func TestGetImagesByUserID_Success(t *testing.T) {
 			ImageId:   "img1",
 			ImageLink: "https://example.com/img1.jpg",
 			UserId:    "user123",
-			CreatedAt: time.Now(),
+			AuditFields: models.AuditFields{
+				CreatedAt: time.Now(),
+			},
 		},
 		{
 			ImageId:   "img2",
 			ImageLink: "https://example.com/img2.jpg",
 			UserId:    "user123",
-			CreatedAt: time.Now(),
+			AuditFields: models.AuditFields{
+				CreatedAt: time.Now(),
+			},
 		},
 	}
 
@@ -204,7 +208,9 @@ func TestGetImageByID_Success(t *testing.T) {
 		ImageId:   "img123",
 		ImageLink: "https://example.com/img.jpg",
 		UserId:    "user123",
-		CreatedAt: time.Now(),
+		AuditFields: models.AuditFields{
+			CreatedAt: time.Now(),
+		},
 	}
 
 	mock := test.NewMockImageRepo()

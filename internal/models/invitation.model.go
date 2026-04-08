@@ -22,25 +22,24 @@ const (
 )
 
 type Invitation struct {
-	Id         string           `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
-	Email      string           `gorm:"column:Email;type:varchar(255);not null" json:"email"`
-	ProjectId  string           `gorm:"column:ProjectId;type:varchar(255);not null;index" json:"projectId"`
-	Role       CollaboratorRole `gorm:"column:Role;type:varchar(50);not null;default:'editor'" json:"role"`
-	Token      string           `gorm:"column:Token;type:varchar(255);not null;uniqueIndex" json:"token"`
-	Status     InvitationStatus `gorm:"column:Status;type:varchar(50);not null;default:'pending'" json:"status"`
-	ExpiresAt  time.Time        `gorm:"column:ExpiresAt;not null" json:"expiresAt"`
-	CreatedAt  time.Time        `gorm:"column:CreatedAt;default:CURRENT_TIMESTAMP" json:"createdAt,omitempty"`
-	AcceptedAt *time.Time       `gorm:"column:AcceptedAt" json:"acceptedAt,omitempty"`
 	Project    Project          `gorm:"foreignKey:ProjectId" json:"project,omitempty"`
+	ExpiresAt  time.Time        `gorm:"column:ExpiresAt;not null" json:"expires_at"`
+	CreatedAt  time.Time        `gorm:"column:CreatedAt;default:CURRENT_TIMESTAMP" json:"created_at,omitempty"`
+	Id         string           `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	ProjectId  string           `gorm:"column:ProjectId;type:varchar(255);not null;index" json:"project_id"`
+	Email      string           `gorm:"column:Email;type:varchar(255);not null" json:"email"`
+	Token      string           `gorm:"column:Token;type:varchar(255);not null;uniqueIndex" json:"token"`
+	Role       CollaboratorRole `gorm:"column:Role;type:varchar(50);not null;default:'editor'" json:"role"`
+	Status     InvitationStatus `gorm:"column:Status;type:varchar(50);not null;default:'pending'" json:"status"`
+	AcceptedAt *time.Time       `gorm:"column:AcceptedAt" json:"accepted_at,omitempty"`
 }
 
 func (Invitation) TableName() string {
 	return `public."Invitation"`
 }
 
-// Request/Response DTOs
 type CreateInvitationRequest struct {
-	ProjectID string           `json:"projectId" validate:"required"`
+	ProjectID string           `json:"project_id" validate:"required"`
 	Email     string           `json:"email" validate:"required,email"`
 	Role      CollaboratorRole `json:"role"`
 }
@@ -48,13 +47,13 @@ type CreateInvitationRequest struct {
 type InvitationResponse struct {
 	Id         string           `json:"id"`
 	Email      string           `json:"email"`
-	ProjectId  string           `json:"projectId"`
+	ProjectId  string           `json:"project_id"`
 	Role       CollaboratorRole `json:"role"`
 	Token      string           `json:"token"`
 	Status     InvitationStatus `json:"status"`
-	ExpiresAt  time.Time        `json:"expiresAt"`
-	CreatedAt  time.Time        `json:"createdAt"`
-	AcceptedAt *time.Time       `json:"acceptedAt,omitempty"`
+	ExpiresAt  time.Time        `json:"expires_at"`
+	CreatedAt  time.Time        `json:"created_at"`
+	AcceptedAt *time.Time       `json:"accepted_at,omitempty"`
 }
 
 type AcceptInvitationRequest struct {

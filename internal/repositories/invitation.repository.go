@@ -111,8 +111,10 @@ func (r *InvitationRepository) AcceptInvitation(ctx context.Context, token strin
 		UserId:    userID,
 		ProjectId: invitation.ProjectId,
 		Role:      invitation.Role,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		BaseAuditFields: models.BaseAuditFields{
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
 	}
 
 	if err := r.db.WithContext(ctx).Create(&collaborator).Error; err != nil {

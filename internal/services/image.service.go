@@ -63,8 +63,10 @@ func (s *ImageService) CreateUploadedImage(ctx context.Context, userID string, f
 		ImageLink: uploadResult.SecureURL,
 		ImageName: imageName,
 		UserId:    userID,
-		CreatedAt: now,
-		UpdatedAt: now,
+		AuditFields: models.AuditFields{
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
 	}
 
 	created, err := s.CreateImage(ctx, image)
@@ -100,8 +102,10 @@ func (s *ImageService) CreateBase64UploadedImage(ctx context.Context, userID str
 		ImageLink: uploadResult.SecureURL,
 		ImageName: imageName,
 		UserId:    userID,
-		CreatedAt: now,
-		UpdatedAt: now,
+		AuditFields: models.AuditFields{
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
 	}
 
 	created, err := s.CreateImage(ctx, image)

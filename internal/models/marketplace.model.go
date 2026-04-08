@@ -5,24 +5,24 @@ import (
 )
 
 type MarketplaceItem struct {
-	Id           string     `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
-	Title        string     `gorm:"column:Title;type:varchar(255);not null" json:"title"`
-	Description  string     `gorm:"column:Description;type:text;not null" json:"description"`
-	Preview      *string    `gorm:"column:Preview;type:text" json:"preview,omitempty"`
-	TemplateType string     `gorm:"column:TemplateType;type:varchar(50);not null;default:'block'" json:"templateType"`
-	Featured     bool       `gorm:"column:Featured;not null;default:false" json:"featured"`
-	PageCount    *int       `gorm:"column:PageCount;type:int" json:"pageCount,omitempty"`
-	Downloads    int        `gorm:"column:Downloads;not null;default:0" json:"downloads"`
-	Likes        int        `gorm:"column:Likes;not null;default:0" json:"likes"`
-	AuthorId     string     `gorm:"column:AuthorId;type:varchar(255);not null" json:"authorId"`
-	AuthorName   string     `gorm:"column:AuthorName;type:varchar(255);not null" json:"authorName"`
-	Verified     bool       `gorm:"column:Verified;not null;default:false" json:"verified"`
-	ProjectId    *string    `gorm:"column:ProjectId;type:varchar(255)" json:"projectId,omitempty"`
-	CreatedAt    time.Time  `gorm:"column:CreatedAt" json:"createdAt,omitempty"`
-	UpdatedAt    time.Time  `gorm:"column:UpdatedAt" json:"updatedAt,omitempty"`
-	DeletedAt    *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
-	Tags         []Tag      `gorm:"many2many:MarketplaceItemTag;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:TagId" json:"tags,omitempty"`
-	Categories   []Category `gorm:"many2many:MarketplaceItemCategory;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:CategoryId" json:"categories,omitempty"`
+	Tags        []Tag      `gorm:"many2many:MarketplaceItemTag;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:TagId" json:"tags,omitempty"`
+	Categories  []Category `gorm:"many2many:MarketplaceItemCategory;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:CategoryId" json:"categories,omitempty"`
+	CreatedAt   time.Time  `gorm:"column:CreatedAt" json:"createdAt,omitempty"`
+	UpdatedAt   time.Time  `gorm:"column:UpdatedAt" json:"updatedAt,omitempty"`
+	DeletedAt   *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
+	Id          string     `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	ProjectId   *string    `gorm:"column:ProjectId;type:varchar(255)" json:"projectId,omitempty"`
+	Title       string     `gorm:"column:Title;type:varchar(255);not null" json:"title"`
+	Description string     `gorm:"column:Description;type:text;not null" json:"description"`
+	TemplateType string    `gorm:"column:TemplateType;type:varchar(50);not null;default:'block'" json:"templateType"`
+	AuthorId    string     `gorm:"column:AuthorId;type:varchar(255);not null" json:"authorId"`
+	AuthorName  string     `gorm:"column:AuthorName;type:varchar(255);not null" json:"authorName"`
+	Preview     *string    `gorm:"column:Preview;type:text" json:"preview,omitempty"`
+	PageCount   *int       `gorm:"column:PageCount;type:int" json:"pageCount,omitempty"`
+	Downloads   int        `gorm:"column:Downloads;not null;default:0" json:"downloads"`
+	Likes       int        `gorm:"column:Likes;not null;default:0" json:"likes"`
+	Featured    bool       `gorm:"column:Featured;not null;default:false" json:"featured"`
+	Verified    bool       `gorm:"column:Verified;not null;default:false" json:"verified"`
 }
 
 func (MarketplaceItem) TableName() string {
@@ -65,7 +65,6 @@ func (MarketplaceItemCategory) TableName() string {
 	return `public."MarketplaceItemCategory"`
 }
 
-// Request/Response DTOs
 type CreateMarketplaceItemRequest struct {
 	Title        string   `json:"title" validate:"required"`
 	Description  string   `json:"description" validate:"required"`

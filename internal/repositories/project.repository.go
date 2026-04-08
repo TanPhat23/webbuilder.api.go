@@ -175,7 +175,7 @@ func (r *ProjectRepository) GetProjectPages(ctx context.Context, projectID, user
 
 	var pages []models.Page
 	err = r.db.WithContext(ctx).
-		Where(&models.Page{ProjectId: projectID, DeletedAt: nil}).
+		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Order(`"CreatedAt" ASC`).
 		Find(&pages).Error
 

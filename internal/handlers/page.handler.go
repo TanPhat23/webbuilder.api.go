@@ -91,8 +91,10 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 		Type:      req.Type,
 		Styles:    req.Styles,
 		ProjectId: projectID,
-		CreatedAt: now,
-		UpdatedAt: now,
+		AuditFields: models.AuditFields{
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
 	}
 
 	createdPage, err := h.pageService.CreatePage(c.Context(), page)

@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -50,7 +51,7 @@ func HandleRepoError(c *fiber.Ctx, err error, notFoundMsg, internalMsg string) e
 	if err == nil {
 		return nil
 	}
-	if notFoundMsg != "" && errors.Is(err, gorm.ErrRecordNotFound) {
+	if notFoundMsg != "" && (errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "not found")) {
 		return SendError(c, fiber.StatusNotFound, notFoundMsg, err)
 	}
 	return SendError(c, fiber.StatusInternalServerError, internalMsg, err)

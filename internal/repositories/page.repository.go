@@ -33,7 +33,7 @@ func (r *PageRepository) GetPagesByProjectID(ctx context.Context, projectID stri
 	var pages []models.Page
 
 	err := r.db.WithContext(ctx).
-		Where(&models.Page{ProjectId: projectID, DeletedAt: nil}).
+		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Order("\"CreatedAt\" ASC").
 		Find(&pages).Error
 
@@ -114,7 +114,7 @@ func (r *PageRepository) UpdatePage(ctx context.Context, page *models.Page) erro
 	page.UpdatedAt = time.Now()
 
 	result := r.db.WithContext(ctx).
-		Where(&models.Page{Id: page.Id, DeletedAt: nil}).
+		Where(&models.Page{Id: page.Id, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Updates(page)
 
 	if result.Error != nil {
@@ -141,7 +141,7 @@ func (r *PageRepository) UpdatePageFields(ctx context.Context, pageID string, up
 	updates["UpdatedAt"] = time.Now()
 
 	result := r.db.WithContext(ctx).
-		Where(&models.Page{Id: pageID, DeletedAt: nil}).
+		Where(&models.Page{Id: pageID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Updates(updates)
 
 	if result.Error != nil {
@@ -163,7 +163,7 @@ func (r *PageRepository) DeletePage(ctx context.Context, pageID string) error {
 	now := time.Now()
 	result := r.db.WithContext(ctx).
 		Model(&models.Page{}).
-		Where(&models.Page{Id: pageID, DeletedAt: nil}).
+		Where(&models.Page{Id: pageID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Update("\"DeletedAt\"", now)
 
 	if result.Error != nil {
@@ -186,7 +186,7 @@ func (r *PageRepository) DeletePageByProjectID(ctx context.Context, pageID, proj
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Where(&models.Project{ID: projectID, OwnerId: userID, DeletedAt: nil}).
+		Where(&models.Project{ID: projectID, OwnerId: userID, AuditFields: &models.AuditFields{DeletedAt: nil}}).
 		Count(&count).Error
 
 	if err != nil {
@@ -200,7 +200,7 @@ func (r *PageRepository) DeletePageByProjectID(ctx context.Context, pageID, proj
 	// Now delete the page
 	now := time.Now()
 	result := r.db.WithContext(ctx).
-		Where(&models.Page{Id: pageID, ProjectId: projectID, DeletedAt: nil}).
+		Where(&models.Page{Id: pageID, ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Update("DeletedAt", now)
 
 	if result.Error != nil {
@@ -264,7 +264,7 @@ func (r *PageRepository) ExistsInProject(ctx context.Context, pageID, projectID 
 
 	var count int64
 	err := r.db.WithContext(ctx).
-		Where(&models.Page{Id: pageID, ProjectId: projectID, DeletedAt: nil}).
+		Where(&models.Page{Id: pageID, ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Count(&count).Error
 
 	if err != nil {
@@ -281,7 +281,7 @@ func (r *PageRepository) CountPagesByProjectID(ctx context.Context, projectID st
 
 	var count int64
 	err := r.db.WithContext(ctx).
-		Where(&models.Page{ProjectId: projectID, DeletedAt: nil}).
+		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Count(&count).Error
 
 	if err != nil {

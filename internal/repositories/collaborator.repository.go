@@ -69,8 +69,10 @@ func (r *CollaboratorRepository) GetCollaboratorsByProject(ctx context.Context, 
 			UserId:    project.OwnerId,
 			ProjectId: projectID,
 			Role:      models.RoleOwner,
-			CreatedAt: project.CreatedAt,
-			UpdatedAt: project.UpdatedAt,
+			BaseAuditFields: models.BaseAuditFields{
+				CreatedAt: project.CreatedAt,
+				UpdatedAt: project.UpdatedAt,
+			},
 			User:      owner,
 		}
 		collaborators = append(collaborators, ownerCollaborator)
