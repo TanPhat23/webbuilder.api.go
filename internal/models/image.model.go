@@ -17,7 +17,7 @@ func (Image) TableName() string {
 }
 
 type CreateImageRequest struct {
-	ImageName *string `json:"image_name"`
+	ImageName *string `json:"image_name" validate:"omitempty,min=1,max=255"`
 }
 
 type ImageUploadResponse struct {

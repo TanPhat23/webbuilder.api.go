@@ -52,16 +52,16 @@ func (CommentReaction) TableName() string {
 	return `public."CommentReaction"`
 }
 
-// Request/Response DTOs
+// Request/Response DTOs - Ordered by size for optimal alignment
 type CreateCommentRequest struct {
-	Content  string  `json:"content" validate:"required"`
-	ItemId   string  `json:"itemId" validate:"required"`
-	ParentId *string `json:"parentId,omitempty"`
+	Content  string  `json:"content" validate:"required,min=1,max=5000"`
+	ItemId   string  `json:"itemId" validate:"required,min=1"`
+	ParentId *string `json:"parentId" validate:"omitempty,min=1"`
 }
 
 type UpdateCommentRequest struct {
-	Content *string `json:"content"`
-	Status  *string `json:"status"`
+	Content *string `json:"content" validate:"omitempty,min=1,max=5000"`
+	Status  *string `json:"status" validate:"omitempty,oneof=published archived spam flagged"`
 }
 
 type CommentResponse struct {
@@ -93,7 +93,7 @@ type ReactionSummary struct {
 }
 
 type CreateReactionRequest struct {
-	Type string `json:"type" validate:"required"`
+	Type string `json:"type" validate:"required,min=1,max=50,oneof=like love haha wow sad angry"`
 }
 
 type CommentFilter struct {

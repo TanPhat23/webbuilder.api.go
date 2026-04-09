@@ -6,7 +6,7 @@ import (
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 var contentFieldAllowedCols = map[string]string{
@@ -25,14 +25,14 @@ func NewContentFieldHandler(contentFieldService services.ContentFieldServiceInte
 	}
 }
 
-func (h *ContentFieldHandler) GetContentFieldsByContentType(c *fiber.Ctx) error {
+func (h *ContentFieldHandler) GetContentFieldsByContentType(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
 	contentTypeID := ids[0]
 
-	contentFields, err := h.contentFieldService.GetContentFieldsByContentType(c.Context(), contentTypeID)
+	contentFields, err := h.contentFieldService.GetContentFieldsByContentType(c.RequestCtx(), contentTypeID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve content fields")
 	}
@@ -40,14 +40,14 @@ func (h *ContentFieldHandler) GetContentFieldsByContentType(c *fiber.Ctx) error 
 	return utils.SendJSON(c, fiber.StatusOK, contentFields)
 }
 
-func (h *ContentFieldHandler) GetContentFieldByID(c *fiber.Ctx) error {
+func (h *ContentFieldHandler) GetContentFieldByID(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "fieldId")
 	if err != nil {
 		return err
 	}
 	fieldID := ids[0]
 
-	contentField, err := h.contentFieldService.GetContentFieldByID(c.Context(), fieldID)
+	contentField, err := h.contentFieldService.GetContentFieldByID(c.RequestCtx(), fieldID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to retrieve content field")
 	}
@@ -55,15 +55,15 @@ func (h *ContentFieldHandler) GetContentFieldByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, contentField)
 }
 
-func (h *ContentFieldHandler) CreateContentField(c *fiber.Ctx) error {
+func (h *ContentFieldHandler) CreateContentField(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
 	contentTypeID := ids[0]
 
-	var req dto.CreateContentFieldRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.CreateContentFieldRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -74,7 +74,7 @@ func (h *ContentFieldHandler) CreateContentField(c *fiber.Ctx) error {
 		ContentTypeId: contentTypeID,
 	}
 
-	created, err := h.contentFieldService.CreateContentField(c.Context(), contentField)
+	created, err := h.contentFieldService.CreateContentField(c.RequestCtx(), contentField)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create content field")
 	}
@@ -82,22 +82,28 @@ func (h *ContentFieldHandler) CreateContentField(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *ContentFieldHandler) UpdateContentField(c *fiber.Ctx) error {
+func (h *ContentFieldHandler) UpdateContentField(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "fieldId")
 	if err != nil {
 		return err
 	}
 	fieldID := ids[0]
 
-	var req dto.UpdateContentFieldRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.UpdateContentFieldRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
 	rawBody := map[string]any{}
-	if req.Name != nil     { rawBody["name"] = *req.Name }
-	if req.Type != nil     { rawBody["type"] = *req.Type }
-	if req.Required != nil { rawBody["required"] = *req.Required }
+	if req.Name != nil {
+		rawBody["name"] = *req.Name
+	}
+	if req.Type != nil {
+		rawBody["type"] = *req.Type
+	}
+	if req.Required != nil {
+		rawBody["required"] = *req.Required
+	}
 
 	updates, err := utils.BuildColumnUpdates(rawBody, contentFieldAllowedCols)
 	if err != nil {
@@ -107,7 +113,7 @@ func (h *ContentFieldHandler) UpdateContentField(c *fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.contentFieldService.UpdateContentField(c.Context(), fieldID, updates)
+	updated, err := h.contentFieldService.UpdateContentField(c.RequestCtx(), fieldID, updates)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to update content field")
 	}
@@ -115,16 +121,18 @@ func (h *ContentFieldHandler) UpdateContentField(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-func (h *ContentFieldHandler) DeleteContentField(c *fiber.Ctx) error {
+func (h *ContentFieldHandler) DeleteContentField(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "fieldId")
 	if err != nil {
 		return err
 	}
 	fieldID := ids[0]
 
-	if err := h.contentFieldService.DeleteContentField(c.Context(), fieldID); err != nil {
+	if err := h.contentFieldService.DeleteContentField(c.RequestCtx(), fieldID); err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to delete content field")
 	}
 
 	return utils.SendNoContent(c)
 }
+
+// fiber:context-methods migrated

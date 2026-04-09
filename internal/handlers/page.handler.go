@@ -7,7 +7,7 @@ import (
 	"my-go-app/pkg/utils"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
@@ -27,7 +27,7 @@ func NewPageHandler(pageService services.PageServiceInterface) *PageHandler {
 	}
 }
 
-func (h *PageHandler) DeletePage(c *fiber.Ctx) error {
+func (h *PageHandler) DeletePage(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "projectid", "pageid")
 	if err != nil {
 		return err
@@ -35,21 +35,21 @@ func (h *PageHandler) DeletePage(c *fiber.Ctx) error {
 	projectID := ids[0]
 	pageID := ids[1]
 
-	if err := h.pageService.DeletePageByProjectID(c.Context(), pageID, projectID, userID); err != nil {
+	if err := h.pageService.DeletePageByProjectID(c.RequestCtx(), pageID, projectID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Page not found or not owned by user", "Failed to delete page")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-func (h *PageHandler) GetPagesByProjectID(c *fiber.Ctx) error {
+func (h *PageHandler) GetPagesByProjectID(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	pages, err := h.pageService.GetPagesByProjectID(c.Context(), projectID)
+	pages, err := h.pageService.GetPagesByProjectID(c.RequestCtx(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve pages")
 	}
@@ -57,14 +57,14 @@ func (h *PageHandler) GetPagesByProjectID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, pages)
 }
 
-func (h *PageHandler) GetPageByID(c *fiber.Ctx) error {
+func (h *PageHandler) GetPageByID(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "projectid", "pageid")
 	if err != nil {
 		return err
 	}
 	pageID := ids[1]
 
-	page, err := h.pageService.GetPageByID(c.Context(), pageID)
+	page, err := h.pageService.GetPageByID(c.RequestCtx(), pageID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to retrieve page")
 	}
@@ -72,15 +72,15 @@ func (h *PageHandler) GetPageByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, page)
 }
 
-func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
+func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	var req dto.CreatePageRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.CreatePageRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -97,7 +97,7 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 		},
 	}
 
-	createdPage, err := h.pageService.CreatePage(c.Context(), page)
+	createdPage, err := h.pageService.CreatePage(c.RequestCtx(), page)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create page")
 	}
@@ -105,26 +105,32 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, createdPage)
 }
 
-func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
+func (h *PageHandler) UpdatePage(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "projectid", "pageid")
 	if err != nil {
 		return err
 	}
 	pageID := ids[1]
 
-	if _, err := h.pageService.GetPageByID(c.Context(), pageID); err != nil {
+	if _, err := h.pageService.GetPageByID(c.RequestCtx(), pageID); err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to verify page")
 	}
 
-	var req dto.UpdatePageRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.UpdatePageRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
 	rawBody := map[string]any{}
-	if req.Name != nil   { rawBody["name"] = *req.Name }
-	if req.Type != nil   { rawBody["type"] = *req.Type }
-	if req.Styles != nil { rawBody["styles"] = req.Styles }
+	if req.Name != nil {
+		rawBody["name"] = *req.Name
+	}
+	if req.Type != nil {
+		rawBody["type"] = *req.Type
+	}
+	if req.Styles != nil {
+		rawBody["styles"] = req.Styles
+	}
 
 	updates, err := utils.BuildColumnUpdates(rawBody, pageAllowedCols)
 	if err != nil {
@@ -134,14 +140,16 @@ func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
 		return err
 	}
 
-	if err := h.pageService.UpdatePageFields(c.Context(), pageID, updates); err != nil {
+	if err := h.pageService.UpdatePageFields(c.RequestCtx(), pageID, updates); err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to update page")
 	}
 
-	updated, err := h.pageService.GetPageByID(c.Context(), pageID)
+	updated, err := h.pageService.GetPageByID(c.RequestCtx(), pageID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to fetch updated page")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
+
+// fiber:context-methods migrated

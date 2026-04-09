@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/lucsky/cuid"
 )
 
@@ -23,14 +23,14 @@ func NewCommentHandler(commentService services.CommentServiceInterface) *Comment
 	}
 }
 
-func (h *CommentHandler) CreateComment(c *fiber.Ctx) error {
+func (h *CommentHandler) CreateComment(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
 
-	var req models.CreateCommentRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(models.CreateCommentRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -40,20 +40,20 @@ func (h *CommentHandler) CreateComment(c *fiber.Ctx) error {
 	}
 
 	comment := &models.Comment{
-		Id:        cuid.New(),
-		Content:   req.Content,
-		AuthorId:  userID,
-		ItemId:    req.ItemId,
-		ParentId:  parentCommentID,
-		Status:    "published",
-		Edited:    false,
+		Id:       cuid.New(),
+		Content:  req.Content,
+		AuthorId: userID,
+		ItemId:   req.ItemId,
+		ParentId: parentCommentID,
+		Status:   "published",
+		Edited:   false,
 		AuditFields: models.AuditFields{
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		},
 	}
 
-	created, err := h.commentService.CreateComment(c.Context(), comment)
+	created, err := h.commentService.CreateComment(c.RequestCtx(), comment)
 	if err != nil {
 		log.Println("Error creating comment:", err)
 		return utils.HandleRepoError(c, err, "", "Failed to create comment")
@@ -62,7 +62,7 @@ func (h *CommentHandler) CreateComment(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *CommentHandler) GetComments(c *fiber.Ctx) error {
+func (h *CommentHandler) GetComments(c fiber.Ctx) error {
 	limit, _ := strconv.Atoi(c.Query("limit", "50"))
 	offset, _ := strconv.Atoi(c.Query("offset", "0"))
 
@@ -83,7 +83,7 @@ func (h *CommentHandler) GetComments(c *fiber.Ctx) error {
 		filter.ParentId = &emptyStr
 	}
 
-	comments, total, err := h.commentService.GetCommentsByItemID(c.Context(), filter.ItemId, filter)
+	comments, total, err := h.commentService.GetCommentsByItemID(c.RequestCtx(), filter.ItemId, filter)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
@@ -96,14 +96,14 @@ func (h *CommentHandler) GetComments(c *fiber.Ctx) error {
 	})
 }
 
-func (h *CommentHandler) GetCommentByID(c *fiber.Ctx) error {
+func (h *CommentHandler) GetCommentByID(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "commentid")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	comment, err := h.commentService.GetCommentByID(c.Context(), commentID)
+	comment, err := h.commentService.GetCommentByID(c.RequestCtx(), commentID)
 	if err != nil {
 		return fiber.NewError(fiber.StatusNotFound, "Comment not found")
 	}
@@ -111,7 +111,7 @@ func (h *CommentHandler) GetCommentByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, comment)
 }
 
-func (h *CommentHandler) GetCommentsByItemID(c *fiber.Ctx) error {
+func (h *CommentHandler) GetCommentsByItemID(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "itemid")
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func (h *CommentHandler) GetCommentsByItemID(c *fiber.Ctx) error {
 		filter.ParentId = &emptyStr
 	}
 
-	comments, total, err := h.commentService.GetCommentsByItemID(c.Context(), itemID, filter)
+	comments, total, err := h.commentService.GetCommentsByItemID(c.RequestCtx(), itemID, filter)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
@@ -148,15 +148,15 @@ func (h *CommentHandler) GetCommentsByItemID(c *fiber.Ctx) error {
 	})
 }
 
-func (h *CommentHandler) UpdateComment(c *fiber.Ctx) error {
+func (h *CommentHandler) UpdateComment(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	var req models.UpdateCommentRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(models.UpdateCommentRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -175,7 +175,7 @@ func (h *CommentHandler) UpdateComment(c *fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.commentService.UpdateComment(c.Context(), commentID, userID, updates)
+	updated, err := h.commentService.UpdateComment(c.RequestCtx(), commentID, userID, updates)
 	if err != nil {
 		if errors.Is(err, errors.New("unauthorized: user is not the comment author")) {
 			return fiber.NewError(fiber.StatusForbidden, "You do not have permission to update this comment")
@@ -186,14 +186,14 @@ func (h *CommentHandler) UpdateComment(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-func (h *CommentHandler) DeleteComment(c *fiber.Ctx) error {
+func (h *CommentHandler) DeleteComment(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	if err := h.commentService.DeleteComment(c.Context(), commentID, userID); err != nil {
+	if err := h.commentService.DeleteComment(c.RequestCtx(), commentID, userID); err != nil {
 		if errors.Is(err, errors.New("unauthorized: user is not the comment author")) {
 			return fiber.NewError(fiber.StatusForbidden, "You do not have permission to delete this comment")
 		}
@@ -203,15 +203,15 @@ func (h *CommentHandler) DeleteComment(c *fiber.Ctx) error {
 	return utils.SendNoContent(c)
 }
 
-func (h *CommentHandler) CreateReaction(c *fiber.Ctx) error {
+func (h *CommentHandler) CreateReaction(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	var req models.CreateReactionRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(models.CreateReactionRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -223,7 +223,7 @@ func (h *CommentHandler) CreateReaction(c *fiber.Ctx) error {
 		CreatedAt: time.Now(),
 	}
 
-	created, err := h.commentService.CreateReaction(c.Context(), &reaction)
+	created, err := h.commentService.CreateReaction(c.RequestCtx(), &reaction)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create reaction")
 	}
@@ -231,7 +231,7 @@ func (h *CommentHandler) CreateReaction(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *CommentHandler) DeleteReaction(c *fiber.Ctx) error {
+func (h *CommentHandler) DeleteReaction(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
 		return err
@@ -243,21 +243,21 @@ func (h *CommentHandler) DeleteReaction(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Reaction type query parameter is required")
 	}
 
-	if err := h.commentService.DeleteReaction(c.Context(), commentID, userID, reactionType); err != nil {
+	if err := h.commentService.DeleteReaction(c.RequestCtx(), commentID, userID, reactionType); err != nil {
 		return fiber.NewError(fiber.StatusNotFound, "Reaction not found")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-func (h *CommentHandler) GetReactionsByCommentID(c *fiber.Ctx) error {
+func (h *CommentHandler) GetReactionsByCommentID(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "commentid")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	reactions, err := h.commentService.GetReactionsByCommentID(c.Context(), commentID)
+	reactions, err := h.commentService.GetReactionsByCommentID(c.RequestCtx(), commentID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve reactions")
 	}
@@ -265,14 +265,14 @@ func (h *CommentHandler) GetReactionsByCommentID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, reactions)
 }
 
-func (h *CommentHandler) GetReactionSummary(c *fiber.Ctx) error {
+func (h *CommentHandler) GetReactionSummary(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "commentid")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	summary, err := h.commentService.GetReactionSummary(c.Context(), commentID)
+	summary, err := h.commentService.GetReactionSummary(c.RequestCtx(), commentID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve reaction summary")
 	}
@@ -280,14 +280,14 @@ func (h *CommentHandler) GetReactionSummary(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, summary)
 }
 
-func (h *CommentHandler) GetCommentCount(c *fiber.Ctx) error {
+func (h *CommentHandler) GetCommentCount(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "itemid")
 	if err != nil {
 		return err
 	}
 	itemID := ids[0]
 
-	count, err := h.commentService.GetCommentCountByItemID(c.Context(), itemID)
+	count, err := h.commentService.GetCommentCountByItemID(c.RequestCtx(), itemID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve comment count")
 	}
@@ -298,21 +298,21 @@ func (h *CommentHandler) GetCommentCount(c *fiber.Ctx) error {
 	})
 }
 
-func (h *CommentHandler) ModerateComment(c *fiber.Ctx) error {
+func (h *CommentHandler) ModerateComment(c fiber.Ctx) error {
 	_, ids, err := utils.MustUserAndParams(c, "commentid")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	var req struct {
+	req := new(struct {
 		Status string `json:"status" validate:"required,oneof=published pending flagged deleted"`
-	}
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	})
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
-	if err := h.commentService.ModerateComment(c.Context(), commentID, req.Status); err != nil {
+	if err := h.commentService.ModerateComment(c.RequestCtx(), commentID, req.Status); err != nil {
 		return fiber.NewError(fiber.StatusNotFound, "Comment not found")
 	}
 
@@ -321,3 +321,5 @@ func (h *CommentHandler) ModerateComment(c *fiber.Ctx) error {
 		"status":  req.Status,
 	})
 }
+
+// fiber:context-methods migrated

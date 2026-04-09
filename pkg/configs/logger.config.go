@@ -1,7 +1,7 @@
 package configs
 
 import (
-	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/logger"
 )
 
 func LoggerConfig() logger.Config {

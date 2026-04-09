@@ -5,24 +5,24 @@ import (
 )
 
 type MarketplaceItem struct {
-	Tags        []Tag      `gorm:"many2many:MarketplaceItemTag;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:TagId" json:"tags,omitempty"`
-	Categories  []Category `gorm:"many2many:MarketplaceItemCategory;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:CategoryId" json:"categories,omitempty"`
-	CreatedAt   time.Time  `gorm:"column:CreatedAt" json:"createdAt,omitempty"`
-	UpdatedAt   time.Time  `gorm:"column:UpdatedAt" json:"updatedAt,omitempty"`
-	DeletedAt   *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
-	Id          string     `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
-	ProjectId   *string    `gorm:"column:ProjectId;type:varchar(255)" json:"projectId,omitempty"`
-	Title       string     `gorm:"column:Title;type:varchar(255);not null" json:"title"`
-	Description string     `gorm:"column:Description;type:text;not null" json:"description"`
-	TemplateType string    `gorm:"column:TemplateType;type:varchar(50);not null;default:'block'" json:"templateType"`
-	AuthorId    string     `gorm:"column:AuthorId;type:varchar(255);not null" json:"authorId"`
-	AuthorName  string     `gorm:"column:AuthorName;type:varchar(255);not null" json:"authorName"`
-	Preview     *string    `gorm:"column:Preview;type:text" json:"preview,omitempty"`
-	PageCount   *int       `gorm:"column:PageCount;type:int" json:"pageCount,omitempty"`
-	Downloads   int        `gorm:"column:Downloads;not null;default:0" json:"downloads"`
-	Likes       int        `gorm:"column:Likes;not null;default:0" json:"likes"`
-	Featured    bool       `gorm:"column:Featured;not null;default:false" json:"featured"`
-	Verified    bool       `gorm:"column:Verified;not null;default:false" json:"verified"`
+	Tags         []Tag      `gorm:"many2many:MarketplaceItemTag;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:TagId" json:"tags,omitempty"`
+	Categories   []Category `gorm:"many2many:MarketplaceItemCategory;foreignKey:Id;joinForeignKey:ItemId;References:Id;joinReferences:CategoryId" json:"categories,omitempty"`
+	CreatedAt    time.Time  `gorm:"column:CreatedAt" json:"createdAt,omitempty"`
+	UpdatedAt    time.Time  `gorm:"column:UpdatedAt" json:"updatedAt,omitempty"`
+	DeletedAt    *time.Time `gorm:"column:DeletedAt" json:"deletedAt,omitempty"`
+	Id           string     `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
+	ProjectId    *string    `gorm:"column:ProjectId;type:varchar(255)" json:"projectId,omitempty"`
+	Title        string     `gorm:"column:Title;type:varchar(255);not null" json:"title"`
+	Description  string     `gorm:"column:Description;type:text;not null" json:"description"`
+	TemplateType string     `gorm:"column:TemplateType;type:varchar(50);not null;default:'block'" json:"templateType"`
+	AuthorId     string     `gorm:"column:AuthorId;type:varchar(255);not null" json:"authorId"`
+	AuthorName   string     `gorm:"column:AuthorName;type:varchar(255);not null" json:"authorName"`
+	Preview      *string    `gorm:"column:Preview;type:text" json:"preview,omitempty"`
+	PageCount    *int       `gorm:"column:PageCount;type:int" json:"pageCount,omitempty"`
+	Downloads    int        `gorm:"column:Downloads;not null;default:0" json:"downloads"`
+	Likes        int        `gorm:"column:Likes;not null;default:0" json:"likes"`
+	Featured     bool       `gorm:"column:Featured;not null;default:false" json:"featured"`
+	Verified     bool       `gorm:"column:Verified;not null;default:false" json:"verified"`
 }
 
 func (MarketplaceItem) TableName() string {
@@ -65,27 +65,28 @@ func (MarketplaceItemCategory) TableName() string {
 	return `public."MarketplaceItemCategory"`
 }
 
+// Request DTOs - Ordered by size for optimal alignment (24-byte slices → 16-byte strings → 8-byte pointers)
 type CreateMarketplaceItemRequest struct {
-	Title        string   `json:"title" validate:"required"`
-	Description  string   `json:"description" validate:"required"`
-	Preview      *string  `json:"preview"`
-	TemplateType string   `json:"templateType"`
-	PageCount    *int     `json:"pageCount"`
-	ProjectId    *string  `json:"projectId"`
-	TagIds       []string `json:"tagIds"`
-	CategoryIds  []string `json:"categoryIds"`
+	TagIds       []string `json:"tagIds"       validate:"omitempty,dive,min=1"`
+	CategoryIds  []string `json:"categoryIds"  validate:"omitempty,dive,min=1"`
+	Title        string   `json:"title"        validate:"required,min=1,max=255"`
+	Description  string   `json:"description"  validate:"required,min=1,max=5000"`
+	TemplateType string   `json:"templateType" validate:"required,min=1,max=50,oneof=block page template section"`
+	Preview      *string  `json:"preview"      validate:"omitempty,min=1,max=5000"`
+	ProjectId    *string  `json:"projectId"    validate:"omitempty,min=1"`
+	PageCount    *int     `json:"pageCount"    validate:"omitempty,gte=1,lte=1000"`
 }
 
 type UpdateMarketplaceItemRequest struct {
-	Title        *string  `json:"title"`
-	Description  *string  `json:"description"`
-	Preview      *string  `json:"preview"`
-	TemplateType *string  `json:"templateType"`
+	TagIds       []string `json:"tagIds"       validate:"omitempty,dive,min=1"`
+	CategoryIds  []string `json:"categoryIds"  validate:"omitempty,dive,min=1"`
+	Title        *string  `json:"title"        validate:"omitempty,min=1,max=255"`
+	Description  *string  `json:"description"  validate:"omitempty,min=1,max=5000"`
+	Preview      *string  `json:"preview"      validate:"omitempty,min=1,max=5000"`
+	TemplateType *string  `json:"templateType" validate:"omitempty,min=1,max=50,oneof=block page template section"`
+	ProjectId    *string  `json:"projectId"    validate:"omitempty,min=1"`
 	Featured     *bool    `json:"featured"`
-	PageCount    *int     `json:"pageCount"`
-	ProjectId    *string  `json:"projectId"`
-	TagIds       []string `json:"tagIds"`
-	CategoryIds  []string `json:"categoryIds"`
+	PageCount    *int     `json:"pageCount"    validate:"omitempty,gte=1,lte=1000"`
 }
 
 type MarketplaceItemResponse struct {
@@ -109,9 +110,9 @@ type MarketplaceItemResponse struct {
 }
 
 type CreateCategoryRequest struct {
-	Name string `json:"name" validate:"required"`
+	Name string `json:"name" validate:"required,min=1,max=100"`
 }
 
 type CreateTagRequest struct {
-	Name string `json:"name" validate:"required"`
+	Name string `json:"name" validate:"required,min=1,max=100"`
 }
