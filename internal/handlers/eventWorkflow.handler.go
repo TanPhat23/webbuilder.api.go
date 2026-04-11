@@ -26,12 +26,14 @@ func NewEventWorkflowHandler(
 }
 
 func (h *EventWorkflowHandler) CreateEventWorkflow(c fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+
 	req := new(dto.CreateEventWorkflowRequest)
 	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
-	workflow, err := h.eventWorkflowService.CreateEventWorkflow(c.RequestCtx(), &models.EventWorkflow{
+	workflow, err := h.eventWorkflowService.CreateEventWorkflow(c.RequestCtx(), userID, &models.EventWorkflow{
 		ProjectId:   req.ProjectID,
 		Name:        req.Name,
 		Description: req.Description,
@@ -72,7 +74,7 @@ func (h *EventWorkflowHandler) GetEventWorkflowByID(c fiber.Ctx) error {
 }
 
 func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -87,7 +89,7 @@ func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c fiber.Ctx) error {
 		enabledPtr = &v
 	}
 
-	workflows, err := h.eventWorkflowService.GetEventWorkflowsWithFilters(c.RequestCtx(), projectID, enabledPtr, c.Query("search"))
+	workflows, err := h.eventWorkflowService.GetEventWorkflowsWithFilters(c.RequestCtx(), projectID, userID, enabledPtr, c.Query("search"))
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve event workflows")
 	}
@@ -176,5 +178,3 @@ func (h *EventWorkflowHandler) GetEventWorkflowElements(c fiber.Ctx) error {
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"data": elements, "count": len(elements)})
 }
-
-// fiber:context-methods migrated

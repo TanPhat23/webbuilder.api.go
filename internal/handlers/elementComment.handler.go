@@ -208,7 +208,7 @@ func (h *ElementCommentHandler) GetCommentsByAuthorID(c fiber.Ctx) error {
 
 // GET /projects/:projectId/comments
 func (h *ElementCommentHandler) GetCommentsByProjectID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectId")
+	userID, ids, err := utils.MustUserAndParams(c, "projectId")
 	if err != nil {
 		return err
 	}
@@ -223,12 +223,12 @@ func (h *ElementCommentHandler) GetCommentsByProjectID(c fiber.Ctx) error {
 		offset = o
 	}
 
-	comments, err := h.elementCommentService.GetElementCommentsByProjectID(c.RequestCtx(), projectID, limit, offset)
+	comments, err := h.elementCommentService.GetElementCommentsByProjectID(c.RequestCtx(), projectID, userID, limit, offset)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
 
-	count, err := h.elementCommentService.CountElementCommentsByProjectID(c.RequestCtx(), projectID)
+	count, err := h.elementCommentService.CountElementCommentsByProjectID(c.RequestCtx(), projectID, userID)
 	if err != nil {
 		count = 0
 	}

@@ -49,6 +49,15 @@ func (h *PageHandler) GetPagesByProjectID(c fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
+	userID, err := utils.ValidateUserID(c)
+	if err == nil && userID != "" {
+		pages, err := h.pageService.GetPagesByProjectIDWithAccess(c.RequestCtx(), projectID, userID)
+		if err != nil {
+			return utils.HandleRepoError(c, err, "", "Failed to retrieve pages")
+		}
+		return utils.SendJSON(c, fiber.StatusOK, pages)
+	}
+
 	pages, err := h.pageService.GetPagesByProjectID(c.RequestCtx(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve pages")
@@ -73,7 +82,7 @@ func (h *PageHandler) GetPageByID(c fiber.Ctx) error {
 }
 
 func (h *PageHandler) CreatePage(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -97,7 +106,7 @@ func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 		},
 	}
 
-	createdPage, err := h.pageService.CreatePage(c.RequestCtx(), page)
+	createdPage, err := h.pageService.CreatePageWithAccess(c.RequestCtx(), page, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create page")
 	}

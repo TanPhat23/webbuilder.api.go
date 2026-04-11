@@ -34,7 +34,7 @@ func (s *CollaboratorService) CreateCollaborator(ctx context.Context, collaborat
 		return nil, errors.New("userId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, collaborator.ProjectId)
+	project, err := s.projectRepo.GetProjectByID(ctx, collaborator.ProjectId, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -45,14 +45,17 @@ func (s *CollaboratorService) CreateCollaborator(ctx context.Context, collaborat
 	return s.collaboratorRepo.CreateCollaborator(ctx, collaborator)
 }
 
-func (s *CollaboratorService) GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error) {
+func (s *CollaboratorService) GetCollaboratorsByProject(ctx context.Context, projectID string, userID string) ([]models.Collaborator, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify project: %w", err)
+		return nil, fmt.Errorf("failed to verify project access: %w", err)
 	}
 	if project == nil {
 		return nil, errors.New("project does not exist")

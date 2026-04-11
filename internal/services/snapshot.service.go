@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 )
@@ -25,12 +26,23 @@ func NewSnapshotService(
 	}
 }
 
-func (s *SnapshotService) SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
+func (s *SnapshotService) SaveSnapshot(ctx context.Context, projectID, userID string, snapshot *models.Snapshot) error {
+	if projectID == "" {
+		return errors.New("projectId is required")
+	}
+	if userID == "" {
+		return errors.New("userId is required")
+	}
 	if err := s.ValidateSnapshot(ctx, snapshot); err != nil {
 		return err
 	}
-	if projectID == "" {
-		return errors.New("projectId is required")
+
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to verify project: %w", err)
+	}
+	if project == nil {
+		return errors.New("project does not exist")
 	}
 
 	return s.snapshotRepo.SaveSnapshot(ctx, projectID, snapshot)

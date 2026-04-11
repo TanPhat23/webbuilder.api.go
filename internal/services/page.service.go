@@ -35,6 +35,22 @@ func (s *PageService) GetPagesByProjectID(ctx context.Context, projectID string)
 	return s.pageRepo.GetPagesByProjectID(ctx, projectID)
 }
 
+func (s *PageService) GetPagesByProjectIDWithAccess(ctx context.Context, projectID, userID string) ([]models.Page, error) {
+	if projectID == "" {
+		return nil, errors.New("projectId is required")
+	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
+
+	_, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.pageRepo.GetPagesByProjectID(ctx, projectID)
+}
+
 func (s *PageService) GetPageByID(ctx context.Context, pageID string) (*models.Page, error) {
 	if pageID == "" {
 		return nil, errors.New("pageId is required")
@@ -63,6 +79,34 @@ func (s *PageService) CreatePage(ctx context.Context, page *models.Page) (*model
 	}
 	if project == nil {
 		return nil, errors.New("project does not exist")
+	}
+
+	if err := s.pageRepo.CreatePage(ctx, page); err != nil {
+		return nil, err
+	}
+	return page, nil
+}
+
+func (s *PageService) CreatePageWithAccess(ctx context.Context, page *models.Page, userID string) (*models.Page, error) {
+	if page == nil {
+		return nil, errors.New("page cannot be nil")
+	}
+	if page.ProjectId == "" {
+		return nil, errors.New("projectId is required")
+	}
+	if page.Name == "" {
+		return nil, errors.New("page name is required")
+	}
+	if page.Type == "" {
+		return nil, errors.New("page type is required")
+	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
+
+	_, err := s.projectRepo.GetProjectWithAccess(ctx, page.ProjectId, userID)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := s.pageRepo.CreatePage(ctx, page); err != nil {

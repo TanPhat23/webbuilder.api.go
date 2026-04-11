@@ -48,8 +48,10 @@ type ProjectServiceInterface interface {
 
 type PageServiceInterface interface {
 	GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error)
+	GetPagesByProjectIDWithAccess(ctx context.Context, projectID, userID string) ([]models.Page, error)
 	GetPageByID(ctx context.Context, pageID string) (*models.Page, error)
 	CreatePage(ctx context.Context, page *models.Page) (*models.Page, error)
+	CreatePageWithAccess(ctx context.Context, page *models.Page, userID string) (*models.Page, error)
 	UpdatePage(ctx context.Context, pageID string, page *models.Page) (*models.Page, error)
 	UpdatePageFields(ctx context.Context, pageID string, updates map[string]interface{}) error
 	DeletePage(ctx context.Context, pageID string) error
@@ -76,7 +78,7 @@ type ImageServiceInterface interface {
 
 type CollaboratorServiceInterface interface {
 	CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
-	GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error)
+	GetCollaboratorsByProject(ctx context.Context, projectID string, userID string) ([]models.Collaborator, error)
 	GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error)
 	UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error
 	DeleteCollaborator(ctx context.Context, id string) error
@@ -84,7 +86,7 @@ type CollaboratorServiceInterface interface {
 }
 
 type SnapshotServiceInterface interface {
-	SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error
+	SaveSnapshot(ctx context.Context, projectID, userID string, snapshot *models.Snapshot) error
 	GetSnapshotsByProjectID(ctx context.Context, projectID string) ([]models.Snapshot, error)
 	GetSnapshotByID(ctx context.Context, id string) (*models.Snapshot, error)
 	DeleteSnapshot(ctx context.Context, id string) error
@@ -137,19 +139,19 @@ type CustomElementTypeServiceInterface interface {
 }
 
 type EventWorkflowServiceInterface interface {
-	CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
+	CreateEventWorkflow(ctx context.Context, userID string, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
 	GetEventWorkflowByID(ctx context.Context, id string) (*models.EventWorkflow, error)
-	GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	GetEventWorkflowsByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error)
+	GetEventWorkflowsByProjectID(ctx context.Context, projectID, userID string) ([]models.EventWorkflow, error)
+	GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID, userID string) ([]models.EventWorkflow, error)
+	GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID, userID string) ([]models.EventWorkflow, error)
+	GetEventWorkflowsByName(ctx context.Context, projectID, userID, name string) ([]models.EventWorkflow, error)
 	UpdateEventWorkflow(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
 	UpdateEventWorkflowEnabled(ctx context.Context, id string, enabled bool) error
 	DeleteEventWorkflow(ctx context.Context, id string) error
-	DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error
-	CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error)
-	CheckIfWorkflowNameExists(ctx context.Context, projectID, name, excludeID string) (bool, error)
-	GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
+	DeleteEventWorkflowsByProjectID(ctx context.Context, projectID, userID string) error
+	CountEventWorkflowsByProjectID(ctx context.Context, projectID, userID string) (int64, error)
+	CheckIfWorkflowNameExists(ctx context.Context, projectID, userID, name, excludeID string) (bool, error)
+	GetEventWorkflowsWithFilters(ctx context.Context, projectID, userID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
 }
 
 type ElementEventWorkflowServiceInterface interface {
@@ -193,8 +195,8 @@ type ElementCommentServiceInterface interface {
 	CountElementComments(ctx context.Context, elementID string) (int64, error)
 	ToggleResolvedStatus(ctx context.Context, id string) error
 	DeleteElementCommentsByElementID(ctx context.Context, elementID string) error
-	GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error)
-	CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error)
+	GetElementCommentsByProjectID(ctx context.Context, projectID string, userID string, limit int, offset int) ([]models.ElementComment, error)
+	CountElementCommentsByProjectID(ctx context.Context, projectID string, userID string) (int64, error)
 }
 
 type MarketplaceServiceInterface interface {

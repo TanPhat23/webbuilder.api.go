@@ -23,7 +23,10 @@ func NewEventWorkflowService(
 	}
 }
 
-func (s *EventWorkflowService) CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
+func (s *EventWorkflowService) CreateEventWorkflow(ctx context.Context, userID string, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
 	if workflow == nil {
 		return nil, errors.New("workflow cannot be nil")
 	}
@@ -34,7 +37,7 @@ func (s *EventWorkflowService) CreateEventWorkflow(ctx context.Context, workflow
 		return nil, errors.New("workflow name is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, workflow.ProjectId)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, workflow.ProjectId, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -59,12 +62,15 @@ func (s *EventWorkflowService) GetEventWorkflowByID(ctx context.Context, id stri
 	return s.eventWorkflowRepo.GetEventWorkflowByID(ctx, id)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) GetEventWorkflowsByProjectID(ctx context.Context, projectID, userID string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -75,12 +81,15 @@ func (s *EventWorkflowService) GetEventWorkflowsByProjectID(ctx context.Context,
 	return s.eventWorkflowRepo.GetEventWorkflowsByProjectID(ctx, projectID)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID, userID string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -91,12 +100,15 @@ func (s *EventWorkflowService) GetEventWorkflowsByProjectIDWithElements(ctx cont
 	return s.eventWorkflowRepo.GetEventWorkflowsByProjectIDWithElements(ctx, projectID)
 }
 
-func (s *EventWorkflowService) GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID, userID string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -107,15 +119,18 @@ func (s *EventWorkflowService) GetEnabledEventWorkflowsByProjectID(ctx context.C
 	return s.eventWorkflowRepo.GetEnabledEventWorkflowsByProjectID(ctx, projectID)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) GetEventWorkflowsByName(ctx context.Context, projectID, userID, name string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
+	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
 	}
 	if name == "" {
 		return nil, errors.New("workflow name is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -200,12 +215,15 @@ func (s *EventWorkflowService) DeleteEventWorkflow(ctx context.Context, id strin
 	return s.eventWorkflowRepo.DeleteEventWorkflow(ctx, id)
 }
 
-func (s *EventWorkflowService) DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error {
+func (s *EventWorkflowService) DeleteEventWorkflowsByProjectID(ctx context.Context, projectID, userID string) error {
 	if projectID == "" {
 		return errors.New("projectId is required")
 	}
+	if userID == "" {
+		return errors.New("userId is required")
+	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -216,12 +234,15 @@ func (s *EventWorkflowService) DeleteEventWorkflowsByProjectID(ctx context.Conte
 	return s.eventWorkflowRepo.DeleteEventWorkflowsByProjectID(ctx, projectID)
 }
 
-func (s *EventWorkflowService) CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error) {
+func (s *EventWorkflowService) CountEventWorkflowsByProjectID(ctx context.Context, projectID, userID string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectId is required")
 	}
+	if userID == "" {
+		return 0, errors.New("userId is required")
+	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -232,15 +253,18 @@ func (s *EventWorkflowService) CountEventWorkflowsByProjectID(ctx context.Contex
 	return s.eventWorkflowRepo.CountEventWorkflowsByProjectID(ctx, projectID)
 }
 
-func (s *EventWorkflowService) CheckIfWorkflowNameExists(ctx context.Context, projectID, name, excludeID string) (bool, error) {
+func (s *EventWorkflowService) CheckIfWorkflowNameExists(ctx context.Context, projectID, userID, name, excludeID string) (bool, error) {
 	if projectID == "" {
 		return false, errors.New("projectId is required")
+	}
+	if userID == "" {
+		return false, errors.New("userId is required")
 	}
 	if name == "" {
 		return false, errors.New("workflow name is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return false, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -251,12 +275,15 @@ func (s *EventWorkflowService) CheckIfWorkflowNameExists(ctx context.Context, pr
 	return s.eventWorkflowRepo.CheckIfWorkflowNameExists(ctx, projectID, name, excludeID)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) GetEventWorkflowsWithFilters(ctx context.Context, projectID, userID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
