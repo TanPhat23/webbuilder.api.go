@@ -96,7 +96,7 @@ func (s *ProjectService) GetProjectPages(ctx context.Context, projectID, userID 
 		return nil, errors.New("userId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}

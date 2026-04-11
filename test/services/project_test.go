@@ -361,7 +361,7 @@ func TestGetProjectPages_Success(t *testing.T) {
 	project := &models.Project{ID: "proj123", Name: "Test Project", Published: true}
 
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
 	projectRepo.SetGetProjectPages(func(ctx context.Context, projID, userID string) ([]models.Page, error) {
@@ -383,7 +383,7 @@ func TestGetProjectPages_Success(t *testing.T) {
 
 func TestGetProjectPages_RepositoryErrorOnVerify(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return nil, errors.New("database error")
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -403,7 +403,7 @@ func TestGetProjectPages_RepositoryErrorOnVerify(t *testing.T) {
 func TestGetProjectPages_RepositoryErrorOnPagesFetch(t *testing.T) {
 	project := &models.Project{ID: "proj123", Name: "Test Project", Published: true}
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
 	projectRepo.SetGetProjectPages(func(ctx context.Context, projID, userID string) ([]models.Page, error) {
@@ -441,7 +441,7 @@ func TestGetProjectPages_EmptyProjectID(t *testing.T) {
 
 func TestGetProjectPages_ProjectNotFound(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return nil, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
