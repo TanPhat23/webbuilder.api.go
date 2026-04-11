@@ -88,9 +88,12 @@ func (s *ProjectService) GetCollaboratorProjects(ctx context.Context, userID str
 	return s.projectRepo.GetCollaboratorProjects(ctx, userID)
 }
 
-func (s *ProjectService) GetProjectPages(ctx context.Context, projectID string) ([]models.Page, error) {
+func (s *ProjectService) GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
+	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
 	}
 
 	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
@@ -101,7 +104,7 @@ func (s *ProjectService) GetProjectPages(ctx context.Context, projectID string) 
 		return nil, errors.New("project does not exist")
 	}
 
-	return s.projectRepo.GetProjectPages(ctx, projectID, "")
+	return s.projectRepo.GetProjectPages(ctx, projectID, userID)
 }
 
 func (s *ProjectService) CreateProject(ctx context.Context, project *models.Project) (*models.Project, error) {

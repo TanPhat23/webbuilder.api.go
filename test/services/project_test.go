@@ -372,7 +372,7 @@ func TestGetProjectPages_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "proj123")
+	result, err := service.GetProjectPages(context.Background(), "proj123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -391,7 +391,7 @@ func TestGetProjectPages_RepositoryErrorOnVerify(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "proj123")
+	result, err := service.GetProjectPages(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected error while verifying project")
 	}
@@ -414,7 +414,7 @@ func TestGetProjectPages_RepositoryErrorOnPagesFetch(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "proj123")
+	result, err := service.GetProjectPages(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected error while fetching pages")
 	}
@@ -430,7 +430,7 @@ func TestGetProjectPages_EmptyProjectID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "")
+	result, err := service.GetProjectPages(context.Background(), "", "user123")
 	if err == nil {
 		t.Errorf("expected error for empty projectId")
 	}
@@ -449,7 +449,7 @@ func TestGetProjectPages_ProjectNotFound(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "proj123")
+	result, err := service.GetProjectPages(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected error for project not found")
 	}
