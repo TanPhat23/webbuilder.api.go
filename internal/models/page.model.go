@@ -5,12 +5,12 @@ import (
 )
 
 type Page struct {
-	Elements  []Element       `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"elements,omitempty"`
-	Id        string          `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
-	ProjectId string          `gorm:"column:ProjectId;type:varchar(255);not null;index" json:"projectId"`
-	Name      string          `gorm:"column:Name;type:varchar(255);not null" json:"name"`
-	Type      string          `gorm:"column:Type;type:varchar(255);not null" json:"type"`
-	Styles    json.RawMessage `gorm:"column:Styles;type:jsonb" json:"styles,omitempty"`
+	Elements  []Element       `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"Elements,omitempty"`
+	Id        string          `gorm:"primaryKey;column:Id;type:varchar(255)" json:"Id"`
+	ProjectId string          `gorm:"column:ProjectId;type:varchar(255);not null;index" json:"ProjectId"`
+	Name      string          `gorm:"column:Name;type:varchar(255);not null" json:"Name"`
+	Type      string          `gorm:"column:Type;type:varchar(255);not null" json:"Type"`
+	Styles    json.RawMessage `gorm:"column:Styles;type:jsonb" json:"Styles,omitempty"`
 	AuditFields
 }
 
