@@ -38,6 +38,8 @@ type ProjectServiceInterface interface {
 	GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error)
 	GetProjectPages(ctx context.Context, projectID string) ([]models.Page, error)
 	CreateProject(ctx context.Context, project *models.Project) (*models.Project, error)
+	CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error)
+	GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error)
 	UpdateProject(ctx context.Context, projectID, userID string, project *models.Project) (*models.Project, error)
 	DeleteProject(ctx context.Context, projectID, userID string) error
 	HardDeleteProject(ctx context.Context, projectID, userID string) error
@@ -50,6 +52,7 @@ type PageServiceInterface interface {
 	GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error)
 	GetPageByID(ctx context.Context, pageID string) (*models.Page, error)
 	CreatePage(ctx context.Context, page *models.Page) (*models.Page, error)
+	CreatePageAsUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error)
 	UpdatePage(ctx context.Context, pageID string, page *models.Page) (*models.Page, error)
 	UpdatePageFields(ctx context.Context, pageID string, updates map[string]interface{}) error
 	DeletePage(ctx context.Context, pageID string) error
@@ -200,6 +203,7 @@ type ElementCommentServiceInterface interface {
 type MarketplaceServiceInterface interface {
 	CreateMarketplaceItem(ctx context.Context, item models.MarketplaceItem, tagIds []string, categoryIds []string) (*models.MarketplaceItem, error)
 	GetMarketplaceItems(ctx context.Context, filter repositories.MarketplaceFilter) ([]models.MarketplaceItem, int64, error)
+	GetItemsByAuthor(ctx context.Context, authorID string) ([]models.MarketplaceItem, error)
 	GetMarketplaceItemByID(ctx context.Context, id string) (*models.MarketplaceItem, error)
 	UpdateMarketplaceItem(ctx context.Context, id string, item *models.MarketplaceItem, userId string) (*models.MarketplaceItem, error)
 	DeleteMarketplaceItem(ctx context.Context, id string, userId string) error

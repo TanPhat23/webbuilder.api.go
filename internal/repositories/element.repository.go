@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"my-go-app/internal/models"
 	"my-go-app/pkg/utils"
-	"strings"
 	"sync"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"roci.dev/fracdex"
 )
 
 var (
@@ -416,7 +416,7 @@ func (r *ElementRepository) createElementsAndSettings(ctx context.Context, tx *g
 	return nil
 }
 
-func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *gorm.DB, rootElements []models.EditorElement, projectID string) ([]models.Element, error) {
+func (r *ElementRepository) flattenElementsForInsert(_ context.Context, _ *gorm.DB, rootElements []models.EditorElement, _ string) ([]models.Element, error) {
 	type queueItem struct {
 		element  models.EditorElement
 		parentID *string
@@ -424,8 +424,6 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 
 	// Initialize queue with root elements
 	queue := make([]queueItem, 0, len(rootElements))
-	parentKeys := make(map[string]bool)
-	hasNull := false
 
 	for _, e := range rootElements {
 		if e != nil {
@@ -461,11 +459,6 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 			base.ParentId = item.parentID
 		}
 
-		if base.ParentId == nil {
-			hasNull = true
-		}
-		parentKeys[r.buildParentKey(projectID, base.ParentId)] = true
-
 		flattened = append(flattened, *base)
 
 		children := utils.GetChildrenFromEditorElement(item.element)
@@ -475,7 +468,6 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 				return nil, fmt.Errorf("failed to convert child element: %w", err)
 			}
 			parentID := base.Id
-			parentKeys[r.buildParentKey(projectID, &parentID)] = true
 			queue = append(queue, queueItem{
 				element:  childEditor,
 				parentID: &parentID,
@@ -483,73 +475,45 @@ func (r *ElementRepository) flattenElementsForInsert(ctx context.Context, tx *go
 		}
 	}
 
-	// Build parent ID list for query
-	var parentIDList []string
-	for key := range parentKeys {
-		if key != r.buildParentKey(projectID, nil) {
-			parts := strings.Split(key, ":")
-			if len(parts) == 2 {
-				parentIDList = append(parentIDList, parts[1])
-			}
-		}
-	}
-
-	// Get existing order counters
-	orderCounters := make(map[string]int)
-	if len(parentIDList) > 0 || hasNull {
-		var results []struct {
-			ParentID *string `gorm:"column:ParentId"`
-			MaxOrder int     `gorm:"column:max_order"`
-		}
-
-		q := tx.Model(&models.Element{}).
-			Select("\"Element\".\"ParentId\", COALESCE(MAX(\"Element\".\"Order\"), 0) as max_order").
-			Where("\"PageId\" IN (SELECT \"Id\" FROM \"Page\" WHERE \"ProjectId\" = ?)", projectID)
-
-		if len(parentIDList) > 0 {
-			q = q.Where("\"Element\".\"ParentId\" IN (?)", parentIDList)
-		}
-		if hasNull {
-			if len(parentIDList) > 0 {
-				q = q.Or("\"Element\".\"ParentId\" IS NULL")
-			} else {
-				q = q.Where("\"Element\".\"ParentId\" IS NULL")
-			}
-		}
-
-		err := q.Group("\"Element\".\"ParentId\"").Scan(&results).Error
-		if err != nil {
-			return nil, fmt.Errorf("failed to get max order: %w", err)
-		}
-
-		for _, res := range results {
-			key := r.buildParentKey(projectID, res.ParentID)
-			orderCounters[key] = res.MaxOrder
-		}
-	}
-
-	// Initialize missing counters
-	for key := range parentKeys {
-		if _, exists := orderCounters[key]; !exists {
-			orderCounters[key] = 0
-		}
-	}
-
-	// Assign order values
+	// A replacement has already deleted all project elements. Within each page
+	// and parent, the incoming tree order is the intended order.
+	type siblingGroup struct{ pageID, parentID string }
+	groups := make(map[siblingGroup][]int)
 	for i := range flattened {
 		elem := &flattened[i]
-		parentID := elem.ParentId
-		key := r.buildParentKey(projectID, parentID)
-		orderCounters[key]++
-		elem.Order = orderCounters[key]
+		var group siblingGroup
+		if elem.PageId != nil {
+			group.pageID = *elem.PageId
+		}
+		if elem.ParentId != nil {
+			group.parentID = *elem.ParentId
+		}
+		groups[group] = append(groups[group], i)
 	}
-
+	for _, indices := range groups {
+		valid := true
+		previous := ""
+		for position, index := range indices {
+			elem := &flattened[index]
+			elem.Order = position + 1
+			if elem.OrderKey == nil || *elem.OrderKey == "" || (previous != "" && *elem.OrderKey <= previous) {
+				valid = false
+				continue
+			}
+			if _, err := fracdex.KeyBetween(*elem.OrderKey, ""); err != nil {
+				valid = false
+			}
+			previous = *elem.OrderKey
+		}
+		if !valid {
+			keys, err := fracdex.NKeysBetween("", "", uint(len(indices)))
+			if err != nil {
+				return nil, fmt.Errorf("failed to assign element order keys: %w", err)
+			}
+			for position, index := range indices {
+				flattened[index].OrderKey = &keys[position]
+			}
+		}
+	}
 	return flattened, nil
-}
-
-func (r *ElementRepository) buildParentKey(projectID string, parentID *string) string {
-	if parentID != nil {
-		return projectID + ":" + *parentID
-	}
-	return projectID + ":root"
 }

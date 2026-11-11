@@ -306,3 +306,16 @@ func (h *MarketplaceHandler) DeleteTag(c *fiber.Ctx) error {
 
 	return utils.SendNoContent(c)
 }
+// GetMyItemsForAnalytics returns all of the caller's marketplace items with
+// categories, newest first, for the analytics dashboard.
+func (h *MarketplaceHandler) GetMyItemsForAnalytics(c *fiber.Ctx) error {
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+	items, err := h.marketplaceService.GetItemsByAuthor(c.Context(), userID)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to retrieve marketplace items")
+	}
+	return utils.SendJSON(c, fiber.StatusOK, items)
+}

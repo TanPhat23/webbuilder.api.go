@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
+	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"time"
@@ -73,7 +75,7 @@ func (h *PageHandler) GetPageByID(c *fiber.Ctx) error {
 }
 
 func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -85,8 +87,12 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 	}
 
 	now := time.Now()
+	pageID := req.Id
+	if pageID == "" {
+		pageID = uuid.New().String()
+	}
 	page := &models.Page{
-		Id:        uuid.New().String(),
+		Id:        pageID,
 		Name:      req.Name,
 		Type:      req.Type,
 		Styles:    req.Styles,
@@ -97,7 +103,10 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 		},
 	}
 
-	createdPage, err := h.pageService.CreatePage(c.Context(), page)
+	createdPage, err := h.pageService.CreatePageAsUser(c.Context(), page, userID)
+	if errors.Is(err, repositories.ErrProjectUnauthorized) {
+		return utils.SendError(c, fiber.StatusForbidden, "You cannot add pages to this project", err, userID)
+	}
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create page")
 	}

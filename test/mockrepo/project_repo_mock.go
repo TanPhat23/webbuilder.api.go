@@ -169,3 +169,26 @@ func (m *MockProjectRepo) GetProjectWithLock(ctx context.Context, projectID, use
 	}
 	return nil, nil
 }
+func (m *MockProjectRepo) CreateProjectWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
+	if fn := m.Get("CreateProjectWithPage"); fn != nil {
+		return fn.(func(context.Context, *models.Project, *models.Page) error)(ctx, project, page)
+	}
+	return nil
+}
+
+func (m *MockProjectRepo) GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+	if fn := m.Get("GetProjectAccess"); fn != nil {
+		return fn.(func(context.Context, string, string) (*models.ProjectAccess, error))(ctx, projectID, userID)
+	}
+	return nil, nil
+}
+
+func (m *MockProjectRepo) SetCreateProjectWithPage(fn func(context.Context, *models.Project, *models.Page) error) *MockProjectRepo {
+	m.Set("CreateProjectWithPage", fn)
+	return m
+}
+
+func (m *MockProjectRepo) SetGetProjectAccess(fn func(context.Context, string, string) (*models.ProjectAccess, error)) *MockProjectRepo {
+	m.Set("GetProjectAccess", fn)
+	return m
+}

@@ -301,3 +301,6 @@ func (s *MarketplaceService) DeleteTag(ctx context.Context, id string) error {
 
 	return s.marketplaceRepo.DeleteTag(id)
 }
+func (s *MarketplaceService) GetItemsByAuthor(ctx context.Context, authorID string) ([]models.MarketplaceItem, error) {
+	return s.marketplaceRepo.GetItemsByAuthor(ctx, authorID)
+}

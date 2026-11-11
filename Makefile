@@ -2,7 +2,7 @@
 APP_NAME := webbuilder-api
 MAIN_PATH := ./cmd/main.go
 BUILD_DIR := ./bin
-GO_VERSION := 1.24
+GO_VERSION := 1.27
 
 # Default target
 .PHONY: help
@@ -119,14 +119,10 @@ docker-run: ## Run Docker container
 
 # Database
 .PHONY: db-migrate
-db-migrate: ## Run database migrations (customize as needed)
-	@echo "Running database migrations..."
-	# Add your migration command here
+db-migrate: migrate-up ## Alias for migrate-up
 
 .PHONY: db-rollback
-db-rollback: ## Rollback database migrations (customize as needed)
-	@echo "Rolling back database migrations..."
-	# Add your rollback command here
+db-rollback: migrate-down ## Alias for migrate-down
 
 # Cleanup
 .PHONY: clean
@@ -179,3 +175,23 @@ start: build ## Build and run the application
 
 proto:
 	PATH=$(PATH):$(shell go env GOPATH)/bin protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./proto/service.proto
+# Database migrations (goose; schema is owned by ./migrations)
+.PHONY: migrate-up migrate-down migrate-status migrate-baseline migrate-create
+migrate-up: ## Apply pending SQL migrations
+	go run ./cmd/migrate up
+
+migrate-down: ## Roll back the latest migration
+	go run ./cmd/migrate down
+
+migrate-status: ## Show applied and pending migrations
+	go run ./cmd/migrate status
+
+migrate-baseline: ## Adopt a database previously migrated by Prisma (run once)
+	go run ./cmd/migrate baseline
+
+migrate-create: ## Create a new SQL migration: make migrate-create name=add_x
+	go run github.com/pressly/goose/v3/cmd/goose@v3.30.0 -dir migrations create $(name) sql
+
+.PHONY: seed
+seed: ## Load demo marketplace data (DELETES existing marketplace data; dev only)
+	go run ./cmd/seed

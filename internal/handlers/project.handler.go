@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
+	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
@@ -183,4 +185,64 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updatedProject)
+}
+// CreateProject creates a project owned by the caller, with its first page.
+func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+	var req dto.CreateProjectRequest
+	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+		return err
+	}
+
+	styles := json.RawMessage(`{}`)
+	if req.Styles != nil {
+		b, err := json.Marshal(req.Styles)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Invalid styles")
+		}
+		styles = b
+	}
+	project := &models.Project{
+		ID:          req.Id,
+		Name:        req.Name,
+		OwnerId:     userID,
+		Description: req.Description,
+		Subdomain:   req.Subdomain,
+		Published:   req.Published,
+		Styles:      &styles,
+	}
+	if req.Header != nil {
+		b, err := json.Marshal(req.Header)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Invalid header")
+		}
+		header := json.RawMessage(b)
+		project.Header = &header
+	}
+
+	created, err := h.projectService.CreateProjectWithPage(c.Context(), project)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "", "Failed to create project")
+	}
+	return utils.SendJSON(c, fiber.StatusCreated, created)
+}
+
+// GetProjectAccess returns the caller's role on a project. 404 means no
+// access (deleted, missing, or not shared), so ids cannot be probed.
+func (h *ProjectHandler) GetProjectAccess(c *fiber.Ctx) error {
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	if err != nil {
+		return err
+	}
+	access, err := h.projectService.GetProjectAccess(c.Context(), ids[0], userID)
+	if errors.Is(err, repositories.ErrProjectNotFound) {
+		return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, userID)
+	}
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to check project access", err, userID)
+	}
+	return utils.SendJSON(c, fiber.StatusOK, access)
 }

@@ -373,3 +373,66 @@ func (r *ProjectRepository) GetProjectWithLock(ctx context.Context, projectID, u
 
 	return &project, nil
 }
+
+func (r *ProjectRepository) CreateProjectWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
+	if project == nil || page == nil {
+		return errors.New("project and page are required")
+	}
+	if project.ID == "" || project.Name == "" || project.OwnerId == "" {
+		return errors.New("project id, name and owner are required")
+	}
+	now := time.Now().UTC()
+	if project.AuditFields == nil {
+		project.AuditFields = &models.AuditFields{}
+	}
+	project.CreatedAt, project.UpdatedAt = now, now
+	page.ProjectId = project.ID
+	page.CreatedAt, page.UpdatedAt = now, now
+
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit(clause.Associations).Create(project).Error; err != nil {
+			return fmt.Errorf("failed to create project: %w", err)
+		}
+		if err := tx.Omit(clause.Associations).Create(page).Error; err != nil {
+			return fmt.Errorf("failed to create first page: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *ProjectRepository) GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+	if projectID == "" || userID == "" {
+		return nil, errors.New("projectID and userID are required")
+	}
+	var project models.Project
+	err := r.db.WithContext(ctx).
+		Select(`"Id"`, `"OwnerId"`).
+		Where(`"Id" = ? AND "DeletedAt" IS NULL`, projectID).
+		First(&project).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrProjectNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+
+	access := &models.ProjectAccess{UserId: userID, ProjectId: projectID}
+	if project.OwnerId == userID {
+		access.Role, access.IsOwner = models.RoleOwner, true
+		return access, nil
+	}
+
+	var collaborator models.Collaborator
+	err = r.db.WithContext(ctx).
+		Select(`"Role"`).
+		Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, userID).
+		First(&collaborator).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrProjectNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get collaborator: %w", err)
+	}
+	access.Role, access.IsCollaborator = collaborator.Role, true
+	return access, nil
+}

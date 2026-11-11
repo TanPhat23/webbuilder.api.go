@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
+
+	"github.com/google/uuid"
 )
 
 type ProjectService struct {
@@ -236,4 +239,28 @@ func (s *ProjectService) GetProjectWithLock(ctx context.Context, projectID, user
 	}
 
 	return s.projectRepo.GetProjectWithLock(ctx, projectID, userID)
+}
+// CreateProjectWithPage creates a project and its mandatory first page in
+// one transaction, so a project never exists without a page.
+func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error) {
+	if project == nil || project.Name == "" || project.OwnerId == "" {
+		return nil, errors.New("project name and ownerId are required")
+	}
+	if project.ID == "" {
+		project.ID = uuid.New().String()
+	}
+	page := &models.Page{
+		Id:     uuid.New().String(),
+		Name:   "",
+		Type:   "page",
+		Styles: json.RawMessage(`{}`),
+	}
+	if err := s.projectRepo.CreateProjectWithPage(ctx, project, page); err != nil {
+		return nil, err
+	}
+	return project, nil
+}
+
+func (s *ProjectService) GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+	return s.projectRepo.GetProjectAccess(ctx, projectID, userID)
 }

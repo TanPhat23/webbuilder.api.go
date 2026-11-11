@@ -134,3 +134,21 @@ func (s *PageService) DeletePageByProjectIDWithoutVerification(ctx context.Conte
 
 	return s.pageRepo.DeletePageByProjectID(ctx, pageID, projectID, "")
 }
+// CreatePageAsUser creates a page after checking the user may edit the
+// project (owner or editor). Viewers and strangers get ErrProjectUnauthorized.
+func (s *PageService) CreatePageAsUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error) {
+	if page == nil {
+		return nil, errors.New("page cannot be nil")
+	}
+	access, err := s.projectRepo.GetProjectAccess(ctx, page.ProjectId, userID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrProjectNotFound) {
+			return nil, repositories.ErrProjectUnauthorized
+		}
+		return nil, err
+	}
+	if access.Role != models.RoleOwner && access.Role != models.RoleEditor {
+		return nil, repositories.ErrProjectUnauthorized
+	}
+	return s.CreatePage(ctx, page)
+}

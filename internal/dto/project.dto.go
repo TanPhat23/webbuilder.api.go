@@ -10,6 +10,8 @@ type UpdateProjectRequest struct {
 	Header      any     `json:"header"`
 }
 type CreateProjectRequest struct {
+	// Id lets the client choose the project id; generated when empty.
+	Id          string  `json:"id"          validate:"omitempty,uuid"`
 	Name        string `json:"name"        validate:"required,min=1,max=255"`
 	Description *string `json:"description" validate:"omitempty,max=1000"`
 	Published   bool   `json:"published"`

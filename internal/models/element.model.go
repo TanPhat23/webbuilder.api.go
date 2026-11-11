@@ -60,6 +60,7 @@ type Element struct {
 	Styles         json.RawMessage        `gorm:"column:Styles;type:jsonb" json:"styles,omitempty"`
 	Settings       *json.RawMessage       `gorm:"column:Settings;type:jsonb" json:"settings,omitempty"`
 	Order          int                    `gorm:"column:Order;default:0" json:"order"`
+	OrderKey       *string                `gorm:"column:OrderKey" json:"orderKey,omitempty"`
 }
 
 type EditorElement interface {

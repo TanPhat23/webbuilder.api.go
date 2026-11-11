@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"my-go-app/internal/models"
 	"time"
@@ -397,6 +399,7 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemID string, userID st
 			Styles:         originalElement.Styles,
 			TailwindStyles: originalElement.TailwindStyles,
 			Order:          originalElement.Order,
+			OrderKey:       originalElement.OrderKey,
 			ParentId:       originalElement.ParentId, // Will update this next
 			PageId:         newPageId,
 		}
@@ -532,4 +535,20 @@ func (r *MarketplaceRepository) DeleteTag(id string) error {
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+func (r *MarketplaceRepository) GetItemsByAuthor(ctx context.Context, authorID string) ([]models.MarketplaceItem, error) {
+	if authorID == "" {
+		return nil, errors.New("authorID is required")
+	}
+	items := []models.MarketplaceItem{}
+	err := r.db.WithContext(ctx).
+		Preload("Categories").
+		Where(`"AuthorId" = ? AND "DeletedAt" IS NULL`, authorID).
+		Order(`"CreatedAt" DESC`).
+		Find(&items).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get author marketplace items: %w", err)
+	}
+	return items, nil
 }

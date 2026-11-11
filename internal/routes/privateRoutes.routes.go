@@ -45,6 +45,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	elementCommentHandler := handlers.NewElementCommentHandler(elementCommentService)
 	userHandler := handlers.NewUserHandler(userService)
 	eventWorkflowHandler := handlers.NewEventWorkflowHandler(eventWorkflowService, elementEventWorkflowService)
+	notificationHandler := handlers.NewNotificationHandler(repos.NotificationRepository)
 	elementEventWorkflowHandler := handlers.NewElementEventWorkflowHandler(elementEventWorkflowService, projectService, pageService)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
@@ -52,7 +53,9 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/elements/:projectid", elementHandler.GetElements)
 	group.Get("/elements/by-pages", elementHandler.GetElementsByPageIds)
 
+	group.Post("/projects", projectHandler.CreateProject)
 	group.Get("/projects/user", projectHandler.GetProjectsByUser)
+	group.Get("/projects/:projectid/access", projectHandler.GetProjectAccess)
 	group.Get("/projects/:projectid", projectHandler.GetProjectByID)
 	group.Get("/projects/:projectid/pages", projectHandler.GetProjectPages)
 	group.Delete("/projects/:projectid", projectHandler.DeleteProject)
@@ -92,6 +95,7 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/images/:imageid", imageHandler.GetImageByID)
 	group.Delete("/images/:imageid", imageHandler.DeleteImage)
 
+	group.Get("/analytics/marketplace", marketplaceHandler.GetMyItemsForAnalytics)
 	group.Post("/marketplace", marketplaceHandler.CreateMarketplaceItem)
 	group.Get("/marketplace", marketplaceHandler.GetMarketplaceItems)
 	group.Get("/marketplace/:id", marketplaceHandler.GetMarketplaceItemByID)
@@ -150,6 +154,11 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	group.Get("/users/email/:email", userHandler.GetUserByEmail)
 	group.Get("/users/username/:username", userHandler.GetUserByUsername)
 	group.Get("/users/search", userHandler.SearchUsers)
+
+	group.Get("/notifications", notificationHandler.GetNotifications)
+	group.Post("/notifications/read-all", notificationHandler.MarkAllRead)
+	group.Post("/notifications/profile-update", notificationHandler.CreateProfileUpdate)
+	group.Patch("/notifications/:id", notificationHandler.SetNotificationRead)
 
 	group.Post("/event-workflows", eventWorkflowHandler.CreateEventWorkflow)
 	group.Get("/event-workflows/:projectid", eventWorkflowHandler.GetEventWorkflowsByProject)

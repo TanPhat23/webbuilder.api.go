@@ -21,6 +21,7 @@ type MarketplaceItem struct {
 	PageCount   *int       `gorm:"column:PageCount;type:int" json:"pageCount,omitempty"`
 	Downloads   int        `gorm:"column:Downloads;not null;default:0" json:"downloads"`
 	Likes       int        `gorm:"column:Likes;not null;default:0" json:"likes"`
+	Views       int        `gorm:"column:Views;not null;default:0" json:"views"`
 	Featured    bool       `gorm:"column:Featured;not null;default:false" json:"featured"`
 	Verified    bool       `gorm:"column:Verified;not null;default:false" json:"verified"`
 }

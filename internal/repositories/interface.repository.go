@@ -96,6 +96,10 @@ type ProjectRepositoryInterface interface {
 	GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error)
 	// CreateProject creates a new project
 	CreateProject(ctx context.Context, project *models.Project) error
+	// CreateProjectWithPage creates a project and its first page in one transaction
+	CreateProjectWithPage(ctx context.Context, project *models.Project, page *models.Page) error
+	// GetProjectAccess returns the user's role on a non-deleted project, or ErrProjectNotFound
+	GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error)
 	// UpdateProject updates a project with ownership verification
 	UpdateProject(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error)
 	// DeleteProject soft deletes a project with ownership verification
@@ -220,6 +224,8 @@ type MarketplaceRepositoryInterface interface {
 	CreateMarketplaceItem(item models.MarketplaceItem, tagIds []string, categoryIds []string) (*models.MarketplaceItem, error)
 	// GetMarketplaceItems retrieves marketplace items with filters
 	GetMarketplaceItems(filter MarketplaceFilter) ([]models.MarketplaceItem, int64, error)
+	// GetItemsByAuthor returns every non-deleted item by an author, newest first, with categories
+	GetItemsByAuthor(ctx context.Context, authorID string) ([]models.MarketplaceItem, error)
 	// GetMarketplaceItemByID retrieves a marketplace item by ID
 	GetMarketplaceItemByID(id string) (*models.MarketplaceItem, error)
 	// UpdateMarketplaceItem updates a marketplace item with user verification
@@ -410,7 +416,16 @@ type ElementEventWorkflowRepositoryInterface interface {
 	CheckIfWorkflowLinkedToElement(ctx context.Context, elementID, workflowID, eventName string) (bool, error)
 }
 
+// NotificationRepositoryInterface defines methods for a user's notifications.
+type NotificationRepositoryInterface interface {
+	ListForUser(ctx context.Context, userID string, filter models.NotificationFilter) (*models.NotificationList, error)
+	SetRead(ctx context.Context, userID, notificationID string, read bool) (*models.Notification, error)
+	MarkAllRead(ctx context.Context, userID string) error
+	Create(ctx context.Context, n *models.Notification) error
+}
+
 type RepositoriesInterface struct {
+	NotificationRepository         NotificationRepositoryInterface
 	ElementRepository              ElementRepositoryInterface
 	ElementCommentRepository       ElementCommentRepositoryInterface
 	UserRepository                 UserRepositoryInterface
@@ -453,5 +468,6 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 		EventWorkflowRepository:        NewEventWorkflowRepository(db),
 		ElementEventWorkflowRepository: NewElementEventWorkflowRepository(db),
 		CommentRepository:              NewCommentRepository(db),
+		NotificationRepository:         NewNotificationRepository(db),
 	}
 }
