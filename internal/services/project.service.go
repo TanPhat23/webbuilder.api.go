@@ -100,7 +100,7 @@ func (s *ProjectService) GetProjectPages(ctx context.Context, projectID, userID 
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
 
-	return s.projectRepo.GetProjectPages(ctx, projectID, "")
+	return s.projectRepo.GetProjectPages(ctx, projectID, userID)
 }
 
 func (s *ProjectService) CreateProject(ctx context.Context, project *models.Project) (*models.Project, error) {

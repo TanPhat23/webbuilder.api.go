@@ -18,7 +18,9 @@ func WorkflowRoutes(group fiber.Router, repos *repositories.RepositoriesInterfac
 	elementEventWorkflowHandler := handlers.NewElementEventWorkflowHandler(elementEventWorkflowService, projectService, pageService)
 
 	group.Post("/event-workflows", eventWorkflowHandler.CreateEventWorkflow)
-	group.Get("/event-workflows/:projectid", eventWorkflowHandler.GetEventWorkflowsByProject)
+	// Project-scoped list. The old GET /event-workflows/:projectid shadowed
+	// GET /event-workflows/:id (same pattern, registered first), so it is gone.
+	group.Get("/projects/:projectid/event-workflows", eventWorkflowHandler.GetEventWorkflowsByProject)
 	group.Get("/event-workflows/:id", eventWorkflowHandler.GetEventWorkflowByID)
 	group.Patch("/event-workflows/:id", eventWorkflowHandler.UpdateEventWorkflow)
 	group.Patch("/event-workflows/:id/enabled", eventWorkflowHandler.UpdateEventWorkflowEnabled)
@@ -26,6 +28,8 @@ func WorkflowRoutes(group fiber.Router, repos *repositories.RepositoriesInterfac
 	group.Get("/event-workflows/:id/elements", eventWorkflowHandler.GetEventWorkflowElements)
 
 	group.Post("/element-event-workflows", elementEventWorkflowHandler.CreateElementEventWorkflow)
+	// Registered before /:id so "page" is not read as a workflow id.
+	group.Get("/element-event-workflows/page/:pageId", elementEventWorkflowHandler.GetElementEventWorkflowsByPageId)
 	group.Get("/element-event-workflows/:id", elementEventWorkflowHandler.GetElementEventWorkflowByID)
 	group.Get("/element-event-workflows", elementEventWorkflowHandler.GetElementEventWorkflows)
 	group.Patch("/element-event-workflows/:id", elementEventWorkflowHandler.UpdateElementEventWorkflow)

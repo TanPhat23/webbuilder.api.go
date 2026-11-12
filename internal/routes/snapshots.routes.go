@@ -14,6 +14,8 @@ func SnapshotRoutes(group fiber.Router, repos *repositories.RepositoriesInterfac
 
 	group.Post("/snapshots/:projectid/save", snapshotHandler.SaveSnapshot)
 	group.Get("/snapshots/:projectid", snapshotHandler.GetSnapshots)
-	group.Get("/snapshots/:snapshotid", snapshotHandler.GetSnapshotByID)
-	group.Delete("/snapshots/:snapshotid", snapshotHandler.DeleteSnapshot)
+	// The project id is part of the path: it was shadowed by /snapshots/:projectid
+	// and DeleteSnapshot reads :projectid as well as :snapshotid.
+	group.Get("/snapshots/:projectid/:snapshotid", snapshotHandler.GetSnapshotByID)
+	group.Delete("/snapshots/:projectid/:snapshotid", snapshotHandler.DeleteSnapshot)
 }

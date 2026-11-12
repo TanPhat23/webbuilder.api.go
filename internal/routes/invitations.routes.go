@@ -18,6 +18,5 @@ func InvitationRoutes(group fiber.Router, invitationService *services.Invitation
 	group.Get("/invitations/project/:projectid/pending", invitationHandler.GetPendingInvitationsByProject)
 	group.Patch("/invitations/:invitationid/cancel", invitationHandler.CancelInvitation)
 	group.Patch("/invitations/:invitationid/status", invitationHandler.UpdateInvitationStatus)
-	group.Delete("/invitations/:id", invitationHandler.DeleteInvitation)
 	group.Delete("/invitations/:invitationid", invitationHandler.DeleteInvitation)
 }

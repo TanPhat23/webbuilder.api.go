@@ -13,11 +13,9 @@ func CollaboratorRoutes(group fiber.Router, repos *repositories.RepositoriesInte
 	collaboratorHandler := handlers.NewCollaboratorHandler(collaboratorService)
 
 	group.Post("/collaborators", collaboratorHandler.CreateCollaborator)
-	group.Get("/collaborators/:projectid", collaboratorHandler.GetCollaboratorsByProject)
 	group.Get("/collaborators/project/:projectid", collaboratorHandler.GetCollaboratorsByProject)
 	group.Get("/collaborators/:collaboratorid", collaboratorHandler.GetCollaboratorByID)
-	group.Patch("/collaborators/:id", collaboratorHandler.UpdateCollaboratorRole)
+	group.Patch("/collaborators/:collaboratorid", collaboratorHandler.UpdateCollaboratorRole)
 	group.Patch("/collaborators/:collaboratorid/role", collaboratorHandler.UpdateCollaboratorRole)
-	group.Delete("/collaborators/:id", collaboratorHandler.DeleteCollaborator)
 	group.Delete("/collaborators/:collaboratorid", collaboratorHandler.DeleteCollaborator)
 }
