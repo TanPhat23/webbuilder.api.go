@@ -26,6 +26,10 @@ func NewEventWorkflowHandler(
 }
 
 func (h *EventWorkflowHandler) CreateEventWorkflow(c fiber.Ctx) error {
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
 	req := new(dto.CreateEventWorkflowRequest)
 	if err := c.Bind().Body(req); err != nil {
 		return err
@@ -38,9 +42,9 @@ func (h *EventWorkflowHandler) CreateEventWorkflow(c fiber.Ctx) error {
 		CanvasData:  req.CanvasData,
 		Handlers:    req.Handlers,
 		Enabled:     req.Enabled != nil && *req.Enabled,
-	})
+	}, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to create event workflow")
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to create event workflow")
 	}
 
 	if workflow.CanvasData == nil {
@@ -72,7 +76,7 @@ func (h *EventWorkflowHandler) GetEventWorkflowByID(c fiber.Ctx) error {
 }
 
 func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -87,9 +91,9 @@ func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c fiber.Ctx) error {
 		enabledPtr = &v
 	}
 
-	workflows, err := h.eventWorkflowService.GetEventWorkflowsWithFilters(c.RequestCtx(), projectID, enabledPtr, c.Query("search"))
+	workflows, err := h.eventWorkflowService.GetEventWorkflowsWithFilters(c.RequestCtx(), projectID, userID, enabledPtr, c.Query("search"))
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve event workflows")
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve event workflows")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"data": workflows, "count": len(workflows)})

@@ -49,7 +49,7 @@ type ProjectServiceInterface interface {
 }
 
 type PageServiceInterface interface {
-	GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error)
+	GetPagesByProjectID(ctx context.Context, projectID, userID string) ([]models.Page, error)
 	GetPageByID(ctx context.Context, pageID string) (*models.Page, error)
 	CreatePage(ctx context.Context, page *models.Page) (*models.Page, error)
 	CreatePageAsUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error)
@@ -88,7 +88,7 @@ type CollaboratorServiceInterface interface {
 
 type SnapshotServiceInterface interface {
 	SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error
-	GetSnapshotsByProjectID(ctx context.Context, projectID string) ([]models.Snapshot, error)
+	GetSnapshotsByProjectID(ctx context.Context, projectID, userID string) ([]models.Snapshot, error)
 	GetSnapshotByID(ctx context.Context, id string) (*models.Snapshot, error)
 	DeleteSnapshot(ctx context.Context, id string) error
 	DeleteSnapshotWithAccess(ctx context.Context, snapshotID, projectID, userID string) error
@@ -140,7 +140,7 @@ type CustomElementTypeServiceInterface interface {
 }
 
 type EventWorkflowServiceInterface interface {
-	CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
+	CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow, userID string) (*models.EventWorkflow, error)
 	GetEventWorkflowByID(ctx context.Context, id string) (*models.EventWorkflow, error)
 	GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
 	GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
@@ -152,7 +152,7 @@ type EventWorkflowServiceInterface interface {
 	DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error
 	CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error)
 	CheckIfWorkflowNameExists(ctx context.Context, projectID, name, excludeID string) (bool, error)
-	GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
+	GetEventWorkflowsWithFilters(ctx context.Context, projectID, userID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
 }
 
 type ElementEventWorkflowServiceInterface interface {

@@ -22,13 +22,14 @@ func NewPageService(
 	}
 }
 
-func (s *PageService) GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error) {
+// GetPagesByProjectID lists a project's pages. userID is the signed-in caller,
+// or "" on the public route, where only published projects are readable.
+func (s *PageService) GetPagesByProjectID(ctx context.Context, projectID, userID string) ([]models.Page, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	_, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
-	if err != nil {
+	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
 		return nil, err
 	}
 

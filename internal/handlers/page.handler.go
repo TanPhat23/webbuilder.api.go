@@ -51,9 +51,13 @@ func (h *PageHandler) GetPagesByProjectID(c fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	pages, err := h.pageService.GetPagesByProjectID(c.RequestCtx(), projectID)
+	// The same handler serves the public and the signed-in route; only the
+	// latter sets a user, and only a user can read an unpublished project.
+	userID, _ := c.Locals("userId").(string)
+
+	pages, err := h.pageService.GetPagesByProjectID(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve pages")
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve pages")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, pages)

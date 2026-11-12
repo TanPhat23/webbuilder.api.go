@@ -64,15 +64,15 @@ func (h *SnapshotHandler) SaveSnapshot(c fiber.Ctx) error {
 }
 
 func (h *SnapshotHandler) GetSnapshots(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	snapshots, err := h.snapshotService.GetSnapshotsByProjectID(c.RequestCtx(), projectID)
+	snapshots, err := h.snapshotService.GetSnapshotsByProjectID(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to get snapshots")
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to get snapshots")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, snapshots)

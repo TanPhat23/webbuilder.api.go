@@ -79,3 +79,22 @@ func TestCreatePageAsUser_UnpublishedProject(t *testing.T) {
 		t.Fatalf("owner adding a page to an unpublished project: err=%v created=%v", err, created)
 	}
 }
+
+func TestGetPagesByProjectID_Visibility(t *testing.T) {
+	pages := mockrepo.NewMockPageRepo().
+		SetGetPagesByProjectID(func(context.Context, string) ([]models.Page, error) {
+			return []models.Page{{Id: "pg1"}}, nil
+		})
+	svc := services.NewPageService(pages, unpublishedProjectRepo("owner"))
+
+	if got, err := svc.GetPagesByProjectID(context.Background(), "p1", "owner"); err != nil || len(got) != 1 {
+		t.Fatalf("owner: got %v, %v", got, err)
+	}
+	// "" is the public route: an unpublished project must stay hidden.
+	if _, err := svc.GetPagesByProjectID(context.Background(), "p1", ""); !errors.Is(err, repositories.ErrProjectNotFound) {
+		t.Fatalf("public route: err = %v, want ErrProjectNotFound", err)
+	}
+	if _, err := svc.GetPagesByProjectID(context.Background(), "p1", "stranger"); !errors.Is(err, repositories.ErrProjectNotFound) {
+		t.Fatalf("stranger: err = %v, want ErrProjectNotFound", err)
+	}
+}
