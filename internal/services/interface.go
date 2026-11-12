@@ -36,7 +36,7 @@ type ProjectServiceInterface interface {
 	GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
 	GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error)
 	GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error)
-	GetProjectPages(ctx context.Context, projectID string) ([]models.Page, error)
+	GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error)
 	CreateProject(ctx context.Context, project *models.Project) (*models.Project, error)
 	CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error)
 	GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error)
@@ -79,7 +79,7 @@ type ImageServiceInterface interface {
 
 type CollaboratorServiceInterface interface {
 	CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
-	GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error)
+	GetCollaboratorsByProject(ctx context.Context, projectID, userID string) ([]models.Collaborator, error)
 	GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error)
 	UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error
 	DeleteCollaborator(ctx context.Context, id string) error
@@ -196,8 +196,8 @@ type ElementCommentServiceInterface interface {
 	CountElementComments(ctx context.Context, elementID string) (int64, error)
 	ToggleResolvedStatus(ctx context.Context, id string) error
 	DeleteElementCommentsByElementID(ctx context.Context, elementID string) error
-	GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error)
-	CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error)
+	GetElementCommentsByProjectID(ctx context.Context, projectID, userID string, limit int, offset int) ([]models.ElementComment, error)
+	CountElementCommentsByProjectID(ctx context.Context, projectID, userID string) (int64, error)
 }
 
 type MarketplaceServiceInterface interface {

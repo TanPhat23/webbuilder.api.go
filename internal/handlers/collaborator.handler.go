@@ -20,15 +20,15 @@ func NewCollaboratorHandler(collaboratorService services.CollaboratorServiceInte
 }
 
 func (h *CollaboratorHandler) GetCollaboratorsByProject(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	collaborators, err := h.collaboratorService.GetCollaboratorsByProject(c.RequestCtx(), projectID)
+	collaborators, err := h.collaboratorService.GetCollaboratorsByProject(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve collaborators")
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve collaborators")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"collaborators": collaborators})

@@ -91,17 +91,13 @@ func (s *ProjectService) GetCollaboratorProjects(ctx context.Context, userID str
 	return s.projectRepo.GetCollaboratorProjects(ctx, userID)
 }
 
-func (s *ProjectService) GetProjectPages(ctx context.Context, projectID string) ([]models.Page, error) {
+func (s *ProjectService) GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
-	if err != nil {
+	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
-	}
-	if project == nil {
-		return nil, errors.New("project does not exist")
 	}
 
 	return s.projectRepo.GetProjectPages(ctx, projectID, "")
@@ -240,6 +236,7 @@ func (s *ProjectService) GetProjectWithLock(ctx context.Context, projectID, user
 
 	return s.projectRepo.GetProjectWithLock(ctx, projectID, userID)
 }
+
 // CreateProjectWithPage creates a project and its mandatory first page in
 // one transaction, so a project never exists without a page.
 func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error) {

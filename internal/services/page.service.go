@@ -65,6 +65,11 @@ func (s *PageService) CreatePage(ctx context.Context, page *models.Page) (*model
 		return nil, errors.New("project does not exist")
 	}
 
+	return s.insertPage(ctx, page)
+}
+
+// insertPage stores a page whose project the caller has already verified.
+func (s *PageService) insertPage(ctx context.Context, page *models.Page) (*models.Page, error) {
 	if err := s.pageRepo.CreatePage(ctx, page); err != nil {
 		return nil, err
 	}
@@ -134,6 +139,7 @@ func (s *PageService) DeletePageByProjectIDWithoutVerification(ctx context.Conte
 
 	return s.pageRepo.DeletePageByProjectID(ctx, pageID, projectID, "")
 }
+
 // CreatePageAsUser creates a page after checking the user may edit the
 // project (owner or editor). Viewers and strangers get ErrProjectUnauthorized.
 func (s *PageService) CreatePageAsUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error) {
@@ -150,5 +156,12 @@ func (s *PageService) CreatePageAsUser(ctx context.Context, page *models.Page, u
 	if access.Role != models.RoleOwner && access.Role != models.RoleEditor {
 		return nil, repositories.ErrProjectUnauthorized
 	}
-	return s.CreatePage(ctx, page)
+	if page.Name == "" {
+		return nil, errors.New("page name is required")
+	}
+	if page.Type == "" {
+		return nil, errors.New("page type is required")
+	}
+	// Access was verified above, so an unpublished project is fine.
+	return s.insertPage(ctx, page)
 }
