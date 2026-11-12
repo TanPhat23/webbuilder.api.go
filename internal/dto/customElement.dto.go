@@ -2,37 +2,34 @@ package dto
 
 import "encoding/json"
 
-// CreateCustomElementRequest contains the required fields to create a new custom element.
 type CreateCustomElementRequest struct {
-	Name         string          `json:"name"         validate:"required,min=1,max=255"`
 	Structure    json.RawMessage `json:"structure"    validate:"required"`
-	TypeId       *string         `json:"typeId"`
-	Description  *string         `json:"description"  validate:"omitempty,max=1000"`
-	Category     *string         `json:"category"     validate:"omitempty,max=100"`
-	Icon         *string         `json:"icon"         validate:"omitempty,max=255"`
-	Thumbnail    *string         `json:"thumbnail"    validate:"omitempty,max=255"`
-	DefaultProps json.RawMessage `json:"defaultProps"`
-	Tags         *string         `json:"tags"         validate:"omitempty,max=500"`
+	DefaultProps json.RawMessage `json:"defaultProps" validate:"omitempty"`
+	Name         string          `json:"name"         validate:"required,min=1,max=255"`
+	Version      string          `json:"version"      validate:"required,min=1,max=50"`
+	TypeId       *string         `json:"typeId"       validate:"omitempty,min=1,max=255"`
+	Description  *string         `json:"description"  validate:"omitempty,min=1,max=1000"`
+	Category     *string         `json:"category"     validate:"omitempty,min=1,max=100"`
+	Icon         *string         `json:"icon"         validate:"omitempty,min=1,max=255"`
+	Thumbnail    *string         `json:"thumbnail"    validate:"omitempty,min=1,max=255"`
+	Tags         *string         `json:"tags"         validate:"omitempty,min=1,max=500"`
 	IsPublic     bool            `json:"isPublic"`
-	Version      string          `json:"version"      validate:"omitempty"`
 }
 
-// UpdateCustomElementRequest contains the patchable fields on a custom element.
 type UpdateCustomElementRequest struct {
+	Structure    json.RawMessage `json:"structure"    validate:"omitempty"`
+	DefaultProps json.RawMessage `json:"defaultProps" validate:"omitempty"`
 	Name         *string         `json:"name"         validate:"omitempty,min=1,max=255"`
-	Structure    json.RawMessage `json:"structure"`
-	TypeId       *string         `json:"typeId"`
-	Description  *string         `json:"description"  validate:"omitempty,max=1000"`
-	Category     *string         `json:"category"     validate:"omitempty,max=100"`
-	Icon         *string         `json:"icon"         validate:"omitempty,max=255"`
-	Thumbnail    *string         `json:"thumbnail"    validate:"omitempty,max=255"`
-	DefaultProps json.RawMessage `json:"defaultProps"`
-	Tags         *string         `json:"tags"         validate:"omitempty,max=500"`
+	TypeId       *string         `json:"typeId"       validate:"omitempty,min=1,max=255"`
+	Description  *string         `json:"description"  validate:"omitempty,min=1,max=1000"`
+	Category     *string         `json:"category"     validate:"omitempty,min=1,max=100"`
+	Icon         *string         `json:"icon"         validate:"omitempty,min=1,max=255"`
+	Thumbnail    *string         `json:"thumbnail"    validate:"omitempty,min=1,max=255"`
+	Tags         *string         `json:"tags"         validate:"omitempty,min=1,max=500"`
 	IsPublic     *bool           `json:"isPublic"`
-	Version      *string         `json:"version"      validate:"omitempty"`
+	Version      *string         `json:"version"      validate:"omitempty,min=1,max=50"`
 }
 
-// DuplicateCustomElementRequest contains the required fields to duplicate a custom element.
 type DuplicateCustomElementRequest struct {
 	NewName string `json:"newName" validate:"required,min=1,max=255"`
 }

@@ -6,7 +6,7 @@ import (
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type ElementEventWorkflowHandler struct {
@@ -28,18 +28,18 @@ func NewElementEventWorkflowHandler(
 }
 
 // CreateElementEventWorkflow creates a new element event workflow association.
-func (h *ElementEventWorkflowHandler) CreateElementEventWorkflow(c *fiber.Ctx) error {
+func (h *ElementEventWorkflowHandler) CreateElementEventWorkflow(c fiber.Ctx) error {
 	_, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
 
-	var req dto.CreateElementEventWorkflowRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.CreateElementEventWorkflowRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
-	created, err := h.elementEventWorkflowService.CreateElementEventWorkflow(c.Context(), &models.ElementEventWorkflow{
+	created, err := h.elementEventWorkflowService.CreateElementEventWorkflow(c.RequestCtx(), &models.ElementEventWorkflow{
 		ElementId:  req.ElementID,
 		WorkflowId: req.WorkflowID,
 		EventName:  req.EventName,
@@ -52,14 +52,14 @@ func (h *ElementEventWorkflowHandler) CreateElementEventWorkflow(c *fiber.Ctx) e
 }
 
 // GetElementEventWorkflowByID retrieves a specific element event workflow.
-func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c *fiber.Ctx) error {
+func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c fiber.Ctx) error {
 	_, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	eewID := ids[0]
 
-	eew, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.Context(), eewID)
+	eew, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.RequestCtx(), eewID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to retrieve element event workflow")
 	}
@@ -71,23 +71,23 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c *fiber.Ctx) 
 }
 
 // GetElementEventWorkflowsByPageId retrieves all element event workflows for a page.
-func (h *ElementEventWorkflowHandler) GetElementEventWorkflowsByPageId(c *fiber.Ctx) error {
+func (h *ElementEventWorkflowHandler) GetElementEventWorkflowsByPageId(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "pageId")
 	if err != nil {
 		return err
 	}
 	pageID := ids[0]
 
-	page, err := h.pageService.GetPageByID(c.Context(), pageID)
+	page, err := h.pageService.GetPageByID(c.RequestCtx(), pageID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to retrieve page")
 	}
 
-	if _, err := h.projectService.GetProjectWithAccess(c.Context(), page.ProjectId, userID); err != nil {
+	if _, err := h.projectService.GetProjectWithAccess(c.RequestCtx(), page.ProjectId, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied to project", err, userID)
 	}
 
-	eews, err := h.elementEventWorkflowService.GetElementEventWorkflowsByPageID(c.Context(), pageID)
+	eews, err := h.elementEventWorkflowService.GetElementEventWorkflowsByPageID(c.RequestCtx(), pageID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve element event workflows")
 	}
@@ -96,7 +96,7 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflowsByPageId(c *fiber.
 }
 
 // GetElementEventWorkflows retrieves element event workflows with optional filters.
-func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) error {
+func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c fiber.Ctx) error {
 	_, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
@@ -113,16 +113,16 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) err
 
 	switch {
 	case elementID != "" && workflowID == "" && eventName == "":
-		eews, fetchErr = h.elementEventWorkflowService.GetElementEventWorkflowsByElementID(c.Context(), elementID)
+		eews, fetchErr = h.elementEventWorkflowService.GetElementEventWorkflowsByElementID(c.RequestCtx(), elementID)
 
 	case workflowID != "" && elementID == "" && eventName == "":
-		eews, fetchErr = h.elementEventWorkflowService.GetElementEventWorkflowsByWorkflowID(c.Context(), workflowID)
+		eews, fetchErr = h.elementEventWorkflowService.GetElementEventWorkflowsByWorkflowID(c.RequestCtx(), workflowID)
 
 	default:
 		if elementID != "" || workflowID != "" || eventName != "" {
-			eews, fetchErr = h.elementEventWorkflowService.GetElementEventWorkflowsByFilters(c.Context(), elementID, workflowID, eventName)
+			eews, fetchErr = h.elementEventWorkflowService.GetElementEventWorkflowsByFilters(c.RequestCtx(), elementID, workflowID, eventName)
 		} else {
-			eews, fetchErr = h.elementEventWorkflowService.GetAllElementEventWorkflows(c.Context())
+			eews, fetchErr = h.elementEventWorkflowService.GetAllElementEventWorkflows(c.RequestCtx())
 		}
 		if fetchErr != nil {
 			return utils.HandleRepoError(c, fetchErr, "", "Failed to retrieve element event workflows")
@@ -137,14 +137,14 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) err
 }
 
 // UpdateElementEventWorkflow updates the event name of an element event workflow.
-func (h *ElementEventWorkflowHandler) UpdateElementEventWorkflow(c *fiber.Ctx) error {
+func (h *ElementEventWorkflowHandler) UpdateElementEventWorkflow(c fiber.Ctx) error {
 	_, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	eewID := ids[0]
 
-	existing, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.Context(), eewID)
+	existing, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.RequestCtx(), eewID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to retrieve element event workflow")
 	}
@@ -152,14 +152,14 @@ func (h *ElementEventWorkflowHandler) UpdateElementEventWorkflow(c *fiber.Ctx) e
 		return fiber.NewError(fiber.StatusNotFound, "Element event workflow not found")
 	}
 
-	var req dto.UpdateElementEventWorkflowRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.UpdateElementEventWorkflowRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
 	existing.EventName = req.EventName
 
-	updated, err := h.elementEventWorkflowService.UpdateElementEventWorkflow(c.Context(), eewID, existing)
+	updated, err := h.elementEventWorkflowService.UpdateElementEventWorkflow(c.RequestCtx(), eewID, existing)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to update element event workflow")
 	}
@@ -168,14 +168,14 @@ func (h *ElementEventWorkflowHandler) UpdateElementEventWorkflow(c *fiber.Ctx) e
 }
 
 // DeleteElementEventWorkflow deletes an element event workflow.
-func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflow(c *fiber.Ctx) error {
+func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflow(c fiber.Ctx) error {
 	_, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	eewID := ids[0]
 
-	eew, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.Context(), eewID)
+	eew, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.RequestCtx(), eewID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to retrieve element event workflow")
 	}
@@ -183,7 +183,7 @@ func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflow(c *fiber.Ctx) e
 		return fiber.NewError(fiber.StatusNotFound, "Element event workflow not found")
 	}
 
-	if err := h.elementEventWorkflowService.DeleteElementEventWorkflow(c.Context(), eewID); err != nil {
+	if err := h.elementEventWorkflowService.DeleteElementEventWorkflow(c.RequestCtx(), eewID); err != nil {
 		return utils.HandleRepoError(c, err, "Element event workflow not found", "Failed to delete element event workflow")
 	}
 
@@ -191,14 +191,14 @@ func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflow(c *fiber.Ctx) e
 }
 
 // DeleteElementEventWorkflowsByElement deletes all event workflow links for a specific element.
-func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByElement(c *fiber.Ctx) error {
+func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByElement(c fiber.Ctx) error {
 	_, ids, err := utils.MustUserAndParams(c, "elementId")
 	if err != nil {
 		return err
 	}
 	elementID := ids[0]
 
-	if err := h.elementEventWorkflowService.DeleteElementEventWorkflowsByElementID(c.Context(), elementID); err != nil {
+	if err := h.elementEventWorkflowService.DeleteElementEventWorkflowsByElementID(c.RequestCtx(), elementID); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to delete element event workflows")
 	}
 
@@ -206,16 +206,18 @@ func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByElement(c *fi
 }
 
 // DeleteElementEventWorkflowsByWorkflow deletes all element associations for a specific workflow.
-func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByWorkflow(c *fiber.Ctx) error {
+func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByWorkflow(c fiber.Ctx) error {
 	_, ids, err := utils.MustUserAndParams(c, "workflowId")
 	if err != nil {
 		return err
 	}
 	workflowID := ids[0]
 
-	if err := h.elementEventWorkflowService.DeleteElementEventWorkflowsByWorkflowID(c.Context(), workflowID); err != nil {
+	if err := h.elementEventWorkflowService.DeleteElementEventWorkflowsByWorkflowID(c.RequestCtx(), workflowID); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to delete element event workflows")
 	}
 
 	return utils.SendSuccess(c, fiber.StatusOK, "Element event workflows deleted successfully")
 }
+
+// fiber:context-methods migrated

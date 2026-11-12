@@ -6,10 +6,11 @@ import (
 	"my-go-app/internal/dto"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
+
 	"my-go-app/pkg/utils"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type ImageHandler struct {
@@ -24,7 +25,7 @@ func NewImageHandler(imageService services.ImageServiceInterface, cloudinaryServ
 	}
 }
 
-func (h *ImageHandler) UploadImage(c *fiber.Ctx) error {
+func (h *ImageHandler) UploadImage(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
@@ -61,14 +62,14 @@ func (h *ImageHandler) UploadImage(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, uploadResponse)
 }
 
-func (h *ImageHandler) UploadBase64Image(c *fiber.Ctx) error {
+func (h *ImageHandler) UploadBase64Image(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
 
-	var req dto.UploadBase64ImageRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.UploadBase64ImageRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -83,13 +84,13 @@ func (h *ImageHandler) UploadBase64Image(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, uploadResponse)
 }
 
-func (h *ImageHandler) GetUserImages(c *fiber.Ctx) error {
+func (h *ImageHandler) GetUserImages(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
 
-	ctx := c.Context()
+	ctx := c.RequestCtx()
 
 	images, err := h.imageService.GetImagesByUserID(ctx, userID)
 	if err != nil {
@@ -99,14 +100,14 @@ func (h *ImageHandler) GetUserImages(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, images)
 }
 
-func (h *ImageHandler) GetImageByID(c *fiber.Ctx) error {
+func (h *ImageHandler) GetImageByID(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "imageid")
 	if err != nil {
 		return err
 	}
 	imageID := ids[0]
 
-	ctx := c.Context()
+	ctx := c.RequestCtx()
 
 	image, err := h.imageService.GetImageByID(ctx, imageID, userID)
 	if err != nil {
@@ -119,14 +120,14 @@ func (h *ImageHandler) GetImageByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, image)
 }
 
-func (h *ImageHandler) DeleteImage(c *fiber.Ctx) error {
+func (h *ImageHandler) DeleteImage(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "imageid")
 	if err != nil {
 		return err
 	}
 	imageID := ids[0]
 
-	ctx := c.Context()
+	ctx := c.RequestCtx()
 
 	if err := h.imageService.DeleteImage(ctx, imageID, userID); err != nil {
 		if errors.Is(err, repositories.ErrImageNotFound) {
@@ -137,3 +138,5 @@ func (h *ImageHandler) DeleteImage(c *fiber.Ctx) error {
 
 	return utils.SendNoContent(c)
 }
+
+// fiber:context-methods migrated

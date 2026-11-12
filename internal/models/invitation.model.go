@@ -38,10 +38,11 @@ func (Invitation) TableName() string {
 	return `public."Invitation"`
 }
 
+// Request DTOs - Ordered by size for optimal alignment (16-byte strings → enums)
 type CreateInvitationRequest struct {
-	ProjectID string           `json:"project_id" validate:"required"`
-	Email     string           `json:"email" validate:"required,email"`
-	Role      CollaboratorRole `json:"role"`
+	ProjectID string           `json:"project_id" validate:"required,min=1"`
+	Email     string           `json:"email"      validate:"required,email,max=255"`
+	Role      CollaboratorRole `json:"role"       validate:"required,oneof=owner editor viewer"`
 }
 
 type InvitationResponse struct {
@@ -57,5 +58,9 @@ type InvitationResponse struct {
 }
 
 type AcceptInvitationRequest struct {
-	Token string `json:"token" validate:"required"`
+	Token string `json:"token" validate:"required,min=1,max=255"`
+}
+
+type UpdateInvitationStatusRequest struct {
+	Status InvitationStatus `json:"status" validate:"required,oneof=pending accepted expired cancelled"`
 }

@@ -4,17 +4,26 @@ import (
 	"errors"
 	"my-go-app/pkg/utils"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v3"
 )
+
+type structValidator struct {
+	validate *validator.Validate
+}
+
+func (v *structValidator) Validate(out any) error {
+	return v.validate.Struct(out)
+}
 
 func FiberConfig() fiber.Config {
 	return fiber.Config{
-		Prefork:       false,
-		CaseSensitive: true,
-		StrictRouting: true,
-		ServerHeader:  "Fiber",
-		AppName:       "Webbuilder v1.0.1",
-		ErrorHandler:  jsonErrorHandler,
+		CaseSensitive:   true,
+		StrictRouting:   true,
+		ServerHeader:    "Fiber",
+		AppName:         "Webbuilder v1.0.1",
+		ErrorHandler:    jsonErrorHandler,
+		StructValidator: &structValidator{validate: validator.New()},
 	}
 }
 
@@ -22,7 +31,7 @@ func FiberConfig() fiber.Config {
 // It guarantees that every error — whether a built-in *fiber.Error, our own
 // *utils.ValidationError, or any unexpected error — is returned as JSON so
 // clients always receive a consistent error shape.
-func jsonErrorHandler(c *fiber.Ctx, err error) error {
+func jsonErrorHandler(c fiber.Ctx, err error) error {
 	// 1. Structured validation errors (422 Unprocessable Entity)
 	var valErr *utils.ValidationError
 	if errors.As(err, &valErr) {

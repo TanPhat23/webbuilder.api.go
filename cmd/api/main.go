@@ -9,10 +9,10 @@ import (
 	"os"
 
 	"github.com/clerk/clerk-sdk-go/v2"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/joho/godotenv"
 )
 
@@ -56,12 +56,11 @@ func main() {
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
-	routes.PublicRoutes(app, repos)
-	routes.PrivateRoutes(app, repos, cloudinaryService, invitationService)
+	routes.SetupRoutes(app, repos, cloudinaryService, invitationService)
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	app.Listen(":" + port)
+	app.Listen(":"+port, fiber.ListenConfig{EnablePrefork: false})
 }

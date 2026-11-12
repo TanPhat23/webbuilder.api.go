@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
@@ -47,7 +47,7 @@ func NewValidationError(errs validator.ValidationErrors) *ValidationError {
 // empty string to skip it and always return 500.
 //
 //	if err != nil { return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user") }
-func HandleRepoError(c *fiber.Ctx, err error, notFoundMsg, internalMsg string) error {
+func HandleRepoError(c fiber.Ctx, err error, notFoundMsg, internalMsg string) error {
 	if err == nil {
 		return nil
 	}
