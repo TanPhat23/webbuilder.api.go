@@ -43,6 +43,22 @@ func (s *PageService) GetPageByID(ctx context.Context, pageID string) (*models.P
 	return s.pageRepo.GetPageByID(ctx, pageID, "")
 }
 
+// GetPublicPageByID returns a page only if it belongs to projectID and that
+// project is published, gated like GetPagesByProjectID.
+func (s *PageService) GetPublicPageByID(ctx context.Context, projectID, pageID string) (*models.Page, error) {
+	if projectID == "" || pageID == "" {
+		return nil, errors.New("projectId and pageId are required")
+	}
+	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if project == nil {
+		return nil, repositories.ErrProjectNotFound
+	}
+	return s.pageRepo.GetPageByID(ctx, pageID, projectID)
+}
+
 func (s *PageService) CreatePage(ctx context.Context, page *models.Page) (*models.Page, error) {
 	if page == nil {
 		return nil, errors.New("page cannot be nil")

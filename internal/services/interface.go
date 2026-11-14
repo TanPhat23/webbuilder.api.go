@@ -51,6 +51,7 @@ type ProjectServiceInterface interface {
 type PageServiceInterface interface {
 	GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error)
 	GetPageByID(ctx context.Context, pageID string) (*models.Page, error)
+	GetPublicPageByID(ctx context.Context, projectID, pageID string) (*models.Page, error)
 	CreatePage(ctx context.Context, page *models.Page) (*models.Page, error)
 	CreatePageAsUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error)
 	UpdatePage(ctx context.Context, pageID string, page *models.Page) (*models.Page, error)

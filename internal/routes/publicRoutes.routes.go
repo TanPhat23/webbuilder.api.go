@@ -27,7 +27,7 @@ func PublicRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 	group.Get("/projects/public/:projectid", projectHandler.GetPublicProjectByID)
 
 	group.Get("/pages/public/:projectid", pageHandler.GetPagesByProjectID)
-	group.Get("/pages/public/:projectid/:pageid", pageHandler.GetPageByID)
+	group.Get("/pages/public/:projectid/:pageid", pageHandler.GetPublicPageByID)
 
 	group.Get("/public/content", contentItemHandler.GetPublicContentItems)
 	group.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicContentItemBySlug)
