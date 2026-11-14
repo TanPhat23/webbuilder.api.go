@@ -81,9 +81,10 @@ type ElementWorkflowRepository interface {
 
 // LogicRepository stores the project's and pages' logic documents.
 type LogicRepository interface {
+	Move(ctx context.Context, projectID, pageID, userID, kind, name, to string) (project logic.Revisioned, page logic.Revisioned, err error)
 	// Apply merges patch into the project (pageID empty) or page logic after
 	// checking the user may edit, and returns the resulting document and its new revision.
-	Apply(ctx context.Context, projectID, pageID, userID string, patch map[string]any) (logic.Revisioned, error)
+	Apply(ctx context.Context, projectID, pageID, userID string, patch map[string]any, nullPaths ...[][]string) (logic.Revisioned, error)
 	// Get returns the project and page documents and revisions after checking the user may read.
 	Get(ctx context.Context, projectID, pageID, userID string) (project logic.Revisioned, page logic.Revisioned, err error)
 	// Access reports whether the user may read and may edit the project.

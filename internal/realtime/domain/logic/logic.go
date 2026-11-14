@@ -27,10 +27,38 @@ func Empty() Document {
 
 // Merge applies the same recursive null-deleting patch semantics as element settings.
 func Merge(base Document, patch map[string]any) (Document, error) {
+	return MergeWithNulls(base, patch, nil)
+}
+
+// MergeWithNulls preserves merge-patch deletion semantics while allowing
+// explicit literal null values inside variable defaults.
+func MergeWithNulls(base Document, patch map[string]any, nullPaths [][]string) (Document, error) {
 	if base == nil {
 		base = Empty()
 	}
 	merged := Document(elementutils.MergeMap(map[string]any(base), patch))
+	if len(nullPaths) > 1024 {
+		return nil, fmt.Errorf("too many literal null paths")
+	}
+	for _, path := range nullPaths {
+		if len(path) < 3 || len(path) > 64 || path[0] != "variables" || path[2] != "default" {
+			return nil, fmt.Errorf("invalid literal null path")
+		}
+		current := map[string]any(merged)
+		for _, key := range path[:len(path)-1] {
+			child, ok := current[key].(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("literal null path has no object parent")
+			}
+			copy := make(map[string]any, len(child))
+			for k, v := range child {
+				copy[k] = v
+			}
+			current[key] = copy
+			current = copy
+		}
+		current[path[len(path)-1]] = nil
+	}
 	if err := Validate(merged); err != nil {
 		return nil, err
 	}

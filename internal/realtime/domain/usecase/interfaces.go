@@ -101,7 +101,8 @@ type ElementWorkflowsUseCase interface {
 // LogicUseCase edits and reads page/project logic on behalf of a user. Errors
 // carry AppError codes: ACCESS_DENIED, NOT_FOUND or VALIDATION_ERROR.
 type LogicUseCase interface {
-	Update(ctx context.Context, projectID, pageID, userID string, patch map[string]any) (logic.Revisioned, error)
+	Move(ctx context.Context, projectID, pageID, userID, kind, name, to string) (project logic.Revisioned, page logic.Revisioned, err error)
+	Update(ctx context.Context, projectID, pageID, userID string, patch map[string]any, nullPaths ...[][]string) (logic.Revisioned, error)
 	Get(ctx context.Context, projectID, pageID, userID string) (project logic.Revisioned, page logic.Revisioned, err error)
 	Access(ctx context.Context, projectID, userID string) (read bool, write bool, err error)
 }

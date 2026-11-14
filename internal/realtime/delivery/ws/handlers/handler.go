@@ -49,22 +49,17 @@ func (h *Handler) RequireAccess(a ProjectAccess) { h.access = a }
 
 // mutating lists the message types that change project data.
 var mutating = map[domainEntity.MessageType]bool{
-	domainEntity.TypeElementCreate:         true,
-	domainEntity.TypeElementUpdate:         true,
-	domainEntity.TypeElementDelete:         true,
-	domainEntity.TypeElementMove:           true,
-	domainEntity.TypeElementContent:        true,
-	domainEntity.TypeCommentCreate:         true,
-	domainEntity.TypeCommentUpdate:         true,
-	domainEntity.TypeCommentDelete:         true,
-	domainEntity.TypeWorkflowCreate:        true,
-	domainEntity.TypeWorkflowUpdate:        true,
-	domainEntity.TypeWorkflowDelete:        true,
-	domainEntity.TypeElementWorkflowCreate: true,
-	domainEntity.TypeElementWorkflowUpdate: true,
-	domainEntity.TypeElementWorkflowDelete: true,
-	domainEntity.TypeLogicUpdate:           true,
-	domainEntity.TypeSnapshot:              true,
+	domainEntity.TypeElementCreate:  true,
+	domainEntity.TypeElementUpdate:  true,
+	domainEntity.TypeElementDelete:  true,
+	domainEntity.TypeElementMove:    true,
+	domainEntity.TypeElementContent: true,
+	domainEntity.TypeCommentCreate:  true,
+	domainEntity.TypeCommentUpdate:  true,
+	domainEntity.TypeCommentDelete:  true,
+	domainEntity.TypeLogicUpdate:    true,
+	domainEntity.TypeLogicMove:      true,
+	domainEntity.TypeSnapshot:       true,
 }
 
 // connKey returns a unique key for tracking a user's active connection to a project.
@@ -106,15 +101,8 @@ func (h *Handler) registerHandlers() {
 
 		// Logic (variables and flows)
 		domainEntity.TypeLogicUpdate: h.handleLogicUpdate,
+		domainEntity.TypeLogicMove:   h.handleLogicMove,
 		domainEntity.TypeLogicSync:   h.handleLogicSync,
-
-		// Workflow Operations
-		domainEntity.TypeWorkflowCreate:        h.handleWorkflowCreate,
-		domainEntity.TypeWorkflowUpdate:        h.handleWorkflowUpdate,
-		domainEntity.TypeWorkflowDelete:        h.handleWorkflowDelete,
-		domainEntity.TypeElementWorkflowCreate: h.handleElementWorkflowCreate,
-		domainEntity.TypeElementWorkflowUpdate: h.handleElementWorkflowUpdate,
-		domainEntity.TypeElementWorkflowDelete: h.handleElementWorkflowDelete,
 	}
 }
 

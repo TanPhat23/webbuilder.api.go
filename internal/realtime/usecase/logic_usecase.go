@@ -33,12 +33,20 @@ func mapLogicError(err error) error {
 	}
 }
 
-func (u *logicUseCase) Update(ctx context.Context, projectID, pageID, userID string, patch map[string]any) (logic.Revisioned, error) {
-	doc, err := u.repo.Apply(ctx, projectID, pageID, userID, patch)
+func (u *logicUseCase) Update(ctx context.Context, projectID, pageID, userID string, patch map[string]any, nullPaths ...[][]string) (logic.Revisioned, error) {
+	doc, err := u.repo.Apply(ctx, projectID, pageID, userID, patch, nullPaths...)
 	if err != nil {
 		return logic.Revisioned{}, mapLogicError(err)
 	}
 	return doc, nil
+}
+
+func (u *logicUseCase) Move(ctx context.Context, projectID, pageID, userID, kind, name, to string) (logic.Revisioned, logic.Revisioned, error) {
+	project, page, err := u.repo.Move(ctx, projectID, pageID, userID, kind, name, to)
+	if err != nil {
+		return logic.Revisioned{}, logic.Revisioned{}, mapLogicError(err)
+	}
+	return project, page, nil
 }
 
 func (u *logicUseCase) Get(ctx context.Context, projectID, pageID, userID string) (logic.Revisioned, logic.Revisioned, error) {

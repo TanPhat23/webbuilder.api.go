@@ -48,7 +48,11 @@ func (m *memLogic) Access(_ context.Context, _, user string) (bool, bool, error)
 	return m.read[user], m.write[user], nil
 }
 
-func (m *memLogic) Update(_ context.Context, _, pageID, user string, patch map[string]any) (logic.Revisioned, error) {
+func (m *memLogic) Move(_ context.Context, _, _, _, _, _, _ string) (logic.Revisioned, logic.Revisioned, error) {
+	return logic.Revisioned{}, logic.Revisioned{}, domainErrors.New(domainErrors.CodeInternal, "not implemented by test double", nil)
+}
+
+func (m *memLogic) Update(_ context.Context, _, pageID, user string, patch map[string]any, nullPaths ...[][]string) (logic.Revisioned, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.write[user] {
@@ -61,7 +65,11 @@ func (m *memLogic) Update(_ context.Context, _, pageID, user string, patch map[s
 			return logic.Revisioned{}, domainErrors.New(domainErrors.CodeNotFound, "page not found", domainErrors.ErrNotFound)
 		}
 	}
-	updated, err := logic.Merge(current, patch)
+	var paths [][]string
+	if len(nullPaths) > 0 {
+		paths = nullPaths[0]
+	}
+	updated, err := logic.MergeWithNulls(current, patch, paths)
 	if err != nil {
 		return logic.Revisioned{}, domainErrors.New(domainErrors.CodeValidation, err.Error(), domainErrors.ErrValidation)
 	}
@@ -394,5 +402,31 @@ func TestLogicWS_UsersWithoutAccessAreTurnedAway(t *testing.T) {
 	var next wsIn
 	if err := conn.ReadJSON(&next); err == nil && next.Type == "sync:page" {
 		t.Fatal("a user without access received the page")
+	}
+}
+
+func TestLogicWS_RejectsUpdateForPageOtherThanJoined(t *testing.T) {
+	mem := newMemLogic()
+	url := startLogicServer(t, mem)
+	a, _ := dialLogic(t, url, "editor", "page")
+	a.raw("logic:update", "page2", map[string]any{"scope": "page", "patch": map[string]any{"variables": map[string]any{"intrusion": variable("number")}}}, "wrong-page")
+	if _, ok := a.next("error", 2*time.Second); !ok {
+		t.Fatal("expected mismatched page to be rejected")
+	}
+}
+
+func TestLegacyWorkflowMessagesAreRejected(t *testing.T) {
+	url := startLogicServer(t, newMemLogic())
+	client, _ := dialLogic(t, url, "editor", "page")
+	client.raw("workflow:create", "page", map[string]any{}, "legacy")
+	msg, ok := client.next("error", 3*time.Second)
+	if !ok {
+		t.Fatal("expected unsupported workflow message to be rejected")
+	}
+	reply := decode[struct {
+		Code string `json:"code"`
+	}](t, msg)
+	if reply.Code != "VALIDATION_ERROR" {
+		t.Fatalf("got %q, want validation error", reply.Code)
 	}
 }

@@ -13,6 +13,47 @@ import (
 // scope alike) on this instance, so commits and their broadcasts keep one order.
 func logicActorKey(projectID string) string { return projectID + ":logic" }
 
+// A move sends both documents together so clients never see a half-move.
+func (h *Handler) handleLogicMove(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+	if h.uc.Logic == nil {
+		return domainErrors.New(domainErrors.CodeInternal, "logic editing is not available", nil)
+	}
+	if client.PageID == "" {
+		return domainErrors.ErrNotJoined
+	}
+	if msg.PageID != client.PageID {
+		return domainErrors.New(domainErrors.CodeValidation, "page does not match the joined page", nil)
+	}
+	var payload struct {
+		Kind string `json:"kind"`
+		Name string `json:"name"`
+		To   string `json:"to"`
+	}
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		return domainErrors.Wrap(domainErrors.CodeValidation, err)
+	}
+	var opErr error
+	if err := h.pages.Do(ctx, logicActorKey(client.ProjectID), func() {
+		project, page, err := h.uc.Logic.Move(ctx, client.ProjectID, client.PageID, client.User.ID, payload.Kind, payload.Name, payload.To)
+		if err != nil {
+			opErr = err
+			return
+		}
+		out, err := client.Factory().Create(domainEntity.TypeLogicMove, domainEntity.PayloadLogicSync{
+			Project: project.Doc, Page: page.Doc, PageID: client.PageID, ProjectRevision: project.Revision, PageRevision: page.Revision,
+		})
+		if err != nil {
+			opErr = domainErrors.Wrap(domainErrors.CodeInternal, err)
+			return
+		}
+		out.ClientOpID, out.RequestID = msg.ClientOpID, msg.RequestID
+		h.hub.BroadcastProject(client.ProjectID, out, nil)
+	}); err != nil {
+		return err
+	}
+	return opErr
+}
+
 // handleLogicUpdate applies a patch to the project's or the current page's logic.
 // The database transaction checks permission, validates the whole project
 // (names must be unique across scopes) and persists. Only after it commits is the
@@ -34,9 +75,12 @@ func (h *Handler) handleLogicUpdate(ctx context.Context, client *wsentity.Client
 	switch payload.Scope {
 	case domainEntity.LogicScopeProject:
 	case domainEntity.LogicScopePage:
-		pageID = msg.PageID
+		pageID = client.PageID
 		if pageID == "" {
 			return domainErrors.ErrNotJoined
+		}
+		if msg.PageID != pageID {
+			return domainErrors.New(domainErrors.CodeValidation, "page does not match the joined page", nil)
 		}
 	default:
 		return domainErrors.New(domainErrors.CodeValidation, "scope must be \"project\" or \"page\"", nil)
@@ -44,7 +88,7 @@ func (h *Handler) handleLogicUpdate(ctx context.Context, client *wsentity.Client
 
 	var opErr error
 	if err := h.pages.Do(ctx, logicActorKey(client.ProjectID), func() {
-		doc, err := h.uc.Logic.Update(ctx, client.ProjectID, pageID, client.User.ID, payload.Patch)
+		doc, err := h.uc.Logic.Update(ctx, client.ProjectID, pageID, client.User.ID, payload.Patch, payload.NullPaths)
 		if err != nil {
 			opErr = err
 			return

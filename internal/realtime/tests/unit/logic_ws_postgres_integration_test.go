@@ -14,7 +14,7 @@ func TestLogicWSPostgresBroadcastAndReconnect(t *testing.T) {
 	for _, query := range []string{
 		`CREATE TABLE "Project" ("Id" text PRIMARY KEY, "OwnerId" text NOT NULL, "DeletedAt" timestamp, "Logic" jsonb, "LogicRevision" bigint NOT NULL DEFAULT 0)`,
 		`CREATE TABLE "Collaborator" ("ProjectId" text NOT NULL, "UserId" text NOT NULL, "Role" text NOT NULL)`,
-		`CREATE TABLE "Page" ("Id" text PRIMARY KEY, "ProjectId" text NOT NULL, "Logic" jsonb, "LogicRevision" bigint NOT NULL DEFAULT 0)`,
+		`CREATE TABLE "Page" ("Id" text PRIMARY KEY, "ProjectId" text NOT NULL, "DeletedAt" timestamp, "Logic" jsonb, "LogicRevision" bigint NOT NULL DEFAULT 0)`,
 		`INSERT INTO "Project" ("Id", "OwnerId") VALUES ('proj', 'editor')`,
 		`INSERT INTO "Collaborator" ("ProjectId", "UserId", "Role") VALUES ('proj', 'viewer', 'viewer')`,
 		`INSERT INTO "Page" ("Id", "ProjectId") VALUES ('page', 'proj'), ('page2', 'proj')`,
@@ -39,6 +39,39 @@ func TestLogicWSPostgresBroadcastAndReconnect(t *testing.T) {
 			t.Fatalf("%s missed update: %s", name, msg.Payload)
 		}
 	}
+	editor.raw("logic:update", "page", map[string]any{
+		"scope": "project", "patch": map[string]any{"variables": map[string]any{"profile": map[string]any{"type": "object"}}},
+		"nullPaths": [][]string{{"variables", "profile", "default"}},
+	}, "null-default")
+	for name, client := range map[string]*logicClient{"editor": editor, "viewer": viewer} {
+		msg, got := client.next("logic:update", 3*time.Second)
+		if !got {
+			t.Fatalf("%s missed null default", name)
+		}
+		profile := decode[logicChanged](t, msg).Logic["variables"].(map[string]any)["profile"].(map[string]any)
+		if value, exists := profile["default"]; !exists || value != nil {
+			t.Fatalf("%s received incorrect default: %v", name, profile)
+		}
+	}
+	editor.raw("logic:move", "page", map[string]any{"kind": "variable", "name": "count", "to": "page"}, "move")
+	for name, client := range map[string]*logicClient{"editor": editor, "viewer": viewer} {
+		msg, got := client.next("logic:move", 3*time.Second)
+		if !got {
+			t.Fatalf("%s missed move", name)
+		}
+		moved := decode[struct {
+			Project map[string]any `json:"project"`
+			Page    map[string]any `json:"page"`
+			PageID  string         `json:"pageId"`
+		}](t, msg)
+		if moved.PageID != "page" || moved.Project["variables"].(map[string]any)["count"] != nil || moved.Page["variables"].(map[string]any)["count"] == nil {
+			t.Fatalf("%s got incorrect move: %s", name, msg.Payload)
+		}
+	}
+	viewer.raw("logic:move", "page2", map[string]any{"kind": "variable", "name": "count", "to": "project"}, "move-refused")
+	if msg, got := viewer.next("error", 3*time.Second); !got || msg.ClientOpID != "move-refused" {
+		t.Fatalf("viewer move was not rejected: %+v", msg)
+	}
 	viewer.raw("logic:update", "page2", map[string]any{"scope": "project", "patch": map[string]any{"variables": map[string]any{"blocked": variable("number")}}}, "refused")
 	if msg, got := viewer.next("error", 3*time.Second); !got || msg.ClientOpID != "refused" {
 		t.Fatalf("viewer write was not rejected: %+v", msg)
@@ -53,9 +86,10 @@ func TestLogicWSPostgresBroadcastAndReconnect(t *testing.T) {
 	}
 	snapshot := decode[struct {
 		Project map[string]any `json:"project"`
+		Page    map[string]any `json:"page"`
 	}](t, msg)
 	vars := snapshot.Project["variables"].(map[string]any)
-	if vars["count"] == nil || vars["blocked"] != nil {
+	if vars["count"] != nil || vars["blocked"] != nil || snapshot.Page["variables"].(map[string]any)["count"] == nil {
 		t.Fatalf("unexpected persisted variables: %v", vars)
 	}
 }

@@ -28,10 +28,9 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 	if err != nil {
 		return err
 	}
-	elementWorkflows, _ := h.uc.ElementWorkflows.GetWorkflowsByPage(ctx, client.ProjectID, client.PageID)
 
 	users := h.hub.GetRoomParticipants(client.RoomID())
-	syncMsg, _ := client.Factory().SyncPageAt(elements, elementWorkflows, users, seq)
+	syncMsg, _ := client.Factory().SyncPageAt(elements, nil, users, seq)
 	syncMsg.RequestID = msg.RequestID
 	_ = client.Send(syncMsg)
 
@@ -40,8 +39,6 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 	}
 
 	projElements, _ := h.uc.Element.GetElementsByProjectID(ctx, client.ProjectID)
-	projWorkflows, _ := h.uc.Workflow.GetWorkflowsByProject(ctx, client.ProjectID)
-	projElementWorkflows, _ := h.uc.ElementWorkflows.GetWorkflowsByProject(ctx, client.ProjectID)
 
 	// Send project sync only to the joining client — NOT broadcast to all rooms.
 	// Broadcasting sync:project to every room on every join creates a message storm
@@ -49,7 +46,7 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 	// other clients across ALL pages). The joining client needs the project state;
 	// other clients already have it and will receive granular updates via element/workflow
 	// operation broadcasts.
-	syncProjMsg, _ := client.Factory().SyncProject(projElements, projWorkflows, projElementWorkflows, nil)
+	syncProjMsg, _ := client.Factory().SyncProject(projElements, nil, nil, nil)
 	syncProjMsg.RequestID = msg.RequestID
 	_ = client.Send(syncProjMsg)
 
@@ -89,10 +86,8 @@ func (h *Handler) handleSync(ctx context.Context, client *wsentity.Client, msg d
 		return err
 	}
 
-	elementWorkflows, _ := h.uc.ElementWorkflows.GetWorkflowsByPage(ctx, client.ProjectID, client.PageID)
-
 	users := h.hub.GetRoomParticipants(client.RoomID())
-	syncMsg, _ := client.Factory().SyncPageAt(elements, elementWorkflows, users, seq)
+	syncMsg, _ := client.Factory().SyncPageAt(elements, nil, users, seq)
 	syncMsg.RequestID = msg.RequestID
 	_ = client.Send(syncMsg)
 	return nil
@@ -104,10 +99,7 @@ func (h *Handler) handleSyncProject(ctx context.Context, client *wsentity.Client
 		return err
 	}
 
-	workflows, _ := h.uc.Workflow.GetWorkflowsByProject(ctx, client.ProjectID)
-	elementWorkflows, _ := h.uc.ElementWorkflows.GetWorkflowsByProject(ctx, client.ProjectID)
-
-	syncMsg, err := client.Factory().SyncProject(elements, workflows, elementWorkflows, nil)
+	syncMsg, err := client.Factory().SyncProject(elements, nil, nil, nil)
 	if err != nil {
 		return err
 	}

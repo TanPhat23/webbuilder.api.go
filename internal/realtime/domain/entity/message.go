@@ -38,6 +38,7 @@ const (
 
 	// Logic (variables and flows) of the project or one page
 	TypeLogicUpdate MessageType = "logic:update" // Patch a logic document / its broadcast
+	TypeLogicMove   MessageType = "logic:move"   // Atomically move a definition between scopes
 	TypeLogicSync   MessageType = "logic:sync"   // Current project and page logic
 
 	// Synchronization
@@ -174,8 +175,9 @@ const (
 // PayloadLogicUpdate is what a client sends: a merge patch (null deletes a key)
 // for the project's logic, or for the page named by the message's pageId.
 type PayloadLogicUpdate struct {
-	Scope string         `json:"scope"`
-	Patch map[string]any `json:"patch"`
+	Scope     string         `json:"scope"`
+	Patch     map[string]any `json:"patch"`
+	NullPaths [][]string     `json:"nullPaths,omitempty"`
 }
 
 // PayloadLogicChanged is what the server broadcasts after a committed update:

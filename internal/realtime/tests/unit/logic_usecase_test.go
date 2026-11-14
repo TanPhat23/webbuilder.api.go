@@ -14,7 +14,11 @@ import (
 
 type failingLogicRepo struct{ err error }
 
-func (r failingLogicRepo) Apply(context.Context, string, string, string, map[string]any) (logic.Revisioned, error) {
+func (r failingLogicRepo) Move(context.Context, string, string, string, string, string, string) (logic.Revisioned, logic.Revisioned, error) {
+	return logic.Revisioned{}, logic.Revisioned{}, r.err
+}
+
+func (r failingLogicRepo) Apply(context.Context, string, string, string, map[string]any, ...[][]string) (logic.Revisioned, error) {
 	return logic.Revisioned{}, r.err
 }
 func (r failingLogicRepo) Get(context.Context, string, string, string) (logic.Revisioned, logic.Revisioned, error) {
@@ -39,7 +43,8 @@ func TestLogicUseCaseGivesRepositoryErrorsClientCodes(t *testing.T) {
 		uc := usecase.NewLogicUseCase(failingLogicRepo{tc.err})
 		_, updateErr := uc.Update(context.Background(), "p", "pg", "u", map[string]any{})
 		_, _, getErr := uc.Get(context.Background(), "p", "pg", "u")
-		for op, err := range map[string]error{"update": updateErr, "get": getErr} {
+		_, _, moveErr := uc.Move(context.Background(), "p", "pg", "u", "variable", "v", "page")
+		for op, err := range map[string]error{"update": updateErr, "get": getErr, "move": moveErr} {
 			if !domainErrors.IsCode(err, tc.code) {
 				t.Errorf("%s/%s: got %v, want code %s", tc.name, op, err, tc.code)
 			}
