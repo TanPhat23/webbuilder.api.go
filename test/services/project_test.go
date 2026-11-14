@@ -358,63 +358,35 @@ func TestGetProjectPages_Success(t *testing.T) {
 	pages := []models.Page{
 		{Id: "page1", Name: "Home", ProjectId: "proj123"},
 	}
-	project := &models.Project{ID: "proj123", Name: "Test Project", Published: true}
 
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
-		return project, nil
-	})
+	var gotUserID string
 	projectRepo.SetGetProjectPages(func(ctx context.Context, projID, userID string) ([]models.Page, error) {
+		gotUserID = userID
 		return pages, nil
 	})
-	collaboratorRepo := test.NewMockCollaboratorRepo()
-	userRepo := test.NewMockUserRepo()
+	service := services.NewProjectService(projectRepo, test.NewMockCollaboratorRepo(), test.NewMockUserRepo())
 
-	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
-
-	result, err := service.GetProjectPages(context.Background(), "proj123")
+	result, err := service.GetProjectPages(context.Background(), "proj123", "user1")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
 	if len(result) != 1 {
 		t.Errorf("expected 1 page, got %d", len(result))
 	}
-}
-
-func TestGetProjectPages_RepositoryErrorOnVerify(t *testing.T) {
-	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
-		return nil, errors.New("database error")
-	})
-	collaboratorRepo := test.NewMockCollaboratorRepo()
-	userRepo := test.NewMockUserRepo()
-
-	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
-
-	result, err := service.GetProjectPages(context.Background(), "proj123")
-	if err == nil {
-		t.Errorf("expected error while verifying project")
-	}
-	if result != nil {
-		t.Errorf("expected nil result, got %v", result)
+	if gotUserID != "user1" {
+		t.Errorf("expected the user to reach the repository, got %q", gotUserID)
 	}
 }
 
-func TestGetProjectPages_RepositoryErrorOnPagesFetch(t *testing.T) {
-	project := &models.Project{ID: "proj123", Name: "Test Project", Published: true}
+func TestGetProjectPages_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
-		return project, nil
-	})
 	projectRepo.SetGetProjectPages(func(ctx context.Context, projID, userID string) ([]models.Page, error) {
 		return nil, errors.New("database error")
 	})
-	collaboratorRepo := test.NewMockCollaboratorRepo()
-	userRepo := test.NewMockUserRepo()
+	service := services.NewProjectService(projectRepo, test.NewMockCollaboratorRepo(), test.NewMockUserRepo())
 
-	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
-
-	result, err := service.GetProjectPages(context.Background(), "proj123")
+	result, err := service.GetProjectPages(context.Background(), "proj123", "user1")
 	if err == nil {
 		t.Errorf("expected error while fetching pages")
 	}
@@ -423,38 +395,17 @@ func TestGetProjectPages_RepositoryErrorOnPagesFetch(t *testing.T) {
 	}
 }
 
-func TestGetProjectPages_EmptyProjectID(t *testing.T) {
-	projectRepo := test.NewMockProjectRepo()
-	collaboratorRepo := test.NewMockCollaboratorRepo()
-	userRepo := test.NewMockUserRepo()
+func TestGetProjectPages_RequiresProjectAndUser(t *testing.T) {
+	service := services.NewProjectService(test.NewMockProjectRepo(), test.NewMockCollaboratorRepo(), test.NewMockUserRepo())
 
-	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
-
-	result, err := service.GetProjectPages(context.Background(), "")
-	if err == nil {
-		t.Errorf("expected error for empty projectId")
-	}
-	if result != nil {
-		t.Errorf("expected nil result, got %v", result)
-	}
-}
-
-func TestGetProjectPages_ProjectNotFound(t *testing.T) {
-	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
-		return nil, nil
-	})
-	collaboratorRepo := test.NewMockCollaboratorRepo()
-	userRepo := test.NewMockUserRepo()
-
-	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
-
-	result, err := service.GetProjectPages(context.Background(), "proj123")
-	if err == nil {
-		t.Errorf("expected error for project not found")
-	}
-	if result != nil {
-		t.Errorf("expected nil result, got %v", result)
+	for _, ids := range [][2]string{{"", "user1"}, {"proj123", ""}} {
+		result, err := service.GetProjectPages(context.Background(), ids[0], ids[1])
+		if err == nil {
+			t.Errorf("expected error for project %q and user %q", ids[0], ids[1])
+		}
+		if result != nil {
+			t.Errorf("expected nil result, got %v", result)
+		}
 	}
 }
 

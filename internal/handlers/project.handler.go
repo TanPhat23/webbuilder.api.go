@@ -86,7 +86,7 @@ func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	pages, err := h.projectService.GetProjectPages(c.Context(), projectID)
+	pages, err := h.projectService.GetProjectPages(c.Context(), projectID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve project pages")
 	}

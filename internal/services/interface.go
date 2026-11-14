@@ -36,7 +36,7 @@ type ProjectServiceInterface interface {
 	GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
 	GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error)
 	GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error)
-	GetProjectPages(ctx context.Context, projectID string) ([]models.Page, error)
+	GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error)
 	CreateProject(ctx context.Context, project *models.Project) (*models.Project, error)
 	CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error)
 	GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error)
