@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"log"
 	"my-go-app/internal/database"
+	"my-go-app/internal/realtime"
 	"my-go-app/internal/routes"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/configs"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/gofiber/fiber/v2"
@@ -56,6 +60,19 @@ func main() {
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
+	app.Get("/health", func(c *fiber.Ctx) error { return c.SendString("OK") })
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Collaborative editing (/ws/:project) runs in this same process. If it
+	// cannot start (e.g. Redis is down) the REST API still comes up.
+	if shutdownRealtime, err := realtime.Mount(ctx, app); err != nil {
+		log.Println("ERROR: realtime WebSocket disabled:", err)
+	} else {
+		defer shutdownRealtime()
+	}
+
 	routes.PublicRoutes(app, repos)
 	routes.PrivateRoutes(app, repos, cloudinaryService, invitationService)
 
@@ -63,5 +80,12 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	app.Listen(":" + port)
+
+	go func() {
+		<-ctx.Done()
+		_ = app.ShutdownWithContext(context.Background())
+	}()
+	if err := app.Listen(":" + port); err != nil {
+		log.Fatal("Server failed:", err)
+	}
 }
