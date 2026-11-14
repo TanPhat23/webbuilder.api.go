@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"my-go-app/internal/realtime/config"
 	"my-go-app/internal/realtime/delivery/http/middleware"
@@ -19,7 +19,7 @@ func TestAuthMiddlewareIgnoresClientChosenIdentity(t *testing.T) {
 	whoami := func(cfg *config.Config) *fiber.App {
 		app := fiber.New()
 		app.Use(middleware.AuthMiddleware(cfg))
-		app.Get("/", func(c *fiber.Ctx) error {
+		app.Get("/", func(c fiber.Ctx) error {
 			user, _ := c.Locals("user").(*entity.User)
 			if user == nil {
 				return c.SendString("")

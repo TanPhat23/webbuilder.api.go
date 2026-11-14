@@ -27,5 +27,5 @@ type CollaboratorResponse struct {
 }
 
 type UpdateCollaboratorRoleRequest struct {
-	Role CollaboratorRole `json:"role" validate:"required"`
+	Role CollaboratorRole `json:"role" validate:"required,oneof=owner editor viewer"`
 }

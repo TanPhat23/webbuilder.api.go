@@ -23,7 +23,7 @@ func NewEventWorkflowService(
 	}
 }
 
-func (s *EventWorkflowService) CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
+func (s *EventWorkflowService) CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow, userID string) (*models.EventWorkflow, error) {
 	if workflow == nil {
 		return nil, errors.New("workflow cannot be nil")
 	}
@@ -34,12 +34,8 @@ func (s *EventWorkflowService) CreateEventWorkflow(ctx context.Context, workflow
 		return nil, errors.New("workflow name is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, workflow.ProjectId)
-	if err != nil {
+	if err := ensureProjectVisible(ctx, s.projectRepo, workflow.ProjectId, userID); err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
-	}
-	if project == nil {
-		return nil, errors.New("project does not exist")
 	}
 
 	if workflow.CanvasData == nil {
@@ -251,17 +247,13 @@ func (s *EventWorkflowService) CheckIfWorkflowNameExists(ctx context.Context, pr
 	return s.eventWorkflowRepo.CheckIfWorkflowNameExists(ctx, projectID, name, excludeID)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) GetEventWorkflowsWithFilters(ctx context.Context, projectID, userID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
-	if err != nil {
+	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
-	}
-	if project == nil {
-		return nil, errors.New("project does not exist")
 	}
 
 	return s.eventWorkflowRepo.GetEventWorkflowsWithFilters(ctx, projectID, enabled, searchName)

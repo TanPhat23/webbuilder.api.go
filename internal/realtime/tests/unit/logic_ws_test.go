@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/fasthttp/websocket"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"my-go-app/internal/realtime/delivery/ws/handlers"
 	"my-go-app/internal/realtime/domain/entity"
@@ -126,8 +126,8 @@ func startLogicServer(t *testing.T, mem domainUsecase.LogicUseCase) string {
 	h.RequireAccess(mem)
 	t.Cleanup(h.Shutdown)
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Use("/ws", func(c *fiber.Ctx) error {
+	app := fiber.New()
+	app.Use("/ws", func(c fiber.Ctx) error {
 		c.Locals("user", &entity.User{ID: c.Query("u"), Email: c.Query("u") + "@example.com"})
 		return c.Next()
 	})
@@ -136,7 +136,7 @@ func startLogicServer(t *testing.T, mem domainUsecase.LogicUseCase) string {
 	if err != nil {
 		t.Skipf("cannot listen on loopback: %v", err)
 	}
-	go func() { _ = app.Listener(ln) }()
+	go func() { _ = app.Listener(ln, fiber.ListenConfig{DisableStartupMessage: true}) }()
 	t.Cleanup(func() { _ = app.Shutdown() })
 	return "ws://" + ln.Addr().String() + "/ws/" + testProject
 }

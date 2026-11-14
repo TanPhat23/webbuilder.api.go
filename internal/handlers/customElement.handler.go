@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
@@ -23,7 +23,7 @@ func NewCustomElementHandler(customElementService services.CustomElementServiceI
 	}
 }
 
-func (h *CustomElementHandler) GetCustomElements(c *fiber.Ctx) error {
+func (h *CustomElementHandler) GetCustomElements(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func (h *CustomElementHandler) GetCustomElements(c *fiber.Ctx) error {
 		}
 	}
 
-	customElements, err := h.customElementService.GetCustomElements(c.Context(), userID, isPublicPtr)
+	customElements, err := h.customElementService.GetCustomElements(c.RequestCtx(), userID, isPublicPtr)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve custom elements")
 	}
@@ -44,7 +44,7 @@ func (h *CustomElementHandler) GetCustomElements(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, customElements)
 }
 
-func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
+func (h *CustomElementHandler) GetPublicCustomElements(c fiber.Ctx) error {
 	limit, err := strconv.Atoi(c.Query("limit", "20"))
 	if err != nil {
 		limit = 20
@@ -60,7 +60,7 @@ func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
 		categoryPtr = &category
 	}
 
-	customElements, err := h.customElementService.GetPublicCustomElements(c.Context(), categoryPtr, limit, offset)
+	customElements, err := h.customElementService.GetPublicCustomElements(c.RequestCtx(), categoryPtr, limit, offset)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve public custom elements")
 	}
@@ -68,14 +68,14 @@ func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, customElements)
 }
 
-func (h *CustomElementHandler) GetCustomElementByID(c *fiber.Ctx) error {
+func (h *CustomElementHandler) GetCustomElementByID(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	customElement, err := h.customElementService.GetCustomElementByID(c.Context(), id, userID)
+	customElement, err := h.customElementService.GetCustomElementByID(c.RequestCtx(), id, userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return fiber.NewError(fiber.StatusNotFound, "Custom element not found")
@@ -86,14 +86,14 @@ func (h *CustomElementHandler) GetCustomElementByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, customElement)
 }
 
-func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
+func (h *CustomElementHandler) CreateCustomElement(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
 
-	var req dto.CreateCustomElementRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.CreateCustomElementRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -117,7 +117,7 @@ func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
 		Version:      req.Version,
 	}
 
-	created, err := h.customElementService.CreateCustomElement(c.Context(), customElement)
+	created, err := h.customElementService.CreateCustomElement(c.RequestCtx(), customElement)
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
 			return fiber.NewError(fiber.StatusConflict, "Custom element with this name already exists")
@@ -129,37 +129,58 @@ func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
+func (h *CustomElementHandler) UpdateCustomElement(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	var req dto.UpdateCustomElementRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.UpdateCustomElementRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
-	// Build a clean map from the typed DTO, stripping immutable fields.
 	updates := map[string]any{}
-	if req.Name != nil        { updates["name"] = *req.Name }
-	if req.TypeId != nil      { updates["typeId"] = *req.TypeId }
-	if req.Description != nil { updates["description"] = *req.Description }
-	if req.Category != nil    { updates["category"] = *req.Category }
-	if req.Icon != nil        { updates["icon"] = *req.Icon }
-	if req.Thumbnail != nil   { updates["thumbnail"] = *req.Thumbnail }
-	if req.Tags != nil        { updates["tags"] = *req.Tags }
-	if req.IsPublic != nil    { updates["isPublic"] = *req.IsPublic }
-	if req.Version != nil     { updates["version"] = *req.Version }
-	if req.Structure != nil   { updates["structure"] = req.Structure }
-	if req.DefaultProps != nil { updates["defaultProps"] = req.DefaultProps }
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.TypeId != nil {
+		updates["typeId"] = *req.TypeId
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	if req.Category != nil {
+		updates["category"] = *req.Category
+	}
+	if req.Icon != nil {
+		updates["icon"] = *req.Icon
+	}
+	if req.Thumbnail != nil {
+		updates["thumbnail"] = *req.Thumbnail
+	}
+	if req.Tags != nil {
+		updates["tags"] = *req.Tags
+	}
+	if req.IsPublic != nil {
+		updates["isPublic"] = *req.IsPublic
+	}
+	if req.Version != nil {
+		updates["version"] = *req.Version
+	}
+	if req.Structure != nil {
+		updates["structure"] = req.Structure
+	}
+	if req.DefaultProps != nil {
+		updates["defaultProps"] = req.DefaultProps
+	}
 
 	if err := utils.RequireUpdates(updates); err != nil {
 		return err
 	}
 
-	updated, err := h.customElementService.UpdateCustomElement(c.Context(), id, userID, updates)
+	updated, err := h.customElementService.UpdateCustomElement(c.RequestCtx(), id, userID, updates)
 	if err != nil {
 		if strings.Contains(err.Error(), "unauthorized") {
 			return fiber.NewError(fiber.StatusForbidden, "Unauthorized to update this custom element")
@@ -170,14 +191,14 @@ func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
+func (h *CustomElementHandler) DeleteCustomElement(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	if err := h.customElementService.DeleteCustomElement(c.Context(), id, userID); err != nil {
+	if err := h.customElementService.DeleteCustomElement(c.RequestCtx(), id, userID); err != nil {
 		if strings.Contains(err.Error(), "unauthorized") {
 			return fiber.NewError(fiber.StatusForbidden, "Unauthorized to delete this custom element")
 		}
@@ -187,19 +208,19 @@ func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
 	return utils.SendSuccess(c, fiber.StatusOK, "Custom element deleted successfully")
 }
 
-func (h *CustomElementHandler) DuplicateCustomElement(c *fiber.Ctx) error {
+func (h *CustomElementHandler) DuplicateCustomElement(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	var req dto.DuplicateCustomElementRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.DuplicateCustomElementRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
-	duplicate, err := h.customElementService.DuplicateCustomElement(c.Context(), id, userID, req.NewName)
+	duplicate, err := h.customElementService.DuplicateCustomElement(c.RequestCtx(), id, userID, req.NewName)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return fiber.NewError(fiber.StatusNotFound, "Custom element not found")
@@ -209,3 +230,5 @@ func (h *CustomElementHandler) DuplicateCustomElement(c *fiber.Ctx) error {
 
 	return utils.SendJSON(c, fiber.StatusCreated, duplicate)
 }
+
+// fiber:context-methods migrated

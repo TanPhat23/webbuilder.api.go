@@ -7,10 +7,10 @@ import (
 
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
 	"github.com/clerk/clerk-sdk-go/v2/user"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
-func AuthenticateMiddleware(c *fiber.Ctx) error {
+func AuthenticateMiddleware(c fiber.Ctx) error {
 	// Skip authentication for public routes
 	if strings.HasPrefix(c.Path(), "/api/v1/projects/public") || strings.HasPrefix(c.Path(), "/api/v1/public") || strings.HasPrefix(c.Path(), "/api/v1/elements/public") {
 		return c.Next()
@@ -33,7 +33,7 @@ func AuthenticateMiddleware(c *fiber.Ctx) error {
 		})
 	}
 
-	claim, err := jwt.Verify(c.Context(), &jwt.VerifyParams{
+	claim, err := jwt.Verify(c.RequestCtx(), &jwt.VerifyParams{
 		Token: sessionToken,
 	})
 	if err != nil {
@@ -43,7 +43,7 @@ func AuthenticateMiddleware(c *fiber.Ctx) error {
 		})
 	}
 
-	usr, err := user.Get(c.Context(), claim.Subject)
+	usr, err := user.Get(c.RequestCtx(), claim.Subject)
 	if err != nil || usr == nil {
 		log.Printf("User lookup failed for subject %s: %v", claim.Subject, err)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -58,3 +58,5 @@ func AuthenticateMiddleware(c *fiber.Ctx) error {
 	// Continue to next handler
 	return c.Next()
 }
+
+// fiber:context-methods migrated

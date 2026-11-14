@@ -9,7 +9,7 @@ import (
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 var projectAllowedCols = map[string]string{
@@ -31,13 +31,13 @@ func NewProjectHandler(projectService services.ProjectServiceInterface) *Project
 	}
 }
 
-func (h *ProjectHandler) GetProjectsByUser(c *fiber.Ctx) error {
+func (h *ProjectHandler) GetProjectsByUser(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
 
-	projects, err := h.projectService.GetProjectsByUserID(c.Context(), userID)
+	projects, err := h.projectService.GetProjectsByUserID(c.RequestCtx(), userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve projects")
 	}
@@ -45,14 +45,14 @@ func (h *ProjectHandler) GetProjectsByUser(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, projects)
 }
 
-func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
+func (h *ProjectHandler) GetProjectByID(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	project, err := h.projectService.GetProjectWithAccess(c.Context(), projectID, userID)
+	project, err := h.projectService.GetProjectWithAccess(c.RequestCtx(), projectID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve project")
 	}
@@ -60,14 +60,14 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, project)
 }
 
-func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
+func (h *ProjectHandler) GetPublicProjectByID(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	project, err := h.projectService.GetPublicProjectByID(c.Context(), projectID)
+	project, err := h.projectService.GetPublicProjectByID(c.RequestCtx(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve project")
 	}
@@ -75,18 +75,18 @@ func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, project)
 }
 
-func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
+func (h *ProjectHandler) GetProjectPages(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	if _, err := h.projectService.GetProjectWithAccess(c.Context(), projectID, userID); err != nil {
+	if _, err := h.projectService.GetProjectWithAccess(c.RequestCtx(), projectID, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	pages, err := h.projectService.GetProjectPages(c.Context(), projectID, userID)
+	pages, err := h.projectService.GetProjectPages(c.RequestCtx(), projectID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve project pages")
 	}
@@ -94,13 +94,13 @@ func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, pages)
 }
 
-func (h *ProjectHandler) GetProjectByUserID(c *fiber.Ctx) error {
+func (h *ProjectHandler) GetProjectByUserID(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
 
-	projects, err := h.projectService.GetProjectsByUserID(c.Context(), userID)
+	projects, err := h.projectService.GetProjectsByUserID(c.RequestCtx(), userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve projects by user ID")
 	}
@@ -108,39 +108,51 @@ func (h *ProjectHandler) GetProjectByUserID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, projects)
 }
 
-func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
+func (h *ProjectHandler) DeleteProject(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	if err := h.projectService.DeleteProject(c.Context(), projectID, userID); err != nil {
+	if err := h.projectService.DeleteProject(c.RequestCtx(), projectID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to delete project")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
+func (h *ProjectHandler) UpdateProject(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	var req dto.UpdateProjectRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.UpdateProjectRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
 	rawBody := map[string]any{}
-	if req.Name != nil        { rawBody["name"] = *req.Name }
-	if req.Description != nil { rawBody["description"] = *req.Description }
-	if req.Published != nil   { rawBody["published"] = *req.Published }
-	if req.Subdomain != nil   { rawBody["subdomain"] = *req.Subdomain }
-	if req.Styles != nil      { rawBody["styles"] = req.Styles }
-	if req.Header != nil      { rawBody["header"] = req.Header }
+	if req.Name != nil {
+		rawBody["name"] = *req.Name
+	}
+	if req.Description != nil {
+		rawBody["description"] = *req.Description
+	}
+	if req.Published != nil {
+		rawBody["published"] = *req.Published
+	}
+	if req.Subdomain != nil {
+		rawBody["subdomain"] = *req.Subdomain
+	}
+	if req.Styles != nil {
+		rawBody["styles"] = req.Styles
+	}
+	if req.Header != nil {
+		rawBody["header"] = req.Header
+	}
 
 	columnUpdates, err := utils.BuildColumnUpdates(rawBody, projectAllowedCols)
 	if err != nil {
@@ -179,21 +191,23 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 		}
 	}
 
-	updatedProject, err := h.projectService.UpdateProject(c.Context(), projectID, userID, project)
+	updatedProject, err := h.projectService.UpdateProject(c.RequestCtx(), projectID, userID, project)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to update project")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updatedProject)
 }
+
+
 // CreateProject creates a project owned by the caller, with its first page.
-func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
+func (h *ProjectHandler) CreateProject(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
-	var req dto.CreateProjectRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.CreateProjectRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -223,7 +237,7 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 		project.Header = &header
 	}
 
-	created, err := h.projectService.CreateProjectWithPage(c.Context(), project)
+	created, err := h.projectService.CreateProjectWithPage(c.RequestCtx(), project)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create project")
 	}
@@ -232,12 +246,12 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 
 // GetProjectAccess returns the caller's role on a project. 404 means no
 // access (deleted, missing, or not shared), so ids cannot be probed.
-func (h *ProjectHandler) GetProjectAccess(c *fiber.Ctx) error {
+func (h *ProjectHandler) GetProjectAccess(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
-	access, err := h.projectService.GetProjectAccess(c.Context(), ids[0], userID)
+	access, err := h.projectService.GetProjectAccess(c.RequestCtx(), ids[0], userID)
 	if errors.Is(err, repositories.ErrProjectNotFound) {
 		return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, userID)
 	}

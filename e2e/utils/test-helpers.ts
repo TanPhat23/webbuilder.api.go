@@ -1,15 +1,17 @@
-import { APIClient } from './api-client';
-import * as schemas from './schemas';
+import { APIClient } from "./api-client";
+import * as schemas from "./schemas";
 
 export class TestHelpers {
   constructor(private apiClient: APIClient) {}
 
-  async createTestProject(overrides?: Partial<schemas.Project>): Promise<schemas.Project> {
+  async createTestProject(
+    overrides?: Partial<schemas.Project>,
+  ): Promise<schemas.Project> {
     const projects = await this.apiClient.getProjectsByUser();
     if (projects.length > 0) {
       return projects[0];
     }
-    throw new Error('No projects available for testing');
+    throw new Error("No projects available for testing");
   }
 
   async findOrCreatePage(
@@ -17,17 +19,29 @@ export class TestHelpers {
     pageName?: string,
   ): Promise<schemas.Page> {
     const pages = await this.apiClient.getPagesByProjectID(projectId);
-    
+
     if (pages.length > 0) {
       return pages[0];
     }
 
     const newPage = await this.apiClient.createPage(projectId, {
       name: pageName || `Test Page ${Date.now()}`,
-      type: 'landing',
+      type: "landing",
     });
 
     return newPage;
+  }
+
+  async createTestPage(
+    projectId: string,
+    overrides?: Partial<schemas.CreatePageRequest>,
+  ): Promise<schemas.Page> {
+    const pageName = `Test Page ${Date.now()}`;
+    return this.apiClient.createPage(projectId, {
+      name: pageName,
+      type: "landing",
+      ...overrides,
+    });
   }
 
   async getFirstImage(): Promise<schemas.Image | null> {
@@ -39,7 +53,7 @@ export class TestHelpers {
     try {
       await this.apiClient.deletePage(projectId, pageId);
     } catch (error) {
-      console.log('Cleanup: Failed to delete page', error);
+      console.log("Cleanup: Failed to delete page", error);
     }
   }
 
@@ -47,7 +61,7 @@ export class TestHelpers {
     try {
       await this.apiClient.deleteProject(projectId);
     } catch (error) {
-      console.log('Cleanup: Failed to delete project', error);
+      console.log("Cleanup: Failed to delete project", error);
     }
   }
 
@@ -55,7 +69,7 @@ export class TestHelpers {
     try {
       await this.apiClient.deleteImage(imageId);
     } catch (error) {
-      console.log('Cleanup: Failed to delete image', error);
+      console.log("Cleanup: Failed to delete image", error);
     }
   }
 
@@ -70,7 +84,7 @@ export class TestHelpers {
       try {
         return await fn();
       } catch (error) {
-        await new Promise(resolve => setTimeout(resolve, intervalMs));
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
       }
     }
 
@@ -81,32 +95,20 @@ export class TestHelpers {
     return (
       !!project.id &&
       !!project.name &&
-      typeof project.published === 'boolean' &&
+      typeof project.published === "boolean" &&
       !!project.ownerId
     );
   }
 
   validatePageStructure(page: schemas.Page): boolean {
-    return (
-      !!page.Id &&
-      !!page.Name &&
-      !!page.Type &&
-      !!page.ProjectId
-    );
+    return !!page.Id && !!page.Name && !!page.Type && !!page.ProjectId;
   }
 
   validateImageStructure(image: schemas.Image): boolean {
-    return (
-      !!image.imageId &&
-      !!image.imageLink &&
-      !!image.userId
-    );
+    return !!image.imageId && !!image.imageLink && !!image.userId;
   }
 
   validateUserStructure(user: schemas.User): boolean {
-    return (
-      !!user.id &&
-      !!user.email
-    );
+    return !!user.id && !!user.email;
   }
 }

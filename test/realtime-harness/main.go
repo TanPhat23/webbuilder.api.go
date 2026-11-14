@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"my-go-app/internal/realtime/delivery/ws/handlers"
 	"my-go-app/internal/realtime/domain/entity"
 	"my-go-app/internal/realtime/pkg/database"
@@ -58,8 +58,8 @@ func main() {
 	}()
 	h := handlers.NewHandler(uc, rdb, lg)
 	defer h.Shutdown()
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Use("/ws", func(c *fiber.Ctx) error {
+	app := fiber.New()
+	app.Use("/ws", func(c fiber.Ctx) error {
 		id := c.Query("token")
 		if id == "" {
 			return fiber.ErrUnauthorized
@@ -75,5 +75,5 @@ func main() {
 	if err := os.WriteFile(os.Getenv("WEBBUILDER_TEST_LISTEN_FILE"), []byte(listener.Addr().String()), 0600); err != nil {
 		log.Fatal(err)
 	}
-	log.Fatal(app.Listener(listener))
+	log.Fatal(app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true}))
 }

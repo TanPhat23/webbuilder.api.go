@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 
@@ -90,14 +91,13 @@ func (s *ProjectService) GetCollaboratorProjects(ctx context.Context, userID str
 	return s.projectRepo.GetCollaboratorProjects(ctx, userID)
 }
 
-// GetProjectPages lists a project's pages for a user with access to it,
-// whether or not the project is published.
 func (s *ProjectService) GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
-	if userID == "" {
-		return nil, errors.New("userId is required")
+
+	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
+		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
 
 	return s.projectRepo.GetProjectPages(ctx, projectID, userID)
@@ -236,6 +236,7 @@ func (s *ProjectService) GetProjectWithLock(ctx context.Context, projectID, user
 
 	return s.projectRepo.GetProjectWithLock(ctx, projectID, userID)
 }
+
 // CreateProjectWithPage creates a project and its mandatory first page in
 // one transaction, so a project never exists without a page.
 func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error) {

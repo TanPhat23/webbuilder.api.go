@@ -5,7 +5,7 @@ import (
 	"my-go-app/pkg/utils"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type ElementHandler struct {
@@ -18,13 +18,13 @@ func NewElementHandler(elementService services.ElementServiceInterface) *Element
 	}
 }
 
-func (h *ElementHandler) GetElements(c *fiber.Ctx) error {
+func (h *ElementHandler) GetElements(c fiber.Ctx) error {
 	projectID, err := utils.ValidateRequiredParam(c, "projectid")
 	if err != nil {
 		return err
 	}
 
-	elements, err := h.elementService.GetElements(c.Context(), projectID)
+	elements, err := h.elementService.GetElements(c.RequestCtx(), projectID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
 	}
@@ -32,7 +32,7 @@ func (h *ElementHandler) GetElements(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, elements)
 }
 
-func (h *ElementHandler) GetElementsByPageIds(c *fiber.Ctx) error {
+func (h *ElementHandler) GetElementsByPageIds(c fiber.Ctx) error {
 	pageIdsParam := c.Query("pageIds")
 	if pageIdsParam == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "pageIds query parameter is required")
@@ -49,10 +49,12 @@ func (h *ElementHandler) GetElementsByPageIds(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "At least one valid pageId is required")
 	}
 
-	elements, err := h.elementService.GetElementsByPageIds(c.Context(), pageIDs)
+	elements, err := h.elementService.GetElementsByPageIds(c.RequestCtx(), pageIDs)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, elements)
 }
+
+// fiber:context-methods migrated

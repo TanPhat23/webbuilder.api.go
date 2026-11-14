@@ -30,7 +30,7 @@ func TestGetPagesByProjectID(t *testing.T) {
 
 		service := services.NewPageService(pageRepo, projectRepo)
 
-		pages, err := service.GetPagesByProjectID(context.Background(), "valid-project-id")
+		pages, err := service.GetPagesByProjectID(context.Background(), "valid-project-id", "")
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -45,7 +45,7 @@ func TestGetPagesByProjectID(t *testing.T) {
 	t.Run("missing project ID returns error", func(t *testing.T) {
 		service := services.NewPageService(mockrepo.NewMockPageRepo(), mockrepo.NewMockProjectRepo())
 
-		pages, err := service.GetPagesByProjectID(context.Background(), "")
+		pages, err := service.GetPagesByProjectID(context.Background(), "", "")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -65,7 +65,7 @@ func TestGetPagesByProjectID(t *testing.T) {
 
 		service := services.NewPageService(pageRepo, projectRepo)
 
-		pages, err := service.GetPagesByProjectID(context.Background(), "valid-project-id")
+		pages, err := service.GetPagesByProjectID(context.Background(), "valid-project-id", "")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}

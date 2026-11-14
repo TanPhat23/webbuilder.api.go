@@ -14,10 +14,10 @@ import (
 	"syscall"
 
 	"github.com/clerk/clerk-sdk-go/v2"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -92,8 +92,7 @@ func main() {
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
-	routes.PublicRoutes(app, repos)
-	routes.PrivateRoutes(app, repos, cloudinaryService, invitationService)
+	routes.SetupRoutes(app, repos, cloudinaryService, invitationService)
 
 	// Handle graceful shutdown
 	go func() {
@@ -105,5 +104,5 @@ func main() {
 		app.Shutdown()
 	}()
 
-	app.Listen(":8080")
+	app.Listen(":8080", fiber.ListenConfig{EnablePrefork: false})
 }

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/contrib/websocket"
+	"github.com/gofiber/contrib/v3/websocket"
 
 	domainEntity "my-go-app/internal/realtime/domain/entity"
 )
@@ -29,6 +29,9 @@ type Client struct {
 	// pooled and reused for other connections) and must never be touched.
 	connMu   sync.Mutex
 	released bool
+	// closing is set once a close frame was sent: CloseConn then leaves the connection
+	// open so the peer can read that frame, and closeGrace closes it if the peer never answers.
+	closing bool
 
 	// Presence state: stores the latest cursor/selection information for the client.
 	// Protected by PresenceMu when accessed concurrently.
@@ -101,7 +104,7 @@ const writeWait = 10 * time.Second
 func (c *Client) WriteJSON(msg any) error {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
-	if c.released || c.Conn == nil {
+	if c.released || c.closing || c.Conn == nil {
 		return ErrConnReleased
 	}
 	if d, ok := any(c.Conn).(interface{ SetWriteDeadline(time.Time) error }); ok {
@@ -110,13 +113,48 @@ func (c *Client) WriteJSON(msg any) error {
 	return c.Conn.WriteJSON(msg)
 }
 
-// CloseConn closes the connection unless it was already released. Safe for concurrent use.
+// CloseConn closes the connection unless it was already released. After a close frame
+// (see CloseAsReplaced) it leaves the connection to the close handshake. Safe for concurrent use.
 func (c *Client) CloseConn() {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
-	if !c.released && c.Conn != nil {
+	if !c.released && !c.closing && c.Conn != nil {
 		_ = c.Conn.Close()
 	}
+}
+
+// CloseReplaced is the close code sent to a connection that a newer connection
+// from the same user and project replaced. Clients must not reconnect after it.
+const CloseReplaced = 4409
+
+// closeGrace is how long a peer has to answer a close frame before the connection is closed.
+const closeGrace = time.Second
+
+// CloseAsReplaced sends the peer a CloseReplaced close frame and stops sending to it.
+// The connection ends when the peer answers the close frame (the read loop then returns
+// and the handler releases it), or after closeGrace. Closing the socket right after the
+// frame can reset the connection before the peer reads it. Safe for concurrent use.
+func (c *Client) CloseAsReplaced() {
+	c.connMu.Lock()
+	if c.released || c.closing || c.Conn == nil {
+		c.connMu.Unlock()
+		c.CloseSend()
+		return
+	}
+	c.closing = true
+	msg := websocket.FormatCloseMessage(CloseReplaced, "replaced by a newer connection")
+	if err := c.Conn.WriteControl(websocket.CloseMessage, msg, time.Now().Add(closeGrace)); err != nil {
+		_ = c.Conn.Close()
+	}
+	c.connMu.Unlock()
+	c.CloseSend()
+	time.AfterFunc(closeGrace, func() {
+		c.connMu.Lock()
+		defer c.connMu.Unlock()
+		if !c.released && c.Conn != nil {
+			_ = c.Conn.Close()
+		}
+	})
 }
 
 // Release closes the connection and fences off all further use of Conn. The connection
