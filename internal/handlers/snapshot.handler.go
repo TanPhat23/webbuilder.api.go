@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	entityids "my-go-app/pkg/ids"
 )
 
 type SnapshotHandler struct {
@@ -43,7 +43,11 @@ func (h *SnapshotHandler) SaveSnapshot(c *fiber.Ctx) error {
 	}
 
 	if req.Id == "" {
-		req.Id = uuid.NewString()
+		id, err := entityids.NewV7()
+		if err != nil {
+			return err
+		}
+		req.Id = id
 	}
 
 	elements, err := h.processElements(req.Elements)

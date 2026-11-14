@@ -27,12 +27,9 @@ func NewContentTypeRepository(db *gorm.DB) ContentTypeRepositoryInterface {
 }
 
 func (r *ContentTypeRepository) GetContentTypes(ctx context.Context) ([]models.ContentType, error) {
-	var contentTypes []models.ContentType
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentType{}).
+	contentTypes, err := gorm.G[models.ContentType](r.db).
 		Order("\"CreatedAt\" DESC").
-		Find(&contentTypes).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get content types: %w", err)
@@ -46,14 +43,11 @@ func (r *ContentTypeRepository) GetContentTypeByID(ctx context.Context, id strin
 		return nil, errors.New("id is required")
 	}
 
-	var contentType models.ContentType
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentType{}).
-		Preload("Fields").
-		Preload("Items").
+	contentType, err := gorm.G[models.ContentType](r.db).
+		Preload("Fields", nil).
+		Preload("Items", nil).
 		Where("\"Id\" = ?", id).
-		First(&contentType).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -70,12 +64,9 @@ func (r *ContentTypeRepository) GetContentTypeByName(ctx context.Context, name s
 		return nil, errors.New("name is required")
 	}
 
-	var contentType models.ContentType
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentType{}).
+	contentType, err := gorm.G[models.ContentType](r.db).
 		Where("\"Name\" = ?", name).
-		First(&contentType).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -116,9 +107,7 @@ func (r *ContentTypeRepository) CreateContentType(ctx context.Context, ct *model
 	ct.CreatedAt = now
 	ct.UpdatedAt = now
 
-	err = r.db.WithContext(ctx).
-		Model(&models.ContentType{}).
-		Create(ct).Error
+	err = gorm.G[models.ContentType](r.db).Create(ctx, ct)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create content type: %w", err)
@@ -137,11 +126,9 @@ func (r *ContentTypeRepository) UpdateContentType(ctx context.Context, id string
 	}
 
 	// Check if content type exists
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentType{}).
+	count, err := gorm.G[models.ContentType](r.db).
 		Where("\"Id\" = ?", id).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check content type existence: %w", err)
@@ -153,11 +140,9 @@ func (r *ContentTypeRepository) UpdateContentType(ctx context.Context, id string
 
 	// If updating name, check for duplicates
 	if newName, ok := updates["name"].(string); ok {
-		var existingCount int64
-		err = r.db.WithContext(ctx).
-			Model(&models.ContentType{}).
+		existingCount, err := gorm.G[models.ContentType](r.db).
 			Where("\"Name\" = ? AND \"Id\" != ?", newName, id).
-			Count(&existingCount).Error
+			Count(ctx, "*")
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to check name uniqueness: %w", err)
@@ -182,11 +167,9 @@ func (r *ContentTypeRepository) UpdateContentType(ctx context.Context, id string
 	}
 
 	// Fetch and return updated content type
-	var contentType models.ContentType
-	err = r.db.WithContext(ctx).
-		Model(&models.ContentType{}).
+	contentType, err := gorm.G[models.ContentType](r.db).
 		Where("\"Id\" = ?", id).
-		First(&contentType).Error
+		First(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated content type: %w", err)
@@ -200,15 +183,15 @@ func (r *ContentTypeRepository) DeleteContentType(ctx context.Context, id string
 		return errors.New("id is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	rowsAffected, err := gorm.G[models.ContentType](r.db).
 		Where("\"Id\" = ?", id).
-		Delete(&models.ContentType{})
+		Delete(ctx)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete content type: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to delete content type: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrContentTypeNotFound
 	}
 
@@ -220,11 +203,9 @@ func (r *ContentTypeRepository) ExistsByName(ctx context.Context, name string) (
 		return false, errors.New("name is required")
 	}
 
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentType{}).
+	count, err := gorm.G[models.ContentType](r.db).
 		Where("\"Name\" = ?", name).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return false, fmt.Errorf("failed to check content type existence: %w", err)
@@ -238,11 +219,9 @@ func (r *ContentTypeRepository) ExistsByID(ctx context.Context, id string) (bool
 		return false, errors.New("id is required")
 	}
 
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentType{}).
+	count, err := gorm.G[models.ContentType](r.db).
 		Where("\"Id\" = ?", id).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return false, fmt.Errorf("failed to check content type existence: %w", err)

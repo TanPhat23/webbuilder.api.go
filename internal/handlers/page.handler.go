@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	entityids "my-go-app/pkg/ids"
 )
 
 var pageAllowedCols = map[string]string{
@@ -89,7 +89,11 @@ func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
 	now := time.Now()
 	pageID := req.Id
 	if pageID == "" {
-		pageID = uuid.New().String()
+		id, err := entityids.NewV7()
+		if err != nil {
+			return err
+		}
+		pageID = id
 	}
 	page := &models.Page{
 		Id:        pageID,
@@ -131,9 +135,15 @@ func (h *PageHandler) UpdatePage(c *fiber.Ctx) error {
 	}
 
 	rawBody := map[string]any{}
-	if req.Name != nil   { rawBody["name"] = *req.Name }
-	if req.Type != nil   { rawBody["type"] = *req.Type }
-	if req.Styles != nil { rawBody["styles"] = req.Styles }
+	if req.Name != nil {
+		rawBody["name"] = *req.Name
+	}
+	if req.Type != nil {
+		rawBody["type"] = *req.Type
+	}
+	if req.Styles != nil {
+		rawBody["styles"] = req.Styles
+	}
 
 	updates, err := utils.BuildColumnUpdates(rawBody, pageAllowedCols)
 	if err != nil {

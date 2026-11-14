@@ -25,14 +25,12 @@ func NewNotificationRepository(db *gorm.DB) NotificationRepositoryInterface {
 	return &NotificationRepository{db: db}
 }
 
-func (r *NotificationRepository) forUser(ctx context.Context, userID string) *gorm.DB {
-	return r.db.WithContext(ctx).Model(&models.Notification{}).Where(`"UserId" = ?`, userID)
+func (r *NotificationRepository) forUser(userID string) gorm.ChainInterface[models.Notification] {
+	return gorm.G[models.Notification](r.db).Where(`"UserId" = ?`, userID)
 }
 
-func (r *NotificationRepository) count(q *gorm.DB) (int64, error) {
-	var n int64
-	err := q.Count(&n).Error
-	return n, err
+func (r *NotificationRepository) count(ctx context.Context, q gorm.ChainInterface[models.Notification]) (int64, error) {
+	return q.Count(ctx, "*")
 }
 
 func (r *NotificationRepository) ListForUser(ctx context.Context, userID string, filter models.NotificationFilter) (*models.NotificationList, error) {
@@ -44,7 +42,7 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID string,
 		limit = defaultNotificationLimit
 	}
 
-	q := r.forUser(ctx, userID)
+	q := r.forUser(userID)
 	switch filter.Filter {
 	case "", "all":
 	case "unread":
@@ -58,9 +56,12 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID string,
 	}
 
 	list := &models.NotificationList{Notifications: []models.Notification{}}
-	if err := q.Order(`"CreatedAt" DESC`).Limit(limit).Find(&list.Notifications).Error; err != nil {
+	notifications, err := q.Order(`"CreatedAt" DESC`).Limit(limit).Find(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("list notifications: %w", err)
 	}
+
+	list.Notifications = notifications
 
 	// Timestamps are stored as UTC wall-clock (timestamp without time zone),
 	// as Prisma wrote them; "today" is the server's local day, as before.
@@ -81,11 +82,11 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID string,
 		{&list.FilterCounts.Updates, `"Type" = ?`, []any{"settings"}},
 	}
 	for _, c := range counts {
-		q := r.forUser(ctx, userID)
+		q := r.forUser(userID)
 		if c.where != "" {
 			q = q.Where(c.where, c.args...)
 		}
-		n, err := r.count(q)
+		n, err := r.count(ctx, q)
 		if err != nil {
 			return nil, fmt.Errorf("count notifications: %w", err)
 		}
@@ -97,8 +98,7 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID string,
 }
 
 func (r *NotificationRepository) SetRead(ctx context.Context, userID, notificationID string, read bool) (*models.Notification, error) {
-	var n models.Notification
-	err := r.forUser(ctx, userID).Where(`"Id" = ?`, notificationID).First(&n).Error
+	n, err := r.forUser(userID).Where(`"Id" = ?`, notificationID).First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotificationNotFound
 	}
@@ -115,7 +115,7 @@ func (r *NotificationRepository) SetRead(ctx context.Context, userID, notificati
 }
 
 func (r *NotificationRepository) MarkAllRead(ctx context.Context, userID string) error {
-	return r.forUser(ctx, userID).Where(`"Read" = false`).
+	return r.db.WithContext(ctx).Model(&models.Notification{}).Where(`"UserId" = ?`, userID).Where(`"Read" = false`).
 		Updates(map[string]any{"Read": true, "UpdatedAt": time.Now().UTC()}).Error
 }
 
@@ -128,5 +128,5 @@ func (r *NotificationRepository) Create(ctx context.Context, n *models.Notificat
 	}
 	now := time.Now().UTC()
 	n.CreatedAt, n.UpdatedAt = now, now
-	return r.db.WithContext(ctx).Create(n).Error
+	return gorm.G[models.Notification](r.db).Create(ctx, n)
 }

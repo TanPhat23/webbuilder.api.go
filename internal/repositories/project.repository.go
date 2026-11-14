@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrProjectNotFound = errors.New("project not found")
+	ErrProjectNotFound     = errors.New("project not found")
 	ErrProjectUnauthorized = errors.New("unauthorized access to project")
 )
 
@@ -29,12 +29,9 @@ func (r *ProjectRepository) GetProjectByID(ctx context.Context, projectID, userI
 		return nil, errors.New("projectID and userID are required")
 	}
 
-	var project models.Project
-
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	project, err := gorm.G[models.Project](r.db).
 		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
-		First(&project).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -51,22 +48,17 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 		return nil, errors.New("projectID and userID are required")
 	}
 
-	var project models.Project
-
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	project, err := gorm.G[models.Project](r.db).
 		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
-		First(&project).Error
+		First(ctx)
 
 	if err == nil {
 		return &project, nil
 	}
 
-	var collaborator models.Collaborator
-	err = r.db.WithContext(ctx).
-		Model(&models.Collaborator{}).
+	_, err = gorm.G[models.Collaborator](r.db).
 		Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, userID).
-		First(&collaborator).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -75,10 +67,9 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 		return nil, fmt.Errorf("failed to check collaborator access: %w", err)
 	}
 
-	err = r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	project, err = gorm.G[models.Project](r.db).
 		Where(`"Id" = ? AND "DeletedAt" IS NULL`, projectID).
-		First(&project).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -95,11 +86,9 @@ func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID 
 		return nil, errors.New("projectID is required")
 	}
 
-	var project models.Project
-
-	err := r.db.WithContext(ctx).
+	project, err := gorm.G[models.Project](r.db).
 		Where(`"Id" = ? AND "Published" = true AND "DeletedAt" IS NULL`, projectID).
-		First(&project).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -116,13 +105,10 @@ func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID stri
 		return nil, errors.New("userID is required")
 	}
 
-	var projects []models.Project
-
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	projects, err := gorm.G[models.Project](r.db).
 		Where(`"OwnerId" = ? AND "DeletedAt" IS NULL`, userID).
 		Order(`"CreatedAt" DESC`).
-		Find(&projects).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get owned projects: %w", err)
@@ -173,11 +159,10 @@ func (r *ProjectRepository) GetProjectPages(ctx context.Context, projectID, user
 		return nil, err
 	}
 
-	var pages []models.Page
-	err = r.db.WithContext(ctx).
+	pages, err := gorm.G[models.Page](r.db).
 		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Order(`"CreatedAt" ASC`).
-		Find(&pages).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project pages: %w", err)
@@ -191,21 +176,11 @@ func (r *ProjectRepository) CreateProject(ctx context.Context, project *models.P
 		return errors.New("project cannot be nil")
 	}
 
-	if project.Name == "" {
-		return errors.New("project name is required")
-	}
-
-	if project.OwnerId == "" {
-		return errors.New("owner ID is required")
-	}
-
 	now := time.Now()
 	project.CreatedAt = now
 	project.UpdatedAt = now
 
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
-		Create(project).Error
+	err := gorm.G[models.Project](r.db).Create(ctx, project)
 
 	if err != nil {
 		return fmt.Errorf("failed to create project: %w", err)
@@ -224,11 +199,9 @@ func (r *ProjectRepository) UpdateProject(ctx context.Context, projectID, userID
 	}
 
 	// Verify ownership first
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	count, err := gorm.G[models.Project](r.db).
 		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project ownership: %w", err)
@@ -262,11 +235,9 @@ func (r *ProjectRepository) DeleteProject(ctx context.Context, projectID, userID
 	}
 
 	// Verify ownership
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	count, err := gorm.G[models.Project](r.db).
 		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return fmt.Errorf("failed to verify project ownership: %w", err)
@@ -278,10 +249,9 @@ func (r *ProjectRepository) DeleteProject(ctx context.Context, projectID, userID
 
 	// Soft delete
 	now := time.Now()
-	err = r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	_, err = gorm.G[models.Project](r.db).
 		Where(&models.Project{ID: projectID, OwnerId: userID}).
-		Update(`"DeletedAt"`, now).Error
+		Update(ctx, `"DeletedAt"`, now)
 
 	if err != nil {
 		return fmt.Errorf("failed to delete project: %w", err)
@@ -295,16 +265,14 @@ func (r *ProjectRepository) HardDeleteProject(ctx context.Context, projectID, us
 		return errors.New("projectID and userID are required")
 	}
 
-	result := r.db.WithContext(ctx).
-		Unscoped().
+	rows, err := gorm.G[models.Project](r.db).
+		Scopes(func(stmt *gorm.Statement) { stmt.Unscoped = true }).
 		Where(&models.Project{ID: projectID, OwnerId: userID}).
-		Delete(&models.Project{})
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to hard delete project: %w", result.Error)
+		Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to hard delete project: %w", err)
 	}
-
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrProjectUnauthorized
 	}
 
@@ -316,17 +284,14 @@ func (r *ProjectRepository) RestoreProject(ctx context.Context, projectID, userI
 		return errors.New("projectID and userID are required")
 	}
 
-	result := r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	rows, err := gorm.G[models.Project](r.db).
 		Where(&models.Project{ID: projectID, OwnerId: userID}).
 		Where("DeletedAt IS NOT NULL").
-		Update(`"DeletedAt"`, nil)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to restore project: %w", result.Error)
+		Update(ctx, `"DeletedAt"`, nil)
+	if err != nil {
+		return fmt.Errorf("failed to restore project: %w", err)
 	}
-
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrProjectNotFound
 	}
 
@@ -338,11 +303,9 @@ func (r *ProjectRepository) ExistsForUser(ctx context.Context, projectID, userID
 		return false, errors.New("projectID and userID are required")
 	}
 
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	count, err := gorm.G[models.Project](r.db).
 		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return false, fmt.Errorf("failed to check project existence: %w", err)
@@ -356,13 +319,9 @@ func (r *ProjectRepository) GetProjectWithLock(ctx context.Context, projectID, u
 		return nil, errors.New("projectID and userID are required")
 	}
 
-	var project models.Project
-
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
-		Clauses(clause.Locking{Strength: "UPDATE"}).
+	project, err := gorm.G[models.Project](r.db, clause.Locking{Strength: "UPDATE"}).
 		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
-		First(&project).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -390,10 +349,10 @@ func (r *ProjectRepository) CreateProjectWithPage(ctx context.Context, project *
 	page.CreatedAt, page.UpdatedAt = now, now
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Omit(clause.Associations).Create(project).Error; err != nil {
+		if err := gorm.G[models.Project](tx).Omit(clause.Associations).Create(ctx, project); err != nil {
 			return fmt.Errorf("failed to create project: %w", err)
 		}
-		if err := tx.Omit(clause.Associations).Create(page).Error; err != nil {
+		if err := gorm.G[models.Page](tx).Omit(clause.Associations).Create(ctx, page); err != nil {
 			return fmt.Errorf("failed to create first page: %w", err)
 		}
 		return nil
@@ -404,11 +363,10 @@ func (r *ProjectRepository) GetProjectAccess(ctx context.Context, projectID, use
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
-	var project models.Project
-	err := r.db.WithContext(ctx).
+	project, err := gorm.G[models.Project](r.db).
 		Select(`"Id"`, `"OwnerId"`).
 		Where(`"Id" = ? AND "DeletedAt" IS NULL`, projectID).
-		First(&project).Error
+		First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrProjectNotFound
 	}
@@ -422,11 +380,10 @@ func (r *ProjectRepository) GetProjectAccess(ctx context.Context, projectID, use
 		return access, nil
 	}
 
-	var collaborator models.Collaborator
-	err = r.db.WithContext(ctx).
+	collaborator, err := gorm.G[models.Collaborator](r.db).
 		Select(`"Role"`).
 		Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, userID).
-		First(&collaborator).Error
+		First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrProjectNotFound
 	}

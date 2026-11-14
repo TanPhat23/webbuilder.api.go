@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	"my-go-app/pkg/ids"
 )
 
 type ElementCommentHandler struct {
@@ -32,8 +32,13 @@ func (h *ElementCommentHandler) CreateElementComment(c *fiber.Ctx) error {
 		return err
 	}
 
+	id, err := ids.NewV7()
+	if err != nil {
+		return err
+	}
+
 	comment := &models.ElementComment{
-		Id:        uuid.NewString(),
+		Id:        id,
 		Content:   req.Content,
 		ElementId: req.ElementId,
 		AuthorId:  userID,
@@ -131,8 +136,12 @@ func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
 	}
 
 	updates := map[string]any{}
-	if req.Content != nil  { updates["Content"] = *req.Content }
-	if req.Resolved != nil { updates["Resolved"] = *req.Resolved }
+	if req.Content != nil {
+		updates["Content"] = *req.Content
+	}
+	if req.Resolved != nil {
+		updates["Resolved"] = *req.Resolved
+	}
 
 	if err := utils.RequireUpdates(updates); err != nil {
 		return err

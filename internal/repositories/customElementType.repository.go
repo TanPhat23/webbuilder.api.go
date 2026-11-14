@@ -25,12 +25,9 @@ func NewCustomElementTypeRepository(db *gorm.DB) CustomElementTypeRepositoryInte
 }
 
 func (r *CustomElementTypeRepository) GetCustomElementTypes(ctx context.Context) ([]models.CustomElementType, error) {
-	var customElementTypes []models.CustomElementType
-
-	err := r.db.WithContext(ctx).
-		Model(&models.CustomElementType{}).
+	customElementTypes, err := gorm.G[models.CustomElementType](r.db).
 		Order("\"Name\" ASC").
-		Find(&customElementTypes).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get custom element types: %w", err)
@@ -44,11 +41,9 @@ func (r *CustomElementTypeRepository) GetCustomElementTypeByID(ctx context.Conte
 		return nil, errors.New("id is required")
 	}
 
-	var customElementType models.CustomElementType
-
-	err := r.db.WithContext(ctx).
+	customElementType, err := gorm.G[models.CustomElementType](r.db).
 		Where("\"Id\" = ?", id).
-		First(&customElementType).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -65,11 +60,9 @@ func (r *CustomElementTypeRepository) GetCustomElementTypeByName(ctx context.Con
 		return nil, errors.New("name is required")
 	}
 
-	var customElementType models.CustomElementType
-
-	err := r.db.WithContext(ctx).
+	customElementType, err := gorm.G[models.CustomElementType](r.db).
 		Where("\"Name\" = ?", name).
-		First(&customElementType).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -89,11 +82,9 @@ func (r *CustomElementTypeRepository) CreateCustomElementType(ctx context.Contex
 		return nil, errors.New("name is required")
 	}
 
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.CustomElementType{}).
+	count, err := gorm.G[models.CustomElementType](r.db).
 		Where("\"Name\" = ?", customElementType.Name).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing custom element type: %w", err)
@@ -103,7 +94,7 @@ func (r *CustomElementTypeRepository) CreateCustomElementType(ctx context.Contex
 		return nil, ErrCustomElementTypeAlreadyExists
 	}
 
-	err = r.db.WithContext(ctx).Create(customElementType).Error
+	err = gorm.G[models.CustomElementType](r.db).Create(ctx, customElementType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create custom element type: %w", err)
 	}
@@ -116,10 +107,9 @@ func (r *CustomElementTypeRepository) UpdateCustomElementType(ctx context.Contex
 		return nil, errors.New("id is required")
 	}
 
-	var customElementType models.CustomElementType
-	err := r.db.WithContext(ctx).
+	customElementType, err := gorm.G[models.CustomElementType](r.db).
 		Where("\"Id\" = ?", id).
-		First(&customElementType).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -152,15 +142,15 @@ func (r *CustomElementTypeRepository) DeleteCustomElementType(ctx context.Contex
 		return errors.New("id is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	rowsAffected, err := gorm.G[models.CustomElementType](r.db).
 		Where("\"Id\" = ?", id).
-		Delete(&models.CustomElementType{})
+		Delete(ctx)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete custom element type: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to delete custom element type: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrCustomElementTypeNotFound
 	}
 

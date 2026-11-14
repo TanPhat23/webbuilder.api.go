@@ -27,12 +27,9 @@ func (r *ContentFieldValueRepository) GetContentFieldValuesByContentItem(ctx con
 		return nil, errors.New("contentItemID is required")
 	}
 
-	var contentFieldValues []models.ContentFieldValue
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentFieldValue{}).
+	contentFieldValues, err := gorm.G[models.ContentFieldValue](r.db).
 		Where("\"ContentItemId\" = ?", contentItemID).
-		Find(&contentFieldValues).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get content field values by content item: %w", err)
@@ -46,12 +43,9 @@ func (r *ContentFieldValueRepository) GetContentFieldValueByID(ctx context.Conte
 		return nil, errors.New("id is required")
 	}
 
-	var contentFieldValue models.ContentFieldValue
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentFieldValue{}).
+	contentFieldValue, err := gorm.G[models.ContentFieldValue](r.db).
 		Where("\"Id\" = ?", id).
-		First(&contentFieldValue).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -81,9 +75,7 @@ func (r *ContentFieldValueRepository) CreateContentFieldValue(ctx context.Contex
 		cfv.Id = cuid.New()
 	}
 
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentFieldValue{}).
-		Create(cfv).Error
+	err := gorm.G[models.ContentFieldValue](r.db).Create(ctx, cfv)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create content field value: %w", err)
@@ -97,25 +89,22 @@ func (r *ContentFieldValueRepository) UpdateContentFieldValue(ctx context.Contex
 		return nil, errors.New("id is required")
 	}
 
-	result := r.db.WithContext(ctx).
-		Model(&models.ContentFieldValue{}).
+	rowsAffected, err := gorm.G[models.ContentFieldValue](r.db).
 		Where("\"Id\" = ?", id).
-		Update("\"Value\"", value)
+		Update(ctx, "\"Value\"", value)
 
-	if result.Error != nil {
-		return nil, fmt.Errorf("failed to update content field value: %w", result.Error)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update content field value: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return nil, ErrContentFieldValueNotFound
 	}
 
 	// Fetch and return updated value
-	var contentFieldValue models.ContentFieldValue
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentFieldValue{}).
+	contentFieldValue, err := gorm.G[models.ContentFieldValue](r.db).
 		Where("\"Id\" = ?", id).
-		First(&contentFieldValue).Error
+		First(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated content field value: %w", err)
@@ -129,15 +118,15 @@ func (r *ContentFieldValueRepository) DeleteContentFieldValue(ctx context.Contex
 		return errors.New("id is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	rowsAffected, err := gorm.G[models.ContentFieldValue](r.db).
 		Where("\"Id\" = ?", id).
-		Delete(&models.ContentFieldValue{})
+		Delete(ctx)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete content field value: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to delete content field value: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrContentFieldValueNotFound
 	}
 

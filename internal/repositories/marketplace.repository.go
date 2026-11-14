@@ -7,8 +7,8 @@ import (
 	"my-go-app/internal/models"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"my-go-app/pkg/ids"
 )
 
 type MarketplaceRepository struct {
@@ -22,7 +22,7 @@ func NewMarketplaceRepository(db *gorm.DB) MarketplaceRepositoryInterface {
 func (r *MarketplaceRepository) CreateMarketplaceItem(item models.MarketplaceItem, tagIds []string, categoryIds []string) (*models.MarketplaceItem, error) {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		// Create the item
-		if err := tx.Create(&item).Error; err != nil {
+		if err := gorm.G[models.MarketplaceItem](tx).Create(tx.Statement.Context, &item); err != nil {
 			return err
 		}
 
@@ -33,7 +33,7 @@ func (r *MarketplaceRepository) CreateMarketplaceItem(item models.MarketplaceIte
 					ItemId: item.Id,
 					TagId:  tagId,
 				}
-				if err := tx.Create(&itemTag).Error; err != nil {
+				if err := gorm.G[models.MarketplaceItemTag](tx).Create(tx.Statement.Context, &itemTag); err != nil {
 					return err
 				}
 			}
@@ -46,7 +46,7 @@ func (r *MarketplaceRepository) CreateMarketplaceItem(item models.MarketplaceIte
 					ItemId:     item.Id,
 					CategoryId: categoryId,
 				}
-				if err := tx.Create(&itemCategory).Error; err != nil {
+				if err := gorm.G[models.MarketplaceItemCategory](tx).Create(tx.Statement.Context, &itemCategory); err != nil {
 					return err
 				}
 			}
@@ -190,9 +190,8 @@ func (r *MarketplaceRepository) GetMarketplaceItems(filter MarketplaceFilter) ([
 }
 
 func (r *MarketplaceRepository) GetMarketplaceItemByID(id string) (*models.MarketplaceItem, error) {
-	var item models.MarketplaceItem
-	err := r.db.Session(&gorm.Session{PrepareStmt: false}).Where(&models.MarketplaceItem{Id: id, DeletedAt: nil}).
-		First(&item).Error
+	item, err := gorm.G[models.MarketplaceItem](r.db.Session(&gorm.Session{PrepareStmt: false})).Where(&models.MarketplaceItem{Id: id, DeletedAt: nil}).
+		First(r.db.Statement.Context)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -221,26 +220,25 @@ func (r *MarketplaceRepository) GetMarketplaceItemByID(id string) (*models.Marke
 
 func (r *MarketplaceRepository) UpdateMarketplaceItem(id string, userID string, updates map[string]any) (*models.MarketplaceItem, error) {
 	// Verify ownership
-	var count int64
-	if err := r.db.Model(&models.MarketplaceItem{}).
+	count, err := gorm.G[models.MarketplaceItem](r.db).
 		Where(&models.MarketplaceItem{Id: id, AuthorId: userID, DeletedAt: nil}).
-		Count(&count).Error; err != nil {
+		Count(r.db.Statement.Context, "*")
+	if err != nil {
 		return nil, err
 	}
 	if count == 0 {
 		return nil, nil
 	}
 
-	var err error
 	err = r.db.Transaction(func(tx *gorm.DB) error {
 		// Handle tag updates
 		if tagIds, ok := updates["TagIds"].([]string); ok {
-			if err := tx.Where(&models.MarketplaceItemTag{ItemId: id}).Delete(&models.MarketplaceItemTag{}).Error; err != nil {
+			if _, err := gorm.G[models.MarketplaceItemTag](tx).Where(&models.MarketplaceItemTag{ItemId: id}).Delete(tx.Statement.Context); err != nil {
 				return err
 			}
 			for _, tagId := range tagIds {
 				itemTag := models.MarketplaceItemTag{ItemId: id, TagId: tagId}
-				if err := tx.Create(&itemTag).Error; err != nil {
+				if err := gorm.G[models.MarketplaceItemTag](tx).Create(tx.Statement.Context, &itemTag); err != nil {
 					return err
 				}
 			}
@@ -249,12 +247,12 @@ func (r *MarketplaceRepository) UpdateMarketplaceItem(id string, userID string, 
 
 		// Handle category updates
 		if categoryIds, ok := updates["CategoryIds"].([]string); ok {
-			if err := tx.Where(&models.MarketplaceItemCategory{ItemId: id}).Delete(&models.MarketplaceItemCategory{}).Error; err != nil {
+			if _, err := gorm.G[models.MarketplaceItemCategory](tx).Where(&models.MarketplaceItemCategory{ItemId: id}).Delete(tx.Statement.Context); err != nil {
 				return err
 			}
 			for _, categoryId := range categoryIds {
 				itemCategory := models.MarketplaceItemCategory{ItemId: id, CategoryId: categoryId}
-				if err := tx.Create(&itemCategory).Error; err != nil {
+				if err := gorm.G[models.MarketplaceItemCategory](tx).Create(tx.Statement.Context, &itemCategory); err != nil {
 					return err
 				}
 			}
@@ -281,13 +279,13 @@ func (r *MarketplaceRepository) UpdateMarketplaceItem(id string, userID string, 
 }
 
 func (r *MarketplaceRepository) DeleteMarketplaceItem(id string, userId string) error {
-	result := r.db.Model(&models.MarketplaceItem{}).
+	rows, err := gorm.G[models.MarketplaceItem](r.db).
 		Where(&models.MarketplaceItem{Id: id, AuthorId: userId, DeletedAt: nil}).
-		Update("\"DeletedAt\"", time.Now())
-	if result.Error != nil {
-		return result.Error
+		Update(r.db.Statement.Context, "\"DeletedAt\"", time.Now())
+	if err != nil {
+		return err
 	}
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return gorm.ErrRecordNotFound
 	}
 	return nil
@@ -309,18 +307,32 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemID string, userID st
 	}
 
 	// Get the original project
-	var originalProject models.Project
-	if err := r.db.Table(`"Project"`).Where(`"Id" = ?`, *item.ProjectId).First(&originalProject).Error; err != nil {
+	originalProject, err := gorm.G[models.Project](r.db).Table(`"Project"`).Where(`"Id" = ?`, *item.ProjectId).First(r.db.Statement.Context)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("original project not found")
 		}
 		return nil, err
 	}
 
+	// Prepare every ID before the first write so entropy errors cannot leave a partial clone.
+	originalPages, err := gorm.G[models.Page](r.db).Table(`"Page"`).Where(`"ProjectId" = ?`, *item.ProjectId).Find(r.db.Statement.Context)
+	if err != nil {
+		return nil, err
+	}
+	var originalElements []models.Element
+	if err := r.db.Table(`"Element"`).Joins("Page").Where(`"Page"."ProjectId" = ?`, *item.ProjectId).Order(`"Element"."Order" ASC`).Find(&originalElements).Error; err != nil {
+		return nil, err
+	}
+	newProjectID, pageIdMap, elementIdMap, err := prepareCloneIDs(originalPages, originalElements, ids.NewV7)
+	if err != nil {
+		return nil, err
+	}
+
 	// Clone the project
 	now := time.Now()
 	newProject := models.Project{
-		ID:         	uuid.New().String(),
+		ID:          newProjectID,
 		Name:        item.Title + " (Copy)",
 		Description: &item.Description,
 		Styles:      originalProject.Styles,
@@ -335,21 +347,13 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemID string, userID st
 	}
 
 	// Create the new project
-	if err := r.db.Table(`"Project"`).Create(&newProject).Error; err != nil {
+	if err := gorm.G[models.Project](r.db).Table(`"Project"`).Create(r.db.Statement.Context, &newProject); err != nil {
 		return nil, err
 	}
 
 	// Clone all pages from the original project
-	var originalPages []models.Page
-	if err := r.db.Table(`"Page"`).Where(`"ProjectId" = ?`, *item.ProjectId).Find(&originalPages).Error; err != nil {
-		return nil, err
-	}
-
-	pageIdMap := make(map[string]string)
-
 	for _, originalPage := range originalPages {
-		newPageId := uuid.New().String()
-		pageIdMap[originalPage.Id] = newPageId
+		newPageId := pageIdMap[originalPage.Id]
 
 		newPage := models.Page{
 			Id:        newPageId,
@@ -363,22 +367,14 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemID string, userID st
 			},
 		}
 
-		if err := r.db.Table(`"Page"`).Create(&newPage).Error; err != nil {
+		if err := gorm.G[models.Page](r.db).Table(`"Page"`).Create(r.db.Statement.Context, &newPage); err != nil {
 			return nil, err
 		}
 	}
 
 	// Clone all elements from the original project
-	var originalElements []models.Element
-	if err := r.db.Table(`"Element"`).Joins("Page").Where(`"Page"."ProjectId" = ?`, *item.ProjectId).Order(`"Element"."Order" ASC`).Find(&originalElements).Error; err != nil {
-		return nil, err
-	}
-
-	elementIdMap := make(map[string]string) // old element id -> new element id
-
 	for _, originalElement := range originalElements {
-		newElementId := uuid.New().String()
-		elementIdMap[originalElement.Id] = newElementId
+		newElementId := elementIdMap[originalElement.Id]
 
 		// Update PageId if it exists
 		var newPageId *string
@@ -404,7 +400,7 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemID string, userID st
 			PageId:         newPageId,
 		}
 
-		if err := r.db.Table(`"Element"`).Create(&newElement).Error; err != nil {
+		if err := gorm.G[models.Element](r.db).Table(`"Element"`).Create(r.db.Statement.Context, &newElement); err != nil {
 			return nil, err
 		}
 	}
@@ -425,36 +421,62 @@ func (r *MarketplaceRepository) DownloadMarketplaceItem(itemID string, userID st
 	return &newProject, nil
 }
 
+// prepareCloneIDs allocates every ID before a marketplace clone writes any rows.
+func prepareCloneIDs(pages []models.Page, elements []models.Element, generate func() (string, error)) (string, map[string]string, map[string]string, error) {
+	projectID, err := generate()
+	if err != nil {
+		return "", nil, nil, err
+	}
+	pageIDs := make(map[string]string, len(pages))
+	for _, page := range pages {
+		id, err := generate()
+		if err != nil {
+			return "", nil, nil, err
+		}
+		pageIDs[page.Id] = id
+	}
+	elementIDs := make(map[string]string, len(elements))
+	for _, element := range elements {
+		id, err := generate()
+		if err != nil {
+			return "", nil, nil, err
+		}
+		elementIDs[element.Id] = id
+	}
+	return projectID, pageIDs, elementIDs, nil
+}
+
 func (r *MarketplaceRepository) IncrementDownloads(id string) error {
-	return r.db.Model(&models.MarketplaceItem{}).
+	_, err := gorm.G[models.MarketplaceItem](r.db).
 		Where(&models.MarketplaceItem{Id: id}).
-		Update("\"Downloads\"", gorm.Expr(`"Downloads" + 1`)).Error
+		Update(r.db.Statement.Context, "\"Downloads\"", gorm.Expr(`"Downloads" + 1`))
+	return err
 }
 
 func (r *MarketplaceRepository) IncrementLikes(id string) error {
-	return r.db.Model(&models.MarketplaceItem{}).
+	_, err := gorm.G[models.MarketplaceItem](r.db).
 		Where(&models.MarketplaceItem{Id: id}).
-		Update("\"Likes\"", gorm.Expr(`"Likes" + 1`)).Error
+		Update(r.db.Statement.Context, "\"Likes\"", gorm.Expr(`"Likes" + 1`))
+	return err
 }
 
 func (r *MarketplaceRepository) CreateCategory(category models.Category) (*models.Category, error) {
-	if err := r.db.Create(&category).Error; err != nil {
+	if err := gorm.G[models.Category](r.db).Create(r.db.Statement.Context, &category); err != nil {
 		return nil, err
 	}
 	return &category, nil
 }
 
 func (r *MarketplaceRepository) GetCategories() ([]models.Category, error) {
-	var categories []models.Category
-	if err := r.db.Order(`"Name" ASC`).Find(&categories).Error; err != nil {
+	categories, err := gorm.G[models.Category](r.db).Order(`"Name" ASC`).Find(r.db.Statement.Context)
+	if err != nil {
 		return nil, err
 	}
 	return categories, nil
 }
 
 func (r *MarketplaceRepository) GetCategoryByID(id string) (*models.Category, error) {
-	var category models.Category
-	err := r.db.Where(&models.Category{Id: id}).First(&category).Error
+	category, err := gorm.G[models.Category](r.db).Where(&models.Category{Id: id}).First(r.db.Statement.Context)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -465,8 +487,7 @@ func (r *MarketplaceRepository) GetCategoryByID(id string) (*models.Category, er
 }
 
 func (r *MarketplaceRepository) GetCategoryByName(name string) (*models.Category, error) {
-	var category models.Category
-	err := r.db.Where(&models.Category{Name: name}).First(&category).Error
+	category, err := gorm.G[models.Category](r.db).Where(&models.Category{Name: name}).First(r.db.Statement.Context)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -477,34 +498,33 @@ func (r *MarketplaceRepository) GetCategoryByName(name string) (*models.Category
 }
 
 func (r *MarketplaceRepository) DeleteCategory(id string) error {
-	result := r.db.Where(&models.Category{Id: id}).Delete(&models.Category{})
-	if result.Error != nil {
-		return result.Error
+	rows, err := gorm.G[models.Category](r.db).Where(&models.Category{Id: id}).Delete(r.db.Statement.Context)
+	if err != nil {
+		return err
 	}
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
 
 func (r *MarketplaceRepository) CreateTag(tag models.Tag) (*models.Tag, error) {
-	if err := r.db.Create(&tag).Error; err != nil {
+	if err := gorm.G[models.Tag](r.db).Create(r.db.Statement.Context, &tag); err != nil {
 		return nil, err
 	}
 	return &tag, nil
 }
 
 func (r *MarketplaceRepository) GetTags() ([]models.Tag, error) {
-	var tags []models.Tag
-	if err := r.db.Order(`"Name" ASC`).Find(&tags).Error; err != nil {
+	tags, err := gorm.G[models.Tag](r.db).Order(`"Name" ASC`).Find(r.db.Statement.Context)
+	if err != nil {
 		return nil, err
 	}
 	return tags, nil
 }
 
 func (r *MarketplaceRepository) GetTagByID(id string) (*models.Tag, error) {
-	var tag models.Tag
-	err := r.db.Where(&models.Tag{Id: id}).First(&tag).Error
+	tag, err := gorm.G[models.Tag](r.db).Where(&models.Tag{Id: id}).First(r.db.Statement.Context)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -515,8 +535,7 @@ func (r *MarketplaceRepository) GetTagByID(id string) (*models.Tag, error) {
 }
 
 func (r *MarketplaceRepository) GetTagByName(name string) (*models.Tag, error) {
-	var tag models.Tag
-	err := r.db.Where(&models.Tag{Name: name}).First(&tag).Error
+	tag, err := gorm.G[models.Tag](r.db).Where(&models.Tag{Name: name}).First(r.db.Statement.Context)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -527,11 +546,11 @@ func (r *MarketplaceRepository) GetTagByName(name string) (*models.Tag, error) {
 }
 
 func (r *MarketplaceRepository) DeleteTag(id string) error {
-	result := r.db.Where(&models.Tag{Id: id}).Delete(&models.Tag{})
-	if result.Error != nil {
-		return result.Error
+	rows, err := gorm.G[models.Tag](r.db).Where(&models.Tag{Id: id}).Delete(r.db.Statement.Context)
+	if err != nil {
+		return err
 	}
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return gorm.ErrRecordNotFound
 	}
 	return nil
@@ -541,12 +560,11 @@ func (r *MarketplaceRepository) GetItemsByAuthor(ctx context.Context, authorID s
 	if authorID == "" {
 		return nil, errors.New("authorID is required")
 	}
-	items := []models.MarketplaceItem{}
-	err := r.db.WithContext(ctx).
-		Preload("Categories").
+	items, err := gorm.G[models.MarketplaceItem](r.db).
+		Preload("Categories", nil).
 		Where(`"AuthorId" = ? AND "DeletedAt" IS NULL`, authorID).
 		Order(`"CreatedAt" DESC`).
-		Find(&items).Error
+		Find(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get author marketplace items: %w", err)
 	}

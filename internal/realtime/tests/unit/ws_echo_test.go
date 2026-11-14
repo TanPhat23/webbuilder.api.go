@@ -93,9 +93,14 @@ func (c *wsTestClient) next(typ string, wait time.Duration) (wsIn, bool) {
 
 func startWSServer(t *testing.T) (url string, docs *memDocRepo) {
 	t.Helper()
-	docs = newMemDocRepo()
 	el := entity.Element{ID: testElemID, Type: "text", PageID: testPage, Styles: map[string]any{"color": "black"}}
-	repo := &domainRepo.Repository{DocumentRepo: docs, ElementRepo: &memElementRepo{elements: []entity.Element{el}}}
+	return startWSServerWithElements(t, &memElementRepo{elements: []entity.Element{el}})
+}
+
+func startWSServerWithElements(t *testing.T, elements domainRepo.ElementRepository) (url string, docs *memDocRepo) {
+	t.Helper()
+	docs = newMemDocRepo()
+	repo := &domainRepo.Repository{DocumentRepo: docs, ElementRepo: elements}
 	docUC := usecase.NewDocumentUseCase(repo)
 	uc := &domainUsecase.UseCase{
 		Element:          stubElementUC{usecase.NewElementUseCase(repo, docUC, nil)},

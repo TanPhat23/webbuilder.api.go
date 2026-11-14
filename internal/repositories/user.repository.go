@@ -25,10 +25,9 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*model
 		return nil, errors.New("userID is required")
 	}
 
-	var user models.User
-	err := r.db.WithContext(ctx).
+	user, err := gorm.G[models.User](r.db).
 		Where(`"Id" = ?`, userID).
-		First(&user).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -45,10 +44,9 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 		return nil, errors.New("email is required")
 	}
 
-	var user models.User
-	err := r.db.WithContext(ctx).
+	user, err := gorm.G[models.User](r.db).
 		Where(`"Email" = ?`, email).
-		First(&user).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -67,10 +65,9 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 		return nil, errors.New("username is required")
 	}
 
-	var user models.User
-	err := r.db.WithContext(ctx).
+	user, err := gorm.G[models.User](r.db).
 		Where(`"FirstName" ILIKE ? OR "LastName" ILIKE ?`, "%"+username+"%", "%"+username+"%").
-		First(&user).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -87,15 +84,14 @@ func (r *UserRepository) SearchUsers(ctx context.Context, query string) ([]model
 		return []models.User{}, nil
 	}
 
-	var users []models.User
-	err := r.db.WithContext(ctx).
+	users, err := gorm.G[models.User](r.db).
 		Select(`"Id", "Email", "FirstName", "LastName", "ImageUrl", "CreatedAt", "UpdatedAt"`).
 		Where(
 			`"Email" ILIKE ? OR "FirstName" ILIKE ? OR "LastName" ILIKE ? OR "Id" ILIKE ?`,
 			query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%",
 		).
 		Limit(20).
-		Find(&users).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to search users: %w", err)

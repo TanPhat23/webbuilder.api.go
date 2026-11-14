@@ -8,8 +8,8 @@ import (
 	"my-go-app/pkg/utils"
 	"sync"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"my-go-app/pkg/ids"
 	"roci.dev/fracdex"
 )
 
@@ -77,12 +77,10 @@ func (r *ElementRepository) GetElementByID(ctx context.Context, elementID string
 		return nil, errors.New("elementID is required")
 	}
 
-	var element models.Element
-
-	err := r.db.WithContext(ctx).
-		Preload("Page").
+	element, err := gorm.G[models.Element](r.db).
+		Preload("Page", nil).
 		Where("\"Id\" = ?", elementID).
-		First(&element).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -100,13 +98,11 @@ func (r *ElementRepository) GetElementWithRelations(ctx context.Context, element
 		return nil, errors.New("elementID is required")
 	}
 
-	var element models.Element
-
-	err := r.db.WithContext(ctx).
-		Preload("Page").
-		Preload("Parent").
+	element, err := gorm.G[models.Element](r.db).
+		Preload("Page", nil).
+		Preload("Parent", nil).
 		Where("\"Id\" = ?", elementID).
-		First(&element).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -124,12 +120,10 @@ func (r *ElementRepository) GetElementsByPageID(ctx context.Context, pageID stri
 		return nil, errors.New("pageID is required")
 	}
 
-	var elements []models.Element
-
-	err := r.db.WithContext(ctx).
+	elements, err := gorm.G[models.Element](r.db).
 		Where("\"PageId\" = ?", pageID).
 		Order("\"Order\"").
-		Find(&elements).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get elements by page ID: %w", err)
@@ -144,12 +138,10 @@ func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, pageIDs []
 		return nil, errors.New("pageIDs is required")
 	}
 
-	var elements []models.Element
-
-	err := r.db.WithContext(ctx).
+	elements, err := gorm.G[models.Element](r.db).
 		Where("\"PageId\" IN ?", pageIDs).
 		Order("\"Order\"").
-		Find(&elements).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get elements by page IDs: %w", err)
@@ -174,12 +166,10 @@ func (r *ElementRepository) GetChildElements(ctx context.Context, parentID strin
 		return nil, errors.New("parentID is required")
 	}
 
-	var elements []models.Element
-
-	err := r.db.WithContext(ctx).
+	elements, err := gorm.G[models.Element](r.db).
 		Where("\"ParentId\" = ?", parentID).
 		Order("\"Order\"").
-		Find(&elements).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get child elements: %w", err)
@@ -215,11 +205,9 @@ func (r *ElementRepository) GetElementsByIDs(ctx context.Context, elementIDs []s
 		return []models.Element{}, nil
 	}
 
-	var elements []models.Element
-
-	err := r.db.WithContext(ctx).
+	elements, err := gorm.G[models.Element](r.db).
 		Where("\"Id\" IN ?", elementIDs).
-		Find(&elements).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get elements by IDs: %w", err)
@@ -235,15 +223,18 @@ func (r *ElementRepository) CreateElement(ctx context.Context, element *models.E
 	}
 
 	if element.Id == "" {
-		element.Id = uuid.NewString()
+		id, err := ids.NewV7()
+		if err != nil {
+			return err
+		}
+		element.Id = id
 	}
 
 	if element.Type == "" {
 		return errors.New("type is required")
 	}
 
-	err := r.db.WithContext(ctx).
-		Create(element).Error
+	err := gorm.G[models.Element](r.db).Create(ctx, element)
 
 	if err != nil {
 		return fmt.Errorf("failed to create element: %w", err)
@@ -284,16 +275,15 @@ func (r *ElementRepository) UpdateEventWorkflows(ctx context.Context, elementID 
 		return errors.New("elementID is required")
 	}
 
-	result := r.db.WithContext(ctx).
-		Model(&models.Element{}).
+	rows, err := gorm.G[models.Element](r.db).
 		Where("\"Id\" = ?", elementID).
-		Update("\"EventWorkflows\"", workflows)
+		Update(ctx, "\"EventWorkflows\"", workflows)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to update event workflows: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to update event workflows: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrElementNotFound
 	}
 
@@ -306,15 +296,15 @@ func (r *ElementRepository) DeleteElementByID(ctx context.Context, elementID str
 		return errors.New("elementID is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	rowsAffected, err := gorm.G[models.Element](r.db).
 		Where("\"Id\" = ?", elementID).
-		Delete(&models.Element{})
+		Delete(ctx)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete element: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to delete element: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrElementNotFound
 	}
 
@@ -327,12 +317,12 @@ func (r *ElementRepository) DeleteElementsByPageID(ctx context.Context, pageID s
 		return errors.New("pageID is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	_, err := gorm.G[models.Element](r.db).
 		Where("\"PageId\" = ?", pageID).
-		Delete(&models.Element{})
+		Delete(ctx)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete elements by page ID: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to delete elements by page ID: %w", err)
 	}
 
 	return nil
@@ -387,7 +377,7 @@ func (r *ElementRepository) ReplaceElements(ctx context.Context, projectID strin
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Delete existing elements
-		err := tx.Where("\"PageId\" IN (SELECT \"Id\" FROM \"Page\" WHERE \"ProjectId\" = ?)", projectID).Delete(&models.Element{}).Error
+		_, err := gorm.G[models.Element](tx).Where("\"PageId\" IN (SELECT \"Id\" FROM \"Page\" WHERE \"ProjectId\" = ?)", projectID).Delete(ctx)
 
 		if err != nil {
 			return fmt.Errorf("failed to delete existing elements: %w", err)
@@ -404,9 +394,7 @@ func (r *ElementRepository) createElementsAndSettings(ctx context.Context, tx *g
 	}
 
 	if len(flatElements) > 0 {
-		err := tx.Model(&models.Element{}).
-			Omit("EventWorkflows").
-			CreateInBatches(flatElements, DefaultBatchSize).Error
+		err := gorm.G[models.Element](tx).Omit("EventWorkflows").CreateInBatches(ctx, &flatElements, DefaultBatchSize)
 
 		if err != nil {
 			return fmt.Errorf("failed to create elements: %w", err)
@@ -448,7 +436,11 @@ func (r *ElementRepository) flattenElementsForInsert(_ context.Context, _ *gorm.
 		}
 
 		if base.Id == "" {
-			base.Id = uuid.NewString()
+			id, err := ids.NewV7()
+			if err != nil {
+				return nil, err
+			}
+			base.Id = id
 		}
 
 		if base.ParentId != nil && *base.ParentId == "" {

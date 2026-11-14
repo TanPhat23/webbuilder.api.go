@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrContentFieldNotFound = errors.New("content field not found")
+	ErrContentFieldNotFound  = errors.New("content field not found")
 	ErrContentFieldDuplicate = errors.New("content field with this name already exists for this content type")
 )
 
@@ -28,13 +28,10 @@ func (r *ContentFieldRepository) GetContentFieldsByContentType(ctx context.Conte
 		return nil, errors.New("contentTypeID is required")
 	}
 
-	var contentFields []models.ContentField
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentField{}).
+	contentFields, err := gorm.G[models.ContentField](r.db).
 		Where("\"ContentTypeId\" = ?", contentTypeID).
 		Order("\"Name\" ASC").
-		Find(&contentFields).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get content fields by content type: %w", err)
@@ -48,12 +45,9 @@ func (r *ContentFieldRepository) GetContentFieldByID(ctx context.Context, id str
 		return nil, errors.New("id is required")
 	}
 
-	var contentField models.ContentField
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentField{}).
+	contentField, err := gorm.G[models.ContentField](r.db).
 		Where("\"Id\" = ?", id).
-		First(&contentField).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -71,24 +65,10 @@ func (r *ContentFieldRepository) CreateContentField(ctx context.Context, cf *mod
 		return nil, errors.New("content field cannot be nil")
 	}
 
-	if cf.Name == "" {
-		return nil, errors.New("content field name is required")
-	}
-
-	if cf.ContentTypeId == "" {
-		return nil, errors.New("content type ID is required")
-	}
-
-	if cf.Type == "" {
-		return nil, errors.New("content field type is required")
-	}
-
 	// Check for duplicate name in the same content type
-	var count int64
-	err = r.db.WithContext(ctx).
-		Model(&models.ContentField{}).
+	count, err := gorm.G[models.ContentField](r.db).
 		Where("\"ContentTypeId\" = ? AND \"Name\" = ?", cf.ContentTypeId, cf.Name).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check content field existence: %w", err)
@@ -103,9 +83,7 @@ func (r *ContentFieldRepository) CreateContentField(ctx context.Context, cf *mod
 		cf.Id = cuid.New()
 	}
 
-	err = r.db.WithContext(ctx).
-		Model(&models.ContentField{}).
-		Create(cf).Error
+	err = gorm.G[models.ContentField](r.db).Create(ctx, cf)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create content field: %w", err)
@@ -131,11 +109,9 @@ func (r *ContentFieldRepository) UpdateContentField(ctx context.Context, id stri
 
 	// If updating name, check for duplicates
 	if newName, ok := updates["name"].(string); ok {
-		var count int64
-		err = r.db.WithContext(ctx).
-			Model(&models.ContentField{}).
+		count, err := gorm.G[models.ContentField](r.db).
 			Where("\"ContentTypeId\" = ? AND \"Name\" = ? AND \"Id\" != ?", existing.ContentTypeId, newName, id).
-			Count(&count).Error
+			Count(ctx, "*")
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to check name uniqueness: %w", err)
@@ -157,11 +133,9 @@ func (r *ContentFieldRepository) UpdateContentField(ctx context.Context, id stri
 	}
 
 	// Fetch and return updated content field
-	var contentField models.ContentField
-	err = r.db.WithContext(ctx).
-		Model(&models.ContentField{}).
+	contentField, err := gorm.G[models.ContentField](r.db).
 		Where("\"Id\" = ?", id).
-		First(&contentField).Error
+		First(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated content field: %w", err)
@@ -175,15 +149,15 @@ func (r *ContentFieldRepository) DeleteContentField(ctx context.Context, id stri
 		return errors.New("id is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	rowsAffected, err := gorm.G[models.ContentField](r.db).
 		Where("\"Id\" = ?", id).
-		Delete(&models.ContentField{})
+		Delete(ctx)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete content field: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to delete content field: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrContentFieldNotFound
 	}
 

@@ -69,11 +69,14 @@ func (h *CollaboratorHandler) UpdateCollaboratorRole(c *fiber.Ctx) error {
 }
 
 func (h *CollaboratorHandler) DeleteCollaborator(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "collaboratorid")
-	if err != nil {
-		return err
+	collaboratorID := c.Params("id")
+	if collaboratorID == "" {
+		var err error
+		collaboratorID, err = utils.ValidateRequiredParam(c, "collaboratorid")
+		if err != nil {
+			return err
+		}
 	}
-	collaboratorID := ids[0]
 
 	if err := h.collaboratorService.DeleteCollaborator(c.Context(), collaboratorID); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to delete collaborator")

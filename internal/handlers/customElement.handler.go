@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	"my-go-app/pkg/ids"
 )
 
 type CustomElementHandler struct {
@@ -101,8 +101,13 @@ func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
 		req.Version = "1.0.0"
 	}
 
+	id, err := ids.NewV7()
+	if err != nil {
+		return err
+	}
+
 	customElement := &models.CustomElement{
-		Id:           uuid.NewString(),
+		Id:           id,
 		Name:         req.Name,
 		TypeId:       req.TypeId,
 		Description:  req.Description,
@@ -143,17 +148,39 @@ func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
 
 	// Build a clean map from the typed DTO, stripping immutable fields.
 	updates := map[string]any{}
-	if req.Name != nil        { updates["name"] = *req.Name }
-	if req.TypeId != nil      { updates["typeId"] = *req.TypeId }
-	if req.Description != nil { updates["description"] = *req.Description }
-	if req.Category != nil    { updates["category"] = *req.Category }
-	if req.Icon != nil        { updates["icon"] = *req.Icon }
-	if req.Thumbnail != nil   { updates["thumbnail"] = *req.Thumbnail }
-	if req.Tags != nil        { updates["tags"] = *req.Tags }
-	if req.IsPublic != nil    { updates["isPublic"] = *req.IsPublic }
-	if req.Version != nil     { updates["version"] = *req.Version }
-	if req.Structure != nil   { updates["structure"] = req.Structure }
-	if req.DefaultProps != nil { updates["defaultProps"] = req.DefaultProps }
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.TypeId != nil {
+		updates["typeId"] = *req.TypeId
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	if req.Category != nil {
+		updates["category"] = *req.Category
+	}
+	if req.Icon != nil {
+		updates["icon"] = *req.Icon
+	}
+	if req.Thumbnail != nil {
+		updates["thumbnail"] = *req.Thumbnail
+	}
+	if req.Tags != nil {
+		updates["tags"] = *req.Tags
+	}
+	if req.IsPublic != nil {
+		updates["isPublic"] = *req.IsPublic
+	}
+	if req.Version != nil {
+		updates["version"] = *req.Version
+	}
+	if req.Structure != nil {
+		updates["structure"] = req.Structure
+	}
+	if req.DefaultProps != nil {
+		updates["defaultProps"] = req.DefaultProps
+	}
 
 	if err := utils.RequireUpdates(updates); err != nil {
 		return err

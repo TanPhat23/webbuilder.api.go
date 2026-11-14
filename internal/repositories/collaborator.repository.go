@@ -20,18 +20,17 @@ func (r *CollaboratorRepository) CreateCollaborator(ctx context.Context, collabo
 	if collaborator.Id == "" {
 		collaborator.Id = cuid.New()
 	}
-	if err := r.db.WithContext(ctx).Create(collaborator).Error; err != nil {
+	if err := gorm.G[models.Collaborator](r.db).Create(ctx, collaborator); err != nil {
 		return nil, err
 	}
 	return collaborator, nil
 }
 
 func (r *CollaboratorRepository) GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error) {
-	var collaborators []models.Collaborator
-	err := r.db.WithContext(ctx).
+	collaborators, err := gorm.G[models.Collaborator](r.db).
 		Where(&models.Collaborator{ProjectId: projectID}).
-		Preload("User").
-		Find(&collaborators).Error
+		Preload("User", nil).
+		Find(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,14 +47,14 @@ func (r *CollaboratorRepository) GetCollaboratorsByProject(ctx context.Context, 
 	}
 
 	// Fetch the project to get OwnerId.
-	var project models.Project
-	if err = r.db.WithContext(ctx).Where(&models.Project{ID: projectID}).First(&project).Error; err != nil {
+	project, err := gorm.G[models.Project](r.db).Where(&models.Project{ID: projectID}).First(ctx)
+	if err != nil {
 		return nil, err
 	}
 
 	// Fetch the owner and append them as a synthetic "owner" collaborator.
-	var owner models.User
-	if err = r.db.WithContext(ctx).Where(&models.User{Id: project.OwnerId}).First(&owner).Error; err == nil {
+	owner, err := gorm.G[models.User](r.db).Where(&models.User{Id: project.OwnerId}).First(ctx)
+	if err == nil {
 		if owner.FirstName == nil {
 			owner.FirstName = &owner.Email
 		}
@@ -73,7 +72,7 @@ func (r *CollaboratorRepository) GetCollaboratorsByProject(ctx context.Context, 
 				CreatedAt: project.CreatedAt,
 				UpdatedAt: project.UpdatedAt,
 			},
-			User:      owner,
+			User: owner,
 		}
 		collaborators = append(collaborators, ownerCollaborator)
 	}
@@ -82,12 +81,12 @@ func (r *CollaboratorRepository) GetCollaboratorsByProject(ctx context.Context, 
 }
 
 func (r *CollaboratorRepository) GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error) {
-	var collaborator models.Collaborator
-	err := r.db.WithContext(ctx).
-		Preload("User").
-		Preload("Project").
+
+	collaborator, err := gorm.G[models.Collaborator](r.db).
+		Preload("User", nil).
+		Preload("Project", nil).
 		Where(`"Id" = ?`, id).
-		First(&collaborator).Error
+		First(ctx)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -98,23 +97,22 @@ func (r *CollaboratorRepository) GetCollaboratorByID(ctx context.Context, id str
 }
 
 func (r *CollaboratorRepository) UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error {
-	return r.db.WithContext(ctx).
-		Model(&models.Collaborator{}).
+	_, err := gorm.G[models.Collaborator](r.db).
 		Where(`"Id" = ?`, id).
-		Update("Role", role).Error
+		Update(ctx, "Role", role)
+	return err
 }
 
 func (r *CollaboratorRepository) DeleteCollaborator(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).
-		Where(`"Id" = ?`, id).
-		Delete(&models.Collaborator{}).Error
+	_, err := gorm.G[models.Collaborator](r.db).Where(`"Id" = ?`, id).
+		Delete(ctx)
+	return err
 }
 
 func (r *CollaboratorRepository) IsCollaborator(ctx context.Context, projectID, userID string) (bool, error) {
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.Collaborator{}).
+
+	count, err := gorm.G[models.Collaborator](r.db).
 		Where(&models.Collaborator{ProjectId: projectID, UserId: userID}).
-		Count(&count).Error
+		Count(ctx, "*")
 	return count > 0, err
 }

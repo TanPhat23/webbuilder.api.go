@@ -22,7 +22,7 @@ func NewImageRepository(db *gorm.DB) ImageRepositoryInterface {
 }
 
 func (r *ImageRepository) CreateImage(ctx context.Context, image models.Image) (*models.Image, error) {
-	if err := r.db.WithContext(ctx).Create(&image).Error; err != nil {
+	if err := gorm.G[models.Image](r.db).Create(ctx, &image); err != nil {
 		return nil, fmt.Errorf("failed to create image: %w", err)
 	}
 	return &image, nil
@@ -33,11 +33,10 @@ func (r *ImageRepository) GetImagesByUserID(ctx context.Context, userID string) 
 		return nil, errors.New("userID is required")
 	}
 
-	var images []models.Image
-	err := r.db.WithContext(ctx).
+	images, err := gorm.G[models.Image](r.db).
 		Where(`"UserId" = ? AND "DeletedAt" IS NULL`, userID).
 		Order(`"CreatedAt" DESC`).
-		Find(&images).Error
+		Find(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get images by user ID: %w", err)
 	}
@@ -52,10 +51,9 @@ func (r *ImageRepository) GetImageByID(ctx context.Context, imageID, userID stri
 		return nil, errors.New("userID is required")
 	}
 
-	var image models.Image
-	err := r.db.WithContext(ctx).
+	image, err := gorm.G[models.Image](r.db).
 		Where(`"ImageId" = ? AND "UserId" = ? AND "DeletedAt" IS NULL`, imageID, userID).
-		First(&image).Error
+		First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrImageNotFound
@@ -73,13 +71,13 @@ func (r *ImageRepository) DeleteImage(ctx context.Context, imageID, userID strin
 		return errors.New("userID is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	rowsAffected, err := gorm.G[models.Image](r.db).
 		Where(`"ImageId" = ? AND "UserId" = ?`, imageID, userID).
-		Delete(&models.Image{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete image: %w", result.Error)
+		Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete image: %w", err)
 	}
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrImageNotFound
 	}
 	return nil
@@ -94,22 +92,20 @@ func (r *ImageRepository) SoftDeleteImage(ctx context.Context, imageID, userID s
 	}
 
 	now := time.Now()
-	result := r.db.WithContext(ctx).
-		Model(&models.Image{}).
+	rowsAffected, err := gorm.G[models.Image](r.db).
 		Where(`"ImageId" = ? AND "UserId" = ? AND "DeletedAt" IS NULL`, imageID, userID).
-		Update(`"DeletedAt"`, now)
-	if result.Error != nil {
-		return fmt.Errorf("failed to soft-delete image: %w", result.Error)
+		Update(ctx, `"DeletedAt"`, now)
+	if err != nil {
+		return fmt.Errorf("failed to soft-delete image: %w", err)
 	}
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrImageNotFound
 	}
 	return nil
 }
 
 func (r *ImageRepository) GetAllImages(ctx context.Context, limit, offset int) ([]models.Image, error) {
-	var images []models.Image
-	query := r.db.WithContext(ctx).
+	query := gorm.G[models.Image](r.db).
 		Where(`"DeletedAt" IS NULL`).
 		Order(`"CreatedAt" DESC`)
 
@@ -120,7 +116,8 @@ func (r *ImageRepository) GetAllImages(ctx context.Context, limit, offset int) (
 		query = query.Offset(offset)
 	}
 
-	if err := query.Find(&images).Error; err != nil {
+	images, err := query.Find(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("failed to get all images: %w", err)
 	}
 	return images, nil

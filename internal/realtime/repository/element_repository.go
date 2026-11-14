@@ -134,7 +134,7 @@ func (r *elementRepository) UpsertElements(ctx context.Context, projectID string
 	if len(elements) > 0 {
 		if err := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "Id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"Name", "Type", "Content", "Href", "Src", "Styles", "Settings", "TailwindStyles", "Order", "IsLocked", "ParentId", "PageId"}),
+			DoUpdates: clause.AssignmentColumns([]string{"Name", "Type", "Content", "Href", "Src", "Styles", "Settings", "TailwindStyles", "Order", "OrderKey", "IsLocked", "ParentId", "PageId"}),
 		}).CreateInBatches(elements, len(elements)).Error; err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to upsert elements: %w", err)

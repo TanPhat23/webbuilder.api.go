@@ -1,0 +1,17 @@
+Environment: Go 1.27.4, linux/amd64, Intel i7-12650H, PostgreSQL 17.11 Alpine, en_US.utf8.
+Command: go test ./benchmarks -run '^$' -bench '^BenchmarkUUIDGeneration$' -benchtime=1s -count=3
+BenchmarkUUIDGeneration/4-16 14587230 85.29 ns/op
+BenchmarkUUIDGeneration/4-16 14558871 84.42 ns/op
+BenchmarkUUIDGeneration/4-16 13189951 83.94 ns/op
+BenchmarkUUIDGeneration/7-16 8411343 158.3 ns/op
+BenchmarkUUIDGeneration/7-16 7956249 147.7 ns/op
+BenchmarkUUIDGeneration/7-16 7820296 156.3 ns/op
+PASS
+Command: UUID_BENCH_DSN=<disposable PostgreSQL DSN> go test ./benchmarks -run '^$' -bench '^BenchmarkPostgresUUID$' -benchtime=1x -count=3
+BenchmarkPostgresUUID/4-16 1 7880704 index-bytes 7.279 insert-us/row 360.5 lookup-us/op
+BenchmarkPostgresUUID/4-16 1 7667712 index-bytes 9.697 insert-us/row 233.5 lookup-us/op
+BenchmarkPostgresUUID/4-16 1 7643136 index-bytes 5.327 insert-us/row 142.9 lookup-us/op
+BenchmarkPostgresUUID/7-16 1 5931008 index-bytes 3.501 insert-us/row 97.55 lookup-us/op
+BenchmarkPostgresUUID/7-16 1 5931008 index-bytes 3.349 insert-us/row 124.6 lookup-us/op
+BenchmarkPostgresUUID/7-16 1 5931008 index-bytes 3.291 insert-us/row 91.08 lookup-us/op
+PASS

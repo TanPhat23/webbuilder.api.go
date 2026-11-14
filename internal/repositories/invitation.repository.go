@@ -35,7 +35,7 @@ func (r *InvitationRepository) CreateInvitation(ctx context.Context, invitation 
 	if invitation.Status == "" {
 		invitation.Status = models.InvitationStatusPending
 	}
-	if err := r.db.WithContext(ctx).Create(invitation).Error; err != nil {
+	if err := gorm.G[models.Invitation](r.db).Create(ctx, invitation); err != nil {
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
 	}
 	return invitation, nil
@@ -45,10 +45,11 @@ func (r *InvitationRepository) GetInvitationsByProject(ctx context.Context, proj
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
-	var invitations []models.Invitation
-	if err := r.db.WithContext(ctx).
+
+	invitations, err := gorm.G[models.Invitation](r.db).
 		Where(&models.Invitation{ProjectId: projectID}).
-		Find(&invitations).Error; err != nil {
+		Find(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("failed to get invitations by project: %w", err)
 	}
 	return invitations, nil
@@ -58,10 +59,10 @@ func (r *InvitationRepository) GetInvitationByID(ctx context.Context, id string)
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
-	var invitation models.Invitation
-	err := r.db.WithContext(ctx).
+
+	invitation, err := gorm.G[models.Invitation](r.db).
 		Where(&models.Invitation{Id: id}).
-		First(&invitation).Error
+		First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrInvitationNotFound
@@ -75,10 +76,10 @@ func (r *InvitationRepository) GetInvitationByToken(ctx context.Context, token s
 	if token == "" {
 		return nil, errors.New("token is required")
 	}
-	var invitation models.Invitation
-	err := r.db.WithContext(ctx).
+
+	invitation, err := gorm.G[models.Invitation](r.db).
 		Where(&models.Invitation{Token: token}).
-		First(&invitation).Error
+		First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrInvitationNotFound
@@ -117,7 +118,7 @@ func (r *InvitationRepository) AcceptInvitation(ctx context.Context, token strin
 		},
 	}
 
-	if err := r.db.WithContext(ctx).Create(&collaborator).Error; err != nil {
+	if err := gorm.G[models.Collaborator](r.db).Create(ctx, &collaborator); err != nil {
 		return fmt.Errorf("failed to create collaborator from invitation: %w", err)
 	}
 
@@ -138,11 +139,11 @@ func (r *InvitationRepository) DeleteInvitation(ctx context.Context, id string) 
 	if id == "" {
 		return errors.New("id is required")
 	}
-	result := r.db.WithContext(ctx).Delete(&models.Invitation{}, `"Id" = ?`, id)
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete invitation: %w", result.Error)
+	rows, err := gorm.G[models.Invitation](r.db).Where(`"Id" = ?`, id).Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete invitation: %w", err)
 	}
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrInvitationNotFound
 	}
 	return nil
@@ -152,14 +153,13 @@ func (r *InvitationRepository) UpdateInvitationStatus(ctx context.Context, id st
 	if id == "" {
 		return errors.New("id is required")
 	}
-	result := r.db.WithContext(ctx).
-		Model(&models.Invitation{}).
+	rows, err := gorm.G[models.Invitation](r.db).
 		Where(`"Id" = ?`, id).
-		Update("Status", status)
-	if result.Error != nil {
-		return fmt.Errorf("failed to update invitation status: %w", result.Error)
+		Update(ctx, "Status", status)
+	if err != nil {
+		return fmt.Errorf("failed to update invitation status: %w", err)
 	}
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrInvitationNotFound
 	}
 	return nil
@@ -173,13 +173,14 @@ func (r *InvitationRepository) GetPendingInvitationsByProject(ctx context.Contex
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
-	var invitations []models.Invitation
-	if err := r.db.WithContext(ctx).
+
+	invitations, err := gorm.G[models.Invitation](r.db).
 		Where(&models.Invitation{
 			ProjectId: projectID,
 			Status:    models.InvitationStatusPending,
 		}).
-		Find(&invitations).Error; err != nil {
+		Find(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("failed to get pending invitations: %w", err)
 	}
 	return invitations, nil

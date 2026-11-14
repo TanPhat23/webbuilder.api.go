@@ -7,7 +7,7 @@ import (
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 
-	"github.com/google/uuid"
+	"my-go-app/pkg/ids"
 )
 
 type ProjectService struct {
@@ -236,6 +236,7 @@ func (s *ProjectService) GetProjectWithLock(ctx context.Context, projectID, user
 
 	return s.projectRepo.GetProjectWithLock(ctx, projectID, userID)
 }
+
 // CreateProjectWithPage creates a project and its mandatory first page in
 // one transaction, so a project never exists without a page.
 func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error) {
@@ -243,10 +244,18 @@ func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *mod
 		return nil, errors.New("project name and ownerId are required")
 	}
 	if project.ID == "" {
-		project.ID = uuid.New().String()
+		id, err := ids.NewV7()
+		if err != nil {
+			return nil, err
+		}
+		project.ID = id
+	}
+	pageID, err := ids.NewV7()
+	if err != nil {
+		return nil, err
 	}
 	page := &models.Page{
-		Id:     uuid.New().String(),
+		Id:     pageID,
 		Name:   "",
 		Type:   "page",
 		Styles: json.RawMessage(`{}`),

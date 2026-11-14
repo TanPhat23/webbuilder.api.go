@@ -11,6 +11,7 @@ import (
 	"my-go-app/internal/models"
 	"my-go-app/pkg/utils"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -100,5 +101,49 @@ func TestReplaceOrderingRegeneratesDuplicateAndInvalidKeys(t *testing.T) {
 				t.Fatalf("expected ordered distinct keys, got %+v", got)
 			}
 		})
+	}
+}
+
+func TestFlattenGeneratesMissingIDsAndPreservesSuppliedIDs(t *testing.T) {
+	legacy := uuid.NewString()
+	current := uuid.Must(uuid.NewV7()).String()
+	roots := []models.EditorElement{
+		&models.Element{Id: legacy, Type: "Text"},
+		&models.Element{Id: current, Type: "Text"},
+		&models.Element{Type: "Text"},
+	}
+	got, err := (&ElementRepository{}).flattenElementsForInsert(context.Background(), nil, roots, "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[0].Id != legacy || got[1].Id != current {
+		t.Fatalf("supplied IDs changed: %+v", got)
+	}
+	id, err := uuid.Parse(got[2].Id)
+	if err != nil || id.Version() != 7 {
+		t.Fatalf("expected generated v7 ID, got %q: %v", got[2].Id, err)
+	}
+}
+
+func TestFlattenGeneratesNestedIDsAndParentReferences(t *testing.T) {
+	root, err := utils.ConvertToEditorElement(map[string]any{"type": "Frame", "pageId": "page", "elements": []any{map[string]any{"type": "Text", "pageId": "page"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := (&ElementRepository{}).flattenElementsForInsert(context.Background(), nil, []models.EditorElement{root}, "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected parent and child, got %d", len(got))
+	}
+	for _, e := range got {
+		id, err := uuid.Parse(e.Id)
+		if err != nil || id.Version() != 7 {
+			t.Fatalf("expected v7 ID, got %q: %v", e.Id, err)
+		}
+	}
+	if got[1].ParentId == nil || *got[1].ParentId != got[0].Id {
+		t.Fatalf("wrong parent reference: %+v", got[1])
 	}
 }

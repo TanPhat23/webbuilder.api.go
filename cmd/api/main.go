@@ -17,6 +17,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/joho/godotenv"
 )
 
@@ -53,7 +54,10 @@ func main() {
 		log.Println("Image upload functionality will not be available")
 	}
 
+	configs.SetupLogging()
+
 	app := fiber.New(configs.FiberConfig())
+	app.Use(requestid.New())
 	app.Use(cors.New(configs.CorsConfig()))
 	app.Use(logger.New(configs.LoggerConfig()))
 	app.Use(compress.New(compress.Config{

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"my-go-app/internal/models"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"my-go-app/pkg/ids"
 )
 
 type ElementCommentRepository struct {
@@ -26,24 +26,16 @@ func (r *ElementCommentRepository) CreateElementComment(ctx context.Context, com
 		return nil, errors.New("comment cannot be nil")
 	}
 
-	if comment.Content == "" {
-		return nil, errors.New("comment content cannot be empty")
-	}
-
-	if comment.ElementId == "" {
-		return nil, errors.New("elementId is required")
-	}
-
-	if comment.AuthorId == "" {
-		return nil, errors.New("authorId is required")
-	}
-
 	// Generate ID if not provided
 	if comment.Id == "" {
-		comment.Id = uuid.NewString()
+		id, err := ids.NewV7()
+		if err != nil {
+			return nil, err
+		}
+		comment.Id = id
 	}
 
-	if err := r.db.WithContext(ctx).Create(comment).Error; err != nil {
+	if err := gorm.G[models.ElementComment](r.db).Create(ctx, comment); err != nil {
 		return nil, fmt.Errorf("failed to create element comment: %w", err)
 	}
 
@@ -57,13 +49,11 @@ func (r *ElementCommentRepository) GetElementCommentByID(ctx context.Context, id
 		return nil, errors.New("comment id is required")
 	}
 
-	var comment models.ElementComment
-
-	err := r.db.WithContext(ctx).
-		Preload("Author").
-		Preload("Element").
+	comment, err := gorm.G[models.ElementComment](r.db).
+		Preload("Author", nil).
+		Preload("Element", nil).
 		Where("\"Id\" = ? AND \"DeletedAt\" IS NULL", id).
-		First(&comment).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -81,10 +71,8 @@ func (r *ElementCommentRepository) GetElementComments(ctx context.Context, eleme
 		return nil, errors.New("elementId is required")
 	}
 
-	var comments []models.ElementComment
-
-	query := r.db.WithContext(ctx).
-		Preload("Author").
+	query := gorm.G[models.ElementComment](r.db).
+		Preload("Author", nil).
 		Where("\"ElementId\" = ? AND \"DeletedAt\" IS NULL", elementID)
 
 	// Apply additional filters
@@ -120,7 +108,8 @@ func (r *ElementCommentRepository) GetElementComments(ctx context.Context, eleme
 		query = query.Order("\"CreatedAt\" DESC")
 	}
 
-	if err := query.Find(&comments).Error; err != nil {
+	comments, err := query.Find(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("failed to get element comments: %w", err)
 	}
 
@@ -166,10 +155,9 @@ func (r *ElementCommentRepository) DeleteElementComment(ctx context.Context, id 
 		return err
 	}
 
-	if err := r.db.WithContext(ctx).
-		Model(&models.ElementComment{}).
+	if _, err := gorm.G[models.ElementComment](r.db).
 		Where("\"Id\" = ?", id).
-		Update("\"DeletedAt\"", gorm.Expr("CURRENT_TIMESTAMP")).Error; err != nil {
+		Update(ctx, "\"DeletedAt\"", gorm.Expr("CURRENT_TIMESTAMP")); err != nil {
 		return fmt.Errorf("failed to delete element comment: %w", err)
 	}
 
@@ -182,11 +170,9 @@ func (r *ElementCommentRepository) GetElementCommentsByAuthorID(ctx context.Cont
 		return nil, errors.New("authorId is required")
 	}
 
-	var comments []models.ElementComment
-
-	query := r.db.WithContext(ctx).
-		Preload("Author").
-		Preload("Element").
+	query := gorm.G[models.ElementComment](r.db).
+		Preload("Author", nil).
+		Preload("Element", nil).
 		Where("\"AuthorId\" = ? AND \"DeletedAt\" IS NULL", authorID).
 		Order("\"CreatedAt\" DESC")
 
@@ -198,7 +184,8 @@ func (r *ElementCommentRepository) GetElementCommentsByAuthorID(ctx context.Cont
 		query = query.Offset(offset)
 	}
 
-	if err := query.Find(&comments).Error; err != nil {
+	comments, err := query.Find(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("failed to get comments by author: %w", err)
 	}
 
@@ -211,12 +198,10 @@ func (r *ElementCommentRepository) CountElementComments(ctx context.Context, ele
 		return 0, errors.New("elementId is required")
 	}
 
-	var count int64
-
-	if err := r.db.WithContext(ctx).
-		Model(&models.ElementComment{}).
+	count, err := gorm.G[models.ElementComment](r.db).
 		Where("\"ElementId\" = ? AND \"DeletedAt\" IS NULL", elementID).
-		Count(&count).Error; err != nil {
+		Count(ctx, "*")
+	if err != nil {
 		return 0, fmt.Errorf("failed to count element comments: %w", err)
 	}
 
@@ -251,10 +236,9 @@ func (r *ElementCommentRepository) DeleteElementCommentsByElementID(ctx context.
 		return errors.New("elementId is required")
 	}
 
-	if err := r.db.WithContext(ctx).
-		Model(&models.ElementComment{}).
+	if _, err := gorm.G[models.ElementComment](r.db).
 		Where("\"ElementId\" = ?", elementID).
-		Update("\"DeletedAt\"", gorm.Expr("CURRENT_TIMESTAMP")).Error; err != nil {
+		Update(ctx, "\"DeletedAt\"", gorm.Expr("CURRENT_TIMESTAMP")); err != nil {
 		return fmt.Errorf("failed to delete comments for element: %w", err)
 	}
 

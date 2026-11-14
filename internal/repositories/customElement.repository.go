@@ -30,9 +30,7 @@ func (r *CustomElementRepository) GetCustomElements(ctx context.Context, userID 
 		return nil, errors.New("userID is required")
 	}
 
-	var customElements []models.CustomElement
-
-	query := r.db.WithContext(ctx).Model(&models.CustomElement{})
+	query := gorm.G[models.CustomElement](r.db).Where("1 = 1")
 
 	if isPublic != nil && *isPublic {
 		query = query.Where("\"IsPublic\" = ?", true)
@@ -40,7 +38,7 @@ func (r *CustomElementRepository) GetCustomElements(ctx context.Context, userID 
 		query = query.Where("\"UserId\" = ?", userID)
 	}
 
-	err := query.Order("\"CreatedAt\" DESC").Find(&customElements).Error
+	customElements, err := query.Order("\"CreatedAt\" DESC").Find(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get custom elements: %w", err)
 	}
@@ -56,11 +54,9 @@ func (r *CustomElementRepository) GetCustomElementByID(ctx context.Context, id s
 		return nil, errors.New("userID is required")
 	}
 
-	var customElement models.CustomElement
-
-	err := r.db.WithContext(ctx).
+	customElement, err := gorm.G[models.CustomElement](r.db).
 		Where("\"Id\" = ? AND (\"UserId\" = ? OR \"IsPublic\" = ?)", id, userID, true).
-		First(&customElement).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -83,11 +79,9 @@ func (r *CustomElementRepository) CreateCustomElement(ctx context.Context, custo
 		return nil, errors.New("name is required")
 	}
 
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.CustomElement{}).
+	count, err := gorm.G[models.CustomElement](r.db).
 		Where("\"Name\" = ? AND \"UserId\" = ?", customElement.Name, customElement.UserId).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing custom element: %w", err)
@@ -97,7 +91,7 @@ func (r *CustomElementRepository) CreateCustomElement(ctx context.Context, custo
 		return nil, ErrCustomElementAlreadyExists
 	}
 
-	err = r.db.WithContext(ctx).Create(customElement).Error
+	err = gorm.G[models.CustomElement](r.db).Create(ctx, customElement)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create custom element: %w", err)
 	}
@@ -113,10 +107,9 @@ func (r *CustomElementRepository) UpdateCustomElement(ctx context.Context, id st
 		return nil, errors.New("userID is required")
 	}
 
-	var customElement models.CustomElement
-	err := r.db.WithContext(ctx).
+	customElement, err := gorm.G[models.CustomElement](r.db).
 		Where("\"Id\" = ? AND \"UserId\" = ?", id, userID).
-		First(&customElement).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -152,15 +145,15 @@ func (r *CustomElementRepository) DeleteCustomElement(ctx context.Context, id st
 		return errors.New("userID is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	rowsAffected, err := gorm.G[models.CustomElement](r.db).
 		Where("\"Id\" = ? AND \"UserId\" = ?", id, userID).
-		Delete(&models.CustomElement{})
+		Delete(ctx)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete custom element: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to delete custom element: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrCustomElementUnauthorized
 	}
 
@@ -175,21 +168,18 @@ func (r *CustomElementRepository) GetPublicCustomElements(ctx context.Context, c
 		limit = MaxPageSize
 	}
 
-	var customElements []models.CustomElement
-
-	query := r.db.WithContext(ctx).
-		Model(&models.CustomElement{}).
+	query := gorm.G[models.CustomElement](r.db).
 		Where("\"IsPublic\" = ?", true)
 
 	if category != nil && *category != "" {
 		query = query.Where("\"Category\" = ?", *category)
 	}
 
-	err := query.
+	customElements, err := query.
 		Order("\"CreatedAt\" DESC").
 		Limit(limit).
 		Offset(offset).
-		Find(&customElements).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public custom elements: %w", err)
@@ -209,10 +199,9 @@ func (r *CustomElementRepository) DuplicateCustomElement(ctx context.Context, id
 		return nil, errors.New("newName is required")
 	}
 
-	var original models.CustomElement
-	err := r.db.WithContext(ctx).
+	original, err := gorm.G[models.CustomElement](r.db).
 		Where("\"Id\" = ? AND (\"UserId\" = ? OR \"IsPublic\" = ?)", id, userID, true).
-		First(&original).Error
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -235,7 +224,7 @@ func (r *CustomElementRepository) DuplicateCustomElement(ctx context.Context, id
 		Version:      original.Version,
 	}
 
-	err = r.db.WithContext(ctx).Create(&duplicate).Error
+	err = gorm.G[models.CustomElement](r.db).Create(ctx, &duplicate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to duplicate custom element: %w", err)
 	}

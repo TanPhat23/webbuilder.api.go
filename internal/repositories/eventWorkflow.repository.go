@@ -22,7 +22,7 @@ func (r *EventWorkflowRepository) CreateEventWorkflow(ctx context.Context, workf
 	if workflow.Id == "" {
 		workflow.Id = cuid.New()
 	}
-	if err := r.db.WithContext(ctx).Create(workflow).Error; err != nil {
+	if err := gorm.G[models.EventWorkflow](r.db).Create(ctx, workflow); err != nil {
 		return nil, err
 	}
 	return workflow, nil
@@ -30,12 +30,12 @@ func (r *EventWorkflowRepository) CreateEventWorkflow(ctx context.Context, workf
 
 // GetEventWorkflowByID retrieves an event workflow by ID
 func (r *EventWorkflowRepository) GetEventWorkflowByID(ctx context.Context, id string) (*models.EventWorkflow, error) {
-	var workflow models.EventWorkflow
-	err := r.db.WithContext(ctx).
-		Preload("Project").
-		Preload("ElementEventWorkflows").
+
+	workflow, err := gorm.G[models.EventWorkflow](r.db).
+		Preload("Project", nil).
+		Preload("ElementEventWorkflows", nil).
 		Where(`"Id" = ?`, id).
-		First(&workflow).Error
+		First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -47,11 +47,11 @@ func (r *EventWorkflowRepository) GetEventWorkflowByID(ctx context.Context, id s
 
 // GetEventWorkflowsByProjectID retrieves all event workflows for a project
 func (r *EventWorkflowRepository) GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
-	var workflows []models.EventWorkflow
-	err := r.db.WithContext(ctx).
-		Preload("ElementEventWorkflows").
+
+	workflows, err := gorm.G[models.EventWorkflow](r.db).
+		Preload("ElementEventWorkflows", nil).
 		Where(`"ProjectId" = ?`, projectID).
-		Find(&workflows).Error
+		Find(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -60,12 +60,12 @@ func (r *EventWorkflowRepository) GetEventWorkflowsByProjectID(ctx context.Conte
 
 // GetEventWorkflowsByProjectIDWithElements retrieves all event workflows for a project with element details
 func (r *EventWorkflowRepository) GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
-	var workflows []models.EventWorkflow
-	err := r.db.WithContext(ctx).
-		Preload("ElementEventWorkflows").
-		Preload("ElementEventWorkflows.Element").
+
+	workflows, err := gorm.G[models.EventWorkflow](r.db).
+		Preload("ElementEventWorkflows", nil).
+		Preload("ElementEventWorkflows.Element", nil).
 		Where(`"ProjectId" = ?`, projectID).
-		Find(&workflows).Error
+		Find(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +74,11 @@ func (r *EventWorkflowRepository) GetEventWorkflowsByProjectIDWithElements(ctx c
 
 // GetEnabledEventWorkflowsByProjectID retrieves all enabled event workflows for a project
 func (r *EventWorkflowRepository) GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
-	var workflows []models.EventWorkflow
-	err := r.db.WithContext(ctx).
-		Preload("ElementEventWorkflows").
+
+	workflows, err := gorm.G[models.EventWorkflow](r.db).
+		Preload("ElementEventWorkflows", nil).
 		Where(`"ProjectId" = ? AND "Enabled" = ?`, projectID, true).
-		Find(&workflows).Error
+		Find(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -87,11 +87,11 @@ func (r *EventWorkflowRepository) GetEnabledEventWorkflowsByProjectID(ctx contex
 
 // GetEventWorkflowsByName retrieves event workflows by name in a project
 func (r *EventWorkflowRepository) GetEventWorkflowsByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error) {
-	var workflows []models.EventWorkflow
-	err := r.db.WithContext(ctx).
-		Preload("ElementEventWorkflows").
+
+	workflows, err := gorm.G[models.EventWorkflow](r.db).
+		Preload("ElementEventWorkflows", nil).
 		Where(`"ProjectId" = ? AND "Name" ILIKE ?`, projectID, "%"+name+"%").
-		Find(&workflows).Error
+		Find(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -125,55 +125,53 @@ func (r *EventWorkflowRepository) UpdateEventWorkflow(ctx context.Context, id st
 
 // UpdateEventWorkflowEnabled updates the enabled status of an event workflow
 func (r *EventWorkflowRepository) UpdateEventWorkflowEnabled(ctx context.Context, id string, enabled bool) error {
-	return r.db.WithContext(ctx).
-		Model(&models.EventWorkflow{}).
+	_, err := gorm.G[models.EventWorkflow](r.db).
 		Where(`"Id" = ?`, id).
-		Update("Enabled", enabled).Error
+		Update(ctx, "Enabled", enabled)
+	return err
 }
 
 // DeleteEventWorkflow deletes an event workflow
 func (r *EventWorkflowRepository) DeleteEventWorkflow(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).
-		Where(`"Id" = ?`, id).
-		Delete(&models.EventWorkflow{}).Error
+	_, err := gorm.G[models.EventWorkflow](r.db).Where(`"Id" = ?`, id).
+		Delete(ctx)
+	return err
 }
 
 // DeleteEventWorkflowsByProjectID deletes all event workflows for a project
 func (r *EventWorkflowRepository) DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error {
-	return r.db.WithContext(ctx).
-		Where(`"ProjectId" = ?`, projectID).
-		Delete(&models.EventWorkflow{}).Error
+	_, err := gorm.G[models.EventWorkflow](r.db).Where(`"ProjectId" = ?`, projectID).
+		Delete(ctx)
+	return err
 }
 
 // CountEventWorkflowsByProjectID counts event workflows in a project
 func (r *EventWorkflowRepository) CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error) {
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.EventWorkflow{}).
+
+	count, err := gorm.G[models.EventWorkflow](r.db).
 		Where(`"ProjectId" = ?`, projectID).
-		Count(&count).Error
+		Count(ctx, "*")
 	return count, err
 }
 
 // CheckIfWorkflowNameExists checks if a workflow name already exists in a project
 func (r *EventWorkflowRepository) CheckIfWorkflowNameExists(ctx context.Context, projectID, name string, excludeID string) (bool, error) {
-	var count int64
-	query := r.db.WithContext(ctx).
-		Model(&models.EventWorkflow{}).
+
+	query := gorm.G[models.EventWorkflow](r.db).
 		Where(`"ProjectId" = ? AND "Name" = ?`, projectID, name)
 
 	if excludeID != "" {
 		query = query.Where(`"Id" != ?`, excludeID)
 	}
 
-	err := query.Count(&count).Error
+	count, err := query.Count(ctx, "*")
 	return count > 0, err
 }
 
 // GetEventWorkflowsWithFilters retrieves event workflows with optional filters
 func (r *EventWorkflowRepository) GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
-	var workflows []models.EventWorkflow
-	query := r.db.WithContext(ctx).Model(&models.EventWorkflow{})
+
+	query := gorm.G[models.EventWorkflow](r.db).Where("1 = 1")
 
 	if projectID != "" {
 		query = query.Where(`"ProjectId" = ?`, projectID)
@@ -187,9 +185,9 @@ func (r *EventWorkflowRepository) GetEventWorkflowsWithFilters(ctx context.Conte
 		query = query.Where(`"Name" ILIKE ?`, "%"+searchName+"%")
 	}
 
-	err := query.
-		Preload("ElementEventWorkflows").
-		Find(&workflows).Error
+	workflows, err := query.
+		Preload("ElementEventWorkflows", nil).
+		Find(ctx)
 	if err != nil {
 		return nil, err
 	}

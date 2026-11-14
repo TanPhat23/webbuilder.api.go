@@ -30,16 +30,14 @@ func (r *PageRepository) GetPagesByProjectID(ctx context.Context, projectID stri
 		return nil, errors.New("projectID is required")
 	}
 
-	var pages []models.Page
-
-	err := r.db.WithContext(ctx).
+	pages, err := gorm.G[models.Page](r.db).
 		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
 		Order("\"CreatedAt\" ASC").
-		Find(&pages).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.
-Errorf("failed to get pages by project ID: %w", err)
+			Errorf("failed to get pages by project ID: %w", err)
 	}
 
 	return pages, nil
@@ -50,14 +48,13 @@ func (r *PageRepository) GetPageByID(ctx context.Context, pageID, projectID stri
 		return nil, errors.New("pageID is required")
 	}
 
-	var page models.Page
-	query := r.db.WithContext(ctx).Where("\"Id\" = ? AND \"DeletedAt\" IS NULL", pageID)
+	query := gorm.G[models.Page](r.db).Where("\"Id\" = ? AND \"DeletedAt\" IS NULL", pageID)
 
 	if projectID != "" {
 		query = query.Where("\"ProjectId\" = ?", projectID)
 	}
 
-	err := query.First(&page).Error
+	page, err := query.First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -90,9 +87,7 @@ func (r *PageRepository) CreatePage(ctx context.Context, page *models.Page) erro
 	page.CreatedAt = now
 	page.UpdatedAt = now
 
-	err := r.db.WithContext(ctx).
-		Model(&models.Page{}).
-		Create(page).Error
+	err := gorm.G[models.Page](r.db).Create(ctx, page)
 
 	if err != nil {
 		return fmt.Errorf("failed to create page: %w", err)
@@ -161,16 +156,13 @@ func (r *PageRepository) DeletePage(ctx context.Context, pageID string) error {
 	}
 
 	now := time.Now()
-	result := r.db.WithContext(ctx).
-		Model(&models.Page{}).
+	rows, err := gorm.G[models.Page](r.db).
 		Where(&models.Page{Id: pageID, AuditFields: models.AuditFields{DeletedAt: nil}}).
-		Update("\"DeletedAt\"", now)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete page: %w", result.Error)
+		Update(ctx, "\"DeletedAt\"", now)
+	if err != nil {
+		return fmt.Errorf("failed to delete page: %w", err)
 	}
-
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrPageNotFound
 	}
 
@@ -183,11 +175,9 @@ func (r *PageRepository) DeletePageByProjectID(ctx context.Context, pageID, proj
 	}
 
 	// First verify project ownership
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.Project{}).
+	count, err := gorm.G[models.Project](r.db).
 		Where(&models.Project{ID: projectID, OwnerId: userID, AuditFields: &models.AuditFields{DeletedAt: nil}}).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return fmt.Errorf("failed to verify project ownership: %w", err)
@@ -199,15 +189,13 @@ func (r *PageRepository) DeletePageByProjectID(ctx context.Context, pageID, proj
 
 	// Now delete the page
 	now := time.Now()
-	result := r.db.WithContext(ctx).
+	rows, err := gorm.G[models.Page](r.db).
 		Where(&models.Page{Id: pageID, ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
-		Update("DeletedAt", now)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete page: %w", result.Error)
+		Update(ctx, "DeletedAt", now)
+	if err != nil {
+		return fmt.Errorf("failed to delete page: %w", err)
 	}
-
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrPageNotFound
 	}
 
@@ -219,16 +207,14 @@ func (r *PageRepository) HardDeletePage(ctx context.Context, pageID string) erro
 		return errors.New("pageID is required")
 	}
 
-	result := r.db.WithContext(ctx).
-		Unscoped().
+	rows, err := gorm.G[models.Page](r.db).
+		Scopes(func(stmt *gorm.Statement) { stmt.Unscoped = true }).
 		Where(&models.Page{Id: pageID}).
-		Delete(&models.Page{})
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to hard delete page: %w", result.Error)
+		Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to hard delete page: %w", err)
 	}
-
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrPageNotFound
 	}
 
@@ -240,17 +226,14 @@ func (r *PageRepository) RestorePage(ctx context.Context, pageID string) error {
 		return errors.New("pageID is required")
 	}
 
-	result := r.db.WithContext(ctx).
-		Model(&models.Page{}).
+	rows, err := gorm.G[models.Page](r.db).
 		Where(&models.Page{Id: pageID}).
 		Where("DeletedAt IS NOT NULL").
-		Update("\"DeletedAt\"", nil)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to restore page: %w", result.Error)
+		Update(ctx, "\"DeletedAt\"", nil)
+	if err != nil {
+		return fmt.Errorf("failed to restore page: %w", err)
 	}
-
-	if result.RowsAffected == 0 {
+	if rows == 0 {
 		return ErrPageNotFound
 	}
 
@@ -262,10 +245,9 @@ func (r *PageRepository) ExistsInProject(ctx context.Context, pageID, projectID 
 		return false, errors.New("pageID and projectID are required")
 	}
 
-	var count int64
-	err := r.db.WithContext(ctx).
+	count, err := gorm.G[models.Page](r.db).
 		Where(&models.Page{Id: pageID, ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return false, fmt.Errorf("failed to check page existence: %w", err)
@@ -279,10 +261,9 @@ func (r *PageRepository) CountPagesByProjectID(ctx context.Context, projectID st
 		return 0, errors.New("projectID is required")
 	}
 
-	var count int64
-	err := r.db.WithContext(ctx).
+	count, err := gorm.G[models.Page](r.db).
 		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to count pages: %w", err)

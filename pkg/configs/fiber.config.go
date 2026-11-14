@@ -26,23 +26,29 @@ func jsonErrorHandler(c *fiber.Ctx, err error) error {
 	// 1. Structured validation errors (422 Unprocessable Entity)
 	var valErr *utils.ValidationError
 	if errors.As(err, &valErr) {
+		utils.LogRequestError(c, fiber.StatusUnprocessableEntity, "Validation failed", err)
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"error":  "Validation failed",
-			"fields": valErr.Fields,
+			"error":     "Validation failed",
+			"fields":    valErr.Fields,
+			"requestId": utils.RequestID(c),
 		})
 	}
 
 	// 2. Explicit fiber errors (e.g. fiber.NewError(404, "not found"))
 	var fiberErr *fiber.Error
 	if errors.As(err, &fiberErr) {
+		utils.LogRequestError(c, fiberErr.Code, fiberErr.Message, err)
 		return c.Status(fiberErr.Code).JSON(fiber.Map{
-			"error":   fiberErr.Message,
-			"message": fiberErr.Message,
+			"error":     fiberErr.Message,
+			"message":   fiberErr.Message,
+			"requestId": utils.RequestID(c),
 		})
 	}
 
 	// 3. Fallback — unexpected / unhandled errors
+	utils.LogRequestError(c, fiber.StatusInternalServerError, "Internal server error", err)
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"error": "Internal server error",
+		"error":     "Internal server error",
+		"requestId": utils.RequestID(c),
 	})
 }

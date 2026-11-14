@@ -7,7 +7,7 @@ import (
 	"my-go-app/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	"my-go-app/pkg/ids"
 )
 
 type CustomElementTypeHandler struct {
@@ -50,8 +50,13 @@ func (h *CustomElementTypeHandler) CreateCustomElementType(c *fiber.Ctx) error {
 		return err
 	}
 
+	id, err := ids.NewV7()
+	if err != nil {
+		return err
+	}
+
 	customElementType := &models.CustomElementType{
-		Id:          uuid.NewString(),
+		Id:          id,
 		Name:        req.Name,
 		Description: req.Description,
 		Category:    req.Category,
@@ -79,10 +84,18 @@ func (h *CustomElementTypeHandler) UpdateCustomElementType(c *fiber.Ctx) error {
 	}
 
 	updates := map[string]any{}
-	if req.Name != nil        { updates["name"] = *req.Name }
-	if req.Description != nil { updates["description"] = *req.Description }
-	if req.Category != nil    { updates["category"] = *req.Category }
-	if req.Icon != nil        { updates["icon"] = *req.Icon }
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	if req.Category != nil {
+		updates["category"] = *req.Category
+	}
+	if req.Icon != nil {
+		updates["icon"] = *req.Icon
+	}
 
 	if err := utils.RequireUpdates(updates); err != nil {
 		return err

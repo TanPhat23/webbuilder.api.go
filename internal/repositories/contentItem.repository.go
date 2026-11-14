@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrContentItemNotFound = errors.New("content item not found")
+	ErrContentItemNotFound  = errors.New("content item not found")
 	ErrContentItemDuplicate = errors.New("content item with this slug already exists")
 )
 
@@ -29,15 +29,12 @@ func (r *ContentItemRepository) GetContentItemsByContentType(ctx context.Context
 		return nil, errors.New("contentTypeID is required")
 	}
 
-	var contentItems []models.ContentItem
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentItem{}).
+	contentItems, err := gorm.G[models.ContentItem](r.db).
 		Where("\"ContentTypeId\" = ?", contentTypeID).
-		Preload("FieldValues.Field").
-		Preload("ContentType").
+		Preload("FieldValues.Field", nil).
+		Preload("ContentType", nil).
 		Order("\"CreatedAt\" DESC").
-		Find(&contentItems).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get content items by content type: %w", err)
@@ -51,14 +48,11 @@ func (r *ContentItemRepository) GetContentItemByID(ctx context.Context, id strin
 		return nil, errors.New("id is required")
 	}
 
-	var contentItem models.ContentItem
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentItem{}).
+	contentItem, err := gorm.G[models.ContentItem](r.db).
 		Where("\"Id\" = ?", id).
-		Preload("FieldValues.Field").
-		Preload("ContentType").
-		First(&contentItem).Error
+		Preload("FieldValues.Field", nil).
+		Preload("ContentType", nil).
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -88,12 +82,9 @@ func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *model
 	}
 
 	// Check for duplicate slug
-	var count int64
-	var err error
-	err = r.db.WithContext(ctx).
-		Model(&models.ContentItem{}).
+	count, err := gorm.G[models.ContentItem](r.db).
 		Where("\"ContentTypeId\" = ? AND \"Slug\" = ?", ci.ContentTypeId, ci.Slug).
-		Count(&count).Error
+		Count(ctx, "*")
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check content item existence: %w", err)
@@ -116,7 +107,7 @@ func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *model
 	// Create content item and field values in a transaction
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Create content item
-		if err := tx.Model(&models.ContentItem{}).Create(ci).Error; err != nil {
+		if err := gorm.G[models.ContentItem](tx).Create(ctx, ci); err != nil {
 			return fmt.Errorf("failed to create content item: %w", err)
 		}
 
@@ -127,7 +118,7 @@ func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *model
 			}
 			fieldValues[i].ContentItemId = ci.Id
 
-			if err := tx.Model(&models.ContentFieldValue{}).Create(&fieldValues[i]).Error; err != nil {
+			if err := gorm.G[models.ContentFieldValue](tx).Create(ctx, &fieldValues[i]); err != nil {
 				return fmt.Errorf("failed to create field value: %w", err)
 			}
 		}
@@ -158,9 +149,9 @@ func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string
 
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if len(fieldValues) > 0 {
-			if err := tx.Model(&models.ContentFieldValue{}).
+			if _, err := gorm.G[models.ContentFieldValue](tx).
 				Where("\"ContentItemId\" = ?", id).
-				Delete(&models.ContentFieldValue{}).Error; err != nil {
+				Delete(ctx); err != nil {
 				return fmt.Errorf("failed to delete existing field values: %w", err)
 			}
 
@@ -170,7 +161,7 @@ func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string
 				}
 				fieldValues[i].ContentItemId = id
 
-				if err := tx.Model(&models.ContentFieldValue{}).Create(&fieldValues[i]).Error; err != nil {
+				if err := gorm.G[models.ContentFieldValue](tx).Create(ctx, &fieldValues[i]); err != nil {
 					return fmt.Errorf("failed to create field value: %w", err)
 				}
 			}
@@ -178,10 +169,9 @@ func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string
 
 		if len(updates) > 0 {
 			if newSlug, ok := updates["slug"].(string); ok {
-				var count int64
-				err := tx.Model(&models.ContentItem{}).
+				count, err := gorm.G[models.ContentItem](tx).
 					Where("\"ContentTypeId\" = ? AND \"Slug\" = ? AND \"Id\" != ?", existing.ContentTypeId, newSlug, id).
-					Count(&count).Error
+					Count(ctx, "*")
 
 				if err != nil {
 					return fmt.Errorf("failed to check slug uniqueness: %w", err)
@@ -217,15 +207,15 @@ func (r *ContentItemRepository) DeleteContentItem(ctx context.Context, id string
 		return errors.New("id is required")
 	}
 
-	result := r.db.WithContext(ctx).
+	rowsAffected, err := gorm.G[models.ContentItem](r.db).
 		Where("\"Id\" = ?", id).
-		Delete(&models.ContentItem{})
+		Delete(ctx)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete content item: %w", result.Error)
+	if err != nil {
+		return fmt.Errorf("failed to delete content item: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ErrContentItemNotFound
 	}
 
@@ -259,16 +249,13 @@ func (r *ContentItemRepository) GetPublicContentItems(ctx context.Context, conte
 		sortBy = "CreatedAt"
 	}
 
-	var contentItems []models.ContentItem
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentItem{}).
+	contentItems, err := gorm.G[models.ContentItem](r.db).
 		Where("\"ContentTypeId\" = ? AND \"Published\" = ?", contentTypeID, true).
-		Preload("FieldValues.Field").
-		Preload("ContentType").
+		Preload("FieldValues.Field", nil).
+		Preload("ContentType", nil).
 		Order(fmt.Sprintf("\"%s\" %s", sortBy, sortOrder)).
 		Limit(limit).
-		Find(&contentItems).Error
+		Find(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public content items: %w", err)
@@ -282,14 +269,11 @@ func (r *ContentItemRepository) GetContentItemBySlug(ctx context.Context, conten
 		return nil, errors.New("contentTypeID and slug are required")
 	}
 
-	var contentItem models.ContentItem
-
-	err := r.db.WithContext(ctx).
-		Model(&models.ContentItem{}).
+	contentItem, err := gorm.G[models.ContentItem](r.db).
 		Where("\"ContentTypeId\" = ? AND \"Slug\" = ?", contentTypeID, slug).
-		Preload("FieldValues.Field").
-		Preload("ContentType").
-		First(&contentItem).Error
+		Preload("FieldValues.Field", nil).
+		Preload("ContentType", nil).
+		First(ctx)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
