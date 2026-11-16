@@ -357,7 +357,6 @@ type CollaboratorRepositoryInterface interface {
 	IsCollaborator(ctx context.Context, projectID, userID string) (bool, error)
 }
 
-
 type EventWorkflowRepositoryInterface interface {
 	// CreateEventWorkflow creates a new event workflow
 	CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
@@ -424,7 +423,15 @@ type NotificationRepositoryInterface interface {
 	Create(ctx context.Context, n *models.Notification) error
 }
 
+// AgentTokenRepositoryInterface stores MCP personal access tokens.
+type AgentTokenRepositoryInterface interface {
+	Create(ctx context.Context, t *models.AgentToken) error
+	ListActiveByUser(ctx context.Context, userID string) ([]models.AgentToken, error)
+	Revoke(ctx context.Context, userID, id string) (bool, error)
+}
+
 type RepositoriesInterface struct {
+	AgentTokenRepository           AgentTokenRepositoryInterface
 	NotificationRepository         NotificationRepositoryInterface
 	ElementRepository              ElementRepositoryInterface
 	ElementCommentRepository       ElementCommentRepositoryInterface
@@ -449,6 +456,7 @@ type RepositoriesInterface struct {
 
 func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 	return &RepositoriesInterface{
+		AgentTokenRepository:           NewAgentTokenRepository(db),
 		ElementRepository:              NewElementRepository(db),
 		ElementCommentRepository:       NewElementCommentRepository(db),
 		UserRepository:                 NewUserRepository(db),

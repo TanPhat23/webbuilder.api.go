@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"my-go-app/internal/agenttokens"
 	"my-go-app/internal/handlers"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
@@ -46,9 +47,13 @@ func PrivateRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cl
 	userHandler := handlers.NewUserHandler(userService)
 	eventWorkflowHandler := handlers.NewEventWorkflowHandler(eventWorkflowService, elementEventWorkflowService)
 	notificationHandler := handlers.NewNotificationHandler(repos.NotificationRepository)
+	agentTokenHandler := handlers.NewAgentTokenHandler(agenttokens.NewService(repos.AgentTokenRepository), handlers.PublicMCPURL())
 	elementEventWorkflowHandler := handlers.NewElementEventWorkflowHandler(elementEventWorkflowService, projectService, pageService)
 
 	group := app.Group("/api/v1", middleware.AuthenticateMiddleware)
+	group.Post("/agent-tokens", agentTokenHandler.Create)
+	group.Get("/agent-tokens", agentTokenHandler.List)
+	group.Delete("/agent-tokens/:id", agentTokenHandler.Revoke)
 
 	group.Get("/elements/:projectid", elementHandler.GetElements)
 	group.Get("/elements/by-pages", elementHandler.GetElementsByPageIds)
