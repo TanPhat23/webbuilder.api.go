@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/contrib/websocket"
 	"github.com/redis/go-redis/v9"
 
+	"my-go-app/internal/agentproto"
 	wsentity "my-go-app/internal/realtime/delivery/ws/entity"
 	domainEntity "my-go-app/internal/realtime/domain/entity"
 	domainErrors "my-go-app/internal/realtime/domain/errors"
@@ -20,6 +21,7 @@ type MessageHandler func(ctx context.Context, client *wsentity.Client, msg domai
 type Handler struct {
 	uc       *domainUsecase.UseCase
 	hub      *wsentity.Hub
+	agents   *agentBridge
 	handlers map[domainEntity.MessageType]MessageHandler
 	wg       sync.WaitGroup
 	ctx      context.Context
@@ -79,6 +81,11 @@ func NewHandler(uc *domainUsecase.UseCase, rdb *redis.Client, lg logger.Logger) 
 	}
 	h.pages = newPageActors(ctx, pageActorIdle)
 	h.hub = wsentity.NewHub(h.ctx, &h.wg, h.sendBuf, rdb, lg)
+	if rdb != nil {
+		h.agents = newAgentBridge(hubLocator{h.hub}, agentproto.NewRedisBus(rdb), redisClaimer{rdb}, lg)
+		h.wg.Add(1)
+		go func() { defer h.wg.Done(); h.agents.Run(h.ctx) }()
+	}
 	h.registerHandlers()
 	return h
 }
@@ -103,6 +110,11 @@ func (h *Handler) registerHandlers() {
 		domainEntity.TypeLogicUpdate: h.handleLogicUpdate,
 		domainEntity.TypeLogicMove:   h.handleLogicMove,
 		domainEntity.TypeLogicSync:   h.handleLogicSync,
+	}
+	if h.agents != nil {
+		h.handlers[domainEntity.TypeAgentResponse] = func(ctx context.Context, c *wsentity.Client, msg domainEntity.Message) error {
+			return h.agents.handleResponse(ctx, c, msg)
+		}
 	}
 }
 
@@ -203,6 +215,8 @@ func (h *Handler) processMessage(ctx context.Context, client *wsentity.Client, m
 	if msg.PageID == "" {
 		msg.PageID = client.PageID
 	}
+
+	client.Touch()
 
 	if client.ReadOnly && mutating[msg.Type] {
 		return domainErrors.New(domainErrors.CodeAccessDenied, "you have read-only access to this project", nil)

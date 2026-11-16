@@ -268,3 +268,25 @@ func (h *Hub) GetRoomParticipants(roomID string) []domainEntity.UserPresence {
 	}
 	return []domainEntity.UserPresence{}
 }
+
+// MostRecentClient returns the user's most recently active connection on this instance.
+func (h *Hub) MostRecentClient(projectID, userID string) *Client {
+	h.mu.RLock()
+	rooms := make([]*Room, 0, len(h.rooms))
+	for id, r := range h.rooms {
+		if id == projectID || strings.HasPrefix(id, projectID+":") {
+			rooms = append(rooms, r)
+		}
+	}
+	h.mu.RUnlock()
+
+	var best *Client
+	for _, r := range rooms {
+		for _, c := range r.ClientsOf(userID) {
+			if best == nil || c.LastActiveUnixNano() > best.LastActiveUnixNano() {
+				best = c
+			}
+		}
+	}
+	return best
+}

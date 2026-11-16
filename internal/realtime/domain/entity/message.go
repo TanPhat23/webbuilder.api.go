@@ -42,10 +42,12 @@ const (
 	TypeLogicSync   MessageType = "logic:sync"   // Current project and page logic
 
 	// Synchronization
-	TypeSync        MessageType = "sync:page"    // Initial state request/response
-	TypeSyncProject MessageType = "sync:project" // Project-wide sync
-	TypeSnapshot    MessageType = "snapshot"     // Save/Load full state
-	TypeError       MessageType = "error"        // Server-side error reporting
+	TypeSync          MessageType = "sync:page"      // Initial state request/response
+	TypeSyncProject   MessageType = "sync:project"   // Project-wide sync
+	TypeSnapshot      MessageType = "snapshot"       // Save/Load full state
+	TypeError         MessageType = "error"          // Server-side error reporting
+	TypeAgentRequest  MessageType = "agent:request"  // CLI tool call for the user's tab
+	TypeAgentResponse MessageType = "agent:response" // the tab's answer
 )
 
 // Message is the top-level envelope for all WebSocket communication

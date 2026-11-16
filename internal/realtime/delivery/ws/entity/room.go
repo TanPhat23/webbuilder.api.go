@@ -208,3 +208,16 @@ func (r *Room) GetParticipants() []domainEntity.UserPresence {
 	}
 	return users
 }
+
+// ClientsOf returns the room's clients belonging to userID.
+func (r *Room) ClientsOf(userID string) []*Client {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []*Client
+	for c := range r.clients {
+		if c.User != nil && c.User.ID == userID {
+			out = append(out, c)
+		}
+	}
+	return out
+}

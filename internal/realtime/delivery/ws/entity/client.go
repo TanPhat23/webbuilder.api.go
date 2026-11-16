@@ -3,6 +3,7 @@ package entity
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofiber/contrib/websocket"
@@ -13,10 +14,11 @@ import (
 // Client represents a single websocket client connected to a page/room.
 // It owns a buffered send channel which is used by a single writer goroutine.
 type Client struct {
-	ProjectID string
-	Conn      *websocket.Conn
-	PageID    string
-	User      *domainEntity.User
+	lastActive atomic.Int64
+	ProjectID  string
+	Conn       *websocket.Conn
+	PageID     string
+	User       *domainEntity.User
 	// ReadOnly clients may read and see presence but cannot change anything.
 	ReadOnly bool
 	// sendMu guards send/sendClosed so a send can never race with the channel being closed.
@@ -40,12 +42,19 @@ type Client struct {
 
 // NewClient constructs a new client for the given connection, project, and user.
 func NewClient(conn *websocket.Conn, projectID string, user *domainEntity.User) *Client {
-	return &Client{
+	c := &Client{
 		Conn:      conn,
 		ProjectID: projectID,
 		User:      user,
 	}
+	c.Touch()
+	return c
 }
+
+// Touch marks the client as active now. Any message from the tab counts.
+func (c *Client) Touch() { c.lastActive.Store(time.Now().UnixNano()) }
+
+func (c *Client) LastActiveUnixNano() int64 { return c.lastActive.Load() }
 
 // openSend (re)creates the client's send channel and returns it.
 func (c *Client) openSend(buf int) chan domainEntity.Message {
