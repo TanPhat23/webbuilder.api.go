@@ -82,12 +82,20 @@ func (uc *documentUseCase) GetDocumentWithSeq(ctx context.Context, projectID str
 }
 
 func (uc *documentUseCase) MutateDocument(ctx context.Context, projectID string, pageID string, mutate domainRepo.DocumentMutateFunc) (int64, error) {
-	load := func(ctx context.Context) ([]domainEntity.Element, error) {
+	return uc.repo.DocumentRepo.UpdateDocument(ctx, projectID, pageID, uc.loader(projectID, pageID), mutate)
+}
+
+func (uc *documentUseCase) MutateElement(ctx context.Context, projectID string, pageID string, elementID string, mutate domainRepo.ElementMutateFunc) (int64, error) {
+	return uc.repo.DocumentRepo.PatchDocumentElement(ctx, projectID, pageID, elementID, uc.loader(projectID, pageID), mutate)
+}
+
+// loader reads the page from the database to fill the cache on a miss.
+func (uc *documentUseCase) loader(projectID string, pageID string) domainRepo.DocumentLoadFunc {
+	return func(ctx context.Context) ([]domainEntity.Element, error) {
 		elements, err := uc.repo.ElementRepo.GetElementsByPageID(ctx, projectID, pageID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch page elements from db: %w", err)
 		}
 		return elementutils.BuildElementTree(elements), nil
 	}
-	return uc.repo.DocumentRepo.UpdateDocument(ctx, projectID, pageID, load, mutate)
 }

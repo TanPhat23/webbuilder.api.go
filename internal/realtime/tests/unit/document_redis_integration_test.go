@@ -28,7 +28,7 @@ func TestRedisDocumentRepo_UpdateDocumentIsAtomicAcrossInstances(t *testing.T) {
 	defer c2.Close()
 
 	project, page := "it-proj", fmt.Sprintf("it-page-%d", os.Getpid())
-	defer c1.Del(ctx, "page:"+project+":"+page, "page:"+project+":"+page+":seq")
+	defer c1.Del(ctx, "page:"+project+":"+page, "page:"+project+":"+page+":els", "page:"+project+":"+page+":seq")
 
 	r1 := repository.NewDocumentRepository(c1)
 	r2 := repository.NewDocumentRepository(c2)

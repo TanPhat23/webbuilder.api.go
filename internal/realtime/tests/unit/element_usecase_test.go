@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"my-go-app/internal/realtime/domain/entity"
+	domainErrors "my-go-app/internal/realtime/domain/errors"
 	domainRepo "my-go-app/internal/realtime/domain/repository"
 	"my-go-app/internal/realtime/usecase"
+	elementutils "my-go-app/internal/realtime/utils/element"
 )
 
 // fakeDocUseCase is a small in-memory implementation of DocumentUseCase used for tests.
@@ -48,6 +50,16 @@ func (f *fakeDocUseCase) MutateDocument(ctx context.Context, projectID string, p
 		_ = f.persist.MarkDirty(ctx, projectID, pageID)
 	}
 	return f.seq, nil
+}
+
+func (f *fakeDocUseCase) MutateElement(ctx context.Context, projectID string, pageID string, elementID string, mutate domainRepo.ElementMutateFunc) (int64, error) {
+	return f.MutateDocument(ctx, projectID, pageID, func(elements []entity.Element) ([]entity.Element, error) {
+		target := elementutils.FindByID(elements, elementID)
+		if target == nil {
+			return nil, domainErrors.New(domainErrors.CodeNotFound, "element not found in cache", nil)
+		}
+		return elements, mutate(target)
+	})
 }
 
 func (f *fakeDocUseCase) AddElementsToDocument(ctx context.Context, projectID string, pageID string, elements []entity.Element) error {

@@ -6,7 +6,9 @@ import (
 	"sync"
 
 	"my-go-app/internal/realtime/domain/entity"
+	domainErrors "my-go-app/internal/realtime/domain/errors"
 	domainRepo "my-go-app/internal/realtime/domain/repository"
+	elementutils "my-go-app/internal/realtime/utils/element"
 )
 
 // memDocRepo is an in-memory DocumentRepository. UpdateDocument runs the whole
@@ -109,6 +111,16 @@ func (m *memDocRepo) UpdateDocument(ctx context.Context, projectID, pageID strin
 	m.seqs[k]++
 	m.dirty[k]++
 	return m.seqs[k], nil
+}
+
+func (m *memDocRepo) PatchDocumentElement(ctx context.Context, projectID, pageID, elementID string, load domainRepo.DocumentLoadFunc, mutate domainRepo.ElementMutateFunc) (int64, error) {
+	return m.UpdateDocument(ctx, projectID, pageID, load, func(els []entity.Element) ([]entity.Element, error) {
+		target := elementutils.FindByID(els, elementID)
+		if target == nil {
+			return nil, domainErrors.New(domainErrors.CodeNotFound, "element not found in cache", nil)
+		}
+		return els, mutate(target)
+	})
 }
 
 func (m *memDocRepo) seq(projectID, pageID string) int64 {

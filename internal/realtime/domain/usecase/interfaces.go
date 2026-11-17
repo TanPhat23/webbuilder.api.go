@@ -57,6 +57,9 @@ type DocumentUseCase interface {
 	GetDocumentWithSeq(ctx context.Context, projectID string, pageID string) ([]entity.Element, int64, error)
 	// MutateDocument atomically applies mutate to the page document and returns the new page sequence number.
 	MutateDocument(ctx context.Context, projectID string, pageID string, mutate domainRepo.DocumentMutateFunc) (int64, error)
+	// MutateElement atomically applies mutate to one element without changing the page structure,
+	// and returns the new page sequence number. Edits to different elements do not conflict.
+	MutateElement(ctx context.Context, projectID string, pageID string, elementID string, mutate domainRepo.ElementMutateFunc) (int64, error)
 	// AddElementsToDocument sets the cached snapshot for the given page.
 	// It is not safe for read-modify-write; use MutateDocument for that.
 	AddElementsToDocument(ctx context.Context, projectID string, pageID string, elements []entity.Element) error

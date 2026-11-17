@@ -17,6 +17,11 @@ type DocumentLoadFunc func(ctx context.Context) ([]entity.Element, error)
 // aborts the update: nothing is written and the page sequence is not advanced.
 type DocumentMutateFunc func(elements []entity.Element) ([]entity.Element, error)
 
+// ElementMutateFunc edits one element in place. Like DocumentMutateFunc it may run more than once
+// for a single update (optimistic retries), so it must derive its result only from the element it
+// receives. The element's children are not populated. Returning an error aborts the update.
+type ElementMutateFunc func(element *entity.Element) error
+
 type ElementRepository interface {
 	CreateElement(ctx context.Context, projectID string, pageID string, element *entity.Element) error
 	CreateElements(ctx context.Context, projectID string, pageID string, element []entity.Element) error
@@ -50,6 +55,11 @@ type DocumentRepository interface {
 	// cache miss), stores the result, marks the page dirty and increments the per-page sequence
 	// number. It is safe across server instances. It returns the new sequence number.
 	UpdateDocument(ctx context.Context, projectID string, pageID string, load DocumentLoadFunc, mutate DocumentMutateFunc) (int64, error)
+	// PatchDocumentElement is UpdateDocument for an edit that touches a single element and does not
+	// change the page structure (parent or position). It only conflicts with concurrent writers of
+	// the same element, so it is the cheap path for property, style and settings edits. It fails
+	// with a NOT_FOUND error when the element does not exist.
+	PatchDocumentElement(ctx context.Context, projectID string, pageID string, elementID string, load DocumentLoadFunc, mutate ElementMutateFunc) (int64, error)
 
 	MarkPageDirty(ctx context.Context, projectID string, pageId string) error
 	PopDirtyPages(ctx context.Context, limit int) ([]entity.DirtyPage, error)

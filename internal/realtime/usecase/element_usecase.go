@@ -149,15 +149,10 @@ func (uc *elementUseCase) UpdateElement(ctx context.Context, projectID string, p
 //   - properties are applied to the element's own fields (see elementutils.ApplyProperties);
 //     they are never written into Settings.
 func (uc *elementUseCase) PatchElement(ctx context.Context, projectID string, pageID string, elementID string, properties map[string]any, styles map[string]any, settings map[string]any) (int64, error) {
-	return uc.docUseCase.MutateDocument(ctx, projectID, pageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
-		target := elementutils.FindByID(elements, elementID)
-		if target == nil {
-			return nil, domainErrors.New(domainErrors.CodeNotFound, "element not found in cache", nil)
-		}
-
+	return uc.docUseCase.MutateElement(ctx, projectID, pageID, elementID, func(target *domainEntity.Element) error {
 		if len(properties) > 0 {
 			if err := elementutils.ApplyProperties(target, properties); err != nil {
-				return nil, domainErrors.Wrap(domainErrors.CodeValidation, err)
+				return domainErrors.Wrap(domainErrors.CodeValidation, err)
 			}
 		}
 		if len(styles) > 0 {
@@ -166,7 +161,7 @@ func (uc *elementUseCase) PatchElement(ctx context.Context, projectID string, pa
 		if len(settings) > 0 {
 			target.Settings = elementutils.MergeMap(target.Settings, settings)
 		}
-		return elements, nil
+		return nil
 	})
 }
 
