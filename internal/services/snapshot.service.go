@@ -36,12 +36,12 @@ func (s *SnapshotService) SaveSnapshot(ctx context.Context, projectID string, sn
 	return s.snapshotRepo.SaveSnapshot(ctx, projectID, snapshot)
 }
 
-func (s *SnapshotService) GetSnapshotsByProjectID(ctx context.Context, projectID string) ([]models.Snapshot, error) {
+func (s *SnapshotService) GetSnapshotsByProjectID(ctx context.Context, projectID, userID string) ([]models.Snapshot, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	if _, err := s.projectRepo.GetPublicProjectByID(ctx, projectID); err != nil {
+	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
 		return nil, err
 	}
 

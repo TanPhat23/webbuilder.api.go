@@ -3,6 +3,7 @@ package unit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -10,8 +11,9 @@ import (
 	"time"
 
 	"github.com/fasthttp/websocket"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
+	wsentity "my-go-app/internal/realtime/delivery/ws/entity"
 	"my-go-app/internal/realtime/delivery/ws/handlers"
 	"my-go-app/internal/realtime/domain/entity"
 	domainRepo "my-go-app/internal/realtime/domain/repository"
@@ -93,11 +95,22 @@ func (c *wsTestClient) next(typ string, wait time.Duration) (wsIn, bool) {
 
 func startWSServer(t *testing.T) (url string, docs *memDocRepo) {
 	t.Helper()
+	return startWSServerAs(t, func(n int) string { return fmt.Sprintf("user-%d", n) })
+}
+
+// startWSServerAs authenticates the n-th connection (from 1) as userID(n).
+func startWSServerAs(t *testing.T, userID func(n int) string) (url string, docs *memDocRepo) {
+	t.Helper()
 	el := entity.Element{ID: testElemID, Type: "text", PageID: testPage, Styles: map[string]any{"color": "black"}}
-	return startWSServerWithElements(t, &memElementRepo{elements: []entity.Element{el}})
+	return startWSServerWithElementsAs(t, &memElementRepo{elements: []entity.Element{el}}, userID)
 }
 
 func startWSServerWithElements(t *testing.T, elements domainRepo.ElementRepository) (url string, docs *memDocRepo) {
+	t.Helper()
+	return startWSServerWithElementsAs(t, elements, func(n int) string { return fmt.Sprintf("user-%d", n) })
+}
+
+func startWSServerWithElementsAs(t *testing.T, elements domainRepo.ElementRepository, userID func(n int) string) (url string, docs *memDocRepo) {
 	t.Helper()
 	docs = newMemDocRepo()
 	repo := &domainRepo.Repository{DocumentRepo: docs, ElementRepo: elements}
@@ -112,13 +125,13 @@ func startWSServerWithElements(t *testing.T, elements domainRepo.ElementReposito
 	h := handlers.NewHandler(uc, nil, &mockLogger{})
 	t.Cleanup(h.Shutdown)
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app := fiber.New()
 	var n int
 	var mu sync.Mutex
-	app.Use("/ws", func(c *fiber.Ctx) error {
+	app.Use("/ws", func(c fiber.Ctx) error {
 		mu.Lock()
 		n++
-		id := fmt.Sprintf("user-%d", n)
+		id := userID(n)
 		mu.Unlock()
 		c.Locals("user", &entity.User{ID: id, Email: id + "@example.com"})
 		return c.Next()
@@ -129,7 +142,7 @@ func startWSServerWithElements(t *testing.T, elements domainRepo.ElementReposito
 	if err != nil {
 		t.Skipf("cannot listen on loopback: %v", err)
 	}
-	go func() { _ = app.Listener(ln) }()
+	go func() { _ = app.Listener(ln, fiber.ListenConfig{DisableStartupMessage: true}) }()
 	t.Cleanup(func() { _ = app.Shutdown() })
 	return "ws://" + ln.Addr().String() + "/ws/" + testProject, docs
 }
@@ -265,5 +278,30 @@ func TestWS_RequestIDIsEchoedOnReplies(t *testing.T) {
 	a.sendRequest("sync:page", map[string]any{}, "req-sync")
 	if m, ok := a.next("sync:page", 3*time.Second); !ok || m.RequestID != "req-sync" {
 		t.Fatalf("sync:page reply must carry requestId, ok=%v %+v", ok, m)
+	}
+}
+
+// A user may hold one connection per project. A newer connection replaces the
+// older one, which must be told so with CloseReplaced; otherwise the old tab
+// reconnects and the two connections keep replacing each other.
+func TestWS_ReplacedConnectionGetsReplacedCloseCode(t *testing.T) {
+	url, _ := startWSServerAs(t, func(int) string { return "same-user" })
+	old, _ := dialAndJoin(t, url)
+	_, _ = dialAndJoin(t, url)
+
+	_ = old.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for {
+		_, _, err := old.conn.ReadMessage()
+		if err == nil {
+			continue
+		}
+		var ce *websocket.CloseError
+		if !errors.As(err, &ce) {
+			t.Fatalf("old connection ended without a close frame: %v", err)
+		}
+		if ce.Code != wsentity.CloseReplaced {
+			t.Fatalf("close code = %d, want %d", ce.Code, wsentity.CloseReplaced)
+		}
+		return
 	}
 }

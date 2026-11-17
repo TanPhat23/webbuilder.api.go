@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/gofiber/contrib/websocket"
+	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/redis/go-redis/v9"
 
 	"my-go-app/internal/agentproto"
@@ -153,8 +153,10 @@ func (h *Handler) HandleWebSocket(c *websocket.Conn) {
 	h.activeConnsMu.Lock()
 	if old, exists := h.activeConns[ck]; exists {
 		h.logger.Infof("Closing stale connection for user=%s project=%s", user.ID, projectID)
+		// Send the close frame before Unregister closes old's send channel: its writer
+		// would otherwise close the socket first.
+		old.CloseAsReplaced()
 		_ = h.hub.Unregister(h.ctx, old)
-		old.Close()
 	}
 	h.activeConns[ck] = client
 	h.activeConnsMu.Unlock()

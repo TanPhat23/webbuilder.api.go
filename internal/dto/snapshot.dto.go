@@ -1,10 +1,9 @@
 package dto
 
-// SaveSnapshotRequest contains the required fields to save a new snapshot.
 type SaveSnapshotRequest struct {
-	Id        string `json:"id"`
-	Name      string `json:"name"`
-	Type      string `json:"type,omitempty"`
-	Elements  []any  `json:"elements"             validate:"required"`
-	Timestamp int64  `json:"timestamp,omitempty"`
+	Elements  []any  `json:"elements"  validate:"required,min=1"`
+	Name      string `json:"name"      validate:"required,min=1,max=255"`
+	Type      string `json:"type"      validate:"omitempty,min=1,max=100"`
+	Id        string `json:"id"        validate:"required,min=1,max=255"`
+	Timestamp int64  `json:"timestamp"`
 }

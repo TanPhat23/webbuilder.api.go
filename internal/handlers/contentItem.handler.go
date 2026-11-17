@@ -7,7 +7,7 @@ import (
 	"my-go-app/pkg/utils"
 	"strconv"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 var contentItemAllowedCols = map[string]string{
@@ -27,13 +27,14 @@ func NewContentItemHandler(contentItemService services.ContentItemServiceInterfa
 	}
 }
 
-func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
-	contentTypeID, err := utils.MustParam(c, "contentTypeId")
+func (h *ContentItemHandler) GetContentItemsByContentType(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
+	contentTypeID := ids[0]
 
-	contentItems, err := h.contentItemService.GetContentItemsByContentType(c.Context(), contentTypeID)
+	contentItems, err := h.contentItemService.GetContentItemsByContentType(c.RequestCtx(), contentTypeID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve content items")
 	}
@@ -41,13 +42,14 @@ func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, contentItems)
 }
 
-func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
-	itemID, err := utils.MustParam(c, "itemId")
+func (h *ContentItemHandler) GetContentItemByID(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "itemId")
 	if err != nil {
 		return err
 	}
+	itemID := ids[0]
 
-	contentItem, err := h.contentItemService.GetContentItemByID(c.Context(), itemID)
+	contentItem, err := h.contentItemService.GetContentItemByID(c.RequestCtx(), itemID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to retrieve content item")
 	}
@@ -55,14 +57,15 @@ func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, contentItem)
 }
 
-func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
-	contentTypeID, err := utils.MustParam(c, "contentTypeId")
+func (h *ContentItemHandler) CreateContentItem(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
+	contentTypeID := ids[0]
 
-	var contentItem models.ContentItem
-	if err := utils.ValidateJSONBody(c, &contentItem); err != nil {
+	contentItem := new(models.ContentItem)
+	if err := c.Bind().Body(contentItem); err != nil {
 		return err
 	}
 
@@ -70,7 +73,7 @@ func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
 	contentItem.FieldValues = nil
 	contentItem.ContentTypeId = contentTypeID
 
-	created, err := h.contentItemService.CreateContentItem(c.Context(), &contentItem, fieldValues)
+	created, err := h.contentItemService.CreateContentItem(c.RequestCtx(), contentItem, fieldValues)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create content item")
 	}
@@ -78,14 +81,15 @@ func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
-	itemID, err := utils.MustParam(c, "itemId")
+func (h *ContentItemHandler) UpdateContentItem(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "itemId")
 	if err != nil {
 		return err
 	}
+	itemID := ids[0]
 
-	var req dto.UpdateContentItemRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(dto.UpdateContentItemRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
@@ -105,16 +109,14 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 		return err
 	}
 
-	// Prevent no-op PATCHes: if there are no column updates and no field-value updates,
-	// mirror other handlers by requiring at least one update.
-	hasFieldValueUpdates := len(req.FieldValues) > 0
+	hasFieldValueUpdates := req.FieldValues != nil && len(req.FieldValues) > 0
 	if !hasFieldValueUpdates {
 		if err := utils.RequireUpdates(columnUpdates); err != nil {
 			return err
 		}
 	}
 
-	updated, err := h.contentItemService.UpdateContentItem(c.Context(), itemID, columnUpdates, req.FieldValues)
+	updated, err := h.contentItemService.UpdateContentItem(c.RequestCtx(), itemID, columnUpdates, req.FieldValues)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to update content item")
 	}
@@ -122,20 +124,21 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
-	itemID, err := utils.MustParam(c, "itemId")
+func (h *ContentItemHandler) DeleteContentItem(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "itemId")
 	if err != nil {
 		return err
 	}
+	itemID := ids[0]
 
-	if err := h.contentItemService.DeleteContentItem(c.Context(), itemID); err != nil {
+	if err := h.contentItemService.DeleteContentItem(c.RequestCtx(), itemID); err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to delete content item")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
+func (h *ContentItemHandler) GetPublicContentItems(c fiber.Ctx) error {
 	contentTypeId := c.Query("contentTypeId")
 	sortBy := c.Query("sortBy", "createdAt")
 	sortOrder := c.Query("sortOrder", "desc")
@@ -156,7 +159,7 @@ func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
 		limit = l
 	}
 
-	contentItems, err := h.contentItemService.GetPublicContentItems(c.Context(), contentTypeId, limit, sortBy, sortOrder)
+	contentItems, err := h.contentItemService.GetPublicContentItems(c.RequestCtx(), contentTypeId, limit, sortBy, sortOrder)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve content items")
 	}
@@ -164,14 +167,14 @@ func (h *ContentItemHandler) GetPublicContentItems(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItems(contentItems))
 }
 
-func (h *ContentItemHandler) GetPublicContentItemBySlug(c *fiber.Ctx) error {
+func (h *ContentItemHandler) GetPublicContentItemBySlug(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "contentTypeId", "slug")
 	if err != nil {
 		return err
 	}
 	contentTypeID, slug := ids[0], ids[1]
 
-	contentItem, err := h.contentItemService.GetContentItemBySlug(c.Context(), contentTypeID, slug)
+	contentItem, err := h.contentItemService.GetContentItemBySlug(c.RequestCtx(), contentTypeID, slug)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to retrieve content item")
 	}
@@ -209,3 +212,5 @@ func (h *ContentItemHandler) flattenContentItems(items []models.ContentItem) []m
 	}
 	return flattened
 }
+
+// fiber:context-methods migrated

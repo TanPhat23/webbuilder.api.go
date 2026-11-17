@@ -3,7 +3,7 @@ package utils
 import (
 	"encoding/json"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // BuildColumnUpdates converts a JSON-key map into a DB-column map using an

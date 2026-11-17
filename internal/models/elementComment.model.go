@@ -17,13 +17,14 @@ func (ElementComment) TableName() string {
 	return `public."ElementComment"`
 }
 
+// Request DTOs - Ordered by size for optimal alignment (16-byte strings → 8-byte pointers)
 type CreateElementCommentRequest struct {
-	Content   string `json:"content" validate:"required"`
-	ElementId string `json:"elementId" validate:"required"`
+	Content   string `json:"content"   validate:"required,min=1,max=5000"`
+	ElementId string `json:"elementId" validate:"required,min=1"`
 }
 
 type UpdateElementCommentRequest struct {
-	Content  *string `json:"content"`
+	Content  *string `json:"content"  validate:"omitempty,min=1,max=5000"`
 	Resolved *bool   `json:"resolved"`
 }
 

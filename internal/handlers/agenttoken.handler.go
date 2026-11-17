@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"my-go-app/internal/agenttokens"
 	"my-go-app/internal/models"
@@ -39,7 +39,7 @@ func PublicMCPURL() string {
 	return "http://localhost:8090"
 }
 
-func (h *AgentTokenHandler) Create(c *fiber.Ctx) error {
+func (h *AgentTokenHandler) Create(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
@@ -47,10 +47,10 @@ func (h *AgentTokenHandler) Create(c *fiber.Ctx) error {
 	var body struct {
 		Name string `json:"name"`
 	}
-	if err := c.BodyParser(&body); err != nil {
+	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid body"})
 	}
-	secret, tok, err := h.tokens.Create(c.UserContext(), userID, body.Name)
+	secret, tok, err := h.tokens.Create(c.Context(), userID, body.Name)
 	switch {
 	case errors.Is(err, agenttokens.ErrBadName):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -66,24 +66,24 @@ func (h *AgentTokenHandler) Create(c *fiber.Ctx) error {
 	})
 }
 
-func (h *AgentTokenHandler) List(c *fiber.Ctx) error {
+func (h *AgentTokenHandler) List(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
-	tokens, err := h.tokens.List(c.UserContext(), userID)
+	tokens, err := h.tokens.List(c.Context(), userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "could not list tokens"})
 	}
 	return c.JSON(tokens)
 }
 
-func (h *AgentTokenHandler) Revoke(c *fiber.Ctx) error {
+func (h *AgentTokenHandler) Revoke(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
-	err = h.tokens.Revoke(c.UserContext(), userID, c.Params("id"))
+	err = h.tokens.Revoke(c.Context(), userID, c.Params("id"))
 	if errors.Is(err, agenttokens.ErrTokenNotFound) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "token not found"})
 	}

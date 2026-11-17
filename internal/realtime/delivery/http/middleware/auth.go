@@ -14,7 +14,7 @@ import (
 	"my-go-app/internal/realtime/domain/entity"
 	"my-go-app/internal/realtime/utils/logger"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func AuthMiddleware(cfg *config.Config) fiber.Handler {
@@ -28,7 +28,7 @@ func AuthMiddleware(cfg *config.Config) fiber.Handler {
 		userClient = user.NewClient(clerkCfg)
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		// 1. Handle DevMode from application configuration: one fixed identity
 		// (DEV_USER_ID) from the server's environment, never from the client.
 		if cfg != nil && cfg.DevMode {
@@ -50,7 +50,7 @@ func AuthMiddleware(cfg *config.Config) fiber.Handler {
 		}
 
 		// Helper to extract token from Authorization header, __session cookie, or query param
-		getSessionToken := func(c *fiber.Ctx) string {
+		getSessionToken := func(c fiber.Ctx) string {
 			authHeader := c.Get("Authorization")
 			if authHeader != "" {
 				parts := strings.Split(authHeader, " ")
@@ -84,7 +84,7 @@ func AuthMiddleware(cfg *config.Config) fiber.Handler {
 		}
 
 		// Verify the Clerk session JWT
-		ctx := c.UserContext()
+		ctx := c.Context()
 
 		unsafeClaims, err := jwt.Decode(ctx, &jwt.DecodeParams{
 			Token: token,

@@ -2,18 +2,34 @@ package main
 
 import (
 	"log"
-	"my-go-app/internal/bootstrap"
+	"my-go-app/internal/database"
 	"my-go-app/internal/services"
 	"my-go-app/proto"
 	"net"
 	"os"
 
+	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
 func main() {
-	repos := bootstrap.InitRepositories()
+	// Load environment variables from .env file
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Println("Warning: Could not load .env file, using system environment variables")
+	}
+	//Set Clerk API key from environment variable
+	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
+
+	// Initialize database connection
+	db, err := database.InitDB()
+	if err != nil {
+		log.Fatal("Failed to initialize database connection pool:", err)
+	}
+
+	repos := database.NewRepositories(db)
 
 	elementService := services.NewElementService(repos.SnapshotRepository, repos.ElementRepository, repos.EventWorkflowRepository, repos.ElementEventWorkflowRepository)
 

@@ -45,17 +45,13 @@ func (s *CollaboratorService) CreateCollaborator(ctx context.Context, collaborat
 	return s.collaboratorRepo.CreateCollaborator(ctx, collaborator)
 }
 
-func (s *CollaboratorService) GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error) {
+func (s *CollaboratorService) GetCollaboratorsByProject(ctx context.Context, projectID, userID string) ([]models.Collaborator, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
-	if err != nil {
+	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
-	}
-	if project == nil {
-		return nil, errors.New("project does not exist")
 	}
 
 	return s.collaboratorRepo.GetCollaboratorsByProject(ctx, projectID)

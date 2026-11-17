@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"my-go-app/internal/agenttokens"
 	"my-go-app/internal/models"
@@ -41,7 +41,7 @@ func (s *tokenManagerStub) Revoke(_ context.Context, _, id string) error {
 func tokenApp(stub *tokenManagerStub) *fiber.App {
 	app := fiber.New()
 	h := NewAgentTokenHandler(stub, "https://mcp.example.test/")
-	app.Use(func(c *fiber.Ctx) error { c.Locals("userId", "user-1"); return c.Next() })
+	app.Use(func(c fiber.Ctx) error { c.Locals("userId", "user-1"); return c.Next() })
 	app.Post("/agent-tokens", h.Create)
 	app.Get("/agent-tokens", h.List)
 	app.Delete("/agent-tokens/:id", h.Revoke)

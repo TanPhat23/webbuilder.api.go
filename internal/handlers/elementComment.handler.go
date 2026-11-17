@@ -6,8 +6,8 @@ import (
 	"my-go-app/pkg/utils"
 	"strconv"
 
-	"github.com/gofiber/fiber/v2"
-	"my-go-app/pkg/ids"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 )
 
 type ElementCommentHandler struct {
@@ -21,30 +21,25 @@ func NewElementCommentHandler(elementCommentService services.ElementCommentServi
 }
 
 // POST /element-comments
-func (h *ElementCommentHandler) CreateElementComment(c *fiber.Ctx) error {
+func (h *ElementCommentHandler) CreateElementComment(c fiber.Ctx) error {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
 
-	var req models.CreateElementCommentRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
-		return err
-	}
-
-	id, err := ids.NewV7()
-	if err != nil {
+	req := new(models.CreateElementCommentRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
 	comment := &models.ElementComment{
-		Id:        id,
+		Id:        uuid.NewString(),
 		Content:   req.Content,
 		ElementId: req.ElementId,
 		AuthorId:  userID,
 	}
 
-	created, err := h.elementCommentService.CreateElementComment(c.Context(), comment)
+	created, err := h.elementCommentService.CreateElementComment(c.RequestCtx(), comment)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create comment")
 	}
@@ -53,13 +48,14 @@ func (h *ElementCommentHandler) CreateElementComment(c *fiber.Ctx) error {
 }
 
 // GET /element-comments/:id
-func (h *ElementCommentHandler) GetElementCommentByID(c *fiber.Ctx) error {
-	commentID, err := utils.MustParam(c, "id")
+func (h *ElementCommentHandler) GetElementCommentByID(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "id")
 	if err != nil {
 		return err
 	}
+	commentID := ids[0]
 
-	comment, err := h.elementCommentService.GetElementCommentByID(c.Context(), commentID)
+	comment, err := h.elementCommentService.GetElementCommentByID(c.RequestCtx(), commentID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Comment not found", "Failed to retrieve comment")
 	}
@@ -68,11 +64,12 @@ func (h *ElementCommentHandler) GetElementCommentByID(c *fiber.Ctx) error {
 }
 
 // GET /elements/:elementId/comments
-func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
-	elementID, err := utils.MustParam(c, "elementId")
+func (h *ElementCommentHandler) GetElementComments(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "elementId")
 	if err != nil {
 		return err
 	}
+	elementID := ids[0]
 
 	filter := &models.ElementCommentFilter{
 		Limit:     20,
@@ -102,12 +99,12 @@ func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
 		filter.SortOrder = sortOrder
 	}
 
-	comments, err := h.elementCommentService.GetElementComments(c.Context(), elementID, *filter)
+	comments, err := h.elementCommentService.GetElementComments(c.RequestCtx(), elementID, *filter)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
 
-	count, err := h.elementCommentService.CountElementComments(c.Context(), elementID)
+	count, err := h.elementCommentService.CountElementComments(c.RequestCtx(), elementID)
 	if err != nil {
 		count = 0
 	}
@@ -121,30 +118,31 @@ func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
 }
 
 // PATCH /element-comments/:id
-func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
-	userID, commentID, err := utils.MustUserAndParam(c, "id")
+func (h *ElementCommentHandler) UpdateElementComment(c fiber.Ctx) error {
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
+	commentID := ids[0]
 
-	var req models.UpdateElementCommentRequest
-	if err := utils.ValidateAndParseBody(c, &req); err != nil {
+	req := new(models.UpdateElementCommentRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
 	updates := map[string]any{}
 	if req.Content != nil {
-		updates["Content"] = *req.Content
+		updates["content"] = *req.Content
 	}
 	if req.Resolved != nil {
-		updates["Resolved"] = *req.Resolved
+		updates["resolved"] = *req.Resolved
 	}
 
 	if err := utils.RequireUpdates(updates); err != nil {
 		return err
 	}
 
-	updated, err := h.elementCommentService.UpdateElementComment(c.Context(), commentID, userID, updates)
+	updated, err := h.elementCommentService.UpdateElementComment(c.RequestCtx(), commentID, userID, updates)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Comment not found", "Failed to update comment")
 	}
@@ -153,13 +151,14 @@ func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
 }
 
 // DELETE /element-comments/:id
-func (h *ElementCommentHandler) DeleteElementComment(c *fiber.Ctx) error {
-	userID, commentID, err := utils.MustUserAndParam(c, "id")
+func (h *ElementCommentHandler) DeleteElementComment(c fiber.Ctx) error {
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
+	commentID := ids[0]
 
-	if err := h.elementCommentService.DeleteElementComment(c.Context(), commentID, userID); err != nil {
+	if err := h.elementCommentService.DeleteElementComment(c.RequestCtx(), commentID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to delete comment")
 	}
 
@@ -167,13 +166,14 @@ func (h *ElementCommentHandler) DeleteElementComment(c *fiber.Ctx) error {
 }
 
 // PATCH /element-comments/:id/toggle-resolved
-func (h *ElementCommentHandler) ToggleResolvedStatus(c *fiber.Ctx) error {
-	commentID, err := utils.MustParam(c, "id")
+func (h *ElementCommentHandler) ToggleResolvedStatus(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "id")
 	if err != nil {
 		return err
 	}
+	commentID := ids[0]
 
-	err = h.elementCommentService.ToggleResolvedStatus(c.Context(), commentID)
+	err = h.elementCommentService.ToggleResolvedStatus(c.RequestCtx(), commentID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Comment not found", "Failed to toggle resolved status")
 	}
@@ -182,11 +182,12 @@ func (h *ElementCommentHandler) ToggleResolvedStatus(c *fiber.Ctx) error {
 }
 
 // GET /element-comments/author/:authorId
-func (h *ElementCommentHandler) GetCommentsByAuthorID(c *fiber.Ctx) error {
-	authorID, err := utils.MustParam(c, "authorId")
+func (h *ElementCommentHandler) GetCommentsByAuthorID(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "authorId")
 	if err != nil {
 		return err
 	}
+	authorID := ids[0]
 
 	limit := 20
 	offset := 0
@@ -197,7 +198,7 @@ func (h *ElementCommentHandler) GetCommentsByAuthorID(c *fiber.Ctx) error {
 		offset = o
 	}
 
-	comments, err := h.elementCommentService.GetElementCommentsByAuthorID(c.Context(), authorID, limit, offset)
+	comments, err := h.elementCommentService.GetElementCommentsByAuthorID(c.RequestCtx(), authorID, limit, offset)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
@@ -206,11 +207,12 @@ func (h *ElementCommentHandler) GetCommentsByAuthorID(c *fiber.Ctx) error {
 }
 
 // GET /projects/:projectId/comments
-func (h *ElementCommentHandler) GetCommentsByProjectID(c *fiber.Ctx) error {
-	projectID, err := utils.MustParam(c, "projectId")
+func (h *ElementCommentHandler) GetCommentsByProjectID(c fiber.Ctx) error {
+	userID, ids, err := utils.MustUserAndParams(c, "projectId")
 	if err != nil {
 		return err
 	}
+	projectID := ids[0]
 
 	limit := 20
 	offset := 0
@@ -221,12 +223,12 @@ func (h *ElementCommentHandler) GetCommentsByProjectID(c *fiber.Ctx) error {
 		offset = o
 	}
 
-	comments, err := h.elementCommentService.GetElementCommentsByProjectID(c.Context(), projectID, limit, offset)
+	comments, err := h.elementCommentService.GetElementCommentsByProjectID(c.RequestCtx(), projectID, userID, limit, offset)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve comments")
 	}
 
-	count, err := h.elementCommentService.CountElementCommentsByProjectID(c.Context(), projectID)
+	count, err := h.elementCommentService.CountElementCommentsByProjectID(c.RequestCtx(), projectID, userID)
 	if err != nil {
 		count = 0
 	}
@@ -238,3 +240,5 @@ func (h *ElementCommentHandler) GetCommentsByProjectID(c *fiber.Ctx) error {
 		"offset": offset,
 	})
 }
+
+// fiber:context-methods migrated

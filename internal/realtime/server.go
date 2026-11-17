@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	goredis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 

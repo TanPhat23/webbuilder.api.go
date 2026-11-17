@@ -8,16 +8,14 @@ import (
 	"my-go-app/internal/services"
 	"my-go-app/pkg/configs"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
-// buildApp registers every public and private route against empty
-// dependencies; no handler is invoked, so nothing is touched.
+// buildApp registers every route against empty dependencies; no handler is invoked,
+// so nothing is touched.
 func buildApp() *fiber.App {
 	app := fiber.New(configs.FiberConfig())
-	repos := repositories.NewRepositories(nil)
-	PublicRoutes(app, repos)
-	PrivateRoutes(app, repos, &services.CloudinaryService{}, &services.InvitationService{})
+	SetupRoutes(app, repositories.NewRepositories(nil), &services.CloudinaryService{}, &services.InvitationService{})
 	return app
 }
 

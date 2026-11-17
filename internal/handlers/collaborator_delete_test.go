@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"my-go-app/internal/services"
 )
 
@@ -19,10 +19,10 @@ func (s *deleteCollaboratorStub) DeleteCollaborator(_ context.Context, id string
 	return nil
 }
 
-func TestDeleteCollaboratorAcceptsRegisteredIDParameter(t *testing.T) {
+func TestDeleteCollaboratorReadsTheRegisteredParameter(t *testing.T) {
 	stub := &deleteCollaboratorStub{}
 	app := fiber.New()
-	app.Delete("/collaborators/:id", NewCollaboratorHandler(stub).DeleteCollaborator)
+	app.Delete("/collaborators/:collaboratorid", NewCollaboratorHandler(stub).DeleteCollaborator)
 	response, err := app.Test(httptest.NewRequest("DELETE", "/collaborators/collab-1", nil))
 	if err != nil {
 		t.Fatal(err)

@@ -89,7 +89,7 @@ func (s *ElementCommentService) GetElementCommentsByAuthorID(ctx context.Context
 	return s.elementCommentRepo.GetElementCommentsByAuthorID(ctx, authorID, limit, offset)
 }
 
-func (s *ElementCommentService) GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error) {
+func (s *ElementCommentService) GetElementCommentsByProjectID(ctx context.Context, projectID, userID string, limit int, offset int) ([]models.ElementComment, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -100,12 +100,8 @@ func (s *ElementCommentService) GetElementCommentsByProjectID(ctx context.Contex
 		return nil, errors.New("offset cannot be negative")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
-	if err != nil {
+	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
-	}
-	if project == nil {
-		return nil, errors.New("project does not exist")
 	}
 
 	return s.elementCommentRepo.GetElementCommentsByProjectID(ctx, projectID, limit, offset)
@@ -188,17 +184,13 @@ func (s *ElementCommentService) CountElementComments(ctx context.Context, elemen
 	return s.elementCommentRepo.CountElementComments(ctx, elementID)
 }
 
-func (s *ElementCommentService) CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error) {
+func (s *ElementCommentService) CountElementCommentsByProjectID(ctx context.Context, projectID, userID string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
-	if err != nil {
+	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
 		return 0, fmt.Errorf("failed to verify project: %w", err)
-	}
-	if project == nil {
-		return 0, errors.New("project does not exist")
 	}
 
 	return s.elementCommentRepo.CountElementCommentsByProjectID(ctx, projectID)

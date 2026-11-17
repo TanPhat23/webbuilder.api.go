@@ -6,7 +6,7 @@ import (
 	"my-go-app/pkg/utils"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type UserHandler struct {
@@ -19,13 +19,13 @@ func NewUserHandler(userService services.UserServiceInterface) *UserHandler {
 	}
 }
 
-func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
+func (h *UserHandler) SearchUsers(c fiber.Ctx) error {
 	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "Query parameter 'q' is required")
 	}
 
-	users, err := h.userService.SearchUsers(c.Context(), query)
+	users, err := h.userService.SearchUsers(c.RequestCtx(), query)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to search users")
 	}
@@ -34,13 +34,13 @@ func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, users)
 }
 
-func (h *UserHandler) GetUserByEmail(c *fiber.Ctx) error {
+func (h *UserHandler) GetUserByEmail(c fiber.Ctx) error {
 	email, err := utils.ValidateRequiredParam(c, "email")
 	if err != nil {
 		return err
 	}
 
-	user, err := h.userService.GetUserByEmail(c.Context(), email)
+	user, err := h.userService.GetUserByEmail(c.RequestCtx(), email)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user")
 	}
@@ -48,16 +48,18 @@ func (h *UserHandler) GetUserByEmail(c *fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, user)
 }
 
-func (h *UserHandler) GetUserByUsername(c *fiber.Ctx) error {
+func (h *UserHandler) GetUserByUsername(c fiber.Ctx) error {
 	username, err := utils.ValidateRequiredParam(c, "username")
 	if err != nil {
 		return err
 	}
 
-	user, err := h.userService.GetUserByUsername(c.Context(), username)
+	user, err := h.userService.GetUserByUsername(c.RequestCtx(), username)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, user)
 }
+
+// fiber:context-methods migrated

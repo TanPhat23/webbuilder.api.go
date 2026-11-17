@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"log"
-	"my-go-app/internal/bootstrap"
+	"my-go-app/internal/database"
 	"my-go-app/internal/realtime"
 	"my-go-app/internal/routes"
 	"my-go-app/internal/services"
@@ -12,15 +12,31 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/requestid"
+	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/requestid"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	repos := bootstrap.InitRepositories()
+	// Load environment variables from .env file
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Println("Warning: Could not load .env file, using system environment variables")
+	}
+	//Set Clerk API key from environment variable
+	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
+
+	// Initialize database connection
+	db, err := database.InitDB()
+	if err != nil {
+		log.Fatal("Failed to initialize database connection pool:", err)
+	}
+
+	repos := database.NewRepositories(db)
 
 	// Initialize Email service
 	emailService := services.NewEmailService()
@@ -48,7 +64,7 @@ func main() {
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
-	app.Get("/health", func(c *fiber.Ctx) error { return c.SendString("OK") })
+	app.Get("/health", func(c fiber.Ctx) error { return c.SendString("OK") })
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -61,8 +77,7 @@ func main() {
 		defer shutdownRealtime()
 	}
 
-	routes.PublicRoutes(app, repos)
-	routes.PrivateRoutes(app, repos, cloudinaryService, invitationService)
+	routes.SetupRoutes(app, repos, cloudinaryService, invitationService)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -73,7 +88,7 @@ func main() {
 		<-ctx.Done()
 		_ = app.ShutdownWithContext(context.Background())
 	}()
-	if err := app.Listen(":" + port); err != nil {
+	if err := app.Listen(":"+port, fiber.ListenConfig{EnablePrefork: false}); err != nil {
 		log.Fatal("Server failed:", err)
 	}
 }

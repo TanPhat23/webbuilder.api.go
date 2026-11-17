@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/logger"
 )
 
 // SetupLogging installs a JSON slog handler as the process default so that
@@ -15,6 +15,6 @@ func SetupLogging() {
 
 func LoggerConfig() logger.Config {
 	return logger.Config{
-		Format: "${status} - ${method} ${path} user:${locals:userId} req:${locals:requestid}\n",
+		Format: "${status} - ${method} ${path} user:${locals:userId} req:${respHeader:X-Request-ID}\n",
 	}
 }
