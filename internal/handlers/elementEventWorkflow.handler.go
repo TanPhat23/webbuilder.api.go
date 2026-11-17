@@ -53,11 +53,10 @@ func (h *ElementEventWorkflowHandler) CreateElementEventWorkflow(c *fiber.Ctx) e
 
 // GetElementEventWorkflowByID retrieves a specific element event workflow.
 func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c *fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "id")
+	_, eewID, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	eewID := ids[0]
 
 	eew, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.Context(), eewID)
 	if err != nil {
@@ -72,11 +71,10 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c *fiber.Ctx) 
 
 // GetElementEventWorkflowsByPageId retrieves all element event workflows for a page.
 func (h *ElementEventWorkflowHandler) GetElementEventWorkflowsByPageId(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "pageId")
+	userID, pageID, err := utils.MustUserAndParam(c, "pageId")
 	if err != nil {
 		return err
 	}
-	pageID := ids[0]
 
 	page, err := h.pageService.GetPageByID(c.Context(), pageID)
 	if err != nil {
@@ -138,11 +136,10 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c *fiber.Ctx) err
 
 // UpdateElementEventWorkflow updates the event name of an element event workflow.
 func (h *ElementEventWorkflowHandler) UpdateElementEventWorkflow(c *fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "id")
+	_, eewID, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	eewID := ids[0]
 
 	existing, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.Context(), eewID)
 	if err != nil {
@@ -169,11 +166,10 @@ func (h *ElementEventWorkflowHandler) UpdateElementEventWorkflow(c *fiber.Ctx) e
 
 // DeleteElementEventWorkflow deletes an element event workflow.
 func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflow(c *fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "id")
+	_, eewID, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	eewID := ids[0]
 
 	eew, err := h.elementEventWorkflowService.GetElementEventWorkflowByID(c.Context(), eewID)
 	if err != nil {
@@ -192,11 +188,10 @@ func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflow(c *fiber.Ctx) e
 
 // DeleteElementEventWorkflowsByElement deletes all event workflow links for a specific element.
 func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByElement(c *fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "elementId")
+	_, elementID, err := utils.MustUserAndParam(c, "elementId")
 	if err != nil {
 		return err
 	}
-	elementID := ids[0]
 
 	if err := h.elementEventWorkflowService.DeleteElementEventWorkflowsByElementID(c.Context(), elementID); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to delete element event workflows")
@@ -207,11 +202,10 @@ func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByElement(c *fi
 
 // DeleteElementEventWorkflowsByWorkflow deletes all element associations for a specific workflow.
 func (h *ElementEventWorkflowHandler) DeleteElementEventWorkflowsByWorkflow(c *fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "workflowId")
+	_, workflowID, err := utils.MustUserAndParam(c, "workflowId")
 	if err != nil {
 		return err
 	}
-	workflowID := ids[0]
 
 	if err := h.elementEventWorkflowService.DeleteElementEventWorkflowsByWorkflowID(c.Context(), workflowID); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to delete element event workflows")

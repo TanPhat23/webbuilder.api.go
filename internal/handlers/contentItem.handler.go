@@ -28,11 +28,10 @@ func NewContentItemHandler(contentItemService services.ContentItemServiceInterfa
 }
 
 func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "contentTypeId")
+	contentTypeID, err := utils.MustParam(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
-	contentTypeID := ids[0]
 
 	contentItems, err := h.contentItemService.GetContentItemsByContentType(c.Context(), contentTypeID)
 	if err != nil {
@@ -43,11 +42,10 @@ func (h *ContentItemHandler) GetContentItemsByContentType(c *fiber.Ctx) error {
 }
 
 func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "itemId")
+	itemID, err := utils.MustParam(c, "itemId")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	contentItem, err := h.contentItemService.GetContentItemByID(c.Context(), itemID)
 	if err != nil {
@@ -58,11 +56,10 @@ func (h *ContentItemHandler) GetContentItemByID(c *fiber.Ctx) error {
 }
 
 func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "contentTypeId")
+	contentTypeID, err := utils.MustParam(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
-	contentTypeID := ids[0]
 
 	var contentItem models.ContentItem
 	if err := utils.ValidateJSONBody(c, &contentItem); err != nil {
@@ -82,11 +79,10 @@ func (h *ContentItemHandler) CreateContentItem(c *fiber.Ctx) error {
 }
 
 func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "itemId")
+	itemID, err := utils.MustParam(c, "itemId")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	var req dto.UpdateContentItemRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -111,7 +107,7 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 
 	// Prevent no-op PATCHes: if there are no column updates and no field-value updates,
 	// mirror other handlers by requiring at least one update.
-	hasFieldValueUpdates := req.FieldValues != nil && len(req.FieldValues) > 0
+	hasFieldValueUpdates := len(req.FieldValues) > 0
 	if !hasFieldValueUpdates {
 		if err := utils.RequireUpdates(columnUpdates); err != nil {
 			return err
@@ -127,11 +123,10 @@ func (h *ContentItemHandler) UpdateContentItem(c *fiber.Ctx) error {
 }
 
 func (h *ContentItemHandler) DeleteContentItem(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "itemId")
+	itemID, err := utils.MustParam(c, "itemId")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	if err := h.contentItemService.DeleteContentItem(c.Context(), itemID); err != nil {
 		return utils.HandleRepoError(c, err, "Content item not found", "Failed to delete content item")

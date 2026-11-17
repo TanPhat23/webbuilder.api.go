@@ -20,11 +20,10 @@ func NewCollaboratorHandler(collaboratorService services.CollaboratorServiceInte
 }
 
 func (h *CollaboratorHandler) GetCollaboratorsByProject(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	projectID, err := utils.MustParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	collaborators, err := h.collaboratorService.GetCollaboratorsByProject(c.Context(), projectID)
 	if err != nil {
@@ -35,11 +34,10 @@ func (h *CollaboratorHandler) GetCollaboratorsByProject(c *fiber.Ctx) error {
 }
 
 func (h *CollaboratorHandler) GetCollaboratorByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "collaboratorid")
+	collaboratorID, err := utils.MustParam(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
-	collaboratorID := ids[0]
 
 	collaborator, err := h.collaboratorService.GetCollaboratorByID(c.Context(), collaboratorID)
 	if err != nil {
@@ -50,11 +48,10 @@ func (h *CollaboratorHandler) GetCollaboratorByID(c *fiber.Ctx) error {
 }
 
 func (h *CollaboratorHandler) UpdateCollaboratorRole(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "collaboratorid")
+	collaboratorID, err := utils.MustParam(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
-	collaboratorID := ids[0]
 
 	var req dto.UpdateCollaboratorRoleRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {

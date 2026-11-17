@@ -26,11 +26,10 @@ func NewContentFieldHandler(contentFieldService services.ContentFieldServiceInte
 }
 
 func (h *ContentFieldHandler) GetContentFieldsByContentType(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "contentTypeId")
+	contentTypeID, err := utils.MustParam(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
-	contentTypeID := ids[0]
 
 	contentFields, err := h.contentFieldService.GetContentFieldsByContentType(c.Context(), contentTypeID)
 	if err != nil {
@@ -41,11 +40,10 @@ func (h *ContentFieldHandler) GetContentFieldsByContentType(c *fiber.Ctx) error 
 }
 
 func (h *ContentFieldHandler) GetContentFieldByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "fieldId")
+	fieldID, err := utils.MustParam(c, "fieldId")
 	if err != nil {
 		return err
 	}
-	fieldID := ids[0]
 
 	contentField, err := h.contentFieldService.GetContentFieldByID(c.Context(), fieldID)
 	if err != nil {
@@ -56,11 +54,10 @@ func (h *ContentFieldHandler) GetContentFieldByID(c *fiber.Ctx) error {
 }
 
 func (h *ContentFieldHandler) CreateContentField(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "contentTypeId")
+	contentTypeID, err := utils.MustParam(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
-	contentTypeID := ids[0]
 
 	var req dto.CreateContentFieldRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -83,11 +80,10 @@ func (h *ContentFieldHandler) CreateContentField(c *fiber.Ctx) error {
 }
 
 func (h *ContentFieldHandler) UpdateContentField(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "fieldId")
+	fieldID, err := utils.MustParam(c, "fieldId")
 	if err != nil {
 		return err
 	}
-	fieldID := ids[0]
 
 	var req dto.UpdateContentFieldRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -116,11 +112,10 @@ func (h *ContentFieldHandler) UpdateContentField(c *fiber.Ctx) error {
 }
 
 func (h *ContentFieldHandler) DeleteContentField(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "fieldId")
+	fieldID, err := utils.MustParam(c, "fieldId")
 	if err != nil {
 		return err
 	}
-	fieldID := ids[0]
 
 	if err := h.contentFieldService.DeleteContentField(c.Context(), fieldID); err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to delete content field")

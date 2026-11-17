@@ -9,11 +9,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-var contentTypeAllowedCols = map[string]string{
-	"name":        "Name",
-	"description": "Description",
-}
-
 type ContentTypeHandler struct {
 	contentTypeService services.ContentTypeServiceInterface
 }
@@ -34,11 +29,10 @@ func (h *ContentTypeHandler) GetContentTypes(c *fiber.Ctx) error {
 }
 
 func (h *ContentTypeHandler) GetContentTypeByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	id, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	contentType, err := h.contentTypeService.GetContentTypeByID(c.Context(), id)
 	if err != nil {
@@ -68,11 +62,10 @@ func (h *ContentTypeHandler) CreateContentType(c *fiber.Ctx) error {
 }
 
 func (h *ContentTypeHandler) UpdateContentType(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	id, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	var req dto.UpdateContentTypeRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -100,11 +93,10 @@ func (h *ContentTypeHandler) UpdateContentType(c *fiber.Ctx) error {
 }
 
 func (h *ContentTypeHandler) DeleteContentType(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	id, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	if err := h.contentTypeService.DeleteContentType(c.Context(), id); err != nil {
 		return utils.HandleRepoError(c, err, "Content type not found", "Failed to delete content type")

@@ -35,7 +35,7 @@ my-go-app
 
 3. **Run the application:**
    ```
-   go run cmd/main.go
+   go run ./cmd/api
    ```
 
 ## Usage

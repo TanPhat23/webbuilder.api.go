@@ -21,8 +21,8 @@ func PublicRoutes(app *fiber.App, repos *repositories.RepositoriesInterface) {
 
 	group := app.Group("/api/v1")
 
-	group.Get("/elements/public/:projectid", elementHandler.GetElements)
 	group.Get("/elements/public/by-pages", elementHandler.GetElementsByPageIds)
+	group.Get("/elements/public/:projectid", elementHandler.GetElements)
 
 	group.Get("/projects/public/:projectid", projectHandler.GetPublicProjectByID)
 

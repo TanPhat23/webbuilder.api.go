@@ -46,11 +46,10 @@ func (h *ProjectHandler) GetProjectsByUser(c *fiber.Ctx) error {
 }
 
 func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	userID, projectID, err := utils.MustUserAndParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	project, err := h.projectService.GetProjectWithAccess(c.Context(), projectID, userID)
 	if err != nil {
@@ -61,11 +60,10 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 }
 
 func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	projectID, err := utils.MustParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	project, err := h.projectService.GetPublicProjectByID(c.Context(), projectID)
 	if err != nil {
@@ -76,11 +74,10 @@ func (h *ProjectHandler) GetPublicProjectByID(c *fiber.Ctx) error {
 }
 
 func (h *ProjectHandler) GetProjectPages(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	userID, projectID, err := utils.MustUserAndParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	if _, err := h.projectService.GetProjectWithAccess(c.Context(), projectID, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
@@ -109,11 +106,10 @@ func (h *ProjectHandler) GetProjectByUserID(c *fiber.Ctx) error {
 }
 
 func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	userID, projectID, err := utils.MustUserAndParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	if err := h.projectService.DeleteProject(c.Context(), projectID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Project not found", "Failed to delete project")
@@ -123,11 +119,10 @@ func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
 }
 
 func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	userID, projectID, err := utils.MustUserAndParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	var req dto.UpdateProjectRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {

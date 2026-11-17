@@ -69,11 +69,10 @@ func (h *CustomElementHandler) GetPublicCustomElements(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) GetCustomElementByID(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+	userID, id, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	customElement, err := h.customElementService.GetCustomElementByID(c.Context(), id, userID)
 	if err != nil {
@@ -135,11 +134,10 @@ func (h *CustomElementHandler) CreateCustomElement(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+	userID, id, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	var req dto.UpdateCustomElementRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -198,11 +196,10 @@ func (h *CustomElementHandler) UpdateCustomElement(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+	userID, id, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	if err := h.customElementService.DeleteCustomElement(c.Context(), id, userID); err != nil {
 		if strings.Contains(err.Error(), "unauthorized") {
@@ -215,11 +212,10 @@ func (h *CustomElementHandler) DeleteCustomElement(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementHandler) DuplicateCustomElement(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+	userID, id, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	var req dto.DuplicateCustomElementRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {

@@ -30,11 +30,10 @@ func (h *CustomElementTypeHandler) GetCustomElementTypes(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementTypeHandler) GetCustomElementTypeByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	id, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	customElementType, err := h.customElementTypeService.GetCustomElementTypeByID(c.Context(), id)
 	if err != nil {
@@ -72,11 +71,10 @@ func (h *CustomElementTypeHandler) CreateCustomElementType(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementTypeHandler) UpdateCustomElementType(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	id, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	var req dto.UpdateCustomElementTypeRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -110,11 +108,10 @@ func (h *CustomElementTypeHandler) UpdateCustomElementType(c *fiber.Ctx) error {
 }
 
 func (h *CustomElementTypeHandler) DeleteCustomElementType(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	id, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	id := ids[0]
 
 	if err := h.customElementTypeService.DeleteCustomElementType(c.Context(), id); err != nil {
 		return utils.HandleRepoError(c, err, "Custom element type not found", "Failed to delete custom element type")

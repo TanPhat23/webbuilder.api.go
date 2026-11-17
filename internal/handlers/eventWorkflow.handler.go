@@ -54,11 +54,10 @@ func (h *EventWorkflowHandler) CreateEventWorkflow(c *fiber.Ctx) error {
 }
 
 func (h *EventWorkflowHandler) GetEventWorkflowByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	workflowID, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	workflowID := ids[0]
 
 	workflow, err := h.eventWorkflowService.GetEventWorkflowByID(c.Context(), workflowID)
 	if err != nil {
@@ -72,11 +71,10 @@ func (h *EventWorkflowHandler) GetEventWorkflowByID(c *fiber.Ctx) error {
 }
 
 func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	projectID, err := utils.MustParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	var enabledPtr *bool
 	if enabled := c.Query("enabled"); enabled == "true" {
@@ -96,11 +94,10 @@ func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c *fiber.Ctx) error {
 }
 
 func (h *EventWorkflowHandler) UpdateEventWorkflow(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	workflowID, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	workflowID := ids[0]
 
 	existing, err := h.eventWorkflowService.GetEventWorkflowByID(c.Context(), workflowID)
 	if err != nil {
@@ -130,11 +127,10 @@ func (h *EventWorkflowHandler) UpdateEventWorkflow(c *fiber.Ctx) error {
 }
 
 func (h *EventWorkflowHandler) UpdateEventWorkflowEnabled(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	workflowID, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	workflowID := ids[0]
 
 	var req dto.UpdateEventWorkflowEnabledRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -149,11 +145,10 @@ func (h *EventWorkflowHandler) UpdateEventWorkflowEnabled(c *fiber.Ctx) error {
 }
 
 func (h *EventWorkflowHandler) DeleteEventWorkflow(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	workflowID, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	workflowID := ids[0]
 
 	if err := h.eventWorkflowService.DeleteEventWorkflow(c.Context(), workflowID); err != nil {
 		return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to delete event workflow")
@@ -163,11 +158,10 @@ func (h *EventWorkflowHandler) DeleteEventWorkflow(c *fiber.Ctx) error {
 }
 
 func (h *EventWorkflowHandler) GetEventWorkflowElements(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	workflowID, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	workflowID := ids[0]
 
 	elements, err := h.elementEventWorkflowService.GetElementEventWorkflowsByWorkflowID(c.Context(), workflowID)
 	if err != nil {

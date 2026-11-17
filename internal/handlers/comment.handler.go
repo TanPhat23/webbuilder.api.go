@@ -97,11 +97,10 @@ func (h *CommentHandler) GetComments(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) GetCommentByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "commentid")
+	commentID, err := utils.MustParam(c, "commentid")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	comment, err := h.commentService.GetCommentByID(c.Context(), commentID)
 	if err != nil {
@@ -112,11 +111,10 @@ func (h *CommentHandler) GetCommentByID(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) GetCommentsByItemID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "itemid")
+	itemID, err := utils.MustParam(c, "itemid")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	limit, _ := strconv.Atoi(c.Query("limit", "50"))
 	offset, _ := strconv.Atoi(c.Query("offset", "0"))
@@ -149,11 +147,10 @@ func (h *CommentHandler) GetCommentsByItemID(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) UpdateComment(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "commentid")
+	userID, commentID, err := utils.MustUserAndParam(c, "commentid")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	var req models.UpdateCommentRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -187,11 +184,10 @@ func (h *CommentHandler) UpdateComment(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) DeleteComment(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "commentid")
+	userID, commentID, err := utils.MustUserAndParam(c, "commentid")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	if err := h.commentService.DeleteComment(c.Context(), commentID, userID); err != nil {
 		if errors.Is(err, errors.New("unauthorized: user is not the comment author")) {
@@ -204,11 +200,10 @@ func (h *CommentHandler) DeleteComment(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) CreateReaction(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "commentid")
+	userID, commentID, err := utils.MustUserAndParam(c, "commentid")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	var req models.CreateReactionRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -232,11 +227,10 @@ func (h *CommentHandler) CreateReaction(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) DeleteReaction(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "commentid")
+	userID, commentID, err := utils.MustUserAndParam(c, "commentid")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	reactionType := c.Query("type")
 	if reactionType == "" {
@@ -251,11 +245,10 @@ func (h *CommentHandler) DeleteReaction(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) GetReactionsByCommentID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "commentid")
+	commentID, err := utils.MustParam(c, "commentid")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	reactions, err := h.commentService.GetReactionsByCommentID(c.Context(), commentID)
 	if err != nil {
@@ -266,11 +259,10 @@ func (h *CommentHandler) GetReactionsByCommentID(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) GetReactionSummary(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "commentid")
+	commentID, err := utils.MustParam(c, "commentid")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	summary, err := h.commentService.GetReactionSummary(c.Context(), commentID)
 	if err != nil {
@@ -281,11 +273,10 @@ func (h *CommentHandler) GetReactionSummary(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) GetCommentCount(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "itemid")
+	itemID, err := utils.MustParam(c, "itemid")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	count, err := h.commentService.GetCommentCountByItemID(c.Context(), itemID)
 	if err != nil {
@@ -299,11 +290,10 @@ func (h *CommentHandler) GetCommentCount(c *fiber.Ctx) error {
 }
 
 func (h *CommentHandler) ModerateComment(c *fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "commentid")
+	_, commentID, err := utils.MustUserAndParam(c, "commentid")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	var req struct {
 		Status string `json:"status" validate:"required,oneof=published pending flagged deleted"`

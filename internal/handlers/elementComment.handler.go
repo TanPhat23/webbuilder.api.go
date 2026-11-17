@@ -54,11 +54,10 @@ func (h *ElementCommentHandler) CreateElementComment(c *fiber.Ctx) error {
 
 // GET /element-comments/:id
 func (h *ElementCommentHandler) GetElementCommentByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	commentID, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	comment, err := h.elementCommentService.GetElementCommentByID(c.Context(), commentID)
 	if err != nil {
@@ -70,11 +69,10 @@ func (h *ElementCommentHandler) GetElementCommentByID(c *fiber.Ctx) error {
 
 // GET /elements/:elementId/comments
 func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "elementId")
+	elementID, err := utils.MustParam(c, "elementId")
 	if err != nil {
 		return err
 	}
-	elementID := ids[0]
 
 	filter := &models.ElementCommentFilter{
 		Limit:     20,
@@ -124,11 +122,10 @@ func (h *ElementCommentHandler) GetElementComments(c *fiber.Ctx) error {
 
 // PATCH /element-comments/:id
 func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+	userID, commentID, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	var req models.UpdateElementCommentRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -157,11 +154,10 @@ func (h *ElementCommentHandler) UpdateElementComment(c *fiber.Ctx) error {
 
 // DELETE /element-comments/:id
 func (h *ElementCommentHandler) DeleteElementComment(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+	userID, commentID, err := utils.MustUserAndParam(c, "id")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	if err := h.elementCommentService.DeleteElementComment(c.Context(), commentID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to delete comment")
@@ -172,11 +168,10 @@ func (h *ElementCommentHandler) DeleteElementComment(c *fiber.Ctx) error {
 
 // PATCH /element-comments/:id/toggle-resolved
 func (h *ElementCommentHandler) ToggleResolvedStatus(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	commentID, err := utils.MustParam(c, "id")
 	if err != nil {
 		return err
 	}
-	commentID := ids[0]
 
 	err = h.elementCommentService.ToggleResolvedStatus(c.Context(), commentID)
 	if err != nil {
@@ -188,11 +183,10 @@ func (h *ElementCommentHandler) ToggleResolvedStatus(c *fiber.Ctx) error {
 
 // GET /element-comments/author/:authorId
 func (h *ElementCommentHandler) GetCommentsByAuthorID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "authorId")
+	authorID, err := utils.MustParam(c, "authorId")
 	if err != nil {
 		return err
 	}
-	authorID := ids[0]
 
 	limit := 20
 	offset := 0
@@ -213,11 +207,10 @@ func (h *ElementCommentHandler) GetCommentsByAuthorID(c *fiber.Ctx) error {
 
 // GET /projects/:projectId/comments
 func (h *ElementCommentHandler) GetCommentsByProjectID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectId")
+	projectID, err := utils.MustParam(c, "projectId")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	limit := 20
 	offset := 0

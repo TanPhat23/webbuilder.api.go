@@ -31,11 +31,10 @@ func NewSnapshotHandler(
 }
 
 func (h *SnapshotHandler) SaveSnapshot(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	projectID, err := utils.MustParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	var req dto.SaveSnapshotRequest
 	if err := utils.ValidateJSONBody(c, &req); err != nil {
@@ -68,11 +67,10 @@ func (h *SnapshotHandler) SaveSnapshot(c *fiber.Ctx) error {
 }
 
 func (h *SnapshotHandler) GetSnapshots(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	projectID, err := utils.MustParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	snapshots, err := h.snapshotService.GetSnapshotsByProjectID(c.Context(), projectID)
 	if err != nil {
@@ -83,11 +81,10 @@ func (h *SnapshotHandler) GetSnapshots(c *fiber.Ctx) error {
 }
 
 func (h *SnapshotHandler) GetSnapshotByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "snapshotid")
+	snapshotID, err := utils.MustParam(c, "snapshotid")
 	if err != nil {
 		return err
 	}
-	snapshotID := ids[0]
 
 	snapshot, err := h.snapshotService.GetSnapshotByID(c.Context(), snapshotID)
 	if err != nil {

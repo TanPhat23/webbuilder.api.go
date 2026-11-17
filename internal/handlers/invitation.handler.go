@@ -44,11 +44,10 @@ func (h *InvitationHandler) CreateInvitation(c *fiber.Ctx) error {
 }
 
 func (h *InvitationHandler) GetInvitationsByProject(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	userID, projectID, err := utils.MustUserAndParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	if err := h.invitationService.CheckProjectOwnership(c.Context(), projectID, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
@@ -63,11 +62,10 @@ func (h *InvitationHandler) GetInvitationsByProject(c *fiber.Ctx) error {
 }
 
 func (h *InvitationHandler) GetPendingInvitationsByProject(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	userID, projectID, err := utils.MustUserAndParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	if err := h.invitationService.CheckProjectOwnership(c.Context(), projectID, userID); err != nil {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
@@ -101,11 +99,10 @@ func (h *InvitationHandler) AcceptInvitation(c *fiber.Ctx) error {
 }
 
 func (h *InvitationHandler) CancelInvitation(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "invitationid")
+	userID, invitationID, err := utils.MustUserAndParam(c, "invitationid")
 	if err != nil {
 		return err
 	}
-	invitationID := ids[0]
 
 	invitation, err := h.invitationService.GetInvitationByID(c.Context(), invitationID)
 	if err != nil {
@@ -124,11 +121,10 @@ func (h *InvitationHandler) CancelInvitation(c *fiber.Ctx) error {
 }
 
 func (h *InvitationHandler) UpdateInvitationStatus(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "invitationid")
+	userID, invitationID, err := utils.MustUserAndParam(c, "invitationid")
 	if err != nil {
 		return err
 	}
-	invitationID := ids[0]
 
 	var req dto.UpdateInvitationStatusRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -152,11 +148,10 @@ func (h *InvitationHandler) UpdateInvitationStatus(c *fiber.Ctx) error {
 }
 
 func (h *InvitationHandler) DeleteInvitation(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "invitationid")
+	userID, invitationID, err := utils.MustUserAndParam(c, "invitationid")
 	if err != nil {
 		return err
 	}
-	invitationID := ids[0]
 
 	invitation, err := h.invitationService.GetInvitationByID(c.Context(), invitationID)
 	if err != nil {

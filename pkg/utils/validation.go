@@ -35,6 +35,28 @@ func MustParams(c *fiber.Ctx, names ...string) ([]string, error) {
 	return values, nil
 }
 
+// MustParam extracts a single required URL param.
+//
+//	id, err := utils.MustParam(c, "id")
+func MustParam(c *fiber.Ctx, name string) (string, error) {
+	return ValidateRequiredParam(c, name)
+}
+
+// MustUserAndParam is MustUserAndParams for the common single-param case.
+//
+//	userID, projectID, err := utils.MustUserAndParam(c, "projectid")
+func MustUserAndParam(c *fiber.Ctx, name string) (userID, value string, err error) {
+	userID, err = ValidateUserID(c)
+	if err != nil {
+		return "", "", err
+	}
+	value, err = ValidateRequiredParam(c, name)
+	if err != nil {
+		return "", "", err
+	}
+	return userID, value, nil
+}
+
 // MustUserAndParams is the most common combo: authenticated user ID plus one or
 // more URL params. It validates the user first, then the params.
 //

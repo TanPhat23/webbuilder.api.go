@@ -1,6 +1,6 @@
 # Variables
 APP_NAME := webbuilder-api
-MAIN_PATH := ./cmd/main.go
+MAIN_PATH := ./cmd/api
 BUILD_DIR := ./bin
 GO_VERSION := 1.27
 
@@ -14,7 +14,7 @@ help: ## Show this help message
 .PHONY: run
 run: ## Run the application in development mode
 	@echo "Starting development server..."
-	go run ./cmd/main.go
+	go run ./cmd/api
 
 .PHONY: dev
 dev: ## Run with hot reload (requires air - go install github.com/air-verse/air@latest)

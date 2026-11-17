@@ -105,11 +105,10 @@ func (h *MarketplaceHandler) GetMarketplaceItems(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) GetMarketplaceItemByID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "itemid")
+	itemID, err := utils.MustParam(c, "itemid")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	item, err := h.marketplaceService.GetMarketplaceItemByID(c.Context(), itemID)
 	if err != nil {
@@ -123,11 +122,10 @@ func (h *MarketplaceHandler) GetMarketplaceItemByID(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) UpdateMarketplaceItem(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "itemid")
+	userID, itemID, err := utils.MustUserAndParam(c, "itemid")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	var req models.UpdateMarketplaceItemRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {
@@ -176,11 +174,10 @@ func (h *MarketplaceHandler) UpdateMarketplaceItem(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) DeleteMarketplaceItem(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "itemid")
+	userID, itemID, err := utils.MustUserAndParam(c, "itemid")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	if err := h.marketplaceService.DeleteMarketplaceItem(c.Context(), itemID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to delete marketplace item")
@@ -190,11 +187,10 @@ func (h *MarketplaceHandler) DeleteMarketplaceItem(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) DownloadMarketplaceItem(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "itemid")
+	userID, itemID, err := utils.MustUserAndParam(c, "itemid")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	if err := h.marketplaceService.DownloadMarketplaceItem(c.Context(), itemID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to download marketplace item")
@@ -206,11 +202,10 @@ func (h *MarketplaceHandler) DownloadMarketplaceItem(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) IncrementLikes(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "itemid")
+	itemID, err := utils.MustParam(c, "itemid")
 	if err != nil {
 		return err
 	}
-	itemID := ids[0]
 
 	if err := h.marketplaceService.IncrementLikes(c.Context(), itemID); err != nil {
 		return utils.HandleRepoError(c, err, "Marketplace item not found", "Failed to increment likes")
@@ -250,11 +245,10 @@ func (h *MarketplaceHandler) GetCategories(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) DeleteCategory(c *fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "categoryid")
+	_, categoryID, err := utils.MustUserAndParam(c, "categoryid")
 	if err != nil {
 		return err
 	}
-	categoryID := ids[0]
 
 	if err := h.marketplaceService.DeleteCategory(c.Context(), categoryID); err != nil {
 		return utils.HandleRepoError(c, err, "Category not found", "Failed to delete category")
@@ -294,11 +288,10 @@ func (h *MarketplaceHandler) GetTags(c *fiber.Ctx) error {
 }
 
 func (h *MarketplaceHandler) DeleteTag(c *fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "tagid")
+	_, tagID, err := utils.MustUserAndParam(c, "tagid")
 	if err != nil {
 		return err
 	}
-	tagID := ids[0]
 
 	if err := h.marketplaceService.DeleteTag(c.Context(), tagID); err != nil {
 		return utils.HandleRepoError(c, err, "Tag not found", "Failed to delete tag")

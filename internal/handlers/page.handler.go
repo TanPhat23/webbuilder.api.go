@@ -45,11 +45,10 @@ func (h *PageHandler) DeletePage(c *fiber.Ctx) error {
 }
 
 func (h *PageHandler) GetPagesByProjectID(c *fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	projectID, err := utils.MustParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	pages, err := h.pageService.GetPagesByProjectID(c.Context(), projectID)
 	if err != nil {
@@ -75,11 +74,10 @@ func (h *PageHandler) GetPageByID(c *fiber.Ctx) error {
 }
 
 func (h *PageHandler) CreatePage(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	userID, projectID, err := utils.MustUserAndParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	projectID := ids[0]
 
 	var req dto.CreatePageRequest
 	if err := utils.ValidateAndParseBody(c, &req); err != nil {

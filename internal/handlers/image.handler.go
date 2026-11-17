@@ -100,11 +100,10 @@ func (h *ImageHandler) GetUserImages(c *fiber.Ctx) error {
 }
 
 func (h *ImageHandler) GetImageByID(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "imageid")
+	userID, imageID, err := utils.MustUserAndParam(c, "imageid")
 	if err != nil {
 		return err
 	}
-	imageID := ids[0]
 
 	ctx := c.Context()
 
@@ -120,11 +119,10 @@ func (h *ImageHandler) GetImageByID(c *fiber.Ctx) error {
 }
 
 func (h *ImageHandler) DeleteImage(c *fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "imageid")
+	userID, imageID, err := utils.MustUserAndParam(c, "imageid")
 	if err != nil {
 		return err
 	}
-	imageID := ids[0]
 
 	ctx := c.Context()
 
