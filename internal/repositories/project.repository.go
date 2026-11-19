@@ -43,42 +43,36 @@ func (r *ProjectRepository) GetProjectByID(ctx context.Context, projectID, userI
 	return &project, nil
 }
 
+// GetProjectWithAccess returns the project when userID owns it or collaborates on it.
+// Every project read goes through this check, so the common case is one query.
 func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
 
 	project, err := gorm.G[models.Project](r.db).
-		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
+		Where(`"Id" = ? AND "DeletedAt" IS NULL AND ("OwnerId" = ? OR EXISTS (
+			SELECT 1 FROM "Collaborator" WHERE "Collaborator"."ProjectId" = "Project"."Id" AND "Collaborator"."UserId" = ?))`,
+			projectID, userID, userID).
 		First(ctx)
-
 	if err == nil {
 		return &project, nil
 	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
 
-	_, err = gorm.G[models.Collaborator](r.db).
+	// Only the failure path needs to tell "no such project" from "not yours": a
+	// collaborator of a deleted project gets not-found, anyone else unauthorized.
+	if _, err := gorm.G[models.Collaborator](r.db).
 		Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, userID).
-		First(ctx)
-
-	if err != nil {
+		First(ctx); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProjectUnauthorized
 		}
 		return nil, fmt.Errorf("failed to check collaborator access: %w", err)
 	}
-
-	project, err = gorm.G[models.Project](r.db).
-		Where(`"Id" = ? AND "DeletedAt" IS NULL`, projectID).
-		First(ctx)
-
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrProjectNotFound
-		}
-		return nil, fmt.Errorf("failed to get project: %w", err)
-	}
-
-	return &project, nil
+	return nil, ErrProjectNotFound
 }
 
 func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
@@ -100,32 +94,28 @@ func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID 
 	return &project, nil
 }
 
+// projectListOmit are the heavy JSON columns the project lists never show.
+var projectListOmit = []string{"Logic", "Styles", "Header"}
+
+// GetProjectsByUserID returns the projects a user owns, then those they collaborate on,
+// newest first within each group, in a single query. Logic, Styles and Header are left
+// out: they can be large and only the editor needs them.
 func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error) {
 	if userID == "" {
 		return nil, errors.New("userID is required")
 	}
 
-	projects, err := gorm.G[models.Project](r.db).
-		Where(`"OwnerId" = ? AND "DeletedAt" IS NULL`, userID).
-		Order(`"CreatedAt" DESC`).
-		Find(ctx)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get owned projects: %w", err)
-	}
-
-	var collabProjects []models.Project
-	err = r.db.WithContext(ctx).
+	var projects []models.Project
+	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
-		Joins(`JOIN "Collaborator" ON "Collaborator"."ProjectId" = "Project"."Id"`).
-		Where(`"Collaborator"."UserId" = ? AND "Project"."DeletedAt" IS NULL`, userID).
-		Order(`"Project"."CreatedAt" DESC`).
-		Find(&collabProjects).Error
+		Omit(projectListOmit...).
+		Where(`"DeletedAt" IS NULL AND ("OwnerId" = ? OR "Id" IN (SELECT "ProjectId" FROM "Collaborator" WHERE "UserId" = ?))`, userID, userID).
+		// Order() cannot take a bound expression (it drops it silently), Clauses() can.
+		Clauses(clause.OrderBy{Expression: clause.Expr{SQL: `("OwnerId" = ?) DESC, "CreatedAt" DESC`, Vars: []any{userID}}}).
+		Find(&projects).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to get collaborator projects: %w", err)
+		return nil, fmt.Errorf("failed to get projects: %w", err)
 	}
-
-	projects = append(projects, collabProjects...)
 
 	return projects, nil
 }
@@ -138,6 +128,7 @@ func (r *ProjectRepository) GetCollaboratorProjects(ctx context.Context, userID 
 	var collabProjects []models.Project
 	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
+		Omit(projectListOmit...).
 		Joins(`JOIN "Collaborator" ON "Collaborator"."ProjectId" = "Project"."Id"`).
 		Where(`"Collaborator"."UserId" = ? AND "Project"."DeletedAt" IS NULL`, userID).
 		Order(`"Project"."CreatedAt" DESC`).

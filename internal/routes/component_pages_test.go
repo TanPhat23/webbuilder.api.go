@@ -106,7 +106,7 @@ func TestComponentPageUpdatesAndDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	elements := "/api/v1/elements/public/" + projectID
-	byPages := "/api/v1/elements/public/by-pages?pageIds=" + page.Id
+	byPages := "/api/v1/elements/public/by-pages?projectId=" + projectID + "&pageIds=" + page.Id
 	for _, route := range []string{elements, byPages} {
 		body := testRouteResponse(t, app, httptest.NewRequest(http.MethodGet, route, nil), 200)
 		if !strings.Contains(string(body), "root-"+page.Id) {

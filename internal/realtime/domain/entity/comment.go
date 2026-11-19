@@ -26,27 +26,3 @@ type ElementComment struct {
 func (ElementComment) TableName() string {
 	return "ElementComment"
 }
-
-// Comment represents a general comment system (e.g., for Marketplace items).
-// This matches the Prisma Comment model.
-type Comment struct {
-	ID        string         `json:"id" gorm:"primaryKey;column:id"`
-	Content   string         `json:"content" gorm:"column:content;type:text"`
-	AuthorID  string         `json:"authorId" gorm:"column:author_id;index"`
-	ItemID    string         `json:"itemId" gorm:"column:item_id;index"`
-	ParentID  *string        `json:"parentId,omitempty" gorm:"column:parent_id;index"`
-	Status    string         `json:"status" gorm:"column:status;type:varchar(50);default:'published';index"`
-	Edited    bool           `json:"edited" gorm:"column:edited;default:false"`
-	CreatedAt time.Time      `json:"createdAt" gorm:"column:created_at"`
-	UpdatedAt time.Time      `json:"updatedAt" gorm:"column:updated_at"`
-	DeletedAt gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"column:deleted_at;index"`
-
-	Author  *User     `json:"author,omitempty" gorm:"foreignKey:AuthorID;references:ID"`
-	Parent  *Comment  `json:"parent,omitempty" gorm:"foreignKey:ParentID;references:ID"`
-	Replies []Comment `json:"replies,omitempty" gorm:"foreignKey:ParentID"`
-}
-
-// TableName sets the database table name for Comment.
-func (Comment) TableName() string {
-	return "Comment"
-}

@@ -39,6 +39,15 @@ type ElementCommentResponse struct {
 	Author    *CommentAuthor `json:"author,omitempty"`
 }
 
+// CommentAuthor is the public author shape embedded in comment responses.
+type CommentAuthor struct {
+	Id        string  `json:"id"`
+	FirstName *string `json:"firstName,omitempty"`
+	LastName  *string `json:"lastName,omitempty"`
+	Email     string  `json:"email"`
+	ImageUrl  *string `json:"imageUrl,omitempty"`
+}
+
 type ElementCommentFilter struct {
 	ElementId string
 	AuthorId  string

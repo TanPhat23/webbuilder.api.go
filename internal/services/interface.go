@@ -4,7 +4,6 @@ import (
 	"context"
 	"mime/multipart"
 	"my-go-app/internal/models"
-	"my-go-app/internal/repositories"
 )
 
 type EmailServiceInterface interface {
@@ -63,7 +62,7 @@ type PageServiceInterface interface {
 type ElementServiceInterface interface {
 	GetElements(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error)
 	GetElementsByPageID(ctx context.Context, pageID string) ([]models.Element, error)
-	GetElementsByPageIds(ctx context.Context, pageIDs []string) ([]models.EditorElement, error)
+	GetElementsByPageIds(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error)
 	GetElementsByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error)
 }
 
@@ -172,21 +171,6 @@ type ElementEventWorkflowServiceInterface interface {
 	CheckIfWorkflowLinkedToElement(ctx context.Context, elementID, workflowID, eventName string) (bool, error)
 }
 
-type CommentServiceInterface interface {
-	CreateComment(ctx context.Context, comment *models.Comment) (*models.Comment, error)
-	GetCommentByID(ctx context.Context, id string) (*models.Comment, error)
-	GetComments(ctx context.Context, itemID string) ([]models.Comment, error)
-	GetCommentsByItemID(ctx context.Context, itemID string, filter models.CommentFilter) ([]models.Comment, int64, error)
-	UpdateComment(ctx context.Context, id string, userID string, updates map[string]any) (*models.Comment, error)
-	DeleteComment(ctx context.Context, id string, userID string) error
-	CreateReaction(ctx context.Context, reaction *models.CommentReaction) (*models.CommentReaction, error)
-	DeleteReaction(ctx context.Context, commentID string, userID string, reactionType string) error
-	GetReactionsByCommentID(ctx context.Context, commentID string) ([]models.CommentReaction, error)
-	GetReactionSummary(ctx context.Context, commentID string) (map[string]int, error)
-	GetCommentCountByItemID(ctx context.Context, itemID string) (int64, error)
-	ModerateComment(ctx context.Context, id string, status string) error
-}
-
 type ElementCommentServiceInterface interface {
 	CreateElementComment(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error)
 	GetElementCommentByID(ctx context.Context, id string) (*models.ElementComment, error)
@@ -201,24 +185,3 @@ type ElementCommentServiceInterface interface {
 	CountElementCommentsByProjectID(ctx context.Context, projectID, userID string) (int64, error)
 }
 
-type MarketplaceServiceInterface interface {
-	CreateMarketplaceItem(ctx context.Context, item models.MarketplaceItem, tagIds []string, categoryIds []string) (*models.MarketplaceItem, error)
-	GetMarketplaceItems(ctx context.Context, filter repositories.MarketplaceFilter) ([]models.MarketplaceItem, int64, error)
-	GetItemsByAuthor(ctx context.Context, authorID string) ([]models.MarketplaceItem, error)
-	GetMarketplaceItemByID(ctx context.Context, id string) (*models.MarketplaceItem, error)
-	UpdateMarketplaceItem(ctx context.Context, id string, item *models.MarketplaceItem, userId string) (*models.MarketplaceItem, error)
-	DeleteMarketplaceItem(ctx context.Context, id string, userId string) error
-	DownloadMarketplaceItem(ctx context.Context, itemID, userID string) error
-	IncrementDownloads(ctx context.Context, itemID string) error
-	IncrementLikes(ctx context.Context, itemID string) error
-	CreateCategory(ctx context.Context, category *models.Category) (*models.Category, error)
-	GetCategories(ctx context.Context) ([]models.Category, error)
-	GetCategoryByID(ctx context.Context, id string) (*models.Category, error)
-	GetCategoryByName(ctx context.Context, name string) (*models.Category, error)
-	DeleteCategory(ctx context.Context, id string) error
-	CreateTag(ctx context.Context, tag *models.Tag) (*models.Tag, error)
-	GetTags(ctx context.Context) ([]models.Tag, error)
-	GetTagByID(ctx context.Context, id string) (*models.Tag, error)
-	GetTagByName(ctx context.Context, name string) (*models.Tag, error)
-	DeleteTag(ctx context.Context, id string) error
-}

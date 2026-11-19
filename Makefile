@@ -192,6 +192,3 @@ migrate-baseline: ## Adopt a database previously migrated by Prisma (run once)
 migrate-create: ## Create a new SQL migration: make migrate-create name=add_x
 	go run github.com/pressly/goose/v3/cmd/goose@v3.30.0 -dir migrations create $(name) sql
 
-.PHONY: seed
-seed: ## Load demo marketplace data (DELETES existing marketplace data; dev only)
-	go run ./cmd/seed

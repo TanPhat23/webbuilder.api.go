@@ -132,14 +132,18 @@ func (r *ElementRepository) GetElementsByPageID(ctx context.Context, pageID stri
 	return elements, nil
 }
 
-// GetElementsByPageIds retrieves all elements for multiple pages with tree structure
-func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, pageIDs []string) ([]models.EditorElement, error) {
+// GetElementsByPageIds retrieves the elements of several pages as a tree. Only pages
+// that belong to projectID are read: page IDs from other projects match nothing.
+func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
+	if projectID == "" {
+		return nil, errors.New("projectID is required")
+	}
 	if len(pageIDs) == 0 {
 		return nil, errors.New("pageIDs is required")
 	}
 
 	elements, err := gorm.G[models.Element](r.db).
-		Where(`"PageId" IN (SELECT "Id" FROM "Page" WHERE "Id" IN ? AND "DeletedAt" IS NULL)`, pageIDs).
+		Where(`"PageId" IN (SELECT "Id" FROM "Page" WHERE "ProjectId" = ? AND "Id" IN ? AND "DeletedAt" IS NULL)`, projectID, pageIDs).
 		Order("\"Order\"").
 		Find(ctx)
 

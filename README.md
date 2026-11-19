@@ -58,7 +58,6 @@ GORM is used for queries only; schema changes are versioned SQL files in
 | `make migrate-status` | List applied / pending |
 | `make migrate-down` | Roll back the latest migration |
 | `make migrate-baseline` | **Once** per database that Prisma already migrated |
-| `make seed` | Demo marketplace data (deletes existing marketplace data; dev only) |
 
 `00001_baseline.sql` is the full schema at the Prisma handover. A fresh
 database runs it via `migrate-up`. An existing database must instead run

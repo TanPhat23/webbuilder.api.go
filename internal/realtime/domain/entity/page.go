@@ -71,12 +71,3 @@ type Invitation struct {
 func (Invitation) TableName() string {
 	return "Invitation"
 }
-
-type MarketplaceItem struct {
-	ID        string `json:"id" gorm:"primaryKey;column:Id"`
-	ProjectID string `json:"projectId,omitempty" gorm:"column:ProjectId;index"`
-}
-
-func (MarketplaceItem) TableName() string {
-	return "MarketplaceItem"
-}

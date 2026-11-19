@@ -15,7 +15,6 @@ type Project struct {
 	OwnerId string `gorm:"column:OwnerId;type:varchar(255);not null" json:"ownerId"`
 
 	Owner           User             `gorm:"foreignKey:OwnerId" json:"owner,omitempty"`
-	MarketplaceItem *MarketplaceItem `gorm:"foreignKey:ProjectId" json:"marketplaceItem,omitempty"`
 	Logic           json.RawMessage  `gorm:"column:Logic;type:jsonb" json:"logic,omitempty"`
 	Styles          *json.RawMessage `gorm:"column:Styles;type:jsonb" json:"styles,omitempty"`
 	Header          *json.RawMessage `gorm:"column:Header;type:jsonb" json:"header,omitempty"`

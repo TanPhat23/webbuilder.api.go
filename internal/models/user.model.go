@@ -3,7 +3,6 @@ package models
 type User struct {
 	Images           []Image           `gorm:"foreignKey:UserId" json:"images,omitempty"`
 	Projects         []Project         `gorm:"foreignKey:OwnerId" json:"projects,omitempty"`
-	MarketplaceItems []MarketplaceItem `gorm:"foreignKey:AuthorId" json:"marketplaceItems,omitempty"`
 	Subscriptions    []Subscription    `gorm:"foreignKey:UserId" json:"subscriptions,omitempty"`
 	Collaborators    []Collaborator    `gorm:"foreignKey:UserId" json:"collaborators,omitempty"`
 	CustomElements   []CustomElement   `gorm:"foreignKey:UserId" json:"customElements,omitempty"`

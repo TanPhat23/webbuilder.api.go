@@ -17,8 +17,9 @@ type ElementRepositoryInterface interface {
 	GetElementByID(ctx context.Context, elementID string) (*models.Element, error)
 	// GetElementsByPageID retrieves all elements for a specific page
 	GetElementsByPageID(ctx context.Context, pageID string) ([]models.Element, error)
-	// GetElementsByPageIds retrieves all elements for multiple pages with tree structure
-	GetElementsByPageIds(ctx context.Context, pageIDs []string) ([]models.EditorElement, error)
+	// GetElementsByPageIds retrieves the elements of the given pages as a tree.
+	// Only pages that belong to projectID are read, so callers cannot reach another project's pages by ID.
+	GetElementsByPageIds(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error)
 	// GetChildElements retrieves child elements of a parent element
 	GetChildElements(ctx context.Context, parentID string) ([]models.Element, error)
 	// GetRootElements retrieves elements without a parent (root level)
@@ -204,88 +205,6 @@ type ContentFieldValueRepositoryInterface interface {
 	DeleteContentFieldValue(ctx context.Context, id string) error
 }
 
-// MarketplaceFilter defines filters for marketplace item queries
-type MarketplaceFilter struct {
-	TemplateType string
-	CategoryId   string
-	TagId        string
-	AuthorId     string
-	Search       string
-	SortBy       string
-	SortOrder    string
-	Featured     *bool
-	Limit        int
-	Offset       int
-}
-
-// MarketplaceRepositoryInterface defines methods for marketplace operations
-type MarketplaceRepositoryInterface interface {
-	// CreateMarketplaceItem creates a new marketplace item with tags and categories
-	CreateMarketplaceItem(item models.MarketplaceItem, tagIds []string, categoryIds []string) (*models.MarketplaceItem, error)
-	// GetMarketplaceItems retrieves marketplace items with filters
-	GetMarketplaceItems(filter MarketplaceFilter) ([]models.MarketplaceItem, int64, error)
-	// GetItemsByAuthor returns every non-deleted item by an author, newest first, with categories
-	GetItemsByAuthor(ctx context.Context, authorID string) ([]models.MarketplaceItem, error)
-	// GetMarketplaceItemByID retrieves a marketplace item by ID
-	GetMarketplaceItemByID(id string) (*models.MarketplaceItem, error)
-	// UpdateMarketplaceItem updates a marketplace item with user verification
-	UpdateMarketplaceItem(id string, userId string, updates map[string]any) (*models.MarketplaceItem, error)
-	// DeleteMarketplaceItem deletes a marketplace item with user verification
-	DeleteMarketplaceItem(id string, userId string) error
-	// DownloadMarketplaceItem downloads a marketplace item as a project
-	DownloadMarketplaceItem(itemId string, userId string) (*models.Project, error)
-	// IncrementDownloads increments the download count for a marketplace item
-	IncrementDownloads(id string) error
-	// IncrementLikes increments the like count for a marketplace item
-	IncrementLikes(id string) error
-	// CreateCategory creates a new category
-	CreateCategory(category models.Category) (*models.Category, error)
-	// GetCategories retrieves all categories
-	GetCategories() ([]models.Category, error)
-	// GetCategoryByID retrieves a category by ID
-	GetCategoryByID(id string) (*models.Category, error)
-	// GetCategoryByName retrieves a category by name
-	GetCategoryByName(name string) (*models.Category, error)
-	// DeleteCategory deletes a category
-	DeleteCategory(id string) error
-	// CreateTag creates a new tag
-	CreateTag(tag models.Tag) (*models.Tag, error)
-	// GetTags retrieves all tags
-	GetTags() ([]models.Tag, error)
-	// GetTagByID retrieves a tag by ID
-	GetTagByID(id string) (*models.Tag, error)
-	// GetTagByName retrieves a tag by name
-	GetTagByName(name string) (*models.Tag, error)
-	// DeleteTag deletes a tag
-	DeleteTag(id string) error
-}
-
-// CommentRepositoryInterface defines methods for comment operations
-type CommentRepositoryInterface interface {
-	// CreateComment creates a new comment
-	CreateComment(ctx context.Context, comment models.Comment) (*models.Comment, error)
-	// GetCommentByID retrieves a comment by ID with author and reactions
-	GetCommentByID(ctx context.Context, id string) (*models.Comment, error)
-	// GetComments retrieves comments with filtering and pagination
-	GetComments(ctx context.Context, filter models.CommentFilter) ([]models.Comment, int64, error)
-	// UpdateComment updates a comment with user verification
-	UpdateComment(ctx context.Context, id string, userID string, updates map[string]any) (*models.Comment, error)
-	// DeleteComment soft deletes a comment with user verification
-	DeleteComment(ctx context.Context, id string, userID string) error
-	// CreateReaction creates or updates a reaction
-	CreateReaction(ctx context.Context, reaction models.CommentReaction) (*models.CommentReaction, error)
-	// DeleteReaction deletes a reaction
-	DeleteReaction(ctx context.Context, commentID string, userID string, reactionType string) error
-	// GetReactionsByCommentID retrieves all reactions for a comment
-	GetReactionsByCommentID(ctx context.Context, commentID string) ([]models.CommentReaction, error)
-	// GetReactionSummary retrieves reaction counts grouped by type
-	GetReactionSummary(ctx context.Context, commentID string) ([]models.ReactionSummary, error)
-	// GetCommentCountByItemID returns the number of comments for a marketplace item
-	GetCommentCountByItemID(ctx context.Context, itemID string) (int64, error)
-	// ModerateComment updates the status of a comment (for admin/moderation)
-	ModerateComment(ctx context.Context, id string, status string) error
-}
-
 // ImageRepositoryInterface defines methods for image operations
 type ImageRepositoryInterface interface {
 	// CreateImage creates a new image
@@ -443,13 +362,11 @@ type RepositoriesInterface struct {
 	ContentFieldRepository         ContentFieldRepositoryInterface
 	ContentItemRepository          ContentItemRepositoryInterface
 	ContentFieldValueRepository    ContentFieldValueRepositoryInterface
-	MarketplaceRepository          MarketplaceRepositoryInterface
 	ImageRepository                ImageRepositoryInterface
 	CustomElementRepository        CustomElementRepositoryInterface
 	CustomElementTypeRepository    CustomElementTypeRepositoryInterface
 	InvitationRepository           InvitationRepositoryInterface
 	CollaboratorRepository         CollaboratorRepositoryInterface
-	CommentRepository              CommentRepositoryInterface
 	EventWorkflowRepository        EventWorkflowRepositoryInterface
 	ElementEventWorkflowRepository ElementEventWorkflowRepositoryInterface
 }
@@ -467,7 +384,6 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 		ContentFieldRepository:         NewContentFieldRepository(db),
 		ContentItemRepository:          NewContentItemRepository(db),
 		ContentFieldValueRepository:    NewContentFieldValueRepository(db),
-		MarketplaceRepository:          NewMarketplaceRepository(db),
 		ImageRepository:                NewImageRepository(db),
 		CustomElementRepository:        NewCustomElementRepository(db),
 		CustomElementTypeRepository:    NewCustomElementTypeRepository(db),
@@ -475,7 +391,6 @@ func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 		CollaboratorRepository:         NewCollaboratorRepository(db),
 		EventWorkflowRepository:        NewEventWorkflowRepository(db),
 		ElementEventWorkflowRepository: NewElementEventWorkflowRepository(db),
-		CommentRepository:              NewCommentRepository(db),
 		NotificationRepository:         NewNotificationRepository(db),
 	}
 }

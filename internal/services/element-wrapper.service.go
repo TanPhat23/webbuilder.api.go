@@ -24,8 +24,8 @@ func (s *ElementWrapperService) GetElementsByPageID(ctx context.Context, pageID 
 	return s.elementRepo.GetElementsByPageID(ctx, pageID)
 }
 
-func (s *ElementWrapperService) GetElementsByPageIds(ctx context.Context, pageIDs []string) ([]models.EditorElement, error) {
-	return s.elementRepo.GetElementsByPageIds(ctx, pageIDs)
+func (s *ElementWrapperService) GetElementsByPageIds(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
+	return s.elementRepo.GetElementsByPageIds(ctx, projectID, pageIDs)
 }
 
 func (s *ElementWrapperService) GetElementsByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error) {

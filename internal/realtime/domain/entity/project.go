@@ -24,7 +24,6 @@ type Project struct {
 
 	Collaborators   []Collaborator   `json:"collaborators,omitempty" gorm:"foreignKey:ProjectID"`
 	Invitations     []Invitation     `json:"invitations,omitempty" gorm:"foreignKey:ProjectID"`
-	MarketplaceItem *MarketplaceItem `json:"marketplaceItem,omitempty" gorm:"foreignKey:ProjectID"`
 	Pages           []Page           `json:"pages,omitempty" gorm:"foreignKey:ProjectID"`
 	Snapshots       []Snapshot       `json:"snapshots,omitempty" gorm:"foreignKey:ProjectID"`
 	EventWorkflows  []EventWorkflow  `json:"eventWorkflows,omitempty" gorm:"foreignKey:ProjectID"`

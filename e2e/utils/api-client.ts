@@ -107,7 +107,7 @@ export class APIClient {
   }
 
   async getProjectPages(projectId: string): Promise<schemas.Page[]> {
-    return this.get(`/projects/${projectId}/pages`);
+    return this.rememberPages(await this.get<schemas.Page[]>(`/projects/${projectId}/pages`));
   }
 
   async deleteProject(projectId: string) {
@@ -123,15 +123,15 @@ export class APIClient {
   // ============================================================================
 
   async getPagesByProjectID(projectId: string): Promise<schemas.Page[]> {
-    return this.get(`/pages/${projectId}`);
+    return this.rememberPages(await this.get<schemas.Page[]>(`/pages/${projectId}`));
   }
 
   async getPageByID(projectId: string, pageId: string): Promise<schemas.Page> {
-    return this.get(`/pages/${projectId}/${pageId}`);
+    return this.rememberPages(await this.get<schemas.Page>(`/pages/${projectId}/${pageId}`));
   }
 
   async getPublicPagesByProjectID(projectId: string): Promise<schemas.Page[]> {
-    return this.get(`/pages/public/${projectId}`);
+    return this.rememberPages(await this.get<schemas.Page[]>(`/pages/public/${projectId}`));
   }
 
   async getPublicPageByID(
@@ -141,11 +141,31 @@ export class APIClient {
     return this.get(`/pages/public/${projectId}/${pageId}`);
   }
 
+  // The elements endpoints need the project as well as the page ids (they only
+  // read pages of that project). Specs pass page ids, so remember where each
+  // page we have seen belongs.
+  private pageProjects = new Map<string, string>();
+
+  private rememberPages<T extends schemas.Page | schemas.Page[]>(pages: T): T {
+    for (const page of Array.isArray(pages) ? pages : [pages]) {
+      if (page?.Id && page.ProjectId) this.pageProjects.set(page.Id, page.ProjectId);
+    }
+    return pages;
+  }
+
+  private projectOfPages(pageIds: string[], projectId?: string): string {
+    const resolved = projectId ?? this.pageProjects.get(pageIds[0] ?? "");
+    if (!resolved) {
+      throw new Error("projectId is required: pass it, or create/list the pages with this client first");
+    }
+    return resolved;
+  }
+
   async createPage(
     projectId: string,
     data: schemas.CreatePageRequest,
   ): Promise<schemas.Page> {
-    return this.post(`/pages/${projectId}`, data);
+    return this.rememberPages(await this.post<schemas.Page>(`/pages/${projectId}`, data));
   }
 
   async updatePage(
@@ -174,19 +194,23 @@ export class APIClient {
     return this.get(`/elements/public/${projectId}`);
   }
 
-  async getElementsByPageIds(pageIds: string[]): Promise<schemas.Element[]> {
-    const pageIdsParam = pageIds.join(",");
+  async getElementsByPageIds(
+    pageIds: string[],
+    projectId?: string,
+  ): Promise<schemas.Element[]> {
+    const project = pageIds.length ? this.projectOfPages(pageIds, projectId) : projectId ?? "";
     return this.get(
-      `/elements/by-pages?pageIds=${encodeURIComponent(pageIdsParam)}`,
+      `/elements/by-pages?projectId=${encodeURIComponent(project)}&pageIds=${encodeURIComponent(pageIds.join(","))}`,
     );
   }
 
   async getPublicElementsByPageIds(
     pageIds: string[],
+    projectId?: string,
   ): Promise<schemas.Element[]> {
-    const pageIdsParam = pageIds.join(",");
+    const project = pageIds.length ? this.projectOfPages(pageIds, projectId) : projectId ?? "";
     return this.get(
-      `/elements/public/by-pages?pageIds=${encodeURIComponent(pageIdsParam)}`,
+      `/elements/public/by-pages?projectId=${encodeURIComponent(project)}&pageIds=${encodeURIComponent(pageIds.join(","))}`,
     );
   }
 
@@ -244,52 +268,6 @@ export class APIClient {
 
   async deleteCollaborator(collaboratorId: string) {
     return this.delete(`/collaborators/${collaboratorId}`);
-  }
-
-  // ============================================================================
-  // COMMENT ENDPOINTS (Marketplace)
-  // ============================================================================
-
-  async getComments(
-    itemId?: string,
-    limit?: number,
-    offset?: number,
-  ): Promise<schemas.Comment[]> {
-    let path = "/comments";
-    const params = new URLSearchParams();
-    if (itemId) params.append("itemId", itemId);
-    if (limit) params.append("limit", limit.toString());
-    if (offset) params.append("offset", offset.toString());
-    if (params.size > 0) path += `?${params.toString()}`;
-    return this.get(path);
-  }
-
-  async getCommentByID(commentId: string): Promise<schemas.Comment> {
-    return this.get(`/comments/${commentId}`);
-  }
-
-  async createComment(
-    data: schemas.CreateCommentRequest,
-  ): Promise<schemas.Comment> {
-    return this.post("/comments", data);
-  }
-
-  async updateComment(
-    commentId: string,
-    data: schemas.UpdateCommentRequest,
-  ): Promise<schemas.Comment> {
-    return this.patch(`/comments/${commentId}`, data);
-  }
-
-  async deleteComment(commentId: string) {
-    return this.delete(`/comments/${commentId}`);
-  }
-
-  async createCommentReaction(
-    commentId: string,
-    type: string,
-  ): Promise<schemas.CommentReaction> {
-    return this.post(`/comments/${commentId}/reactions`, { type });
   }
 
   // ============================================================================
@@ -556,49 +534,6 @@ export class APIClient {
 
   async deleteInvitation(invitationId: string) {
     return this.delete(`/invitations/${invitationId}`);
-  }
-
-  // ============================================================================
-  // MARKETPLACE ENDPOINTS
-  // ============================================================================
-
-  async getMarketplaceItems(): Promise<schemas.MarketplaceItem[]> {
-    return this.get("/marketplace");
-  }
-
-  async getMarketplaceItemByID(
-    itemId: string,
-  ): Promise<schemas.MarketplaceItem> {
-    return this.get(`/marketplace/${itemId}`);
-  }
-
-  async createMarketplaceItem(
-    data: schemas.CreateMarketplaceItemRequest,
-  ): Promise<schemas.MarketplaceItem> {
-    return this.post("/marketplace", data);
-  }
-
-  async updateMarketplaceItem(
-    itemId: string,
-    data: schemas.UpdateMarketplaceItemRequest,
-  ): Promise<schemas.MarketplaceItem> {
-    return this.patch(`/marketplace/${itemId}`, data);
-  }
-
-  async deleteMarketplaceItem(itemId: string) {
-    return this.delete(`/marketplace/${itemId}`);
-  }
-
-  async createMarketplaceTag(
-    data: schemas.CreateTagRequest,
-  ): Promise<schemas.Tag> {
-    return this.post("/marketplace/tags", data);
-  }
-
-  async createMarketplaceCategory(
-    data: schemas.CreateCategoryRequest,
-  ): Promise<schemas.Category> {
-    return this.post("/marketplace/categories", data);
   }
 
   // ============================================================================

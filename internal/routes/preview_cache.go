@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/redis/go-redis/v9"
 
+	"my-go-app/internal/handlers"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
 )
@@ -39,6 +40,7 @@ func cachePublicPreview(client *redis.Client, projects repositories.ProjectRepos
 		if project == nil || !project.Published {
 			return fiber.NewError(fiber.StatusNotFound, "Project not found")
 		}
+		c.Locals(handlers.PublishedProjectVerifiedKey, true)
 		if client == nil || project.AuditFields == nil {
 			return c.Next()
 		}

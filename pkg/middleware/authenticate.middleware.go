@@ -1,12 +1,10 @@
 package middleware
 
 import (
-	"fmt"
 	"log"
 	"strings"
 
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
-	"github.com/clerk/clerk-sdk-go/v2/user"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -46,16 +44,9 @@ func AuthenticateMiddleware(c fiber.Ctx) error {
 		})
 	}
 
-	usr, err := user.Get(c.RequestCtx(), claim.Subject)
-	if err != nil || usr == nil {
-		log.Printf("User lookup failed for subject %s: %v", claim.Subject, err)
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized: " + err.Error(),
-		})
-	}
-
-	c.Locals("user", usr)
-	fmt.Println(claim.Subject)
+	// The signed session token is the proof of identity. Fetching the user from
+	// Clerk's API here added a network round trip to every request and nothing
+	// downstream reads the result; handlers only need the ID.
 	c.Locals("userId", claim.Subject)
 
 	// Continue to next handler
