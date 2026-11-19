@@ -24,16 +24,17 @@ import (
 
 // Mount connects the realtime engine's own PostgreSQL and Redis clients, starts
 // its persistence worker and registers the /ws routes on app. It returns a
-// function that stops the worker, flushes pending pages and closes Redis.
+// shared Redis client and a function that stops the worker, flushes pending
+// pages and closes its clients.
 //
 // The realtime engine keeps its own *gorm.DB: it shares tables with the API but
 // maps columns with a different naming strategy, so the two must not share one.
-func Mount(ctx context.Context, app *fiber.App) (shutdown func(), err error) {
+func Mount(ctx context.Context, app *fiber.App) (*goredis.Client, func(), error) {
 	lg := ulogger.Default()
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return nil, fmt.Errorf("realtime config: %w", err)
+		return nil, nil, fmt.Errorf("realtime config: %w", err)
 	}
 
 	db, err := database.NewPostgresConnection(database.Config{
@@ -46,7 +47,7 @@ func Mount(ctx context.Context, app *fiber.App) (shutdown func(), err error) {
 		SSLMode:  cfg.Database.SSLMode,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("realtime database: %w", err)
+		return nil, nil, fmt.Errorf("realtime database: %w", err)
 	}
 
 	rdb, err := redis.NewRedisClient(redis.Config{
@@ -58,7 +59,7 @@ func Mount(ctx context.Context, app *fiber.App) (shutdown func(), err error) {
 	})
 	if err != nil {
 		closeDB(db)
-		return nil, fmt.Errorf("realtime redis: %w", err)
+		return nil, nil, fmt.Errorf("realtime redis: %w", err)
 	}
 
 	useCases := usecase.NewUseCase(repository.NewRepository(db, rdb), lg)
@@ -79,7 +80,7 @@ func Mount(ctx context.Context, app *fiber.App) (shutdown func(), err error) {
 	app.Use("/ws", middleware.AuthMiddleware(cfg))
 	wsHandler.SetupRoutes(app)
 
-	return func() {
+	return rdb, func() {
 		stopWorker()
 		<-workerDone
 		flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

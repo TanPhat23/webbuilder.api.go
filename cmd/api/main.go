@@ -71,13 +71,14 @@ func main() {
 
 	// Collaborative editing (/ws/:project) runs in this same process. If it
 	// cannot start (e.g. Redis is down) the REST API still comes up.
-	if shutdownRealtime, err := realtime.Mount(ctx, app); err != nil {
+	redisClient, shutdownRealtime, err := realtime.Mount(ctx, app)
+	if err != nil {
 		log.Println("ERROR: realtime WebSocket disabled:", err)
 	} else {
 		defer shutdownRealtime()
 	}
 
-	routes.SetupRoutes(app, repos, cloudinaryService, invitationService)
+	routes.SetupRoutes(app, repos, cloudinaryService, invitationService, redisClient)
 
 	port := os.Getenv("PORT")
 	if port == "" {

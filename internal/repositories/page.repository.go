@@ -7,6 +7,8 @@ import (
 	"my-go-app/internal/models"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"gorm.io/gorm"
 )
 
@@ -15,6 +17,8 @@ var (
 	ErrPageNotFound = errors.New("page not found")
 	// ErrPageUnauthorized is returned when user doesn't have access to page
 	ErrPageUnauthorized = errors.New("unauthorized access to page")
+	// ErrPageNameTaken is returned when the project already has a page with this name
+	ErrPageNameTaken = errors.New("a page with this name already exists in the project")
 )
 
 type PageRepository struct {
@@ -31,7 +35,7 @@ func (r *PageRepository) GetPagesByProjectID(ctx context.Context, projectID stri
 	}
 
 	pages, err := gorm.G[models.Page](r.db).
-		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
+		Where(`"ProjectId" = ? AND "DeletedAt" IS NULL`, projectID).
 		Order("\"CreatedAt\" ASC").
 		Find(ctx)
 
@@ -82,6 +86,9 @@ func (r *PageRepository) CreatePage(ctx context.Context, page *models.Page) erro
 	if page.Type == "" {
 		return errors.New("page type is required")
 	}
+	if len(page.Styles) == 0 {
+		page.Styles = []byte("{}")
+	}
 
 	now := time.Now()
 	page.CreatedAt = now
@@ -90,6 +97,10 @@ func (r *PageRepository) CreatePage(ctx context.Context, page *models.Page) erro
 	err := gorm.G[models.Page](r.db).Create(ctx, page)
 
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "Page_ProjectId_Name_key" {
+			return ErrPageNameTaken
+		}
 		return fmt.Errorf("failed to create page: %w", err)
 	}
 
@@ -136,7 +147,8 @@ func (r *PageRepository) UpdatePageFields(ctx context.Context, pageID string, up
 	updates["UpdatedAt"] = time.Now()
 
 	result := r.db.WithContext(ctx).
-		Where(&models.Page{Id: pageID, AuditFields: models.AuditFields{DeletedAt: nil}}).
+		Model(&models.Page{}).
+		Where(`"Id" = ? AND "DeletedAt" IS NULL`, pageID).
 		Updates(updates)
 
 	if result.Error != nil {

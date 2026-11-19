@@ -44,7 +44,7 @@ func (r *ElementRepository) GetElements(ctx context.Context, projectID string, p
 
 	query := r.db.WithContext(ctx).
 		Joins("Page").
-		Where("\"Page\".\"ProjectId\" = ?", projectID)
+		Where(`"Page"."ProjectId" = ? AND "Page"."DeletedAt" IS NULL`, projectID)
 
 	// Add pageID filter if provided
 	if len(pageID) > 0 && pageID[0] != "" {
@@ -139,7 +139,7 @@ func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, pageIDs []
 	}
 
 	elements, err := gorm.G[models.Element](r.db).
-		Where("\"PageId\" IN ?", pageIDs).
+		Where(`"PageId" IN (SELECT "Id" FROM "Page" WHERE "Id" IN ? AND "DeletedAt" IS NULL)`, pageIDs).
 		Order("\"Order\"").
 		Find(ctx)
 

@@ -92,7 +92,7 @@ func main() {
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
-	routes.SetupRoutes(app, repos, cloudinaryService, invitationService)
+	routes.SetupRoutes(app, repos, cloudinaryService, invitationService, nil)
 
 	// Handle graceful shutdown
 	go func() {

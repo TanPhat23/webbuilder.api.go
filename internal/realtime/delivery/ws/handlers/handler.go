@@ -124,6 +124,8 @@ func (h *Handler) HandleWebSocket(c *websocket.Conn) {
 	user, _ := c.Locals("user").(*domainEntity.User)
 	h.logger.Infof("New WebSocket connection: projectID=%s, userID=%s", projectID, user.ID)
 	client := wsentity.NewClient(c, projectID, user)
+	// A helper socket (?conn=writer) coexists with the editor's own connection.
+	client.Writer = c.Query("conn") == "writer"
 
 	if projectID != "" && h.access != nil {
 		read, write, err := h.access.Access(context.Background(), projectID, user.ID)
@@ -150,16 +152,18 @@ func (h *Handler) HandleWebSocket(c *websocket.Conn) {
 	}
 
 	ck := connKey(projectID, user.ID)
-	h.activeConnsMu.Lock()
-	if old, exists := h.activeConns[ck]; exists {
-		h.logger.Infof("Closing stale connection for user=%s project=%s", user.ID, projectID)
-		// Send the close frame before Unregister closes old's send channel: its writer
-		// would otherwise close the socket first.
-		old.CloseAsReplaced()
-		_ = h.hub.Unregister(h.ctx, old)
+	if !client.Writer {
+		h.activeConnsMu.Lock()
+		if old, exists := h.activeConns[ck]; exists {
+			h.logger.Infof("Closing stale connection for user=%s project=%s", user.ID, projectID)
+			// Send the close frame before Unregister closes old's send channel: its writer
+			// would otherwise close the socket first.
+			old.CloseAsReplaced()
+			_ = h.hub.Unregister(h.ctx, old)
+		}
+		h.activeConns[ck] = client
+		h.activeConnsMu.Unlock()
 	}
-	h.activeConns[ck] = client
-	h.activeConnsMu.Unlock()
 
 	ctx := context.Background()
 

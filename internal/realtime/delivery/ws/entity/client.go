@@ -21,6 +21,10 @@ type Client struct {
 	User       *domainEntity.User
 	// ReadOnly clients may read and see presence but cannot change anything.
 	ReadOnly bool
+	// Writer marks a short-lived helper socket (e.g. writing a component master
+	// while the editor stays open). It never replaces the editor's connection and
+	// is never chosen as the editor tab for agent calls.
+	Writer bool
 	// sendMu guards send/sendClosed so a send can never race with the channel being closed.
 	sendMu     sync.RWMutex
 	send       chan domainEntity.Message

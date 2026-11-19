@@ -33,7 +33,18 @@ func (s *PageService) GetPagesByProjectID(ctx context.Context, projectID, userID
 		return nil, err
 	}
 
-	return s.pageRepo.GetPagesByProjectID(ctx, projectID)
+	pages, err := s.pageRepo.GetPagesByProjectID(ctx, projectID)
+	if err != nil || userID != "" {
+		return pages, err
+	}
+
+	routes := make([]models.Page, 0, len(pages))
+	for _, page := range pages {
+		if page.Type != models.PageTypeComponent {
+			routes = append(routes, page)
+		}
+	}
+	return routes, nil
 }
 
 func (s *PageService) GetPageByID(ctx context.Context, pageID string) (*models.Page, error) {
@@ -44,8 +55,7 @@ func (s *PageService) GetPageByID(ctx context.Context, pageID string) (*models.P
 	return s.pageRepo.GetPageByID(ctx, pageID, "")
 }
 
-// GetPublicPageByID returns a page only if it belongs to projectID and that
-// project is published, gated like GetPagesByProjectID.
+// GetPublicPageByID returns routable pages of a published project.
 func (s *PageService) GetPublicPageByID(ctx context.Context, projectID, pageID string) (*models.Page, error) {
 	if projectID == "" || pageID == "" {
 		return nil, errors.New("projectId and pageId are required")
@@ -57,7 +67,14 @@ func (s *PageService) GetPublicPageByID(ctx context.Context, projectID, pageID s
 	if project == nil {
 		return nil, repositories.ErrProjectNotFound
 	}
-	return s.pageRepo.GetPageByID(ctx, pageID, projectID)
+	page, err := s.pageRepo.GetPageByID(ctx, pageID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if page == nil || page.Type == models.PageTypeComponent {
+		return nil, repositories.ErrPageNotFound
+	}
+	return page, nil
 }
 
 func (s *PageService) CreatePage(ctx context.Context, page *models.Page) (*models.Page, error) {

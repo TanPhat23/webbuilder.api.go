@@ -6,13 +6,14 @@ import (
 	"my-go-app/internal/services"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/redis/go-redis/v9"
 )
 
-func PageRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface) {
+func PageRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface, redisClient *redis.Client) {
 	pageService := services.NewPageService(repos.PageRepository, repos.ProjectRepository)
 	pageHandler := handlers.NewPageHandler(pageService)
 
-	publicGroup.Get("/pages/public/:projectid", pageHandler.GetPagesByProjectID)
+	publicGroup.Get("/pages/public/:projectid", cachePublicPreview(redisClient, repos.ProjectRepository, "route-pages"), pageHandler.GetPublicPagesByProjectID)
 	publicGroup.Get("/pages/public/:projectid/:pageid", pageHandler.GetPublicPageByID)
 
 	privateGroup.Get("/pages/:projectid", pageHandler.GetPagesByProjectID)

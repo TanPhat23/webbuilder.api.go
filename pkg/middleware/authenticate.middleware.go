@@ -11,8 +11,11 @@ import (
 )
 
 func AuthenticateMiddleware(c fiber.Ctx) error {
-	// Skip authentication for public routes
-	if strings.HasPrefix(c.Path(), "/api/v1/projects/public") || strings.HasPrefix(c.Path(), "/api/v1/public") || strings.HasPrefix(c.Path(), "/api/v1/elements/public") {
+	// The public page routes permit only reads. The trailing slash keeps
+	// the project ID slot on private page routes distinct from this prefix.
+	publicPageRead := (c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead) &&
+		strings.HasPrefix(c.Path(), "/api/v1/pages/public/")
+	if publicPageRead || strings.HasPrefix(c.Path(), "/api/v1/projects/public") || strings.HasPrefix(c.Path(), "/api/v1/public") || strings.HasPrefix(c.Path(), "/api/v1/elements/public") {
 		return c.Next()
 	}
 

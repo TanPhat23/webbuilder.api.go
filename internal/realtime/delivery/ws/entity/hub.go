@@ -283,6 +283,9 @@ func (h *Hub) MostRecentClient(projectID, userID string) *Client {
 	var best *Client
 	for _, r := range rooms {
 		for _, c := range r.ClientsOf(userID) {
+			if c.Writer {
+				continue
+			}
 			if best == nil || c.LastActiveUnixNano() > best.LastActiveUnixNano() {
 				best = c
 			}

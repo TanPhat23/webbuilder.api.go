@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"my-go-app/internal/models"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -19,6 +20,12 @@ type CustomElementRepository struct {
 	db *gorm.DB
 }
 
+func isCustomElementNameConflict(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505" &&
+		pgErr.ConstraintName == "CustomElement_UserId_Name_key"
+}
+
 func NewCustomElementRepository(db *gorm.DB) CustomElementRepositoryInterface {
 	return &CustomElementRepository{
 		db: db,
@@ -30,12 +37,9 @@ func (r *CustomElementRepository) GetCustomElements(ctx context.Context, userID 
 		return nil, errors.New("userID is required")
 	}
 
-	query := gorm.G[models.CustomElement](r.db).Where("1 = 1")
-
-	if isPublic != nil && *isPublic {
-		query = query.Where("\"IsPublic\" = ?", true)
-	} else {
-		query = query.Where("\"UserId\" = ?", userID)
+	query := gorm.G[models.CustomElement](r.db).Where(`"UserId" = ?`, userID)
+	if isPublic != nil {
+		query = query.Where(`"IsPublic" = ?`, *isPublic)
 	}
 
 	customElements, err := query.Order("\"CreatedAt\" DESC").Find(ctx)
@@ -79,20 +83,10 @@ func (r *CustomElementRepository) CreateCustomElement(ctx context.Context, custo
 		return nil, errors.New("name is required")
 	}
 
-	count, err := gorm.G[models.CustomElement](r.db).
-		Where("\"Name\" = ? AND \"UserId\" = ?", customElement.Name, customElement.UserId).
-		Count(ctx, "*")
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to check for existing custom element: %w", err)
-	}
-
-	if count > 0 {
-		return nil, ErrCustomElementAlreadyExists
-	}
-
-	err = gorm.G[models.CustomElement](r.db).Create(ctx, customElement)
-	if err != nil {
+	if err := gorm.G[models.CustomElement](r.db).Create(ctx, customElement); err != nil {
+		if isCustomElementNameConflict(err) {
+			return nil, ErrCustomElementAlreadyExists
+		}
 		return nil, fmt.Errorf("failed to create custom element: %w", err)
 	}
 
@@ -118,16 +112,23 @@ func (r *CustomElementRepository) UpdateCustomElement(ctx context.Context, id st
 		return nil, fmt.Errorf("failed to find custom element: %w", err)
 	}
 
-	err = r.db.WithContext(ctx).
+	result := r.db.WithContext(ctx).
 		Model(&customElement).
-		Updates(updates).Error
+		Where(`"UserId" = ?`, userID).
+		Updates(updates)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to update custom element: %w", err)
+	if result.Error != nil {
+		if isCustomElementNameConflict(result.Error) {
+			return nil, ErrCustomElementAlreadyExists
+		}
+		return nil, fmt.Errorf("failed to update custom element: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrCustomElementUnauthorized
 	}
 
 	err = r.db.WithContext(ctx).
-		Where("\"Id\" = ?", id).
+		Where(`"Id" = ? AND "UserId" = ?`, id, userID).
 		First(&customElement).Error
 
 	if err != nil {

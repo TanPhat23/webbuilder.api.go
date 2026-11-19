@@ -6,12 +6,19 @@ import (
 	"fmt"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
+	"my-go-app/pkg/utils"
 	"strconv"
 	"strings"
 )
 
 type CustomElementService struct {
 	customElementRepo repositories.CustomElementRepositoryInterface
+}
+
+var customElementAllowedCols = map[string]string{
+	"name": "Name", "typeId": "TypeId", "description": "Description", "category": "Category",
+	"icon": "Icon", "thumbnail": "Thumbnail", "tags": "Tags", "isPublic": "IsPublic",
+	"version": "Version", "structure": "Structure", "defaultProps": "DefaultProps",
 }
 
 func NewCustomElementService(customElementRepo repositories.CustomElementRepositoryInterface) *CustomElementService {
@@ -59,27 +66,7 @@ func (s *CustomElementService) CreateCustomElement(ctx context.Context, element 
 		element.Version = "1.0.0"
 	}
 
-	existing, err := s.customElementRepo.GetCustomElements(ctx, element.UserId, nil)
-	if err == nil {
-		for _, current := range existing {
-			if strings.EqualFold(current.Name, element.Name) {
-				return nil, errors.New("custom element with this name already exists")
-			}
-		}
-	}
-
-	if element.IsPublic {
-		if element.Category == nil || strings.TrimSpace(*element.Category) == "" {
-			return nil, errors.New("category is required for public custom elements")
-		}
-	}
-
-	created, err := s.customElementRepo.CreateCustomElement(ctx, element)
-	if err != nil {
-		return nil, err
-	}
-
-	return created, nil
+	return s.customElementRepo.CreateCustomElement(ctx, element)
 }
 
 func (s *CustomElementService) UpdateCustomElement(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error) {
@@ -116,21 +103,11 @@ func (s *CustomElementService) UpdateCustomElement(ctx context.Context, id strin
 			return nil, errors.New("version cannot be empty")
 		}
 	}
-	if isPublic, ok := updates["isPublic"]; ok {
-		if value, ok := isPublic.(bool); ok && value {
-			currentCategory := ""
-			if current.Category != nil {
-				currentCategory = *current.Category
-			}
-			if strings.TrimSpace(currentCategory) == "" {
-				if category, exists := updates["category"]; !exists || strings.TrimSpace(fmt.Sprint(category)) == "" {
-					return nil, errors.New("category is required for public custom elements")
-				}
-			}
-		}
+	columns, err := utils.BuildColumnUpdates(updates, customElementAllowedCols)
+	if err != nil {
+		return nil, err
 	}
-
-	return s.customElementRepo.UpdateCustomElement(ctx, id, userID, updates)
+	return s.customElementRepo.UpdateCustomElement(ctx, id, userID, columns)
 }
 
 func (s *CustomElementService) DeleteCustomElement(ctx context.Context, id string, userID string) error {

@@ -45,15 +45,20 @@ func (h *PageHandler) DeletePage(c fiber.Ctx) error {
 }
 
 func (h *PageHandler) GetPagesByProjectID(c fiber.Ctx) error {
+	userID, _ := c.Locals("userId").(string)
+	return h.getPagesByProjectID(c, userID)
+}
+
+func (h *PageHandler) GetPublicPagesByProjectID(c fiber.Ctx) error {
+	return h.getPagesByProjectID(c, "")
+}
+
+func (h *PageHandler) getPagesByProjectID(c fiber.Ctx, userID string) error {
 	ids, err := utils.MustParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
-
-	// The same handler serves the public and the signed-in route; only the
-	// latter sets a user, and only a user can read an unpublished project.
-	userID, _ := c.Locals("userId").(string)
 
 	pages, err := h.pageService.GetPagesByProjectID(c.RequestCtx(), projectID, userID)
 	if err != nil {
@@ -110,6 +115,9 @@ func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 	createdPage, err := h.pageService.CreatePageAsUser(c.RequestCtx(), page, userID)
 	if errors.Is(err, repositories.ErrProjectUnauthorized) {
 		return utils.SendError(c, fiber.StatusForbidden, "You cannot add pages to this project", err, userID)
+	}
+	if errors.Is(err, repositories.ErrPageNameTaken) {
+		return utils.SendError(c, fiber.StatusConflict, "A page with this name already exists in the project", err, userID)
 	}
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create page")

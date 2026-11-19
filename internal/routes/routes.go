@@ -6,14 +6,15 @@ import (
 	"my-go-app/pkg/middleware"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/redis/go-redis/v9"
 )
 
-func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService, invitationService *services.InvitationService) {
+func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService, invitationService *services.InvitationService, redisClient *redis.Client) {
 	publicGroup := app.Group("/api/v1")
 	privateGroup := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
-	ElementRoutes(publicGroup, privateGroup, repos)
-	PageRoutes(publicGroup, privateGroup, repos)
+	ElementRoutes(publicGroup, privateGroup, repos, redisClient)
+	PageRoutes(publicGroup, privateGroup, repos, redisClient)
 	ProjectRoutes(publicGroup, privateGroup, repos)
 	ContentRoutes(publicGroup, privateGroup, repos)
 

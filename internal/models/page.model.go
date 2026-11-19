@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 )
 
+const PageTypeComponent = "cp"
+
 type Page struct {
 	Elements  []Element       `gorm:"foreignKey:PageId;references:Id;constraint:OnDelete:Cascade" json:"elements,omitempty"`
 	Id        string          `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`

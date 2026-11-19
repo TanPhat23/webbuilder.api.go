@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
+	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 	"strconv"
@@ -119,7 +121,7 @@ func (h *CustomElementHandler) CreateCustomElement(c fiber.Ctx) error {
 
 	created, err := h.customElementService.CreateCustomElement(c.RequestCtx(), customElement)
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, repositories.ErrCustomElementAlreadyExists) {
 			return fiber.NewError(fiber.StatusConflict, "Custom element with this name already exists")
 		}
 		log.Println("Error creating custom element:", err)
@@ -182,6 +184,9 @@ func (h *CustomElementHandler) UpdateCustomElement(c fiber.Ctx) error {
 
 	updated, err := h.customElementService.UpdateCustomElement(c.RequestCtx(), id, userID, updates)
 	if err != nil {
+		if errors.Is(err, repositories.ErrCustomElementAlreadyExists) {
+			return fiber.NewError(fiber.StatusConflict, "Custom element with this name already exists")
+		}
 		if strings.Contains(err.Error(), "unauthorized") {
 			return fiber.NewError(fiber.StatusForbidden, "Unauthorized to update this custom element")
 		}

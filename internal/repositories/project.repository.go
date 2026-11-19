@@ -160,7 +160,7 @@ func (r *ProjectRepository) GetProjectPages(ctx context.Context, projectID, user
 	}
 
 	pages, err := gorm.G[models.Page](r.db).
-		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
+		Where(`"ProjectId" = ? AND "DeletedAt" IS NULL`, projectID).
 		Order(`"CreatedAt" ASC`).
 		Find(ctx)
 
