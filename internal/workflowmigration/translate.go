@@ -33,72 +33,111 @@ func TranslateHandlers(raw json.RawMessage) ([]Step, error) {
 	return translateList(handlers, 0)
 }
 
+var handlerAllowedFields = map[string]bool{
+	"id": true, "eventType": true, "actionType": true, "enabled": true, "config": true,
+	"delay": true, "preventDefault": true, "stopPropagation": true, "conditions": true,
+	"nextHandlers": true, "trueHandlers": true, "falseHandlers": true,
+}
+
+var unsupportedNonEmptyHandlerFields = []string{
+	"conditions", "trueHandlers", "falseHandlers", "preventDefault", "stopPropagation",
+}
+
 func translateList(handlers []map[string]any, depth int) ([]Step, error) {
 	if depth > 32 {
 		return nil, fmt.Errorf("handler nesting exceeds 32")
 	}
 	result := []Step{}
 	for i, handler := range handlers {
-		handlerFields := map[string]bool{"id": true, "eventType": true, "actionType": true, "enabled": true, "config": true, "delay": true, "preventDefault": true, "stopPropagation": true, "conditions": true, "nextHandlers": true, "trueHandlers": true, "falseHandlers": true}
-		for key := range handler {
-			if !handlerFields[key] {
-				return nil, fmt.Errorf("handler %d: unsupported field %s", i, key)
-			}
-		}
-		if raw, exists := handler["enabled"]; exists && raw != nil {
-			if _, ok := raw.(bool); !ok {
-				return nil, fmt.Errorf("handler %d: invalid enabled", i)
-			}
-		}
-		if enabled, ok := handler["enabled"].(bool); ok && !enabled {
-			continue
-		}
-		for _, field := range []string{"conditions", "trueHandlers", "falseHandlers", "preventDefault", "stopPropagation"} {
-			if v, ok := handler[field]; ok && v != nil && v != false {
-				if a, ok := v.([]any); !ok || len(a) > 0 {
-					return nil, fmt.Errorf("handler %d: unsupported %s", i, field)
-				}
-			}
-		}
-		if delay, ok := handler["delay"]; ok && delay != nil {
-			n, valid := delay.(float64)
-			if !valid || n < 0 || n > 60000 {
-				return nil, fmt.Errorf("handler %d: invalid delay", i)
-			}
-			if n > 0 {
-				result = append(result, Step{"wait": n})
-			}
-		}
-		config, ok := handler["config"].(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("handler %d: missing config", i)
-		}
-		translated, err := translateAction(config)
+		steps, err := translateSingleHandler(i, handler, depth)
 		if err != nil {
-			return nil, fmt.Errorf("handler %d: %w", i, err)
+			return nil, err
 		}
-		result = append(result, translated...)
-		if next, exists := handler["nextHandlers"]; exists && next != nil {
-			items, ok := next.([]any)
-			if !ok {
-				return nil, fmt.Errorf("handler %d: invalid nextHandlers", i)
-			}
-			children := make([]map[string]any, 0, len(items))
-			for _, item := range items {
-				child, ok := item.(map[string]any)
-				if !ok {
-					return nil, fmt.Errorf("handler %d: invalid child", i)
-				}
-				children = append(children, child)
-			}
-			nested, err := translateList(children, depth+1)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, nested...)
-		}
+		result = append(result, steps...)
 	}
 	return result, nil
+}
+
+func translateSingleHandler(index int, handler map[string]any, depth int) ([]Step, error) {
+	if err := validateHandlerFields(index, handler); err != nil {
+		return nil, err
+	}
+	if enabled, ok := handler["enabled"].(bool); ok && !enabled {
+		return nil, nil
+	}
+	steps, err := extractHandlerDelayStep(index, handler)
+	if err != nil {
+		return nil, err
+	}
+	config, ok := handler["config"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("handler %d: missing config", index)
+	}
+	translated, err := translateAction(config)
+	if err != nil {
+		return nil, fmt.Errorf("handler %d: %w", index, err)
+	}
+	steps = append(steps, translated...)
+	nested, err := translateNextHandlers(index, handler["nextHandlers"], depth)
+	if err != nil {
+		return nil, err
+	}
+	return append(steps, nested...), nil
+}
+
+func validateHandlerFields(index int, handler map[string]any) error {
+	for key := range handler {
+		if !handlerAllowedFields[key] {
+			return fmt.Errorf("handler %d: unsupported field %s", index, key)
+		}
+	}
+	if raw, exists := handler["enabled"]; exists && raw != nil {
+		if _, ok := raw.(bool); !ok {
+			return fmt.Errorf("handler %d: invalid enabled", index)
+		}
+	}
+	for _, field := range unsupportedNonEmptyHandlerFields {
+		if v, ok := handler[field]; ok && v != nil && v != false {
+			if a, ok := v.([]any); !ok || len(a) > 0 {
+				return fmt.Errorf("handler %d: unsupported %s", index, field)
+			}
+		}
+	}
+	return nil
+}
+
+func extractHandlerDelayStep(index int, handler map[string]any) ([]Step, error) {
+	delay, ok := handler["delay"]
+	if !ok || delay == nil {
+		return nil, nil
+	}
+	n, valid := delay.(float64)
+	if !valid || n < 0 || n > 60000 {
+		return nil, fmt.Errorf("handler %d: invalid delay", index)
+	}
+	if n > 0 {
+		return []Step{{"wait": n}}, nil
+	}
+	return nil, nil
+}
+
+func translateNextHandlers(index int, rawNext any, depth int) ([]Step, error) {
+	if rawNext == nil {
+		return nil, nil
+	}
+	items, ok := rawNext.([]any)
+	if !ok {
+		return nil, fmt.Errorf("handler %d: invalid nextHandlers", index)
+	}
+	children := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		child, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("handler %d: invalid child", index)
+		}
+		children = append(children, child)
+	}
+	return translateList(children, depth+1)
 }
 
 var actionAllowedFields = map[string][]string{
@@ -153,6 +192,19 @@ func validateActionConfig(kind string, c map[string]any) error {
 	if !known {
 		return fmt.Errorf("unsupported action %q", kind)
 	}
+	if err := validateActionFieldNames(kind, c, allowedFields); err != nil {
+		return err
+	}
+	if err := validateActionStringValues(kind, c); err != nil {
+		return err
+	}
+	if err := validateActionBoolValues(kind, c); err != nil {
+		return err
+	}
+	return validateActionNumberValues(kind, c)
+}
+
+func validateActionFieldNames(kind string, c map[string]any, allowedFields []string) error {
 	permitted := make(map[string]bool, len(allowedFields)+1)
 	permitted["type"] = true
 	for _, key := range allowedFields {
@@ -163,26 +215,41 @@ func validateActionConfig(kind string, c map[string]any) error {
 			return fmt.Errorf("%s: unsupported field %s", kind, key)
 		}
 	}
-	// Legacy action strings are literal. The new runtime interpolates templates,
-	// so translating template-like values would change their meaning.
+	return nil
+}
+
+// Legacy action strings are literal. The new runtime interpolates templates,
+// so translating template-like values would change their meaning.
+func validateActionStringValues(kind string, c map[string]any) error {
 	for _, key := range actionStringKeys {
 		value, exists := c[key]
 		if !exists || value == nil {
 			continue
 		}
-		if key == "value" && kind == "scrollTo" && c["target"] == "position" {
-			if _, ok := value.(float64); ok {
-				continue
-			}
-		}
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("%s: invalid %s", kind, key)
-		}
-		if strings.Contains(v, "{{") {
-			return fmt.Errorf("%s: %s contains a literal template marker requiring manual migration", kind, key)
+		if err := validateSingleActionString(kind, key, value, c["target"]); err != nil {
+			return err
 		}
 	}
+	return nil
+}
+
+func validateSingleActionString(kind, key string, value, target any) error {
+	if key == "value" && kind == "scrollTo" && target == "position" {
+		if _, ok := value.(float64); ok {
+			return nil
+		}
+	}
+	v, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("%s: invalid %s", kind, key)
+	}
+	if strings.Contains(v, "{{") {
+		return fmt.Errorf("%s: %s contains a literal template marker requiring manual migration", kind, key)
+	}
+	return nil
+}
+
+func validateActionBoolValues(kind string, c map[string]any) error {
 	for _, key := range actionBoolKeys {
 		if value, exists := c[key]; exists && value != nil {
 			if _, ok := value.(bool); !ok {
@@ -190,6 +257,10 @@ func validateActionConfig(kind string, c map[string]any) error {
 			}
 		}
 	}
+	return nil
+}
+
+func validateActionNumberValues(kind string, c map[string]any) error {
 	for _, key := range actionNumberKeys {
 		if value, exists := c[key]; exists && value != nil {
 			if !isValidActionNumber(key, value) {
@@ -356,6 +427,21 @@ func translateScrollAction(c map[string]any) ([]Step, error) {
 	if behavior != "" && behavior != "smooth" && behavior != "auto" {
 		return nil, fmt.Errorf("invalid scroll behavior")
 	}
+	v, err := validateScrollValue(target, c)
+	if err != nil {
+		return nil, err
+	}
+	s := Step{"scroll": v}
+	if behavior != "" {
+		s["smooth"] = behavior == "smooth"
+	}
+	if offset, ok := c["offsetY"].(float64); ok {
+		s["offset"] = offset
+	}
+	return []Step{s}, nil
+}
+
+func validateScrollValue(target string, c map[string]any) (any, error) {
 	v, ok := c["value"]
 	if target == "elementId" {
 		id, valid := v.(string)
@@ -367,23 +453,20 @@ func translateScrollAction(c map[string]any) ([]Step, error) {
 		return nil, fmt.Errorf("missing scroll value")
 	}
 	if target == "position" {
-		switch n := v.(type) {
-		case float64:
-			v = n
-		case string:
-			return nil, fmt.Errorf("string position %q needs manual conversion", n)
-		default:
-			return nil, fmt.Errorf("invalid position")
-		}
+		return parseScrollPosition(v)
 	}
-	s := Step{"scroll": v}
-	if behavior != "" {
-		s["smooth"] = behavior == "smooth"
+	return v, nil
+}
+
+func parseScrollPosition(v any) (float64, error) {
+	switch n := v.(type) {
+	case float64:
+		return n, nil
+	case string:
+		return 0, fmt.Errorf("string position %q needs manual conversion", n)
+	default:
+		return 0, fmt.Errorf("invalid position")
 	}
-	if offset, ok := c["offsetY"].(float64); ok {
-		s["offset"] = offset
-	}
-	return []Step{s}, nil
 }
 
 func translateClassAction(kind string, c map[string]any) ([]Step, error) {

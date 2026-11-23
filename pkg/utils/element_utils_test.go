@@ -26,6 +26,18 @@ func childIDs(t *testing.T, e models.EditorElement) []string {
 	return ids
 }
 
+func assertStringIDs(t *testing.T, label string, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s = %v, want %v", label, got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("%s = %v, want %v", label, got, want)
+		}
+	}
+}
+
 func TestBuildElementTreeNestsChildrenUnderContainers(t *testing.T) {
 	sec := "sec"
 	frame := "frame"
@@ -38,17 +50,15 @@ func TestBuildElementTreeNestsChildrenUnderContainers(t *testing.T) {
 	}
 
 	roots := BuildElementTree(in)
-
-	if len(roots) != 2 || roots[0].GetElement().Id != "sec" || roots[1].GetElement().Id != "sec2" {
+	if len(roots) != 2 {
 		t.Fatalf("roots must keep input order: %v", roots)
 	}
-	if got := childIDs(t, roots[0]); len(got) != 2 || got[0] != "frame" || got[1] != "btn" {
-		t.Fatalf("section children = %v", got)
+	if roots[0].GetElement().Id != "sec" || roots[1].GetElement().Id != "sec2" {
+		t.Fatalf("roots must keep input order: %v", roots)
 	}
+	assertStringIDs(t, "section children", childIDs(t, roots[0]), []string{"frame", "btn"})
 	frameNode := GetChildrenFromEditorElement(roots[0])[0].(models.EditorElement)
-	if got := childIDs(t, frameNode); len(got) != 1 || got[0] != "text1" {
-		t.Fatalf("frame children = %v", got)
-	}
+	assertStringIDs(t, "frame children", childIDs(t, frameNode), []string{"text1"})
 	if got := GetChildrenFromEditorElement(roots[1]); got != nil {
 		t.Errorf("childless container should be returned as-is, got children %v", got)
 	}
@@ -181,89 +191,89 @@ func TestGetChildrenFromEditorElement(t *testing.T) {
 
 type fakeEditorElement struct{ models.Element }
 
-func TestConvertToEditorElement(t *testing.T) {
-	t.Run("existing EditorElement is returned as-is", func(t *testing.T) {
-		in := el("a", "Text", nil)
-		got, err := ConvertToEditorElement(in)
-		if err != nil || got != models.EditorElement(in) {
-			t.Fatalf("got %v %v", got, err)
-		}
+func TestConvertToEditorElementPassthroughAndLeafMap(t *testing.T) {
+	in := el("a", "Text", nil)
+	got, err := ConvertToEditorElement(in)
+	if err != nil || got != models.EditorElement(in) {
+		t.Fatalf("got %v %v", got, err)
+	}
+
+	got, err = ConvertToEditorElement(map[string]any{"id": "t1", "type": "Text", "content": "hi", "order": 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := got.(*models.Element)
+	if !ok || e.Id != "t1" {
+		t.Fatalf("got %#v", got)
+	}
+	if e.GetType() != "Text" || *e.Content != "hi" || e.Order != 2 {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestConvertToEditorElementContainerWithNested(t *testing.T) {
+	got, err := ConvertToEditorElement(map[string]any{
+		"id": "s1", "type": "Section",
+		"elements": []any{map[string]any{"id": "t1", "type": "Text"}},
 	})
-	t.Run("leaf map becomes Element", func(t *testing.T) {
-		got, err := ConvertToEditorElement(map[string]any{"id": "t1", "type": "Text", "content": "hi", "order": 2})
-		if err != nil {
-			t.Fatal(err)
-		}
-		e, ok := got.(*models.Element)
-		if !ok || e.Id != "t1" || e.GetType() != "Text" || *e.Content != "hi" || e.Order != 2 {
-			t.Fatalf("got %#v", got)
-		}
-	})
-	t.Run("container map keeps nested elements", func(t *testing.T) {
-		got, err := ConvertToEditorElement(map[string]any{
-			"id": "s1", "type": "Section",
-			"elements": []any{map[string]any{"id": "t1", "type": "Text"}},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		w, ok := got.(*ElementWithChildren)
-		if !ok {
-			t.Fatalf("want *ElementWithChildren, got %T", got)
-		}
-		if w.GetElement().Id != "s1" || len(w.Elements) != 1 {
-			t.Fatalf("got %#v", w)
-		}
-		// Nested items stay raw maps until converted individually.
-		child, err := ConvertToEditorElement(w.Elements[0])
-		if err != nil || child.GetElement().Id != "t1" {
-			t.Fatalf("child conversion: %v %v", child, err)
-		}
-	})
-	t.Run("container without elements stays a plain Element", func(t *testing.T) {
-		got, err := ConvertToEditorElement(map[string]any{"id": "s1", "type": "Section", "elements": []any{}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, ok := got.(*models.Element); !ok {
-			t.Fatalf("want *models.Element, got %T", got)
-		}
-	})
-	t.Run("container with malformed elements falls back to Element", func(t *testing.T) {
-		got, err := ConvertToEditorElement(map[string]any{"id": "s1", "type": "Section", "elements": "bogus"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, ok := got.(*models.Element); !ok || got.GetElement().Id != "s1" {
-			t.Fatalf("got %#v", got)
-		}
-	})
-	t.Run("non-container ignores elements", func(t *testing.T) {
-		got, err := ConvertToEditorElement(map[string]any{"id": "t", "type": "Text", "elements": []any{map[string]any{"id": "x"}}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, ok := got.(*models.Element); !ok {
-			t.Fatalf("got %T", got)
-		}
-	})
-	t.Run("struct input is marshalled", func(t *testing.T) {
-		got, err := ConvertToEditorElement(struct {
-			Id   string `json:"id"`
-			Type string `json:"type"`
-		}{"z", "Button"})
-		if err != nil || got.GetElement().Id != "z" || !got.GetElement().IsButton() {
-			t.Fatalf("got %v %v", got, err)
-		}
-	})
-	t.Run("unmarshalable input errors", func(t *testing.T) {
-		if _, err := ConvertToEditorElement(make(chan int)); err == nil {
-			t.Fatal("expected marshal error")
-		}
-	})
-	t.Run("wrongly typed field errors", func(t *testing.T) {
-		if _, err := ConvertToEditorElement(map[string]any{"id": 12, "type": "Text"}); err == nil {
-			t.Fatal("expected unmarshal error for numeric id")
-		}
-	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, ok := got.(*ElementWithChildren)
+	if !ok {
+		t.Fatalf("want *ElementWithChildren, got %T", got)
+	}
+	if w.GetElement().Id != "s1" || len(w.Elements) != 1 {
+		t.Fatalf("got %#v", w)
+	}
+	child, err := ConvertToEditorElement(w.Elements[0])
+	if err != nil || child.GetElement().Id != "t1" {
+		t.Fatalf("child conversion: %v %v", child, err)
+	}
+}
+
+func TestConvertToEditorElementContainerFallbacks(t *testing.T) {
+	got, err := ConvertToEditorElement(map[string]any{"id": "s1", "type": "Section", "elements": []any{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got.(*models.Element); !ok {
+		t.Fatalf("want *models.Element, got %T", got)
+	}
+
+	got, err = ConvertToEditorElement(map[string]any{"id": "s1", "type": "Section", "elements": "bogus"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got.(*models.Element); !ok || got.GetElement().Id != "s1" {
+		t.Fatalf("got %#v", got)
+	}
+
+	got, err = ConvertToEditorElement(map[string]any{"id": "t", "type": "Text", "elements": []any{map[string]any{"id": "x"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got.(*models.Element); !ok {
+		t.Fatalf("got %T", got)
+	}
+}
+
+func TestConvertToEditorElementStructAndErrors(t *testing.T) {
+	got, err := ConvertToEditorElement(struct {
+		Id   string `json:"id"`
+		Type string `json:"type"`
+	}{"z", "Button"})
+	if err != nil || got.GetElement().Id != "z" {
+		t.Fatalf("got %v %v", got, err)
+	}
+	if !got.GetElement().IsButton() {
+		t.Fatalf("expected Button, got %v", got.GetElement().Type)
+	}
+
+	if _, err := ConvertToEditorElement(make(chan int)); err == nil {
+		t.Fatal("expected marshal error")
+	}
+	if _, err := ConvertToEditorElement(map[string]any{"id": 12, "type": "Text"}); err == nil {
+		t.Fatal("expected unmarshal error for numeric id")
+	}
 }

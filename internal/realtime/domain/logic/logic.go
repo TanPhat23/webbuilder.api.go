@@ -162,6 +162,13 @@ func validateVariable(name string, raw any) error {
 	if !ok || !only(def, "type", "default", "lifetime") {
 		return fmt.Errorf("invalid variable %q", name)
 	}
+	if err := validateVariableDefault(name, def); err != nil {
+		return err
+	}
+	return validateVariableLifetime(name, def)
+}
+
+func validateVariableDefault(name string, def map[string]any) error {
 	kind, ok := def["type"].(string)
 	if !ok || !validDefault(kind, def["default"]) {
 		return fmt.Errorf("invalid default for variable %q", name)
@@ -169,11 +176,17 @@ func validateVariable(name string, raw any) error {
 	if _, exists := def["default"]; !exists {
 		return fmt.Errorf("missing default for variable %q", name)
 	}
-	if lifetime, exists := def["lifetime"]; exists {
-		s, ok := lifetime.(string)
-		if !ok || !validLifetimes[s] {
-			return fmt.Errorf("invalid lifetime for variable %q", name)
-		}
+	return nil
+}
+
+func validateVariableLifetime(name string, def map[string]any) error {
+	lifetime, exists := def["lifetime"]
+	if !exists {
+		return nil
+	}
+	s, ok := lifetime.(string)
+	if !ok || !validLifetimes[s] {
+		return fmt.Errorf("invalid lifetime for variable %q", name)
 	}
 	return nil
 }
@@ -200,21 +213,35 @@ func ValidateScopes(project Document, pages map[string]Document) error {
 	}
 	seen := map[string]map[string]bool{"variables": {}, "flows": {}}
 	for _, doc := range docs {
-		if doc == nil {
-			doc = Empty()
-		}
-		if err := Validate(doc); err != nil {
+		if err := validateAndRecordScopeDoc(seen, doc); err != nil {
 			return err
 		}
-		for _, kind := range []string{"variables", "flows"} {
-			entries, _ := obj(doc[kind])
-			for name := range entries {
-				if seen[kind][name] {
-					return fmt.Errorf("duplicate %s name %q", kind, name)
-				}
-				seen[kind][name] = true
-			}
+	}
+	return nil
+}
+
+func validateAndRecordScopeDoc(seen map[string]map[string]bool, doc Document) error {
+	if doc == nil {
+		doc = Empty()
+	}
+	if err := Validate(doc); err != nil {
+		return err
+	}
+	for _, kind := range []string{"variables", "flows"} {
+		entries, _ := obj(doc[kind])
+		if err := recordScopeKindNames(seen[kind], kind, entries); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func recordScopeKindNames(seen map[string]bool, kind string, entries map[string]any) error {
+	for name := range entries {
+		if seen[name] {
+			return fmt.Errorf("duplicate %s name %q", kind, name)
+		}
+		seen[name] = true
 	}
 	return nil
 }
@@ -247,27 +274,9 @@ func validateSteps(raw any, depth int) error {
 }
 
 func validateSingleStep(index int, rawStep any, depth int) error {
-	step, ok := obj(rawStep)
-	if !ok {
-		return fmt.Errorf("step %d must be an object", index)
-	}
-	verb, err := extractStepVerb(index, step)
+	step, verb, filled, err := parseStepForValidation(index, rawStep)
 	if err != nil {
 		return err
-	}
-	allowed := append([]string{"id", verb}, fields[verb]...)
-	if !only(step, allowed...) {
-		return fmt.Errorf("step %d has unknown fields", index)
-	}
-
-	filled := nonEmptyStepFields(step)
-	if err := validateStepID(index, filled); err != nil {
-		return err
-	}
-	if value, exists := filled[verb]; exists {
-		if err := validateVerbValue(verb, value); err != nil {
-			return err
-		}
 	}
 	if err := validateStepFields(verb, filled); err != nil {
 		return fmt.Errorf("step %d: %w", index, err)
@@ -276,6 +285,31 @@ func validateSingleStep(index int, rawStep any, depth int) error {
 		return validateIfBranches(step, depth)
 	}
 	return nil
+}
+
+func parseStepForValidation(index int, rawStep any) (map[string]any, string, map[string]any, error) {
+	step, ok := obj(rawStep)
+	if !ok {
+		return nil, "", nil, fmt.Errorf("step %d must be an object", index)
+	}
+	verb, err := extractStepVerb(index, step)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	allowed := append([]string{"id", verb}, fields[verb]...)
+	if !only(step, allowed...) {
+		return nil, "", nil, fmt.Errorf("step %d has unknown fields", index)
+	}
+	filled := nonEmptyStepFields(step)
+	if err := validateStepID(index, filled); err != nil {
+		return nil, "", nil, err
+	}
+	if value, exists := filled[verb]; exists {
+		if err := validateVerbValue(verb, value); err != nil {
+			return nil, "", nil, err
+		}
+	}
+	return step, verb, filled, nil
 }
 
 func extractStepVerb(index int, step map[string]any) (string, error) {
@@ -383,13 +417,19 @@ func stepHasBool(step map[string]any, key string) bool {
 	return ok
 }
 
-func stepHasNum(step map[string]any, key string, min float64, positive bool, max float64) bool {
+type numRange struct {
+	min      float64
+	max      float64
+	positive bool
+}
+
+func stepHasNum(step map[string]any, key string, bounds numRange) bool {
 	v, exists := step[key]
 	if !exists {
 		return true
 	}
 	n, ok := v.(float64)
-	return ok && !math.IsNaN(n) && !math.IsInf(n, 0) && n >= min && (!positive || n > min) && n <= max
+	return ok && !math.IsNaN(n) && !math.IsInf(n, 0) && n >= bounds.min && (!bounds.positive || n > bounds.min) && n <= bounds.max
 }
 
 func validateStepCommonOptions(verb string, step map[string]any) error {
@@ -400,9 +440,9 @@ func validateStepCommonOptions(verb string, step map[string]any) error {
 		}
 	}
 	positiveDuration := verb == "animate" || verb == "toast"
-	if !stepHasNum(step, "duration", 0, positiveDuration, math.MaxFloat64) ||
-		!stepHasNum(step, "offset", -math.MaxFloat64, false, math.MaxFloat64) ||
-		!stepHasNum(step, "timeout", 0, true, 60000) {
+	if !stepHasNum(step, "duration", numRange{min: 0, positive: positiveDuration, max: math.MaxFloat64}) ||
+		!stepHasNum(step, "offset", numRange{min: -math.MaxFloat64, max: math.MaxFloat64}) ||
+		!stepHasNum(step, "timeout", numRange{min: 0, positive: true, max: 60000}) {
 		return fmt.Errorf("invalid option type or value")
 	}
 	return nil
@@ -451,17 +491,20 @@ func validateStepFields(verb string, step map[string]any) error {
 }
 
 func validateCallStep(step map[string]any) error {
-	if !stepHasEnum(step, "call", "api") ||
-		!stepHasEnum(step, "method", "GET", "POST", "PUT", "DELETE", "PATCH") ||
-		!stepHasString(step, "url") ||
-		!stepHasString(step, "body") {
+	if !stepHasEnum(step, "call", "api") || !stepHasEnum(step, "method", "GET", "POST", "PUT", "DELETE", "PATCH") {
 		return fmt.Errorf("invalid call")
 	}
-	h, exists := step["headers"]
-	if !exists {
+	if !stepHasString(step, "url") || !stepHasString(step, "body") {
+		return fmt.Errorf("invalid call")
+	}
+	return validateCallHeaders(step["headers"])
+}
+
+func validateCallHeaders(rawHeaders any) error {
+	if rawHeaders == nil {
 		return nil
 	}
-	headers, ok := obj(h)
+	headers, ok := obj(rawHeaders)
 	if !ok {
 		return fmt.Errorf("invalid headers")
 	}

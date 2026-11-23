@@ -171,22 +171,28 @@ func TestElementCommentHandlerStatuses(t *testing.T) {
 		{"project internal", "u1", "GET", "/projects/p1/comments", "", errInternal, 500, "Failed to retrieve comments"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			r := kitSend(t, elementCommentKit(tc.user, &elementCommentSvcStub{err: tc.err}), tc.method, tc.path, tc.body)
-			if tc.contains == "" {
-				kitExpect(t, r, tc.want)
-			} else {
-				kitExpect(t, r, tc.want, tc.contains)
-			}
-		})
+		r := kitSend(t, elementCommentKit(tc.user, &elementCommentSvcStub{err: tc.err}), tc.method, tc.path, tc.body)
+		assertCommentKitResult(t, r, tc.want, tc.contains)
 	}
+}
+
+func assertCommentKitResult(t *testing.T, r kitReply, want int, contains string) {
+	t.Helper()
+	if contains == "" {
+		kitExpect(t, r, want)
+		return
+	}
+	kitExpect(t, r, want, contains)
 }
 
 func TestElementCommentCreateStampsAuthorFromSession(t *testing.T) {
 	svc := &elementCommentSvcStub{}
 	r := kitSend(t, elementCommentKit("u7", svc), "POST", "/element-comments", `{"content":"hello","elementId":"e1","authorId":"spoofed"}`)
 	kitExpect(t, r, 201)
-	if svc.created == nil || svc.created.AuthorId != "u7" || svc.created.ElementId != "e1" || svc.created.Content != "hello" || svc.created.Id == "" {
+	if svc.created == nil || svc.created.AuthorId != "u7" || svc.created.Id == "" {
+		t.Fatalf("created %+v", svc.created)
+	}
+	if svc.created.ElementId != "e1" || svc.created.Content != "hello" {
 		t.Fatalf("created %+v", svc.created)
 	}
 	if got := r.object(t); got["authorId"] != "u7" {
@@ -213,8 +219,11 @@ func TestElementCommentListHonoursQueryFilters(t *testing.T) {
 	kitExpect(t, kitSend(t, elementCommentKit("", svc), "GET",
 		"/elements/e1/comments?limit=5&offset=10&authorId=a9&resolved=true&sortBy=Content&sortOrder=ASC", ""), 200)
 	f := svc.filter
-	if f.Limit != 5 || f.Offset != 10 || f.AuthorId != "a9" || f.Resolved == nil || !*f.Resolved || f.SortBy != "Content" || f.SortOrder != "ASC" {
-		t.Fatalf("filter %+v", f)
+	if f.Limit != 5 || f.Offset != 10 || f.AuthorId != "a9" {
+		t.Fatalf("filter paging/author %+v", f)
+	}
+	if f.Resolved == nil || !*f.Resolved || f.SortBy != "Content" || f.SortOrder != "ASC" {
+		t.Fatalf("filter sort/resolved %+v", f)
 	}
 }
 
@@ -252,9 +261,7 @@ func TestElementCommentUpdateForwardsOnlyProvidedFields(t *testing.T) {
 	app := elementCommentKit("u3", svc)
 
 	kitExpect(t, kitSend(t, app, "PATCH", "/element-comments/c8", `{"content":"new text"}`), 200)
-	if svc.updID != "c8" || svc.updUser != "u3" || len(svc.updates) != 1 || svc.updates["content"] != "new text" {
-		t.Fatalf("id=%q user=%q updates=%v", svc.updID, svc.updUser, svc.updates)
-	}
+	assertUpdatedCommentPayload(t, svc, "new text", true)
 
 	kitExpect(t, kitSend(t, app, "PATCH", "/element-comments/c8", `{"resolved":false}`), 200)
 	if len(svc.updates) != 1 || svc.updates["resolved"] != false {
@@ -263,6 +270,16 @@ func TestElementCommentUpdateForwardsOnlyProvidedFields(t *testing.T) {
 
 	kitExpect(t, kitSend(t, app, "PATCH", "/element-comments/c8", `{"content":"a","resolved":true}`), 200)
 	if len(svc.updates) != 2 || svc.updates["content"] != "a" || svc.updates["resolved"] != true {
+		t.Fatalf("updates=%v", svc.updates)
+	}
+}
+
+func assertUpdatedCommentPayload(t *testing.T, svc *elementCommentSvcStub, wantContent string, single bool) {
+	t.Helper()
+	if svc.updID != "c8" || svc.updUser != "u3" {
+		t.Fatalf("id=%q user=%q", svc.updID, svc.updUser)
+	}
+	if single && (len(svc.updates) != 1 || svc.updates["content"] != wantContent) {
 		t.Fatalf("updates=%v", svc.updates)
 	}
 }
@@ -280,10 +297,9 @@ func TestElementCommentDeleteAndToggleForwardIDs(t *testing.T) {
 	}
 }
 
-func TestElementCommentAuthorAndProjectPagination(t *testing.T) {
+func TestElementCommentAuthorPagination(t *testing.T) {
 	svc := &elementCommentSvcStub{}
 	app := elementCommentKit("u3", svc)
-
 	kitExpect(t, kitSend(t, app, "GET", "/element-comments/author/a1?limit=3&offset=6", ""), 200)
 	if svc.authorID != "a1" || svc.limit != 3 || svc.offset != 6 {
 		t.Fatalf("author=%q limit=%d offset=%d", svc.authorID, svc.limit, svc.offset)
@@ -292,7 +308,11 @@ func TestElementCommentAuthorAndProjectPagination(t *testing.T) {
 	if svc.limit != 20 || svc.offset != 0 {
 		t.Fatalf("limit=%d offset=%d", svc.limit, svc.offset)
 	}
+}
 
+func TestElementCommentProjectPagination(t *testing.T) {
+	svc := &elementCommentSvcStub{}
+	app := elementCommentKit("u3", svc)
 	r := kitSend(t, app, "GET", "/projects/p5/comments?limit=4&offset=8", "")
 	kitExpect(t, r, 200)
 	if svc.projectID != "p5" || svc.projUser != "u3" || svc.limit != 4 || svc.offset != 8 {

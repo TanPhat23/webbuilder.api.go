@@ -419,56 +419,80 @@ func (r *ElementRepository) flattenElementsForInsert(_ context.Context, _ *gorm.
 	return flattened, nil
 }
 
+type elementQueueItem struct {
+	element  models.EditorElement
+	parentID *string
+}
+
 func flattenEditorElementTree(rootElements []models.EditorElement) ([]models.Element, error) {
-	type queueItem struct {
-		element  models.EditorElement
-		parentID *string
-	}
-
-	queue := make([]queueItem, 0, len(rootElements))
-	for _, e := range rootElements {
-		if e != nil {
-			queue = append(queue, queueItem{element: e})
-		}
-	}
-
+	queue := initElementQueue(rootElements)
 	flattened := make([]models.Element, 0, 256)
 	for len(queue) > 0 {
 		item := queue[0]
 		queue = queue[1:]
-		if item.element == nil {
-			continue
+		base, err := buildFlattenedElement(item)
+		if err != nil {
+			return nil, err
 		}
-
-		base := item.element.GetElement()
 		if base == nil {
 			continue
 		}
-		if base.Id == "" {
-			id, err := ids.NewV7()
-			if err != nil {
-				return nil, err
-			}
-			base.Id = id
-		}
-		if base.ParentId != nil && *base.ParentId == "" {
-			base.ParentId = nil
-		}
-		if item.parentID != nil {
-			base.ParentId = item.parentID
-		}
 		flattened = append(flattened, *base)
-
-		for _, child := range utils.GetChildrenFromEditorElement(item.element) {
-			childEditor, err := utils.ConvertToEditorElement(child)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert child element: %w", err)
-			}
-			parentID := base.Id
-			queue = append(queue, queueItem{element: childEditor, parentID: &parentID})
+		children, err := collectChildQueueItems(item.element, base.Id)
+		if err != nil {
+			return nil, err
 		}
+		queue = append(queue, children...)
 	}
 	return flattened, nil
+}
+
+func initElementQueue(rootElements []models.EditorElement) []elementQueueItem {
+	queue := make([]elementQueueItem, 0, len(rootElements))
+	for _, e := range rootElements {
+		if e != nil {
+			queue = append(queue, elementQueueItem{element: e})
+		}
+	}
+	return queue
+}
+
+func buildFlattenedElement(item elementQueueItem) (*models.Element, error) {
+	if item.element == nil {
+		return nil, nil
+	}
+	base := item.element.GetElement()
+	if base == nil {
+		return nil, nil
+	}
+	if base.Id == "" {
+		id, err := ids.NewV7()
+		if err != nil {
+			return nil, err
+		}
+		base.Id = id
+	}
+	if base.ParentId != nil && *base.ParentId == "" {
+		base.ParentId = nil
+	}
+	if item.parentID != nil {
+		base.ParentId = item.parentID
+	}
+	return base, nil
+}
+
+func collectChildQueueItems(parent models.EditorElement, parentID string) ([]elementQueueItem, error) {
+	children := utils.GetChildrenFromEditorElement(parent)
+	out := make([]elementQueueItem, 0, len(children))
+	for _, child := range children {
+		childEditor, err := utils.ConvertToEditorElement(child)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert child element: %w", err)
+		}
+		pid := parentID
+		out = append(out, elementQueueItem{element: childEditor, parentID: &pid})
+	}
+	return out, nil
 }
 
 // assignSiblingOrderKeys ensures every sibling group carries monotonic valid fracdex OrderKeys.
@@ -508,14 +532,22 @@ func hasValidOrderKeys(flattened []models.Element, indices []int) bool {
 	for position, index := range indices {
 		elem := &flattened[index]
 		elem.Order = position + 1
-		if elem.OrderKey == nil || *elem.OrderKey == "" || (previous != "" && *elem.OrderKey <= previous) {
+		if !isValidSiblingOrderKey(elem, previous) {
 			valid = false
 			continue
-		}
-		if _, err := fracdex.KeyBetween(*elem.OrderKey, ""); err != nil {
-			valid = false
 		}
 		previous = *elem.OrderKey
 	}
 	return valid
+}
+
+func isValidSiblingOrderKey(elem *models.Element, previous string) bool {
+	if elem.OrderKey == nil || *elem.OrderKey == "" {
+		return false
+	}
+	if previous != "" && *elem.OrderKey <= previous {
+		return false
+	}
+	_, err := fracdex.KeyBetween(*elem.OrderKey, "")
+	return err == nil
 }

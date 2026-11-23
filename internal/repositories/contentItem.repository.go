@@ -65,65 +65,62 @@ func (r *ContentItemRepository) GetContentItemByID(ctx context.Context, id strin
 }
 
 func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
-	if ci == nil {
-		return nil, errors.New("content item cannot be nil")
+	if err := validateNewContentItem(ci); err != nil {
+		return nil, err
 	}
-
-	if ci.Title == "" {
-		return nil, errors.New("content item title is required")
+	if err := ensureUniqueContentItemSlug(ctx, r.db, ci.ContentTypeId, ci.Slug); err != nil {
+		return nil, err
 	}
+	prepareNewContentItem(ci)
 
-	if ci.Slug == "" {
-		return nil, errors.New("content item slug is required")
-	}
-
-	if ci.ContentTypeId == "" {
-		return nil, errors.New("content type ID is required")
-	}
-
-	// Check for duplicate slug
-	count, err := gorm.G[models.ContentItem](r.db).
-		Where("\"ContentTypeId\" = ? AND \"Slug\" = ?", ci.ContentTypeId, ci.Slug).
-		Count(ctx, "*")
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to check content item existence: %w", err)
-	}
-
-	if count > 0 {
-		return nil, ErrContentItemDuplicate
-	}
-
-	// Generate ID if not provided
-	if ci.Id == "" {
-		ci.Id = cuid.New()
-	}
-
-	// Set timestamps
-	now := time.Now()
-	ci.CreatedAt = now
-	ci.UpdatedAt = now
-
-	// Create content item and field values in a transaction
-	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Create content item
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := gorm.G[models.ContentItem](tx).Create(ctx, ci); err != nil {
 			return fmt.Errorf("failed to create content item: %w", err)
 		}
-
-		// Create field values
-		if err := insertContentFieldValues(ctx, tx, ci.Id, fieldValues); err != nil {
-			return err
-		}
-
-		return nil
+		return insertContentFieldValues(ctx, tx, ci.Id, fieldValues)
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
 	return r.GetContentItemByID(ctx, ci.Id)
+}
+
+func validateNewContentItem(ci *models.ContentItem) error {
+	if ci == nil {
+		return errors.New("content item cannot be nil")
+	}
+	if ci.Title == "" {
+		return errors.New("content item title is required")
+	}
+	if ci.Slug == "" {
+		return errors.New("content item slug is required")
+	}
+	if ci.ContentTypeId == "" {
+		return errors.New("content type ID is required")
+	}
+	return nil
+}
+
+func ensureUniqueContentItemSlug(ctx context.Context, db *gorm.DB, contentTypeID, slug string) error {
+	count, err := gorm.G[models.ContentItem](db).
+		Where("\"ContentTypeId\" = ? AND \"Slug\" = ?", contentTypeID, slug).
+		Count(ctx, "*")
+	if err != nil {
+		return fmt.Errorf("failed to check content item existence: %w", err)
+	}
+	if count > 0 {
+		return ErrContentItemDuplicate
+	}
+	return nil
+}
+
+func prepareNewContentItem(ci *models.ContentItem) {
+	if ci.Id == "" {
+		ci.Id = cuid.New()
+	}
+	now := time.Now()
+	ci.CreatedAt = now
+	ci.UpdatedAt = now
 }
 
 func insertContentFieldValues(ctx context.Context, tx *gorm.DB, contentItemID string, fieldValues []models.ContentFieldValue) error {
@@ -164,38 +161,39 @@ func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
-
 	if len(updates) == 0 && len(fieldValues) == 0 {
 		return nil, errors.New("no updates provided")
 	}
-
 	existing, err := r.GetContentItemByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if len(fieldValues) > 0 {
-			if _, err := gorm.G[models.ContentFieldValue](tx).
-				Where("\"ContentItemId\" = ?", id).
-				Delete(ctx); err != nil {
-				return fmt.Errorf("failed to delete existing field values: %w", err)
-			}
-			if err := insertContentFieldValues(ctx, tx, id, fieldValues); err != nil {
-				return err
-			}
+		if err := replaceContentFieldValues(ctx, tx, id, fieldValues); err != nil {
+			return err
 		}
 		if len(updates) > 0 {
 			return applyContentItemUpdates(ctx, tx, existing, updates)
 		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
 	return r.GetContentItemByID(ctx, id)
+}
+
+func replaceContentFieldValues(ctx context.Context, tx *gorm.DB, id string, fieldValues []models.ContentFieldValue) error {
+	if len(fieldValues) == 0 {
+		return nil
+	}
+	if _, err := gorm.G[models.ContentFieldValue](tx).
+		Where("\"ContentItemId\" = ?", id).
+		Delete(ctx); err != nil {
+		return fmt.Errorf("failed to delete existing field values: %w", err)
+	}
+	return insertContentFieldValues(ctx, tx, id, fieldValues)
 }
 
 func (r *ContentItemRepository) DeleteContentItem(ctx context.Context, id string) error {

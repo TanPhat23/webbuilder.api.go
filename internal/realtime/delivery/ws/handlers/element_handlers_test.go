@@ -20,14 +20,9 @@ func elementHandlersPair(t *testing.T) (*handlerTestEnv, *handlerConn, *handlerC
 	return env, a, b
 }
 
-func TestElementCreate_BroadcastsToEveryoneWithSeqAndIDs(t *testing.T) {
-	env, a, b := elementHandlersPair(t)
-	a.send("element:create", map[string]any{
-		"element":  map[string]any{"type": "text", "pageId": "ignored-page", "id": handlerTestElemA},
-		"position": 3,
-	}, "op-1", "req-1")
-
-	for name, c := range map[string]*handlerConn{"sender": a, "other": b} {
+func assertElementCreateBroadcasts(t *testing.T, clients map[string]*handlerConn) {
+	t.Helper()
+	for name, c := range clients {
 		m := c.next("element:create")
 		if m.Seq != 1 || m.ClientOpID != "op-1" || m.RequestID != "req-1" {
 			t.Fatalf("%s: %+v", name, m)
@@ -41,15 +36,22 @@ func TestElementCreate_BroadcastsToEveryoneWithSeqAndIDs(t *testing.T) {
 			t.Fatalf("%s: broadcast element must be sanitized (name/styles present)", name)
 		}
 	}
+}
+
+func TestElementCreate_BroadcastsToEveryoneWithSeqAndIDs(t *testing.T) {
+	env, a, b := elementHandlersPair(t)
+	a.send("element:create", map[string]any{
+		"element":  map[string]any{"type": "text", "pageId": "ignored-page", "id": handlerTestElemA},
+		"position": 3,
+	}, "op-1", "req-1")
+
+	assertElementCreateBroadcasts(t, map[string]*handlerConn{"sender": a, "other": b})
 	if len(env.els.created) != 1 {
 		t.Fatalf("created %d", len(env.els.created))
 	}
 	call := env.els.created[0]
-	if call.project != handlerTestProject {
-		t.Fatalf("project = %q", call.project)
-	}
-	if call.el.PageID != handlerTestPage {
-		t.Fatalf("joined page must override payload pageId, got %q", call.el.PageID)
+	if call.project != handlerTestProject || call.el.PageID != handlerTestPage {
+		t.Fatalf("call project=%q page=%q", call.project, call.el.PageID)
 	}
 	if call.pos == nil || *call.pos != 3 {
 		t.Fatalf("position = %v", call.pos)
@@ -57,7 +59,10 @@ func TestElementCreate_BroadcastsToEveryoneWithSeqAndIDs(t *testing.T) {
 }
 
 func TestElementCreate_RootParentIsAcceptedAndPassedThrough(t *testing.T) {
-	env, a, _ := elementHandlersPair(t)
+	env, a, peer := elementHandlersPair(t)
+	if peer == nil {
+		t.Fatal("missing peer")
+	}
 	a.send("element:create", map[string]any{"element": map[string]any{"type": "div", "parentId": "root"}}, "", "")
 	a.next("element:create")
 	if p := env.els.created[0].el.ParentID; p == nil || *p != "root" {
@@ -117,6 +122,21 @@ func TestElementCreate_UseCaseErrorGoesToSenderOnlyAndConsumesNoSeq(t *testing.T
 	}
 }
 
+func assertElementUpdateEcho(t *testing.T, clients []*handlerConn) {
+	t.Helper()
+	for _, c := range clients {
+		m := c.next("element:update")
+		if m.Seq != 1 || m.ClientOpID != "op-u" || m.RequestID != "req-u" {
+			t.Fatalf("%+v", m)
+		}
+		var p domainEntity.PayloadElementUpdate
+		m.decode(t, &p)
+		if p.ID != handlerTestElemA || p.Styles["color"] != "red" {
+			t.Fatalf("payload %+v", p)
+		}
+	}
+}
+
 func TestElementUpdate_MergesTopLevelFieldsAndProperties(t *testing.T) {
 	env, a, b := elementHandlersPair(t)
 	a.send("element:update", map[string]any{
@@ -131,27 +151,14 @@ func TestElementUpdate_MergesTopLevelFieldsAndProperties(t *testing.T) {
 		"settings":       map[string]any{"k": nil},
 	}, "op-u", "req-u")
 
-	for _, c := range []*handlerConn{a, b} {
-		m := c.next("element:update")
-		if m.Seq != 1 || m.ClientOpID != "op-u" || m.RequestID != "req-u" {
-			t.Fatalf("%+v", m)
-		}
-		var p domainEntity.PayloadElementUpdate
-		m.decode(t, &p)
-		if p.ID != handlerTestElemA || p.Styles["color"] != "red" {
-			t.Fatalf("payload %+v", p)
-		}
-	}
+	assertElementUpdateEcho(t, []*handlerConn{a, b})
 	got := env.els.patched[0]
 	wantProps := map[string]any{"name": "N", "content": "explicit", "src": "S", "href": "H", "tailwindStyles": "T", "isLocked": true}
 	if got.project != handlerTestProject || got.page != handlerTestPage || got.id != handlerTestElemA {
 		t.Fatalf("call %+v", got)
 	}
-	if !reflect.DeepEqual(got.props, wantProps) {
-		t.Fatalf("props = %v, want %v", got.props, wantProps)
-	}
-	if got.styles["color"] != "red" {
-		t.Fatalf("styles = %v", got.styles)
+	if !reflect.DeepEqual(got.props, wantProps) || got.styles["color"] != "red" {
+		t.Fatalf("props=%v styles=%v", got.props, got.styles)
 	}
 	if v, ok := got.settings["k"]; !ok || v != nil {
 		t.Fatalf("settings null must be forwarded, got %v", got.settings)
@@ -231,29 +238,40 @@ func TestElementDelete_RequiresJoin(t *testing.T) {
 	}
 }
 
-func TestElementMove_BroadcastsTheUseCasesResolvedPosition(t *testing.T) {
-	env, a, b := elementHandlersPair(t)
-	parent := handlerTestElemB
-	env.els.moveRes = &domainEntity.Element{ID: handlerTestElemA, Order: 9, OrderKey: "a9", ParentID: &parent}
-	a.send("element:move", map[string]any{"id": handlerTestElemA, "parentId": parent, "order": 2}, "op-m", "req-m")
-	for _, c := range []*handlerConn{a, b} {
+func assertElementMoveBroadcasts(t *testing.T, clients []*handlerConn, parent string) {
+	t.Helper()
+	for _, c := range clients {
 		m := c.next("element:move")
 		var p domainEntity.PayloadElementMove
 		m.decode(t, &p)
 		if m.Seq != 1 || m.ClientOpID != "op-m" || m.RequestID != "req-m" {
 			t.Fatalf("%+v", m)
 		}
-		if p.Order != 9 || p.OrderKey != "a9" || p.ParentID == nil || *p.ParentID != parent {
-			t.Fatalf("broadcast must carry resolved position, got %+v", p)
+		if p.Order != 9 || p.OrderKey != "a9" {
+			t.Fatalf("broadcast order/key mismatch: %+v", p)
+		}
+		if p.ParentID == nil || *p.ParentID != parent {
+			t.Fatalf("broadcast parent mismatch: %+v", p)
 		}
 	}
+}
+
+func TestElementMove_BroadcastsTheUseCasesResolvedPosition(t *testing.T) {
+	env, a, b := elementHandlersPair(t)
+	parent := handlerTestElemB
+	env.els.moveRes = &domainEntity.Element{ID: handlerTestElemA, Order: 9, OrderKey: "a9", ParentID: &parent}
+	a.send("element:move", map[string]any{"id": handlerTestElemA, "parentId": parent, "order": 2}, "op-m", "req-m")
+	assertElementMoveBroadcasts(t, []*handlerConn{a, b}, parent)
 	if got := env.els.moved[0]; got != (handlerMoveCall{handlerTestProject, handlerTestPage, handlerTestElemA, parent, 2}) {
 		t.Fatalf("call %+v", got)
 	}
 }
 
 func TestElementMove_NullParentMovesToRoot(t *testing.T) {
-	env, a, _ := elementHandlersPair(t)
+	env, a, peer := elementHandlersPair(t)
+	if peer == nil {
+		t.Fatal("missing peer")
+	}
 	a.send("element:move", map[string]any{"id": handlerTestElemA, "parentId": nil, "order": 0}, "", "")
 	a.next("element:move")
 	if got := env.els.moved[0]; got.parent != "" || got.index != 0 {

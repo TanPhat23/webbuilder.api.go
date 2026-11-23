@@ -196,19 +196,31 @@ func (f *MessageFactory) ErrorWithErr(code, errMsg string) (domainEntity.Message
 // ErrorForOp constructs an error message that echoes the failed operation's clientOpId
 // (both on the envelope and in the payload). With an empty clientOpId it equals Error.
 func (f *MessageFactory) ErrorForOp(code, errMsg, clientOpID string) domainEntity.Message {
-	msg, _ := f.Create(domainEntity.TypeError, domainEntity.PayloadError{
-		Code:       code,
-		Message:    errMsg,
-		ClientOpID: clientOpID,
-	})
-	msg.ClientOpID = clientOpID
-	return msg
+	return f.mustCreateError(code, errMsg, clientOpID)
 }
 
 // Error constructs a standardized error message.
 // Use ErrorWithErr if you need to propagate marshaling errors.
 func (f *MessageFactory) Error(code, errMsg string) domainEntity.Message {
-	msg, _ := f.ErrorWithErr(code, errMsg)
+	return f.mustCreateError(code, errMsg, "")
+}
+
+func (f *MessageFactory) mustCreateError(code, errMsg, clientOpID string) domainEntity.Message {
+	msg, err := f.Create(domainEntity.TypeError, domainEntity.PayloadError{
+		Code:       code,
+		Message:    errMsg,
+		ClientOpID: clientOpID,
+	})
+	if err != nil {
+		return domainEntity.Message{
+			Type:       domainEntity.TypeError,
+			ProjectID:  f.projectID,
+			PageID:     f.pageID,
+			UserID:     f.userID,
+			ClientOpID: clientOpID,
+		}
+	}
+	msg.ClientOpID = clientOpID
 	return msg
 }
 

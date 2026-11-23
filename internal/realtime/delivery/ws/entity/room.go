@@ -71,90 +71,102 @@ func (r *Room) run() {
 			return
 
 		case req := <-r.register:
-			client := req.client
-			if r.ctx.Err() != nil {
-				// This room is shutting down (its last client just left): adding the client
-				// would start a writer that is cancelled at once. Make the caller retry.
-				if req.rejected != nil {
-					*req.rejected = true
-				}
-				if req.done != nil {
-					close(req.done)
-				}
-				continue
-			}
-			r.mu.Lock()
-			if _, ok := r.clients[client]; !ok {
-				send, started := client.openSend(r.sendBuf)
-				r.clients[client] = true
-				if started {
-					r.wg.Add(1)
-					go r.clientWriter(client, send)
-				}
-			}
-			r.mu.Unlock()
-
-			if req.done != nil {
-				// close done asynchronously so the room loop isn't blocked by the
-				// waiter's behavior
-				go func(ch chan struct{}) { close(ch) }(req.done)
-			}
+			r.handleRegister(req)
 
 		case req := <-r.unregister:
-			client := req.client
-			r.mu.Lock()
-			if _, ok := r.clients[client]; ok {
-				delete(r.clients, client)
-				if !req.detach {
-					client.CloseSend()
-				}
-			}
-			empty := len(r.clients) == 0
-			r.mu.Unlock()
-
-			if req.done != nil {
-				go func(ch chan struct{}) { close(ch) }(req.done)
-			}
-
-			if empty {
-				// stop the room and tell the hub it is empty so it can be removed
-				r.cancel()
-				if r.onEmpty != nil {
-					r.onEmpty(r.PageID)
-				}
-			}
+			r.handleUnregister(req)
 
 		case msg := <-r.broadcast:
-			// Encode once and share the frame: marshalling per client was a sixth of
-			// the CPU of a 200-client fan-out.
-			frame, err := EncodeFrame(msg.message)
-			if err != nil {
-				// Every writer would have failed on this message and closed its connection.
-				if r.logger != nil {
-					r.logger.Errorf("room %s: cannot encode %s broadcast, closing room clients to force resync: %v", r.PageID, msg.message.Type, err)
-				}
-				r.closeAllClients()
-				continue
-			}
-			r.mu.Lock()
-			for client := range r.clients {
-				if msg.sender != nil && client == msg.sender {
-					continue
-				}
-				if !client.TrySendFrame(frame) {
-					// Slow client: never drop a single message silently (clients rely on
-					// gap-free seq numbers). Close its send channel, which makes the writer
-					// close the connection, so the client reconnects and resyncs.
-					if r.logger != nil {
-						r.logger.Errorf("room %s: client send buffer full (user=%s), closing connection to force resync", r.PageID, clientUserID(client))
-					}
-					client.CloseSend()
-					delete(r.clients, client)
-				}
-			}
-			r.mu.Unlock()
+			r.handleBroadcast(msg)
 		}
 	}
+}
+
+func (r *Room) handleRegister(req registerRequest) {
+	client := req.client
+	if r.ctx.Err() != nil {
+		// This room is shutting down (its last client just left): adding the client
+		// would start a writer that is cancelled at once. Make the caller retry.
+		if req.rejected != nil {
+			*req.rejected = true
+		}
+		if req.done != nil {
+			close(req.done)
+		}
+		return
+	}
+	r.mu.Lock()
+	if _, ok := r.clients[client]; !ok {
+		send, started := client.openSend(r.sendBuf)
+		r.clients[client] = true
+		if started {
+			r.wg.Add(1)
+			go r.clientWriter(client, send)
+		}
+	}
+	r.mu.Unlock()
+
+	if req.done != nil {
+		// close done asynchronously so the room loop isn't blocked by the
+		// waiter's behavior
+		go func(ch chan struct{}) { close(ch) }(req.done)
+	}
+}
+
+func (r *Room) handleUnregister(req unregisterRequest) {
+	client := req.client
+	r.mu.Lock()
+	if _, ok := r.clients[client]; ok {
+		delete(r.clients, client)
+		if !req.detach {
+			client.CloseSend()
+		}
+	}
+	empty := len(r.clients) == 0
+	r.mu.Unlock()
+
+	if req.done != nil {
+		go func(ch chan struct{}) { close(ch) }(req.done)
+	}
+
+	if empty {
+		// stop the room and tell the hub it is empty so it can be removed
+		r.cancel()
+		if r.onEmpty != nil {
+			r.onEmpty(r.PageID)
+		}
+	}
+}
+
+func (r *Room) handleBroadcast(msg roomBroadcast) {
+	// Encode once and share the frame: marshalling per client was a sixth of
+	// the CPU of a 200-client fan-out.
+	frame, err := EncodeFrame(msg.message)
+	if err != nil {
+		// Every writer would have failed on this message and closed its connection.
+		if r.logger != nil {
+			r.logger.Errorf("room %s: cannot encode %s broadcast, closing room clients to force resync: %v", r.PageID, msg.message.Type, err)
+		}
+		r.closeAllClients()
+		return
+	}
+	r.mu.Lock()
+	for client := range r.clients {
+		if msg.sender != nil && client == msg.sender {
+			continue
+		}
+		if !client.TrySendFrame(frame) {
+			// Slow client: never drop a single message silently (clients rely on
+			// gap-free seq numbers). Close its send channel, which makes the writer
+			// close the connection, so the client reconnects and resyncs.
+			if r.logger != nil {
+				r.logger.Errorf("room %s: client send buffer full (user=%s), closing connection to force resync", r.PageID, clientUserID(client))
+			}
+			client.CloseSend()
+			delete(r.clients, client)
+		}
+	}
+	r.mu.Unlock()
 }
 
 // clientWriter is responsible for writing messages from a client's send

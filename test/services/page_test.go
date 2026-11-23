@@ -10,72 +10,64 @@ import (
 	mockrepo "my-go-app/test/mockrepo"
 )
 
-func TestGetPagesByProjectID(t *testing.T) {
-	t.Run("valid project ID returns pages", func(t *testing.T) {
-		pageRepo := mockrepo.NewMockPageRepo().SetGetPagesByProjectID(func(ctx context.Context, projectID string) ([]models.Page, error) {
-			if projectID == "valid-project-id" {
-				return []models.Page{
-					{Id: "page1", ProjectId: "valid-project-id"},
-					{Id: "page2", ProjectId: "valid-project-id"},
-				}, nil
-			}
-			return nil, nil
-		})
-		projectRepo := mockrepo.NewMockProjectRepo().SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
-			if id == "valid-project-id" {
-				return &models.Project{ID: "valid-project-id"}, nil
-			}
-			return nil, nil
-		})
+func assertPageServiceErr(t *testing.T, err error, want string) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err.Error() != want {
+		t.Fatalf("expected error %q, got %v", want, err)
+	}
+}
 
-		service := services.NewPageService(pageRepo, projectRepo)
+func assertPageServiceNoErr(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
 
-		pages, err := service.GetPagesByProjectID(context.Background(), "valid-project-id", "")
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
+func newTestPageService(pageRepo *mockrepo.MockPageRepo, projectRepo *mockrepo.MockProjectRepo) *services.PageService {
+	return services.NewPageService(pageRepo, projectRepo)
+}
+
+func TestGetPagesByProjectIDValidAndMissing(t *testing.T) {
+	pageRepo := mockrepo.NewMockPageRepo().SetGetPagesByProjectID(func(ctx context.Context, projectID string) ([]models.Page, error) {
+		if projectID == "valid-project-id" {
+			return []models.Page{{Id: "page1", ProjectId: "valid-project-id"}, {Id: "page2", ProjectId: "valid-project-id"}}, nil
 		}
-		if len(pages) != 2 {
-			t.Fatalf("expected 2 pages, got %d", len(pages))
-		}
-		if pages[0].Id != "page1" || pages[1].Id != "page2" {
-			t.Fatalf("unexpected pages returned: %+v", pages)
-		}
+		return nil, nil
 	})
-
-	t.Run("missing project ID returns error", func(t *testing.T) {
-		service := services.NewPageService(mockrepo.NewMockPageRepo(), mockrepo.NewMockProjectRepo())
-
-		pages, err := service.GetPagesByProjectID(context.Background(), "", "")
-		if err == nil {
-			t.Fatal("expected error, got nil")
+	projectRepo := mockrepo.NewMockProjectRepo().SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+		if id == "valid-project-id" {
+			return &models.Project{ID: "valid-project-id"}, nil
 		}
-		if err.Error() != "projectId is required" {
-			t.Fatalf("expected projectId error, got %v", err)
-		}
-		if pages != nil {
-			t.Fatalf("expected nil pages, got %+v", pages)
-		}
+		return nil, nil
 	})
+	service := newTestPageService(pageRepo, projectRepo)
 
-	t.Run("project lookup error is returned", func(t *testing.T) {
-		pageRepo := mockrepo.NewMockPageRepo()
-		projectRepo := mockrepo.NewMockProjectRepo().SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
-			return nil, errors.New("project lookup failed")
-		})
+	pages, err := service.GetPagesByProjectID(context.Background(), "valid-project-id", "")
+	assertPageServiceNoErr(t, err)
+	if len(pages) != 2 || pages[0].Id != "page1" || pages[1].Id != "page2" {
+		t.Fatalf("unexpected pages returned: %+v", pages)
+	}
 
-		service := services.NewPageService(pageRepo, projectRepo)
+	pages, err = service.GetPagesByProjectID(context.Background(), "", "")
+	assertPageServiceErr(t, err, "projectId is required")
+	if pages != nil {
+		t.Fatalf("expected nil pages, got %+v", pages)
+	}
+}
 
-		pages, err := service.GetPagesByProjectID(context.Background(), "valid-project-id", "")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "project lookup failed" {
-			t.Fatalf("expected propagated error, got %v", err)
-		}
-		if pages != nil {
-			t.Fatalf("expected nil pages, got %+v", pages)
-		}
+func TestGetPagesByProjectIDLookupError(t *testing.T) {
+	projectRepo := mockrepo.NewMockProjectRepo().SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+		return nil, errors.New("project lookup failed")
 	})
+	pages, err := newTestPageService(mockrepo.NewMockPageRepo(), projectRepo).GetPagesByProjectID(context.Background(), "valid-project-id", "")
+	assertPageServiceErr(t, err, "project lookup failed")
+	if pages != nil {
+		t.Fatalf("expected nil pages, got %+v", pages)
+	}
 }
 
 func TestGetPageByID(t *testing.T) {
@@ -91,29 +83,21 @@ func TestGetPageByID(t *testing.T) {
 		}
 		return nil, nil
 	})
+	service := newTestPageService(pageRepo, projectRepo)
 
-	service := services.NewPageService(pageRepo, projectRepo)
+	page, err := service.GetPageByID(context.Background(), "page1")
+	assertPageServiceNoErr(t, err)
+	if page == nil || page.Id != "page1" {
+		t.Fatalf("expected page1, got %v", page)
+	}
 
-	t.Run("valid project ID returns pages", func(t *testing.T) {
-		page, err := service.GetPageByID(context.Background(), "page1")
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if page == nil || page.Id != "page1" {
-			t.Fatalf("expected page with ID 'page1', got %v", page)
-		}
-	})
-	t.Run("missing page ID returns error", func(t *testing.T) {
-		page, err := service.GetPageByID(context.Background(), "")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if page != nil {
-			t.Fatalf("expected nil page, got %v", page)
-		}
-	})
+	miss, err := service.GetPageByID(context.Background(), "")
+	if err == nil || miss != nil {
+		t.Fatalf("expected error and nil page, got %v, %v", err, miss)
+	}
 }
-func TestCreatePage(t *testing.T) {
+
+func newCreatePageTestService() (services.PageServiceInterface, *mockrepo.MockProjectRepo) {
 	pageRepo := mockrepo.NewMockPageRepo().SetCreatePage(func(ctx context.Context, page *models.Page) error {
 		if page.Id == "new-page" && page.ProjectId == "valid-project-id" {
 			return nil
@@ -126,77 +110,43 @@ func TestCreatePage(t *testing.T) {
 		}
 		return nil, nil
 	})
+	return newTestPageService(pageRepo, projectRepo), projectRepo
+}
 
-	service := services.NewPageService(pageRepo, projectRepo)
+func TestCreatePageSuccessAndValidation(t *testing.T) {
+	service, _ := newCreatePageTestService()
+	created, err := service.CreatePage(context.Background(), &models.Page{Id: "new-page", ProjectId: "valid-project-id", Name: "New Page", Type: "html"})
+	assertPageServiceNoErr(t, err)
+	if created == nil || created.Id != "new-page" {
+		t.Fatalf("expected new-page, got %v", created)
+	}
 
-	t.Run("valid page is created successfully", func(t *testing.T) {
-		page := &models.Page{Id: "new-page", ProjectId: "valid-project-id", Name: "New Page", Type: "html"}
-		createdPage, err := service.CreatePage(context.Background(), page)
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
+	for _, tc := range []struct {
+		page *models.Page
+		want string
+	}{
+		{&models.Page{Id: "new-page", Name: "New Page", Type: "html"}, "projectId is required"},
+		{&models.Page{Id: "new-page", ProjectId: "valid-project-id", Type: "html"}, "page name is required"},
+		{&models.Page{Id: "new-page", ProjectId: "valid-project-id", Name: "New Page"}, "page type is required"},
+	} {
+		got, err := service.CreatePage(context.Background(), tc.page)
+		assertPageServiceErr(t, err, tc.want)
+		if got != nil {
+			t.Fatalf("expected nil page, got %v", got)
 		}
-		if createdPage == nil || createdPage.Id != "new-page" {
-			t.Fatalf("expected created page with ID 'new-page', got %v", createdPage)
-		}
-	})
+	}
+}
 
-	t.Run("missing project ID returns error", func(t *testing.T) {
-		page := &models.Page{Id: "new-page", Name: "New Page", Type: "html"}
-		createdPage, err := service.CreatePage(context.Background(), page)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "projectId is required" {
-			t.Fatalf("expected projectId error, got %v", err)
-		}
-		if createdPage != nil {
-			t.Fatalf("expected nil page, got %v", createdPage)
-		}
+func TestCreatePageProjectLookupError(t *testing.T) {
+	service, projectRepo := newCreatePageTestService()
+	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+		return nil, errors.New("project lookup failed")
 	})
-	t.Run("missing page name returns error", func(t *testing.T) {
-		page := &models.Page{Id: "new-page", ProjectId: "valid-project-id", Type: "html"}
-		createdPage, err := service.CreatePage(context.Background(), page)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "page name is required" {
-			t.Fatalf("expected page name error, got %v", err)
-		}
-		if createdPage != nil {
-			t.Fatalf("expected nil page, got %v", createdPage)
-		}
-	})
-	
-	t.Run("missing page type returns error", func(t *testing.T) {
-		page := &models.Page{Id: "new-page", ProjectId: "valid-project-id", Name: "New Page"}
-		createdPage, err := service.CreatePage(context.Background(), page)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "page type is required" {
-			t.Fatalf("expected page type error, got %v", err)
-		}
-		if createdPage != nil {
-			t.Fatalf("expected nil page, got %v", createdPage)
-		}
-	})
-
-	t.Run("project lookup error is returned", func(t *testing.T) {
-		projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
-			return nil, errors.New("project lookup failed")
-		})
-		page := &models.Page{Id: "new-page", ProjectId: "valid-project-id", Name: "New Page", Type: "html"}
-		createdPage, err := service.CreatePage(context.Background(), page)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "project lookup failed" {
-			t.Fatalf("expected propagated error, got %v", err)
-		}
-		if createdPage != nil {
-			t.Fatalf("expected nil page, got %v", createdPage)
-		}
-	})
+	got, err := service.CreatePage(context.Background(), &models.Page{Id: "new-page", ProjectId: "valid-project-id", Name: "New Page", Type: "html"})
+	assertPageServiceErr(t, err, "project lookup failed")
+	if got != nil {
+		t.Fatalf("expected nil page, got %v", got)
+	}
 }
 
 func TestUpdatePage(t *testing.T) {
@@ -206,61 +156,29 @@ func TestUpdatePage(t *testing.T) {
 		}
 		return errors.New("failed to update page")
 	})
-	projectRepo := mockrepo.NewMockProjectRepo()
+	service := newTestPageService(pageRepo, mockrepo.NewMockProjectRepo())
 
-	service := services.NewPageService(pageRepo, projectRepo)
+	updated, err := service.UpdatePage(context.Background(), "page1", &models.Page{Id: "page1", Name: "Updated Page", Type: "html"})
+	assertPageServiceNoErr(t, err)
+	if updated == nil || updated.Id != "page1" {
+		t.Fatalf("expected page1, got %v", updated)
+	}
 
-	t.Run("valid page is updated successfully", func(t *testing.T) {
-		page := &models.Page{Id: "page1", Name: "Updated Page", Type: "html"}
-		updatedPage, err := service.UpdatePage(context.Background(), "page1", page)
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
+	for _, tc := range []struct {
+		id   string
+		page *models.Page
+		want string
+	}{
+		{"", &models.Page{Name: "Updated Page", Type: "html"}, "pageId is required"},
+		{"page1", nil, "page cannot be nil"},
+		{"invalid", &models.Page{Id: "invalid", Name: "Invalid Page", Type: "html"}, "failed to update page"},
+	} {
+		got, err := service.UpdatePage(context.Background(), tc.id, tc.page)
+		assertPageServiceErr(t, err, tc.want)
+		if got != nil {
+			t.Fatalf("expected nil page, got %v", got)
 		}
-		if updatedPage == nil || updatedPage.Id != "page1" {
-			t.Fatalf("expected updated page with ID 'page1', got %v", updatedPage)
-		}
-	})
-
-	t.Run("missing page ID returns error", func(t *testing.T) {
-		page := &models.Page{Name: "Updated Page", Type: "html"}
-		updatedPage, err := service.UpdatePage(context.Background(), "", page)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "pageId is required" {
-			t.Fatalf("expected pageId error, got %v", err)
-		}
-		if updatedPage != nil {
-			t.Fatalf("expected nil page, got %v", updatedPage)
-		}
-	})
-
-	t.Run("nil page returns error", func(t *testing.T) {
-		updatedPage, err := service.UpdatePage(context.Background(), "page1", nil)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "page cannot be nil" {
-			t.Fatalf("expected page nil error, got %v", err)
-		}
-		if updatedPage != nil {
-			t.Fatalf("expected nil page, got %v", updatedPage)
-		}
-	})
-
-	t.Run("repository error is returned", func(t *testing.T) {
-		page := &models.Page{Id: "invalid", Name: "Invalid Page", Type: "html"}
-		updatedPage, err := service.UpdatePage(context.Background(), "invalid", page)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "failed to update page" {
-			t.Fatalf("expected repo error, got %v", err)
-		}
-		if updatedPage != nil {
-			t.Fatalf("expected nil page, got %v", updatedPage)
-		}
-	})
+	}
 }
 
 func TestUpdatePageFields(t *testing.T) {
@@ -270,49 +188,12 @@ func TestUpdatePageFields(t *testing.T) {
 		}
 		return errors.New("failed to update page fields")
 	})
-	projectRepo := mockrepo.NewMockProjectRepo()
+	service := newTestPageService(pageRepo, mockrepo.NewMockProjectRepo())
 
-	service := services.NewPageService(pageRepo, projectRepo)
-
-	t.Run("valid page fields are updated successfully", func(t *testing.T) {
-		updates := map[string]any{"Name": "Updated Name"}
-		err := service.UpdatePageFields(context.Background(), "page1", updates)
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-	})
-
-	t.Run("missing page ID returns error", func(t *testing.T) {
-		updates := map[string]any{"Name": "Updated Name"}
-		err := service.UpdatePageFields(context.Background(), "", updates)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "pageId is required" {
-			t.Fatalf("expected pageId error, got %v", err)
-		}
-	})
-
-	t.Run("no updates provided returns error", func(t *testing.T) {
-		err := service.UpdatePageFields(context.Background(), "page1", map[string]any{})
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "no updates provided" {
-			t.Fatalf("expected no updates error, got %v", err)
-		}
-	})
-
-	t.Run("repository error is returned", func(t *testing.T) {
-		updates := map[string]any{"Name": "Updated Name"}
-		err := service.UpdatePageFields(context.Background(), "invalid", updates)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "failed to update page fields" {
-			t.Fatalf("expected repo error, got %v", err)
-		}
-	})
+	assertPageServiceNoErr(t, service.UpdatePageFields(context.Background(), "page1", map[string]any{"Name": "Updated Name"}))
+	assertPageServiceErr(t, service.UpdatePageFields(context.Background(), "", map[string]any{"Name": "Updated Name"}), "pageId is required")
+	assertPageServiceErr(t, service.UpdatePageFields(context.Background(), "page1", map[string]any{}), "no updates provided")
+	assertPageServiceErr(t, service.UpdatePageFields(context.Background(), "invalid", map[string]any{"Name": "Updated Name"}), "failed to update page fields")
 }
 
 func TestDeletePage(t *testing.T) {
@@ -322,36 +203,11 @@ func TestDeletePage(t *testing.T) {
 		}
 		return errors.New("failed to delete page")
 	})
-	projectRepo := mockrepo.NewMockProjectRepo()
+	service := newTestPageService(pageRepo, mockrepo.NewMockProjectRepo())
 
-	service := services.NewPageService(pageRepo, projectRepo)
-
-	t.Run("valid page is deleted successfully", func(t *testing.T) {
-		err := service.DeletePage(context.Background(), "page1")
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-	})
-
-	t.Run("missing page ID returns error", func(t *testing.T) {
-		err := service.DeletePage(context.Background(), "")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "pageId is required" {
-			t.Fatalf("expected pageId error, got %v", err)
-		}
-	})
-
-	t.Run("repository error is returned", func(t *testing.T) {
-		err := service.DeletePage(context.Background(), "invalid")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "failed to delete page" {
-			t.Fatalf("expected repo error, got %v", err)
-		}
-	})
+	assertPageServiceNoErr(t, service.DeletePage(context.Background(), "page1"))
+	assertPageServiceErr(t, service.DeletePage(context.Background(), ""), "pageId is required")
+	assertPageServiceErr(t, service.DeletePage(context.Background(), "invalid"), "failed to delete page")
 }
 
 func TestDeletePageByProjectID(t *testing.T) {
@@ -367,55 +223,13 @@ func TestDeletePageByProjectID(t *testing.T) {
 		}
 		return nil, errors.New("access denied")
 	})
+	service := newTestPageService(pageRepo, projectRepo)
 
-	service := services.NewPageService(pageRepo, projectRepo)
-
-	t.Run("valid page is deleted by project ID", func(t *testing.T) {
-		err := service.DeletePageByProjectID(context.Background(), "page1", "proj1", "user1")
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-	})
-
-	t.Run("missing page ID returns error", func(t *testing.T) {
-		err := service.DeletePageByProjectID(context.Background(), "", "proj1", "user1")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "pageId is required" {
-			t.Fatalf("expected pageId error, got %v", err)
-		}
-	})
-
-	t.Run("missing project ID returns error", func(t *testing.T) {
-		err := service.DeletePageByProjectID(context.Background(), "page1", "", "user1")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "projectId is required" {
-			t.Fatalf("expected projectId error, got %v", err)
-		}
-	})
-
-	t.Run("missing user ID returns error", func(t *testing.T) {
-		err := service.DeletePageByProjectID(context.Background(), "page1", "proj1", "")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "userId is required" {
-			t.Fatalf("expected userId error, got %v", err)
-		}
-	})
-
-	t.Run("access denied error is returned", func(t *testing.T) {
-		err := service.DeletePageByProjectID(context.Background(), "page1", "proj2", "user2")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "access denied" {
-			t.Fatalf("expected access denied error, got %v", err)
-		}
-	})
+	assertPageServiceNoErr(t, service.DeletePageByProjectID(context.Background(), "page1", "proj1", "user1"))
+	assertPageServiceErr(t, service.DeletePageByProjectID(context.Background(), "", "proj1", "user1"), "pageId is required")
+	assertPageServiceErr(t, service.DeletePageByProjectID(context.Background(), "page1", "", "user1"), "projectId is required")
+	assertPageServiceErr(t, service.DeletePageByProjectID(context.Background(), "page1", "proj1", ""), "userId is required")
+	assertPageServiceErr(t, service.DeletePageByProjectID(context.Background(), "page1", "proj2", "user2"), "access denied")
 }
 
 func TestDeletePageByProjectIDWithoutVerification(t *testing.T) {
@@ -425,44 +239,10 @@ func TestDeletePageByProjectIDWithoutVerification(t *testing.T) {
 		}
 		return errors.New("failed to delete page")
 	})
-	projectRepo := mockrepo.NewMockProjectRepo()
+	service := newTestPageService(pageRepo, mockrepo.NewMockProjectRepo())
 
-	service := services.NewPageService(pageRepo, projectRepo)
-
-	t.Run("valid page is deleted without verification", func(t *testing.T) {
-		err := service.DeletePageByProjectIDWithoutVerification(context.Background(), "page1", "proj1")
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-	})
-
-	t.Run("missing page ID returns error", func(t *testing.T) {
-		err := service.DeletePageByProjectIDWithoutVerification(context.Background(), "", "proj1")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "pageId is required" {
-			t.Fatalf("expected pageId error, got %v", err)
-		}
-	})
-
-	t.Run("missing project ID returns error", func(t *testing.T) {
-		err := service.DeletePageByProjectIDWithoutVerification(context.Background(), "page1", "")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "projectId is required" {
-			t.Fatalf("expected projectId error, got %v", err)
-		}
-	})
-
-	t.Run("repository error is returned", func(t *testing.T) {
-		err := service.DeletePageByProjectIDWithoutVerification(context.Background(), "invalid", "invalid")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if err.Error() != "failed to delete page" {
-			t.Fatalf("expected repo error, got %v", err)
-		}
-	})
+	assertPageServiceNoErr(t, service.DeletePageByProjectIDWithoutVerification(context.Background(), "page1", "proj1"))
+	assertPageServiceErr(t, service.DeletePageByProjectIDWithoutVerification(context.Background(), "", "proj1"), "pageId is required")
+	assertPageServiceErr(t, service.DeletePageByProjectIDWithoutVerification(context.Background(), "page1", ""), "projectId is required")
+	assertPageServiceErr(t, service.DeletePageByProjectIDWithoutVerification(context.Background(), "invalid", "invalid"), "failed to delete page")
 }

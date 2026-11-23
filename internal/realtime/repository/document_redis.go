@@ -231,26 +231,13 @@ func (r *documentRepository) SetDocumentIfAbsent(ctx context.Context, projectID 
 // GetDocumentWithSeq reads the document and its sequence number in one MULTI/EXEC so the pair
 // is a consistent snapshot (mutations write both atomically).
 func (r *documentRepository) GetDocumentWithSeq(ctx context.Context, projectID string, pageID string) ([]domainEntity.Element, int64, error) {
-	pipe := r.client.TxPipeline()
-	hashCmd := pipe.HGetAll(ctx, r.getHashKey(projectID, pageID))
-	seqCmd := pipe.Get(ctx, r.getSeqKey(projectID, pageID))
-	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
-		return nil, 0, fmt.Errorf("failed to read document snapshot from redis: %w", err)
+	hashVals, seq, err := r.readHashAndSeq(ctx, projectID, pageID)
+	if err != nil {
+		return nil, 0, err
 	}
-
-	var seq int64
-	if v, err := seqCmd.Int64(); err == nil {
-		seq = v
-	} else if !errors.Is(err, redis.Nil) {
-		return nil, 0, fmt.Errorf("failed to read page seq: %w", err)
-	}
-
-	doc := docFromHash(hashCmd.Val())
-	if !doc.present {
-		var err error
-		if doc, err = r.readLegacy(ctx, projectID, pageID); err != nil {
-			return nil, 0, err
-		}
+	doc, err := r.resolveStoredDoc(ctx, projectID, pageID, hashVals)
+	if err != nil {
+		return nil, 0, err
 	}
 	if !doc.present {
 		return nil, seq, nil
@@ -262,6 +249,27 @@ func (r *documentRepository) GetDocumentWithSeq(ctx context.Context, projectID s
 	return elements, seq, nil
 }
 
+func (r *documentRepository) readHashAndSeq(ctx context.Context, projectID, pageID string) (map[string]string, int64, error) {
+	pipe := r.client.TxPipeline()
+	hashCmd := pipe.HGetAll(ctx, r.getHashKey(projectID, pageID))
+	seqCmd := pipe.Get(ctx, r.getSeqKey(projectID, pageID))
+	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
+		return nil, 0, fmt.Errorf("failed to read document snapshot from redis: %w", err)
+	}
+	seq, err := seqCmd.Int64()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, 0, fmt.Errorf("failed to read page seq: %w", err)
+	}
+	return hashCmd.Val(), seq, nil
+}
+
+func (r *documentRepository) resolveStoredDoc(ctx context.Context, projectID, pageID string, hashVals map[string]string) (*storedDoc, error) {
+	if doc := docFromHash(hashVals); doc.present {
+		return doc, nil
+	}
+	return r.readLegacy(ctx, projectID, pageID)
+}
+
 // UpdateDocument atomically applies mutate to the current document (loading it with load on a
 // cache miss): it reads the page, runs mutate on the tree, and writes only the elements that
 // changed. If another writer touched anything it read in between, the whole read-modify-write
@@ -269,32 +277,7 @@ func (r *documentRepository) GetDocumentWithSeq(ctx context.Context, projectID s
 // write, so failed or aborted attempts never consume one.
 func (r *documentRepository) UpdateDocument(ctx context.Context, projectID string, pageID string, load domainRepo.DocumentLoadFunc, mutate domainRepo.DocumentMutateFunc) (int64, error) {
 	for attempt := 0; attempt < maxUpdateRetries; attempt++ {
-		doc, err := r.readDoc(ctx, projectID, pageID)
-		if err != nil {
-			return 0, err
-		}
-
-		var elements []domainEntity.Element
-		if doc.present {
-			if elements, err = doc.tree(); err != nil {
-				return 0, err
-			}
-		} else if load != nil {
-			if elements, err = load(ctx); err != nil {
-				return 0, err
-			}
-		}
-
-		updated, err := mutate(elements)
-		if err != nil {
-			return 0, err
-		}
-		next, err := flattenForStorage(updated)
-		if err != nil {
-			return 0, err
-		}
-
-		seq, applied, err := r.applyDiff(ctx, projectID, pageID, doc, next)
+		seq, applied, err := r.tryUpdateDocumentOnce(ctx, projectID, pageID, load, mutate)
 		if err != nil {
 			return 0, err
 		}
@@ -308,55 +291,106 @@ func (r *documentRepository) UpdateDocument(ctx context.Context, projectID strin
 	return 0, fmt.Errorf("document update for page %s aborted after %d conflicting attempts", pageID, maxUpdateRetries)
 }
 
+func (r *documentRepository) tryUpdateDocumentOnce(ctx context.Context, projectID, pageID string, load domainRepo.DocumentLoadFunc, mutate domainRepo.DocumentMutateFunc) (int64, bool, error) {
+	doc, elements, err := r.loadDocElements(ctx, projectID, pageID, load)
+	if err != nil {
+		return 0, false, err
+	}
+	updated, err := mutate(elements)
+	if err != nil {
+		return 0, false, err
+	}
+	next, err := flattenForStorage(updated)
+	if err != nil {
+		return 0, false, err
+	}
+	return r.applyDiff(ctx, projectID, pageID, doc, next)
+}
+
+func (r *documentRepository) loadDocElements(ctx context.Context, projectID, pageID string, load domainRepo.DocumentLoadFunc) (*storedDoc, []domainEntity.Element, error) {
+	doc, err := r.readDoc(ctx, projectID, pageID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if doc.present {
+		elements, err := doc.tree()
+		return doc, elements, err
+	}
+	if load == nil {
+		return doc, nil, nil
+	}
+	elements, err := load(ctx)
+	return doc, elements, err
+}
+
 // PatchDocumentElement atomically applies mutate to one element. It reads and writes only that
 // element, so edits to different elements of the same page never conflict. It falls back to a
 // whole-document update when the page is not in the hash yet (cache miss or legacy layout).
 func (r *documentRepository) PatchDocumentElement(ctx context.Context, projectID string, pageID string, elementID string, load domainRepo.DocumentLoadFunc, mutate domainRepo.ElementMutateFunc) (int64, error) {
 	hashKey := r.getHashKey(projectID, pageID)
 	for attempt := 0; attempt < maxUpdateRetries; attempt++ {
-		prev, err := r.client.HGet(ctx, hashKey, elementID).Result()
-		if errors.Is(err, redis.Nil) {
-			cached, err := r.client.HExists(ctx, hashKey, structField).Result()
-			if err != nil {
-				return 0, fmt.Errorf("failed to check cached document: %w", err)
-			}
-			if cached {
-				return 0, errElementNotFound
-			}
-			return r.patchViaDocument(ctx, projectID, pageID, elementID, load, mutate)
-		}
+		seq, applied, err := r.tryPatchElementOnce(ctx, hashKey, projectID, pageID, elementID, load, mutate)
 		if err != nil {
-			return 0, fmt.Errorf("failed to read element from redis: %w", err)
-		}
-
-		var el domainEntity.Element
-		if err := json.Unmarshal([]byte(prev), &el); err != nil {
-			return 0, fmt.Errorf("failed to unmarshal element: %w", err)
-		}
-		if err := mutate(&el); err != nil {
 			return 0, err
 		}
-		el.Elements = nil
-		next, err := json.Marshal(el)
-		if err != nil {
-			return 0, fmt.Errorf("failed to marshal element: %w", err)
-		}
-
-		res, err := patchElementScript.Run(ctx, r.client,
-			[]string{hashKey, r.getSeqKey(projectID, pageID), dirtyPageKey},
-			int64(r.ttl/time.Second), int64(seqTTL/time.Second), dirtyMember(projectID, pageID), elementID, prev, string(next),
-		).Int64()
-		if err != nil {
-			return 0, fmt.Errorf("failed to patch element: %w", err)
-		}
-		if res >= 0 {
-			return res, nil
+		if applied {
+			return seq, nil
 		}
 		if err := backoff(ctx, attempt); err != nil {
 			return 0, err
 		}
 	}
 	return 0, fmt.Errorf("element %s update aborted after %d conflicting attempts", elementID, maxUpdateRetries)
+}
+
+func (r *documentRepository) tryPatchElementOnce(ctx context.Context, hashKey, projectID, pageID, elementID string, load domainRepo.DocumentLoadFunc, mutate domainRepo.ElementMutateFunc) (int64, bool, error) {
+	prev, err := r.client.HGet(ctx, hashKey, elementID).Result()
+	if errors.Is(err, redis.Nil) {
+		seq, err := r.handleMissingCachedElement(ctx, hashKey, projectID, pageID, elementID, load, mutate)
+		return seq, err == nil, err
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to read element from redis: %w", err)
+	}
+	next, err := marshalMutatedElement(prev, mutate)
+	if err != nil {
+		return 0, false, err
+	}
+	res, err := patchElementScript.Run(ctx, r.client,
+		[]string{hashKey, r.getSeqKey(projectID, pageID), dirtyPageKey},
+		int64(r.ttl/time.Second), int64(seqTTL/time.Second), dirtyMember(projectID, pageID), elementID, prev, next,
+	).Int64()
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to patch element: %w", err)
+	}
+	return res, res >= 0, nil
+}
+
+func (r *documentRepository) handleMissingCachedElement(ctx context.Context, hashKey, projectID, pageID, elementID string, load domainRepo.DocumentLoadFunc, mutate domainRepo.ElementMutateFunc) (int64, error) {
+	cached, err := r.client.HExists(ctx, hashKey, structField).Result()
+	if err != nil {
+		return 0, fmt.Errorf("failed to check cached document: %w", err)
+	}
+	if cached {
+		return 0, errElementNotFound
+	}
+	return r.patchViaDocument(ctx, projectID, pageID, elementID, load, mutate)
+}
+
+func marshalMutatedElement(prev string, mutate domainRepo.ElementMutateFunc) (string, error) {
+	var el domainEntity.Element
+	if err := json.Unmarshal([]byte(prev), &el); err != nil {
+		return "", fmt.Errorf("failed to unmarshal element: %w", err)
+	}
+	if err := mutate(&el); err != nil {
+		return "", err
+	}
+	el.Elements = nil
+	next, err := json.Marshal(el)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal element: %w", err)
+	}
+	return string(next), nil
 }
 
 var errElementNotFound = domainErrors.New(domainErrors.CodeNotFound, "element not found in cache", nil)
@@ -377,31 +411,8 @@ func (r *documentRepository) patchViaDocument(ctx context.Context, projectID, pa
 // applyDiff writes the difference between the page as read and its next version. applied is false
 // when another writer changed something that was read, in which case nothing was written.
 func (r *documentRepository) applyDiff(ctx context.Context, projectID, pageID string, doc *storedDoc, next map[string]string) (seq int64, applied bool, err error) {
-	// A legacy page has no hash yet, so every element is written as new.
-	prev := doc.raw
-	if doc.legacy {
-		prev = nil
-	}
-
-	var sets, dels []any
-	nSets, nDels := 0, 0
-	for id, v := range next {
-		if old, ok := prev[id]; !ok || old != v {
-			sets = append(sets, id, prev[id], v)
-			nSets++
-		}
-	}
-	for id, old := range prev {
-		if _, ok := next[id]; !ok {
-			dels = append(dels, id, old)
-			nDels++
-		}
-	}
-
-	expectedSv := doc.sv
-	if doc.legacy {
-		expectedSv = ""
-	}
+	prev, expectedSv := previousDocState(doc)
+	sets, nSets, dels, nDels := diffDocumentEntries(prev, next)
 	args := append([]any{
 		int64(r.ttl / time.Second), int64(seqTTL / time.Second), dirtyMember(projectID, pageID), expectedSv, nSets, nDels,
 	}, append(sets, dels...)...)
@@ -413,10 +424,31 @@ func (r *documentRepository) applyDiff(ctx context.Context, projectID, pageID st
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to update document: %w", err)
 	}
-	if res < 0 {
-		return 0, false, nil
+	return res, res >= 0, nil
+}
+
+// A legacy page has no hash yet, so every element is written as new.
+func previousDocState(doc *storedDoc) (map[string]string, string) {
+	if doc.legacy {
+		return nil, ""
 	}
-	return res, true, nil
+	return doc.raw, doc.sv
+}
+
+func diffDocumentEntries(prev, next map[string]string) (sets []any, nSets int, dels []any, nDels int) {
+	for id, v := range next {
+		if old, ok := prev[id]; !ok || old != v {
+			sets = append(sets, id, old, v)
+			nSets++
+		}
+	}
+	for id, old := range prev {
+		if _, ok := next[id]; !ok {
+			dels = append(dels, id, old)
+			nDels++
+		}
+	}
+	return sets, nSets, dels, nDels
 }
 
 // readDoc reads a page from the hash, falling back to the legacy single-string layout.

@@ -163,86 +163,100 @@ func dialAndJoin(t *testing.T, url string) (*wsTestClient, wsIn) {
 	return c, sync
 }
 
-func TestWS_SenderReceivesOwnEchoWithSeqAndClientOpID(t *testing.T) {
-	url, _ := startWSServer(t)
-	a, syncA := dialAndJoin(t, url)
-	b, _ := dialAndJoin(t, url)
+type seqPayload struct {
+	Seq *int64 `json:"seq"`
+}
 
-	var syncPayload struct {
-		Seq *int64 `json:"seq"`
+func assertWSSyncSeq(t *testing.T, payload json.RawMessage, want int64, label string) {
+	t.Helper()
+	var syncPayload seqPayload
+	if err := json.Unmarshal(payload, &syncPayload); err != nil {
+		t.Fatalf("%s unmarshal sync:page: %v", label, err)
 	}
-	if err := json.Unmarshal(syncA.Payload, &syncPayload); err != nil || syncPayload.Seq == nil || *syncPayload.Seq != 0 {
-		t.Fatalf("sync:page must carry seq=0 for a fresh page, payload=%s", syncA.Payload)
+	if syncPayload.Seq == nil || *syncPayload.Seq != want {
+		t.Fatalf("%s sync:page seq=%v want=%d, payload=%s", label, syncPayload.Seq, want, payload)
 	}
+}
 
-	// 1st op: success -> both sender and other client receive seq 1 with the sender's clientOpId.
-	a.send("element:update", map[string]any{"id": testElemID, "styles": map[string]any{"color": "red"}}, "op-1")
-	for name, c := range map[string]*wsTestClient{"sender": a, "other": b} {
+func assertWSEchoBroadcast(t *testing.T, clients map[string]*wsTestClient, wantSeq int64, wantOpID string) {
+	t.Helper()
+	for name, c := range clients {
 		m, ok := c.next("element:update", 3*time.Second)
 		if !ok {
 			t.Fatalf("%s did not receive element:update", name)
 		}
-		if m.Seq != 1 || m.ClientOpID != "op-1" {
-			t.Fatalf("%s got seq=%d clientOpId=%q, want 1/op-1", name, m.Seq, m.ClientOpID)
+		if m.Seq != wantSeq || m.ClientOpID != wantOpID {
+			t.Fatalf("%s got seq=%d clientOpId=%q, want %d/%s", name, m.Seq, m.ClientOpID, wantSeq, wantOpID)
 		}
 	}
+}
 
-	// failed op: sender gets an error with its clientOpId, nobody gets a broadcast, seq not consumed.
-	a.send("element:update", map[string]any{"id": "22222222-2222-2222-2222-222222222222", "styles": map[string]any{"x": 1}}, "op-bad")
+func assertWSEchoErrorReply(t *testing.T, a *wsTestClient, wantCode, wantOpID string) {
+	t.Helper()
 	em, ok := a.next("error", 3*time.Second)
-	if !ok || em.ClientOpID != "op-bad" {
-		t.Fatalf("expected error echoing op-bad, got ok=%v msg=%+v", ok, em)
+	if !ok || em.ClientOpID != wantOpID {
+		t.Fatalf("expected error echoing %s, got ok=%v msg=%+v", wantOpID, ok, em)
 	}
 	var ep struct {
 		Code       string `json:"code"`
 		ClientOpID string `json:"clientOpId"`
 	}
-	_ = json.Unmarshal(em.Payload, &ep)
-	if ep.Code != "NOT_FOUND" || ep.ClientOpID != "op-bad" {
+	if err := json.Unmarshal(em.Payload, &ep); err != nil {
+		t.Fatalf("unmarshal error payload: %v", err)
+	}
+	if ep.Code != wantCode || ep.ClientOpID != wantOpID {
 		t.Fatalf("unexpected error payload: %s", em.Payload)
-	}
-	// (A broadcast of the failed op would reach B first and break the seq checks below;
-	// read timeouts are fatal for these connections, so we assert by ordering instead.)
-
-	// next success gets seq 2 (no gap), delivered to the sender as its echo.
-	b.send("element:update", map[string]any{"id": testElemID, "styles": map[string]any{"color": "blue"}}, "op-b")
-	m, ok := a.next("element:update", 3*time.Second)
-	if !ok || m.Seq != 2 || m.ClientOpID != "op-b" {
-		t.Fatalf("expected seq=2 op-b at client A, got ok=%v %+v", ok, m)
-	}
-	if mb, ok := b.next("element:update", 3*time.Second); !ok || mb.Seq != 2 || mb.ClientOpID != "op-b" {
-		t.Fatalf("sender B missing own echo: ok=%v %+v", ok, mb)
-	}
-
-	// a late joiner's sync:page starts from the current seq.
-	_, syncC := dialAndJoin(t, url)
-	_ = json.Unmarshal(syncC.Payload, &syncPayload)
-	if syncPayload.Seq == nil || *syncPayload.Seq != 2 {
-		t.Fatalf("late sync:page seq should be 2, payload=%s", syncC.Payload)
 	}
 }
 
-func TestWS_ConcurrentOpsAreTotallyOrdered(t *testing.T) {
+func TestWS_SenderReceivesOwnEchoWithSeqAndClientOpID(t *testing.T) {
 	url, docs := startWSServer(t)
-	const clients, perClient = 4, 5
-	cs := make([]*wsTestClient, clients)
-	for i := range cs {
-		cs[i], _ = dialAndJoin(t, url)
+	if docs == nil {
+		t.Fatal("missing docs repo")
 	}
+	a, syncA := dialAndJoin(t, url)
+	b, syncB := dialAndJoin(t, url)
+	if syncB.Type != "sync:page" {
+		t.Fatalf("unexpected syncB type: %s", syncB.Type)
+	}
+	assertWSSyncSeq(t, syncA.Payload, 0, "fresh page")
 
+	// 1st op: success -> both sender and other client receive seq 1 with the sender's clientOpId.
+	a.send("element:update", map[string]any{"id": testElemID, "styles": map[string]any{"color": "red"}}, "op-1")
+	assertWSEchoBroadcast(t, map[string]*wsTestClient{"sender": a, "other": b}, 1, "op-1")
+
+	// failed op: sender gets an error with its clientOpId, nobody gets a broadcast, seq not consumed.
+	a.send("element:update", map[string]any{"id": "22222222-2222-2222-2222-222222222222", "styles": map[string]any{"x": 1}}, "op-bad")
+	assertWSEchoErrorReply(t, a, "NOT_FOUND", "op-bad")
+
+	// next success gets seq 2 (no gap), delivered to the sender as its echo.
+	b.send("element:update", map[string]any{"id": testElemID, "styles": map[string]any{"color": "blue"}}, "op-b")
+	assertWSEchoBroadcast(t, map[string]*wsTestClient{"client A": a, "sender B": b}, 2, "op-b")
+
+	// a late joiner's sync:page starts from the current seq.
+	c, syncC := dialAndJoin(t, url)
+	if c == nil {
+		t.Fatal("missing client c")
+	}
+	assertWSSyncSeq(t, syncC.Payload, 2, "late joiner")
+}
+
+func sendClientOpsBatch(cs []*wsTestClient, perClient int) {
 	var wg sync.WaitGroup
 	for i, c := range cs {
 		wg.Add(1)
-		go func() {
+		go func(idx int, client *wsTestClient) {
 			defer wg.Done()
 			for j := 0; j < perClient; j++ {
-				c.send("element:update", map[string]any{"id": testElemID, "styles": map[string]any{fmt.Sprintf("k%d_%d", i, j): j}}, fmt.Sprintf("c%d-%d", i, j))
+				client.send("element:update", map[string]any{"id": testElemID, "styles": map[string]any{fmt.Sprintf("k%d_%d", idx, j): j}}, fmt.Sprintf("c%d-%d", idx, j))
 			}
-		}()
+		}(i, c)
 	}
 	wg.Wait()
+}
 
-	total := clients * perClient
+func assertOrderedSeqForClients(t *testing.T, cs []*wsTestClient, total int) {
+	t.Helper()
 	for ci, c := range cs {
 		for want := 1; want <= total; want++ {
 			m, ok := c.next("element:update", 5*time.Second)
@@ -254,6 +268,23 @@ func TestWS_ConcurrentOpsAreTotallyOrdered(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestWS_ConcurrentOpsAreTotallyOrdered(t *testing.T) {
+	url, docs := startWSServer(t)
+	const clients, perClient = 4, 5
+	cs := make([]*wsTestClient, clients)
+	for i := range cs {
+		var sync wsIn
+		cs[i], sync = dialAndJoin(t, url)
+		if sync.Type != "sync:page" {
+			t.Fatalf("client %d unexpected sync: %+v", i, sync)
+		}
+	}
+
+	sendClientOpsBatch(cs, perClient)
+	total := clients * perClient
+	assertOrderedSeqForClients(t, cs, total)
 
 	el := findElementByID(docs.snapshot(testProject, testPage), testElemID)
 	if el == nil || len(el.Styles) != total+1 {
@@ -262,8 +293,14 @@ func TestWS_ConcurrentOpsAreTotallyOrdered(t *testing.T) {
 }
 
 func TestWS_RequestIDIsEchoedOnReplies(t *testing.T) {
-	url, _ := startWSServer(t)
-	a, _ := dialAndJoin(t, url)
+	url, docs := startWSServer(t)
+	if docs == nil {
+		t.Fatal("missing docs repo")
+	}
+	a, syncA := dialAndJoin(t, url)
+	if syncA.Type != "sync:page" {
+		t.Fatalf("unexpected syncA: %+v", syncA)
+	}
 
 	a.sendRequest("element:update", map[string]any{"id": testElemID, "styles": map[string]any{"color": "red"}}, "req-ok")
 	if m, ok := a.next("element:update", 3*time.Second); !ok || m.RequestID != "req-ok" {
@@ -285,11 +322,19 @@ func TestWS_RequestIDIsEchoedOnReplies(t *testing.T) {
 // older one, which must be told so with CloseReplaced; otherwise the old tab
 // reconnects and the two connections keep replacing each other.
 func TestWS_ReplacedConnectionGetsReplacedCloseCode(t *testing.T) {
-	url, _ := startWSServerAs(t, func(int) string { return "same-user" })
-	old, _ := dialAndJoin(t, url)
-	_, _ = dialAndJoin(t, url)
+	url, docs := startWSServerAs(t, func(int) string { return "same-user" })
+	if docs == nil {
+		t.Fatal("missing docs repo")
+	}
+	old, syncOld := dialAndJoin(t, url)
+	newer, syncNew := dialAndJoin(t, url)
+	if syncOld.Type != "sync:page" || syncNew.Type != "sync:page" || newer == nil {
+		t.Fatalf("join failed: %+v / %+v", syncOld, syncNew)
+	}
 
-	_ = old.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if err := old.conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	for {
 		_, _, err := old.conn.ReadMessage()
 		if err == nil {

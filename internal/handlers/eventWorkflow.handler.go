@@ -99,6 +99,28 @@ func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"data": workflows, "count": len(workflows)})
 }
 
+func buildUpdatedWorkflow(existing *models.EventWorkflow, req *dto.UpdateEventWorkflowRequest) *models.EventWorkflow {
+	name := existing.Name
+	if req.Name != nil {
+		name = *req.Name
+	}
+	enabled := existing.Enabled
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	description := existing.Description
+	if req.Description != nil {
+		description = req.Description
+	}
+	return &models.EventWorkflow{
+		Name:        name,
+		Description: description,
+		CanvasData:  req.CanvasData,
+		Handlers:    req.Handlers,
+		Enabled:     enabled,
+	}
+}
+
 func (h *EventWorkflowHandler) UpdateEventWorkflow(c fiber.Ctx) error {
 	ids, err := utils.MustParams(c, "id")
 	if err != nil {
@@ -119,25 +141,7 @@ func (h *EventWorkflowHandler) UpdateEventWorkflow(c fiber.Ctx) error {
 		return err
 	}
 
-	name := existing.Name
-	if req.Name != nil {
-		name = *req.Name
-	}
-	enabled := existing.Enabled
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-	description := existing.Description
-	if req.Description != nil {
-		description = req.Description
-	}
-	updated, err := h.eventWorkflowService.UpdateEventWorkflow(c.RequestCtx(), workflowID, &models.EventWorkflow{
-		Name:        name,
-		Description: description,
-		CanvasData:  req.CanvasData,
-		Handlers:    req.Handlers,
-		Enabled:     enabled,
-	})
+	updated, err := h.eventWorkflowService.UpdateEventWorkflow(c.RequestCtx(), workflowID, buildUpdatedWorkflow(existing, req))
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to update event workflow")
 	}

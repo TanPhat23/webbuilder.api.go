@@ -102,105 +102,7 @@ func TestRedisDocumentRepo_MatchesReferenceUnderRandomOperations(t *testing.T) {
 
 	applied := map[string]int{}
 	for seed := int64(1); seed <= 5; seed++ {
-		rng := rand.New(rand.NewSource(seed))
-		page := fmt.Sprintf("%s-%d", testPage, seed)
-		next := 100 * int(seed)
-		pick := func(els []entity.Element) string {
-			flat := elementutils.FlattenElements(els)
-			if len(flat) == 0 || rng.Intn(12) == 0 {
-				return uid(999999) // unknown id: both stacks must fail the same way
-			}
-			return flat[rng.Intn(len(flat))].ID
-		}
-
-		for step := 0; step < 200; step++ {
-			cur, err := ref.GetElementsByPageID(ctx, project, page)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var op string
-			var errRef, errGot error
-			var seqRef, seqGot int64
-			// Weighted so the tree keeps growing: removes would otherwise empty it and starve the rest.
-			kind := rng.Intn(100)
-			switch {
-			case kind < 35: // create
-				op = "create"
-				next++
-				parent := pick(cur)
-				if rng.Intn(3) == 0 {
-					parent = ""
-				}
-				pos := rng.Intn(4)
-				mk := func() *entity.Element {
-					el := &entity.Element{ID: uid(next), Type: "Text", PageID: page, Content: strPtr("new")}
-					if parent != "" {
-						el.ParentID = &parent
-					}
-					return el
-				}
-				var p *int
-				if rng.Intn(2) == 0 {
-					p = &pos
-				}
-				seqRef, errRef = ref.CreateElementAt(ctx, project, mk(), p)
-				seqGot, errGot = got.CreateElementAt(ctx, project, mk(), p)
-			case kind < 60: // patch
-				op = "patch"
-				id := pick(cur)
-				props := map[string]any{"content": fmt.Sprintf("c%d", step)}
-				styles := map[string]any{fmt.Sprintf("k%d", rng.Intn(4)): step, "gone": nil}
-				seqRef, errRef = ref.PatchElement(ctx, project, page, id, props, styles, map[string]any{"s": map[string]any{"n": step}})
-				seqGot, errGot = got.PatchElement(ctx, project, page, id, props, styles, map[string]any{"s": map[string]any{"n": step}})
-			case kind < 82: // move
-				op = "move"
-				id, parent := pick(cur), pick(cur)
-				if rng.Intn(3) == 0 {
-					parent = ""
-				}
-				idx := rng.Intn(4)
-				_, seqRef, errRef = ref.MoveElement(ctx, project, page, id, parent, idx)
-				_, seqGot, errGot = got.MoveElement(ctx, project, page, id, parent, idx)
-			case kind < 90: // remove
-				op = "remove"
-				id := pick(cur)
-				seqRef, errRef = ref.RemoveElement(ctx, project, page, id)
-				seqGot, errGot = got.RemoveElement(ctx, project, page, id)
-			default: // update (full replace)
-				op = "update"
-				id := pick(cur)
-				el := entity.Element{ID: id, Type: "Text", PageID: page, Content: strPtr(fmt.Sprintf("u%d", step))}
-				if old := elementutils.FindByID(cur, id); old != nil {
-					el.ParentID, el.OrderKey, el.Order = old.ParentID, old.OrderKey, old.Order
-					if rng.Intn(2) == 0 {
-						el.Elements = old.Elements
-					}
-				}
-				e1, e2 := el, el
-				seqRef, errRef = ref.UpdateElement(ctx, project, page, &e1)
-				seqGot, errGot = got.UpdateElement(ctx, project, page, &e2)
-			}
-
-			if (errRef == nil) != (errGot == nil) {
-				t.Fatalf("seed %d step %d %s: reference err=%v, redis err=%v", seed, step, op, errRef, errGot)
-			}
-			if errRef == nil {
-				applied[op]++
-			}
-			if seqRef != seqGot {
-				t.Fatalf("seed %d step %d %s: seq reference=%d redis=%d", seed, step, op, seqRef, seqGot)
-			}
-			a, _ := ref.GetElementsByPageID(ctx, project, page)
-			b, err := got.GetElementsByPageID(ctx, project, page)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(normalized(t, a), normalized(t, b)) {
-				ja, _ := json.MarshalIndent(normalized(t, a), "", " ")
-				jb, _ := json.MarshalIndent(normalized(t, b), "", " ")
-				t.Fatalf("seed %d step %d %s: documents differ\nreference: %s\nredis: %s", seed, step, op, ja, jb)
-			}
-		}
+		runRandomOpsSeed(t, ctx, ref, got, project, seed, applied)
 	}
 	t.Logf("operations applied by kind: %v", applied)
 	for _, op := range []string{"create", "patch", "move", "remove", "update"} {
@@ -210,22 +112,183 @@ func TestRedisDocumentRepo_MatchesReferenceUnderRandomOperations(t *testing.T) {
 	}
 }
 
-// Concurrent increments of one element and of different elements all land, and every successful
-// operation takes exactly one sequence number.
-func TestRedisDocumentRepo_ConcurrentPatchesAreNotLost(t *testing.T) {
-	c, project := testRedis(t)
-	ctx := context.Background()
-	repo := repository.NewDocumentRepository(c)
+func runRandomOpsSeed(t *testing.T, ctx context.Context, ref, got domainUsecase.ElementUseCase, project string, seed int64, applied map[string]int) {
+	t.Helper()
+	rng := rand.New(rand.NewSource(seed))
+	page := fmt.Sprintf("%s-%d", testPage, seed)
+	next := 100 * int(seed)
+	for step := 0; step < 200; step++ {
+		cur, err := ref.GetElementsByPageID(ctx, project, page)
+		if err != nil {
+			t.Fatal(err)
+		}
+		op, nextID, seqRef, errRef, seqGot, errGot := executeRandomComparisonOp(ctx, rng, ref, got, project, page, cur, next, step)
+		next = nextID
+		assertRandomOpStepParity(t, ctx, ref, got, project, page, seed, step, op, seqRef, seqGot, errRef, errGot, applied)
+	}
+}
 
-	const elements, perElement = 6, 25
-	tree := make([]entity.Element, elements)
+func pickRandomTargetID(rng *rand.Rand, els []entity.Element) string {
+	flat := elementutils.FlattenElements(els)
+	if len(flat) == 0 || rng.Intn(12) == 0 {
+		return uid(999999)
+	}
+	return flat[rng.Intn(len(flat))].ID
+}
+
+func executeRandomComparisonOp(
+	ctx context.Context,
+	rng *rand.Rand,
+	ref, got domainUsecase.ElementUseCase,
+	project, page string,
+	cur []entity.Element,
+	next, step int,
+) (op string, nextID int, seqRef int64, errRef error, seqGot int64, errGot error) {
+	kind := rng.Intn(100)
+	switch {
+	case kind < 35:
+		next++
+		sr, er, sg, eg := executeRandomCreateOp(ctx, rng, ref, got, project, page, cur, next)
+		return "create", next, sr, er, sg, eg
+	case kind < 60:
+		id := pickRandomTargetID(rng, cur)
+		props := map[string]any{"content": fmt.Sprintf("c%d", step)}
+		styles := map[string]any{fmt.Sprintf("k%d", rng.Intn(4)): step, "gone": nil}
+		sr, er := ref.PatchElement(ctx, project, page, id, props, styles, map[string]any{"s": map[string]any{"n": step}})
+		sg, eg := got.PatchElement(ctx, project, page, id, props, styles, map[string]any{"s": map[string]any{"n": step}})
+		return "patch", next, sr, er, sg, eg
+	case kind < 82:
+		id, parent := pickRandomTargetID(rng, cur), pickRandomTargetID(rng, cur)
+		if rng.Intn(3) == 0 {
+			parent = ""
+		}
+		idx := rng.Intn(4)
+		_, sr, er := ref.MoveElement(ctx, project, page, id, parent, idx)
+		_, sg, eg := got.MoveElement(ctx, project, page, id, parent, idx)
+		return "move", next, sr, er, sg, eg
+	case kind < 90:
+		id := pickRandomTargetID(rng, cur)
+		sr, er := ref.RemoveElement(ctx, project, page, id)
+		sg, eg := got.RemoveElement(ctx, project, page, id)
+		return "remove", next, sr, er, sg, eg
+	default:
+		sr, er, sg, eg := executeRandomUpdateOp(ctx, rng, ref, got, project, page, cur, step)
+		return "update", next, sr, er, sg, eg
+	}
+}
+
+func executeRandomCreateOp(
+	ctx context.Context,
+	rng *rand.Rand,
+	ref, got domainUsecase.ElementUseCase,
+	project, page string,
+	cur []entity.Element,
+	idNum int,
+) (int64, error, int64, error) {
+	parent := pickRandomTargetID(rng, cur)
+	if rng.Intn(3) == 0 {
+		parent = ""
+	}
+	pos := rng.Intn(4)
+	mk := func() *entity.Element {
+		el := &entity.Element{ID: uid(idNum), Type: "Text", PageID: page, Content: strPtr("new")}
+		if parent != "" {
+			el.ParentID = &parent
+		}
+		return el
+	}
+	var p *int
+	if rng.Intn(2) == 0 {
+		p = &pos
+	}
+	sr, er := ref.CreateElementAt(ctx, project, mk(), p)
+	sg, eg := got.CreateElementAt(ctx, project, mk(), p)
+	return sr, er, sg, eg
+}
+
+func executeRandomUpdateOp(
+	ctx context.Context,
+	rng *rand.Rand,
+	ref, got domainUsecase.ElementUseCase,
+	project, page string,
+	cur []entity.Element,
+	step int,
+) (int64, error, int64, error) {
+	id := pickRandomTargetID(rng, cur)
+	el := entity.Element{ID: id, Type: "Text", PageID: page, Content: strPtr(fmt.Sprintf("u%d", step))}
+	if old := elementutils.FindByID(cur, id); old != nil {
+		el.ParentID, el.OrderKey, el.Order = old.ParentID, old.OrderKey, old.Order
+		if rng.Intn(2) == 0 {
+			el.Elements = old.Elements
+		}
+	}
+	e1, e2 := el, el
+	sr, er := ref.UpdateElement(ctx, project, page, &e1)
+	sg, eg := got.UpdateElement(ctx, project, page, &e2)
+	return sr, er, sg, eg
+}
+
+func assertRandomOpDocsMatch(t *testing.T, ctx context.Context, ref, got domainUsecase.ElementUseCase, project, page string, seed int64, step int, op string) {
+	t.Helper()
+	a, err := ref.GetElementsByPageID(ctx, project, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := got.GetElementsByPageID(ctx, project, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(normalized(t, a), normalized(t, b)) {
+		ja, jErrA := json.MarshalIndent(normalized(t, a), "", " ")
+		if jErrA != nil {
+			t.Fatal(jErrA)
+		}
+		jb, jErrB := json.MarshalIndent(normalized(t, b), "", " ")
+		if jErrB != nil {
+			t.Fatal(jErrB)
+		}
+		t.Fatalf("seed %d step %d %s: documents differ\nreference: %s\nredis: %s", seed, step, op, ja, jb)
+	}
+}
+
+func assertRandomOpStepParity(
+	t *testing.T,
+	ctx context.Context,
+	ref, got domainUsecase.ElementUseCase,
+	project, page string,
+	seed int64,
+	step int,
+	op string,
+	seqRef, seqGot int64,
+	errRef, errGot error,
+	applied map[string]int,
+) {
+	t.Helper()
+	if (errRef == nil) != (errGot == nil) {
+		t.Fatalf("seed %d step %d %s: reference err=%v, redis err=%v", seed, step, op, errRef, errGot)
+	}
+	if errRef == nil {
+		applied[op]++
+	}
+	if seqRef != seqGot {
+		t.Fatalf("seed %d step %d %s: seq reference=%d redis=%d", seed, step, op, seqRef, seqGot)
+	}
+	assertRandomOpDocsMatch(t, ctx, ref, got, project, page, seed, step, op)
+}
+
+func seedConcurrentElementsTree(t *testing.T, ctx context.Context, repo domainRepo.DocumentRepository, project string, count int) {
+	t.Helper()
+	tree := make([]entity.Element, count)
 	for i := range tree {
 		tree[i] = entity.Element{ID: uid(i + 1), Type: "Text", PageID: testPage, OrderKey: fmt.Sprintf("a%d", i), Order: i}
 	}
 	if err := repo.SetDocument(ctx, project, testPage, tree); err != nil {
 		t.Fatal(err)
 	}
+}
 
+func runConcurrentPatchesAndCreates(t *testing.T, ctx context.Context, repo domainRepo.DocumentRepository, project string, elements, perElement, creates int) {
+	t.Helper()
 	incr := func(el *entity.Element) error {
 		n, _ := el.Settings["n"].(float64)
 		el.Settings = map[string]any{"n": n + 1}
@@ -243,14 +306,12 @@ func TestRedisDocumentRepo_ConcurrentPatchesAreNotLost(t *testing.T) {
 			}(uid(i + 1))
 		}
 	}
-	// Structural updates interleaved with the patches.
-	const creates = 10
 	for k := 0; k < creates; k++ {
 		wg.Add(1)
-		go func(k int) {
+		go func(idx int) {
 			defer wg.Done()
 			_, err := repo.UpdateDocument(ctx, project, testPage, nil, func(els []entity.Element) ([]entity.Element, error) {
-				return append(els, entity.Element{ID: uid(1000 + k), Type: "Text", PageID: testPage, OrderKey: fmt.Sprintf("b%02d", k)}), nil
+				return append(els, entity.Element{ID: uid(1000 + idx), Type: "Text", PageID: testPage, OrderKey: fmt.Sprintf("b%02d", idx)}), nil
 			})
 			if err != nil {
 				t.Errorf("update: %v", err)
@@ -258,6 +319,18 @@ func TestRedisDocumentRepo_ConcurrentPatchesAreNotLost(t *testing.T) {
 		}(k)
 	}
 	wg.Wait()
+}
+
+// Concurrent increments of one element and of different elements all land, and every successful
+// operation takes exactly one sequence number.
+func TestRedisDocumentRepo_ConcurrentPatchesAreNotLost(t *testing.T) {
+	c, project := testRedis(t)
+	ctx := context.Background()
+	repo := repository.NewDocumentRepository(c)
+
+	const elements, perElement, creates = 6, 25, 10
+	seedConcurrentElementsTree(t, ctx, repo, project, elements)
+	runConcurrentPatchesAndCreates(t, ctx, repo, project, elements, perElement, creates)
 
 	els, seq, err := repo.GetDocumentWithSeq(ctx, project, testPage)
 	if err != nil {
@@ -270,7 +343,7 @@ func TestRedisDocumentRepo_ConcurrentPatchesAreNotLost(t *testing.T) {
 		t.Fatalf("elements = %d, want %d", len(els), elements+creates)
 	}
 	for _, el := range els {
-		if el.ID > uid(elements) { // a created element
+		if el.ID > uid(elements) {
 			continue
 		}
 		if n, _ := el.Settings["n"].(float64); int(n) != perElement {
@@ -290,9 +363,19 @@ func TestRedisDocumentRepo_PatchMissingElementIsNotFound(t *testing.T) {
 	if err == nil || seq != 0 {
 		t.Fatalf("want a not-found error and no sequence, got seq=%d err=%v", seq, err)
 	}
-	if _, s, _ := repo.GetDocumentWithSeq(ctx, project, testPage); s != 0 {
-		t.Fatalf("a failed patch consumed sequence %d", s)
+	els, s, seqErr := repo.GetDocumentWithSeq(ctx, project, testPage)
+	if seqErr != nil || s != 0 || len(els) != 1 {
+		t.Fatalf("failed patch mutated doc/seq: els=%v seq=%d err=%v", els, s, seqErr)
 	}
+}
+
+func mustGetDoc(t *testing.T, ctx context.Context, repo domainRepo.DocumentRepository, project string) []entity.Element {
+	t.Helper()
+	els, err := repo.GetDocument(ctx, project, testPage)
+	if err != nil {
+		t.Fatalf("GetDocument: %v", err)
+	}
+	return els
 }
 
 func TestRedisDocumentRepo_EmptyDocumentIsACacheHit(t *testing.T) {
@@ -300,21 +383,57 @@ func TestRedisDocumentRepo_EmptyDocumentIsACacheHit(t *testing.T) {
 	ctx := context.Background()
 	repo := repository.NewDocumentRepository(c)
 
-	if els, _ := repo.GetDocument(ctx, project, testPage); els != nil {
-		t.Fatalf("a missing page must read as nil, got %v", els)
+	if els := mustGetDoc(t, ctx, repo, project); els != nil {
+		t.Fatalf("missing page must read as nil: els=%v", els)
 	}
 	if err := repo.SetDocument(ctx, project, testPage, []entity.Element{}); err != nil {
 		t.Fatal(err)
 	}
-	if els, _ := repo.GetDocument(ctx, project, testPage); els == nil || len(els) != 0 {
-		t.Fatalf("an empty page must read as an empty non-nil slice, got %#v", els)
+	if els := mustGetDoc(t, ctx, repo, project); els == nil || len(els) != 0 {
+		t.Fatalf("an empty page must read as empty non-nil slice, got %#v", els)
 	}
-	// SetDocumentIfAbsent must not touch a page that is already cached.
 	if err := repo.SetDocumentIfAbsent(ctx, project, testPage, []entity.Element{{ID: uid(1), Type: "Text", PageID: testPage}}); err != nil {
 		t.Fatal(err)
 	}
-	if els, _ := repo.GetDocument(ctx, project, testPage); len(els) != 0 {
+	if els := mustGetDoc(t, ctx, repo, project); len(els) != 0 {
 		t.Fatalf("SetDocumentIfAbsent overwrote a cached page: %v", els)
+	}
+}
+
+func seedLegacyCachedPage(t *testing.T, ctx context.Context, c *redis.Client, project string) string {
+	t.Helper()
+	legacy := []entity.Element{{
+		ID: uid(1), Type: "Section", PageID: testPage, OrderKey: "a0",
+		Elements: []entity.Element{{ID: uid(2), Type: "Text", PageID: testPage, OrderKey: "a0", ParentID: strPtr(uid(1))}},
+	}}
+	blob, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := "page:" + project + ":" + testPage
+	if err := c.Set(ctx, key, blob, 0).Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Set(ctx, key+":seq", 7, 0).Err(); err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
+func assertLegacyDocReadable(t *testing.T, ctx context.Context, repo domainRepo.DocumentRepository, project string) {
+	t.Helper()
+	els, seq, err := repo.GetDocumentWithSeq(ctx, project, testPage)
+	if err != nil || seq != 7 {
+		t.Fatalf("legacy read: seq=%d els=%v err=%v", seq, els, err)
+	}
+	if len(els) != 1 || len(els[0].Elements) != 1 {
+		t.Fatalf("legacy elements unexpected: %+v", els)
+	}
+	if err := repo.SetDocumentIfAbsent(ctx, project, testPage, nil); err != nil {
+		t.Fatal(err)
+	}
+	if els := mustGetDoc(t, ctx, repo, project); len(els) != 1 {
+		t.Fatalf("a cache fill shadowed the legacy page: %v", els)
 	}
 }
 
@@ -324,39 +443,25 @@ func TestRedisDocumentRepo_ReadsAndMigratesLegacyLayout(t *testing.T) {
 	c, project := testRedis(t)
 	ctx := context.Background()
 	repo := repository.NewDocumentRepository(c)
+	key := seedLegacyCachedPage(t, ctx, c, project)
 
-	legacy := []entity.Element{{
-		ID: uid(1), Type: "Section", PageID: testPage, OrderKey: "a0",
-		Elements: []entity.Element{{ID: uid(2), Type: "Text", PageID: testPage, OrderKey: "a0", ParentID: strPtr(uid(1))}},
-	}}
-	blob, _ := json.Marshal(legacy)
-	key := "page:" + project + ":" + testPage
-	c.Set(ctx, key, blob, 0)
-	c.Set(ctx, key+":seq", 7, 0)
+	assertLegacyDocReadable(t, ctx, repo, project)
 
-	els, seq, err := repo.GetDocumentWithSeq(ctx, project, testPage)
-	if err != nil || seq != 7 || len(els) != 1 || len(els[0].Elements) != 1 {
-		t.Fatalf("legacy read: seq=%d els=%v err=%v", seq, els, err)
-	}
-	if err := repo.SetDocumentIfAbsent(ctx, project, testPage, nil); err != nil {
-		t.Fatal(err)
-	}
-	if els, _ := repo.GetDocument(ctx, project, testPage); len(els) != 1 {
-		t.Fatalf("a cache fill shadowed the legacy page: %v", els)
-	}
-
-	seq, err = repo.PatchDocumentElement(ctx, project, testPage, uid(2), nil, func(el *entity.Element) error {
+	seq, err := repo.PatchDocumentElement(ctx, project, testPage, uid(2), nil, func(el *entity.Element) error {
 		el.Content = strPtr("patched")
 		return nil
 	})
 	if err != nil || seq != 8 {
 		t.Fatalf("patch of a legacy page: seq=%d err=%v", seq, err)
 	}
-	if n, _ := c.Exists(ctx, key).Result(); n != 0 {
-		t.Fatal("legacy key was not removed after migration")
+	if n, err := c.Exists(ctx, key).Result(); err != nil || n != 0 {
+		t.Fatalf("legacy key not removed after migration: n=%d err=%v", n, err)
 	}
-	els, _ = repo.GetDocument(ctx, project, testPage)
-	if len(els) != 1 || len(els[0].Elements) != 1 || els[0].Elements[0].Content == nil || *els[0].Elements[0].Content != "patched" {
+	els := mustGetDoc(t, ctx, repo, project)
+	if len(els) != 1 || len(els[0].Elements) != 1 {
 		t.Fatalf("migrated document wrong: %+v", els)
+	}
+	if els[0].Elements[0].Content == nil || *els[0].Elements[0].Content != "patched" {
+		t.Fatalf("migrated content wrong: %+v", els[0].Elements[0])
 	}
 }

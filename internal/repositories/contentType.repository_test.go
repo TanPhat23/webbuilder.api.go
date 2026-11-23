@@ -13,8 +13,6 @@ import (
 	"my-go-app/internal/models"
 )
 
-// contentTypeNew returns the concrete repository: ExistsByName, ExistsByID and
-// GetContentTypeByName are not part of ContentTypeRepositoryInterface.
 func contentTypeNew(db *gorm.DB) *ContentTypeRepository { return &ContentTypeRepository{db: db} }
 
 var errContentTypeBoom = errors.New("content type boom")
@@ -25,6 +23,20 @@ var contentTypeCols = []string{"Id", "Name", "Description"}
 
 func contentTypeCount(f *fakeDB, n int64) *fakeRule {
 	return f.on("count(*)", []string{"count"}, []driver.Value{n})
+}
+
+func assertContentTypeNoErr(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertContentTypeErrIs(t *testing.T, err, want error) {
+	t.Helper()
+	if !errors.Is(err, want) {
+		t.Fatalf("want %v, got %v", want, err)
+	}
 }
 
 func TestContentTypeValidationErrors(t *testing.T) {
@@ -72,17 +84,17 @@ func TestContentTypeGetContentTypes(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on(contentTypeSelect, contentTypeCols, []driver.Value{"ct1", "Blog", nil}, []driver.Value{"ct2", "News", "desc"})
 	got, err := contentTypeNew(db).GetContentTypes(ctx)
-	if err != nil || len(got) != 2 || got[0].Name != "Blog" || got[1].Description == nil || *got[1].Description != "desc" {
-		t.Fatalf("got %+v, %v", got, err)
+	assertContentTypeNoErr(t, err)
+	if len(got) != 2 || got[0].Name != "Blog" || got[1].Description == nil || *got[1].Description != "desc" {
+		t.Fatalf("got %+v", got)
 	}
 	if !f.sawQuery(`ORDER BY "CreatedAt" DESC`) {
 		t.Errorf("query: %q", f.lastQuery())
 	}
 	db2, f2 := newFakeDB(t)
 	f2.onErr("SELECT", errContentTypeBoom)
-	if _, err := contentTypeNew(db2).GetContentTypes(ctx); !errors.Is(err, errContentTypeBoom) {
-		t.Errorf("err = %v", err)
-	}
+	_, err = contentTypeNew(db2).GetContentTypes(ctx)
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
 }
 
 func TestContentTypeGetByIDAndName(t *testing.T) {
@@ -91,193 +103,152 @@ func TestContentTypeGetByIDAndName(t *testing.T) {
 	f.on(contentTypeSelect, contentTypeCols, []driver.Value{"ct1", "Blog", nil})
 	repo := contentTypeNew(db)
 	byID, err := repo.GetContentTypeByID(ctx, "ct1")
-	if err != nil || byID.Id != "ct1" {
-		t.Fatalf("by id: %+v, %v", byID, err)
+	assertContentTypeNoErr(t, err)
+	if byID.Id != "ct1" {
+		t.Fatalf("by id: %+v", byID)
 	}
 	byName, err := repo.GetContentTypeByName(ctx, "Blog")
-	if err != nil || byName.Name != "Blog" {
-		t.Fatalf("by name: %+v, %v", byName, err)
+	assertContentTypeNoErr(t, err)
+	if byName.Name != "Blog" {
+		t.Fatalf("by name: %+v", byName)
 	}
+}
 
+func TestContentTypeGetByIDAndNameErrors(t *testing.T) {
+	ctx := context.Background()
 	empty, _ := newFakeDB(t)
 	emptyRepo := contentTypeNew(empty)
-	if _, err := emptyRepo.GetContentTypeByID(ctx, "x"); !errors.Is(err, ErrContentTypeNotFound) {
-		t.Errorf("by id missing: %v", err)
-	}
-	if _, err := emptyRepo.GetContentTypeByName(ctx, "x"); !errors.Is(err, ErrContentTypeNotFound) {
-		t.Errorf("by name missing: %v", err)
-	}
+	_, err := emptyRepo.GetContentTypeByID(ctx, "x")
+	assertContentTypeErrIs(t, err, ErrContentTypeNotFound)
+	_, err = emptyRepo.GetContentTypeByName(ctx, "x")
+	assertContentTypeErrIs(t, err, ErrContentTypeNotFound)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errContentTypeBoom)
 	badRepo := contentTypeNew(bad)
-	if _, err := badRepo.GetContentTypeByID(ctx, "x"); !errors.Is(err, errContentTypeBoom) || errors.Is(err, ErrContentTypeNotFound) {
-		t.Errorf("by id error: %v", err)
-	}
-	if _, err := badRepo.GetContentTypeByName(ctx, "x"); !errors.Is(err, errContentTypeBoom) {
-		t.Errorf("by name error: %v", err)
-	}
+	_, err = badRepo.GetContentTypeByID(ctx, "x")
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
+	_, err = badRepo.GetContentTypeByName(ctx, "x")
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
 }
 
 func TestContentTypeCreate(t *testing.T) {
 	ctx := context.Background()
-	t.Run("creates with id and timestamps", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 0)
-		f.onExec("INSERT INTO", 1)
-		before := time.Now().Add(-time.Second)
-		got, err := contentTypeNew(db).CreateContentType(ctx, &models.ContentType{Name: "Blog"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got.Id == "" || got.CreatedAt.Before(before) || !got.CreatedAt.Equal(got.UpdatedAt) {
-			t.Errorf("id/timestamps not set: %+v", got)
-		}
-		if !f.sawQuery("INSERT INTO", "ContentType") {
-			t.Error("no insert")
-		}
-	})
-	t.Run("keeps supplied id", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 0)
-		got, err := contentTypeNew(db).CreateContentType(ctx, &models.ContentType{Id: "mine", Name: "Blog"})
-		if err != nil || got.Id != "mine" {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-	})
-	t.Run("duplicate", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 1)
-		if _, err := contentTypeNew(db).CreateContentType(ctx, &models.ContentType{Name: "Blog"}); !errors.Is(err, ErrContentTypeDuplicate) {
-			t.Errorf("err = %v", err)
-		}
-		if f.sawQuery("INSERT INTO") {
-			t.Error("duplicate inserted")
-		}
-	})
-	t.Run("existence check fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("count(*)", errContentTypeBoom)
-		if _, err := contentTypeNew(db).CreateContentType(ctx, &models.ContentType{Name: "Blog"}); !errors.Is(err, errContentTypeBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("insert fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 0)
-		f.onErr("INSERT INTO", errContentTypeBoom)
-		if _, err := contentTypeNew(db).CreateContentType(ctx, &models.ContentType{Name: "Blog"}); !errors.Is(err, errContentTypeBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
+	db, f := newFakeDB(t)
+	contentTypeCount(f, 0)
+	f.onExec("INSERT INTO", 1)
+	before := time.Now().Add(-time.Second)
+	got, err := contentTypeNew(db).CreateContentType(ctx, &models.ContentType{Name: "Blog"})
+	assertContentTypeNoErr(t, err)
+	if got.Id == "" || got.CreatedAt.Before(before) || !got.CreatedAt.Equal(got.UpdatedAt) || !f.sawQuery("INSERT INTO", "ContentType") {
+		t.Errorf("id/timestamps/insert invalid: %+v %v", got, f.queries)
+	}
+
+	dbKeep, fKeep := newFakeDB(t)
+	contentTypeCount(fKeep, 0)
+	keepGot, err := contentTypeNew(dbKeep).CreateContentType(ctx, &models.ContentType{Id: "mine", Name: "Blog"})
+	assertContentTypeNoErr(t, err)
+	if keepGot.Id != "mine" {
+		t.Fatalf("got %+v", keepGot)
+	}
 }
 
-func TestContentTypeUpdate(t *testing.T) {
+func TestContentTypeCreateErrors(t *testing.T) {
+	ctx := context.Background()
+	dbDup, fDup := newFakeDB(t)
+	contentTypeCount(fDup, 1)
+	_, err := contentTypeNew(dbDup).CreateContentType(ctx, &models.ContentType{Name: "Blog"})
+	assertContentTypeErrIs(t, err, ErrContentTypeDuplicate)
+	if fDup.sawQuery("INSERT INTO") {
+		t.Error("duplicate inserted")
+	}
+
+	dbChk, fChk := newFakeDB(t)
+	fChk.onErr("count(*)", errContentTypeBoom)
+	_, err = contentTypeNew(dbChk).CreateContentType(ctx, &models.ContentType{Name: "Blog"})
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
+
+	dbIns, fIns := newFakeDB(t)
+	contentTypeCount(fIns, 0)
+	fIns.onErr("INSERT INTO", errContentTypeBoom)
+	_, err = contentTypeNew(dbIns).CreateContentType(ctx, &models.ContentType{Name: "Blog"})
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
+}
+
+func TestContentTypeUpdateSuccess(t *testing.T) {
 	ctx := context.Background()
 	row := []driver.Value{"ct1", "Renamed", nil}
-	t.Run("renames, stamps UpdatedAt, returns fresh row", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 1).once() // exists
-		contentTypeCount(f, 0)        // no other type uses the name
-		f.onExec("UPDATE", 1)
-		f.on(contentTypeSelect, contentTypeCols, row)
-		updates := map[string]any{"name": "Renamed"}
-		got, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", updates)
-		if err != nil || got.Name != "Renamed" {
-			t.Fatalf("got %+v, %v", got, err)
+	db, f := newFakeDB(t)
+	contentTypeCount(f, 1).once()
+	contentTypeCount(f, 0)
+	f.onExec("UPDATE", 1)
+	f.on(contentTypeSelect, contentTypeCols, row)
+	updates := map[string]any{"name": "Renamed"}
+	got, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", updates)
+	assertContentTypeNoErr(t, err)
+	if got.Name != "Renamed" || !f.sawQuery("UPDATE", "ContentType") {
+		t.Fatalf("got=%+v queries=%v", got, f.queries)
+	}
+	if _, ok := updates["UpdatedAt"].(time.Time); !ok {
+		t.Error("UpdatedAt must be added")
+	}
+}
+
+func TestContentTypeUpdateNoNameAndErrors(t *testing.T) {
+	ctx := context.Background()
+	row := []driver.Value{"ct1", "Renamed", nil}
+	db, f := newFakeDB(t)
+	contentTypeCount(f, 1)
+	f.onExec("UPDATE", 1)
+	f.on(contentTypeSelect, contentTypeCols, row)
+	_, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", map[string]any{"Description": "d"})
+	assertContentTypeNoErr(t, err)
+	assertSingleCountQuery(t, f.queries)
+
+	for _, tc := range []struct {
+		setup   func(*fakeDB)
+		updates map[string]any
+		want    error
+	}{
+		{func(f *fakeDB) { contentTypeCount(f, 0) }, map[string]any{"a": 1}, ErrContentTypeNotFound},
+		{func(f *fakeDB) { f.onErr("count(*)", errContentTypeBoom) }, map[string]any{"a": 1}, errContentTypeBoom},
+		{func(f *fakeDB) { contentTypeCount(f, 1) }, map[string]any{"name": "Taken"}, ErrContentTypeDuplicate},
+		{func(f *fakeDB) { contentTypeCount(f, 1).once(); f.onErr("count(*)", errContentTypeBoom) }, map[string]any{"name": "x"}, errContentTypeBoom},
+		{func(f *fakeDB) { contentTypeCount(f, 1); f.onErr("UPDATE", errContentTypeBoom) }, map[string]any{"Description": "d"}, errContentTypeBoom},
+		{func(f *fakeDB) { contentTypeCount(f, 1); f.onExec("UPDATE", 1); f.onErr(contentTypeSelect, errContentTypeBoom) }, map[string]any{"Description": "d"}, errContentTypeBoom},
+	} {
+		d, fd := newFakeDB(t)
+		tc.setup(fd)
+		_, err := contentTypeNew(d).UpdateContentType(ctx, "ct1", tc.updates)
+		assertContentTypeErrIs(t, err, tc.want)
+	}
+}
+
+func assertSingleCountQuery(t *testing.T, queries []string) {
+	t.Helper()
+	n := 0
+	for _, q := range queries {
+		if strings.Contains(q, "count(*)") {
+			n++
 		}
-		if _, ok := updates["UpdatedAt"].(time.Time); !ok {
-			t.Error("UpdatedAt must be added to the updates")
-		}
-		if !f.sawQuery("UPDATE", "ContentType") {
-			t.Error("no update issued")
-		}
-	})
-	t.Run("update without name skips uniqueness check", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 1)
-		f.onExec("UPDATE", 1)
-		f.on(contentTypeSelect, contentTypeCols, row)
-		if _, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", map[string]any{"Description": "d"}); err != nil {
-			t.Fatal(err)
-		}
-		n := 0
-		for _, q := range f.queries {
-			if strings.Contains(q, "count(*)") {
-				n++
-			}
-		}
-		if n != 1 {
-			t.Errorf("want only the existence count, got %d count queries", n)
-		}
-	})
-	t.Run("missing", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 0)
-		if _, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", map[string]any{"a": 1}); !errors.Is(err, ErrContentTypeNotFound) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("existence check fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("count(*)", errContentTypeBoom)
-		if _, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", map[string]any{"a": 1}); !errors.Is(err, errContentTypeBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("name taken", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 1)
-		if _, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", map[string]any{"name": "Taken"}); !errors.Is(err, ErrContentTypeDuplicate) {
-			t.Errorf("err = %v", err)
-		}
-		if f.sawQuery("UPDATE") {
-			t.Error("duplicate rename written")
-		}
-	})
-	t.Run("name check fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 1).once()
-		f.onErr("count(*)", errContentTypeBoom)
-		if _, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", map[string]any{"name": "x"}); !errors.Is(err, errContentTypeBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("update fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 1)
-		f.onErr("UPDATE", errContentTypeBoom)
-		if _, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", map[string]any{"Description": "d"}); !errors.Is(err, errContentTypeBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("refetch fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentTypeCount(f, 1)
-		f.onExec("UPDATE", 1)
-		f.onErr(contentTypeSelect, errContentTypeBoom)
-		if _, err := contentTypeNew(db).UpdateContentType(ctx, "ct1", map[string]any{"Description": "d"}); !errors.Is(err, errContentTypeBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
+	}
+	if n != 1 {
+		t.Errorf("want only the existence count, got %d", n)
+	}
 }
 
 func TestContentTypeDelete(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onExec("DELETE FROM", 1)
-	if err := contentTypeNew(db).DeleteContentType(ctx, "ct1"); err != nil {
-		t.Fatal(err)
-	}
+	assertContentTypeNoErr(t, contentTypeNew(db).DeleteContentType(ctx, "ct1"))
+
 	db2, _ := newFakeDB(t)
-	if err := contentTypeNew(db2).DeleteContentType(ctx, "ct1"); !errors.Is(err, ErrContentTypeNotFound) {
-		t.Errorf("err = %v", err)
-	}
+	assertContentTypeErrIs(t, contentTypeNew(db2).DeleteContentType(ctx, "ct1"), ErrContentTypeNotFound)
+
 	db3, f3 := newFakeDB(t)
 	f3.onErr("DELETE FROM", errContentTypeBoom)
-	if err := contentTypeNew(db3).DeleteContentType(ctx, "ct1"); !errors.Is(err, errContentTypeBoom) {
-		t.Errorf("err = %v", err)
-	}
+	assertContentTypeErrIs(t, contentTypeNew(db3).DeleteContentType(ctx, "ct1"), errContentTypeBoom)
 }
 
 func TestContentTypeExists(t *testing.T) {
@@ -289,22 +260,21 @@ func TestContentTypeExists(t *testing.T) {
 		db, f := newFakeDB(t)
 		contentTypeCount(f, tc.n)
 		repo := contentTypeNew(db)
-		if got, err := repo.ExistsByName(ctx, "Blog"); err != nil || got != tc.want {
-			t.Errorf("ExistsByName(count=%d) = %v, %v", tc.n, got, err)
-		}
-		if got, err := repo.ExistsByID(ctx, "ct1"); err != nil || got != tc.want {
-			t.Errorf("ExistsByID(count=%d) = %v, %v", tc.n, got, err)
+		gotName, err := repo.ExistsByName(ctx, "Blog")
+		assertContentTypeNoErr(t, err)
+		gotID, err := repo.ExistsByID(ctx, "ct1")
+		assertContentTypeNoErr(t, err)
+		if gotName != tc.want || gotID != tc.want {
+			t.Errorf("count=%d: name=%v id=%v", tc.n, gotName, gotID)
 		}
 	}
 	db, f := newFakeDB(t)
 	f.onErr("count(*)", errContentTypeBoom)
 	repo := contentTypeNew(db)
-	if got, err := repo.ExistsByName(ctx, "Blog"); got || !errors.Is(err, errContentTypeBoom) {
-		t.Errorf("ExistsByName error = %v, %v", got, err)
-	}
-	if got, err := repo.ExistsByID(ctx, "ct1"); got || !errors.Is(err, errContentTypeBoom) {
-		t.Errorf("ExistsByID error = %v, %v", got, err)
-	}
+	_, err := repo.ExistsByName(ctx, "Blog")
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
+	_, err = repo.ExistsByID(ctx, "ct1")
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
 }
 
 func TestContentTypeWithCounts(t *testing.T) {
@@ -315,24 +285,29 @@ func TestContentTypeWithCounts(t *testing.T) {
 	repo := contentTypeNew(db)
 
 	fields, err := repo.GetContentTypesWithFieldCount(ctx)
-	if err != nil || len(fields) != 1 || fields[0]["Name"] != "Blog" || fields[0]["field_count"] != int64(3) {
-		t.Fatalf("field counts: %+v, %v", fields, err)
-	}
+	assertContentTypeNoErr(t, err)
 	items, err := repo.GetContentTypesWithItemCount(ctx)
-	if err != nil || len(items) != 1 || items[0]["item_count"] != int64(7) {
-		t.Fatalf("item counts: %+v, %v", items, err)
-	}
-	if !f.sawQuery("LEFT JOIN", "ContentField", "GROUP BY") || !f.sawQuery("LEFT JOIN", "ContentItem", "GROUP BY") {
-		t.Errorf("queries: %v", f.queries)
-	}
+	assertContentTypeNoErr(t, err)
+	assertContentTypeCountsResult(t, f, fields, items)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errContentTypeBoom)
 	badRepo := contentTypeNew(bad)
-	if _, err := badRepo.GetContentTypesWithFieldCount(ctx); !errors.Is(err, errContentTypeBoom) {
-		t.Errorf("field count error: %v", err)
+	_, err = badRepo.GetContentTypesWithFieldCount(ctx)
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
+	_, err = badRepo.GetContentTypesWithItemCount(ctx)
+	assertContentTypeErrIs(t, err, errContentTypeBoom)
+}
+
+func assertContentTypeCountsResult(t *testing.T, f *fakeDB, fields, items []map[string]any) {
+	t.Helper()
+	if len(fields) != 1 || fields[0]["Name"] != "Blog" || fields[0]["field_count"] != int64(3) {
+		t.Fatalf("field counts: %+v", fields)
 	}
-	if _, err := badRepo.GetContentTypesWithItemCount(ctx); !errors.Is(err, errContentTypeBoom) {
-		t.Errorf("item count error: %v", err)
+	if len(items) != 1 || items[0]["item_count"] != int64(7) {
+		t.Fatalf("item counts: %+v", items)
+	}
+	if !f.sawQuery("LEFT JOIN", "ContentField", "GROUP BY") || !f.sawQuery("LEFT JOIN", "ContentItem", "GROUP BY") {
+		t.Errorf("queries: %v", f.queries)
 	}
 }

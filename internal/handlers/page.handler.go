@@ -143,12 +143,8 @@ func (h *PageHandler) UpdatePage(c fiber.Ctx) error {
 	}
 
 	rawBody := map[string]any{}
-	if req.Name != nil {
-		rawBody["name"] = *req.Name
-	}
-	if req.Type != nil {
-		rawBody["type"] = *req.Type
-	}
+	utils.SetIfNotNil(rawBody, "name", req.Name)
+	utils.SetIfNotNil(rawBody, "type", req.Type)
 	if req.Styles != nil {
 		rawBody["styles"] = req.Styles
 	}

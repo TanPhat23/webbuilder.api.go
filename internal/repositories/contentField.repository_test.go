@@ -63,8 +63,11 @@ func TestContentFieldGetByContentType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Name != "alpha" || !got[0].Required || got[1].Type != "number" {
+	if len(got) != 2 || got[0].Name != "alpha" {
 		t.Fatalf("unexpected fields: %+v", got)
+	}
+	if !got[0].Required || got[1].Type != "number" {
+		t.Fatalf("unexpected field attrs: %+v", got)
 	}
 	if !f.sawQuery(`"ContentTypeId" =`, `ORDER BY "Name" ASC`) {
 		t.Errorf("query: %q", f.lastQuery())
@@ -82,11 +85,17 @@ func TestContentFieldGetByID(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on(contentFieldSelect, contentFieldCols, []driver.Value{"f1", "ct1", "alpha", "text", false})
 	got, err := NewContentFieldRepository(db).GetContentFieldByID(ctx, "f1")
-	if err != nil || got.Id != "f1" || got.ContentTypeId != "ct1" {
+	if err != nil || got.Id != "f1" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
+	if got.ContentTypeId != "ct1" {
+		t.Fatalf("contentTypeId=%q", got.ContentTypeId)
+	}
 
-	db2, _ := newFakeDB(t)
+	db2, f2 := newFakeDB(t)
+	if f2 == nil {
+		t.Fatal("missing fake db")
+	}
 	if _, err := NewContentFieldRepository(db2).GetContentFieldByID(ctx, "nope"); !errors.Is(err, ErrContentFieldNotFound) {
 		t.Errorf("want ErrContentFieldNotFound, got %v", err)
 	}
@@ -98,135 +107,115 @@ func TestContentFieldGetByID(t *testing.T) {
 	}
 }
 
-func TestContentFieldCreate(t *testing.T) {
+func TestContentFieldCreateSuccess(t *testing.T) {
 	ctx := context.Background()
-	t.Run("generates id and inserts", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentFieldCount(f, 0)
-		f.onExec("INSERT INTO", 1)
-		cf := &models.ContentField{ContentTypeId: "ct1", Name: "alpha", Type: "text"}
-		got, err := NewContentFieldRepository(db).CreateContentField(ctx, cf)
-		if err != nil || got.Id == "" || got.Name != "alpha" {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-		if !f.sawQuery("INSERT INTO", "ContentField") {
-			t.Error("no insert issued")
-		}
-	})
-	t.Run("keeps supplied id", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentFieldCount(f, 0)
-		got, err := NewContentFieldRepository(db).CreateContentField(ctx, &models.ContentField{Id: "mine", ContentTypeId: "ct1", Name: "a"})
-		if err != nil || got.Id != "mine" {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-	})
-	t.Run("duplicate name", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentFieldCount(f, 1)
-		_, err := NewContentFieldRepository(db).CreateContentField(ctx, &models.ContentField{ContentTypeId: "ct1", Name: "alpha"})
-		if !errors.Is(err, ErrContentFieldDuplicate) {
-			t.Errorf("err = %v", err)
-		}
-		if f.sawQuery("INSERT INTO") {
-			t.Error("duplicate must not be inserted")
-		}
-	})
-	t.Run("existence check fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("count(*)", errContentFieldBoom)
-		_, err := NewContentFieldRepository(db).CreateContentField(ctx, &models.ContentField{ContentTypeId: "ct1", Name: "alpha"})
-		if !errors.Is(err, errContentFieldBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("insert fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		contentFieldCount(f, 0)
-		f.onErr("INSERT INTO", errContentFieldBoom)
-		_, err := NewContentFieldRepository(db).CreateContentField(ctx, &models.ContentField{ContentTypeId: "ct1", Name: "alpha"})
-		if !errors.Is(err, errContentFieldBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
+	db, f := newFakeDB(t)
+	contentFieldCount(f, 0)
+	f.onExec("INSERT INTO", 1)
+	cf := &models.ContentField{ContentTypeId: "ct1", Name: "alpha", Type: "text"}
+	got, err := NewContentFieldRepository(db).CreateContentField(ctx, cf)
+	if err != nil || got.Id == "" || got.Name != "alpha" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if !f.sawQuery("INSERT INTO", "ContentField") {
+		t.Error("no insert issued")
+	}
+
+	dbKeep, fKeep := newFakeDB(t)
+	contentFieldCount(fKeep, 0)
+	kept, err := NewContentFieldRepository(dbKeep).CreateContentField(ctx, &models.ContentField{Id: "mine", ContentTypeId: "ct1", Name: "a"})
+	if err != nil || kept.Id != "mine" {
+		t.Fatalf("got %+v, %v", kept, err)
+	}
 }
 
-func TestContentFieldUpdate(t *testing.T) {
+func TestContentFieldCreateErrors(t *testing.T) {
+	ctx := context.Background()
+	dbDup, fDup := newFakeDB(t)
+	contentFieldCount(fDup, 1)
+	_, err := NewContentFieldRepository(dbDup).CreateContentField(ctx, &models.ContentField{ContentTypeId: "ct1", Name: "alpha"})
+	if !errors.Is(err, ErrContentFieldDuplicate) {
+		t.Errorf("err = %v", err)
+	}
+	if fDup.sawQuery("INSERT INTO") {
+		t.Error("duplicate must not be inserted")
+	}
+
+	dbChk, fChk := newFakeDB(t)
+	fChk.onErr("count(*)", errContentFieldBoom)
+	if _, err := NewContentFieldRepository(dbChk).CreateContentField(ctx, &models.ContentField{ContentTypeId: "ct1", Name: "alpha"}); !errors.Is(err, errContentFieldBoom) {
+		t.Errorf("err = %v", err)
+	}
+
+	dbIns, fIns := newFakeDB(t)
+	contentFieldCount(fIns, 0)
+	fIns.onErr("INSERT INTO", errContentFieldBoom)
+	if _, err := NewContentFieldRepository(dbIns).CreateContentField(ctx, &models.ContentField{ContentTypeId: "ct1", Name: "alpha"}); !errors.Is(err, errContentFieldBoom) {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestContentFieldUpdateSuccessAndConflicts(t *testing.T) {
 	ctx := context.Background()
 	row := []driver.Value{"f1", "ct1", "renamed", "text", false}
-	t.Run("updates and returns fresh row", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on(contentFieldSelect, contentFieldCols, row)
-		contentFieldCount(f, 0)
-		f.onExec("UPDATE", 1)
-		got, err := NewContentFieldRepository(db).UpdateContentField(ctx, "f1", map[string]any{"name": "renamed"})
-		if err != nil || got.Name != "renamed" {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-		if !f.sawQuery("count(*)", `"Id" !=`) || !f.sawQuery("UPDATE", "ContentField") {
-			t.Errorf("expected uniqueness check and update, queries: %v", f.queries)
-		}
-	})
-	t.Run("lower-case name key conflicting", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on(contentFieldSelect, contentFieldCols, row)
-		contentFieldCount(f, 1)
-		_, err := NewContentFieldRepository(db).UpdateContentField(ctx, "f1", map[string]any{"name": "taken"})
-		if !errors.Is(err, ErrContentFieldDuplicate) {
-			t.Errorf("err = %v", err)
-		}
-		if f.sawQuery("UPDATE") {
-			t.Error("conflicting rename must not be written")
-		}
-	})
-	t.Run("uniqueness check failure", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on(contentFieldSelect, contentFieldCols, row)
-		f.onErr("count(*)", errContentFieldBoom)
-		_, err := NewContentFieldRepository(db).UpdateContentField(ctx, "f1", map[string]any{"name": "x"})
-		if !errors.Is(err, errContentFieldBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
+	db, f := newFakeDB(t)
+	f.on(contentFieldSelect, contentFieldCols, row)
+	contentFieldCount(f, 0)
+	f.onExec("UPDATE", 1)
+	got, err := NewContentFieldRepository(db).UpdateContentField(ctx, "f1", map[string]any{"name": "renamed"})
+	if err != nil || got.Name != "renamed" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if !f.sawQuery("count(*)", `"Id" !=`) || !f.sawQuery("UPDATE", "ContentField") {
+		t.Errorf("expected uniqueness check and update, queries: %v", f.queries)
+	}
 
-	t.Run("capitalized Name rejects duplicate", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on(contentFieldSelect, contentFieldCols, row)
-		contentFieldCount(f, 1)
-		_, err := NewContentFieldRepository(db).UpdateContentField(ctx, "f1", map[string]any{"Name": "taken"})
-		if !errors.Is(err, ErrContentFieldDuplicate) {
-			t.Fatalf("err = %v", err)
+	for _, key := range []string{"name", "Name"} {
+		dbDup, fDup := newFakeDB(t)
+		fDup.on(contentFieldSelect, contentFieldCols, row)
+		contentFieldCount(fDup, 1)
+		if _, err := NewContentFieldRepository(dbDup).UpdateContentField(ctx, "f1", map[string]any{key: "taken"}); !errors.Is(err, ErrContentFieldDuplicate) {
+			t.Fatalf("%s: err = %v", key, err)
 		}
-		if f.sawQuery("UPDATE") {
-			t.Fatal("duplicate update was written")
+		if fDup.sawQuery("UPDATE") {
+			t.Fatalf("%s: conflicting rename must not be written", key)
 		}
-	})
-	t.Run("not found", func(t *testing.T) {
-		db, _ := newFakeDB(t)
-		_, err := NewContentFieldRepository(db).UpdateContentField(ctx, "f1", map[string]any{"Type": "x"})
-		if !errors.Is(err, ErrContentFieldNotFound) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("update fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on(contentFieldSelect, contentFieldCols, row)
-		f.onErr("UPDATE", errContentFieldBoom)
-		_, err := NewContentFieldRepository(db).UpdateContentField(ctx, "f1", map[string]any{"Type": "x"})
-		if !errors.Is(err, errContentFieldBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("refetch fails", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on(contentFieldSelect, contentFieldCols, row).once()
-		f.onExec("UPDATE", 1)
-		f.onErr(contentFieldSelect, errContentFieldBoom)
-		_, err := NewContentFieldRepository(db).UpdateContentField(ctx, "f1", map[string]any{"Type": "x"})
-		if !errors.Is(err, errContentFieldBoom) {
-			t.Errorf("err = %v", err)
-		}
-	})
+	}
+}
+
+func TestContentFieldUpdateErrors(t *testing.T) {
+	ctx := context.Background()
+	row := []driver.Value{"f1", "ct1", "renamed", "text", false}
+
+	dbChk, fChk := newFakeDB(t)
+	fChk.on(contentFieldSelect, contentFieldCols, row)
+	fChk.onErr("count(*)", errContentFieldBoom)
+	if _, err := NewContentFieldRepository(dbChk).UpdateContentField(ctx, "f1", map[string]any{"name": "x"}); !errors.Is(err, errContentFieldBoom) {
+		t.Errorf("err = %v", err)
+	}
+
+	dbMiss, missFake := newFakeDB(t)
+	if missFake == nil {
+		t.Fatal("missing fake db")
+	}
+	if _, err := NewContentFieldRepository(dbMiss).UpdateContentField(ctx, "f1", map[string]any{"Type": "x"}); !errors.Is(err, ErrContentFieldNotFound) {
+		t.Errorf("err = %v", err)
+	}
+
+	dbUpd, fUpd := newFakeDB(t)
+	fUpd.on(contentFieldSelect, contentFieldCols, row)
+	fUpd.onErr("UPDATE", errContentFieldBoom)
+	if _, err := NewContentFieldRepository(dbUpd).UpdateContentField(ctx, "f1", map[string]any{"Type": "x"}); !errors.Is(err, errContentFieldBoom) {
+		t.Errorf("err = %v", err)
+	}
+
+	dbRef, fRef := newFakeDB(t)
+	fRef.on(contentFieldSelect, contentFieldCols, row).once()
+	fRef.onExec("UPDATE", 1)
+	fRef.onErr(contentFieldSelect, errContentFieldBoom)
+	if _, err := NewContentFieldRepository(dbRef).UpdateContentField(ctx, "f1", map[string]any{"Type": "x"}); !errors.Is(err, errContentFieldBoom) {
+		t.Errorf("err = %v", err)
+	}
 }
 
 func TestContentFieldDelete(t *testing.T) {
@@ -240,7 +229,10 @@ func TestContentFieldDelete(t *testing.T) {
 		t.Errorf("query: %q", f.lastQuery())
 	}
 
-	db2, _ := newFakeDB(t)
+	db2, f2 := newFakeDB(t)
+	if f2 == nil {
+		t.Fatal("missing fake db")
+	}
 	if err := NewContentFieldRepository(db2).DeleteContentField(ctx, "f1"); !errors.Is(err, ErrContentFieldNotFound) {
 		t.Errorf("no rows deleted: err = %v", err)
 	}

@@ -119,40 +119,38 @@ func (h *Hub) getOrCreateRoom(roomID string) *Room {
 // Register adds a client to a room and waits for confirmation. If the room closes
 // while the client is joining (its last client left), the client joins a new room.
 func (h *Hub) Register(ctx context.Context, client *Client) error {
-	if client == nil {
+	if client == nil || client.RoomID() == "" {
 		return nil
 	}
 	roomID := client.RoomID()
-	if roomID == "" {
-		return nil
+	for {
+		joined, err := h.tryRegisterInRoom(ctx, h.getOrCreateRoom(roomID), client)
+		if err != nil || joined {
+			return err
+		}
+	}
+}
+
+func (h *Hub) tryRegisterInRoom(ctx context.Context, r *Room, client *Client) (bool, error) {
+	done := make(chan struct{})
+	var rejected bool
+	select {
+	case r.register <- registerRequest{client: client, done: done, rejected: &rejected}:
+	case <-r.ctx.Done():
+		// The room stopped before taking the request.
+		if h.parentCtx.Err() != nil {
+			return false, h.parentCtx.Err()
+		}
+		return false, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
 	}
 
-	for {
-		r := h.getOrCreateRoom(roomID)
-		done := make(chan struct{})
-		var rejected bool
-
-		select {
-		case r.register <- registerRequest{client: client, done: done, rejected: &rejected}:
-		case <-r.ctx.Done():
-			// The room stopped before taking the request.
-			if h.parentCtx.Err() != nil {
-				return h.parentCtx.Err()
-			}
-			continue
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-
-		select {
-		case <-done:
-			if rejected {
-				continue
-			}
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	select {
+	case <-done:
+		return !rejected, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
 	}
 }
 

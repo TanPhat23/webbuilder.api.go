@@ -314,19 +314,10 @@ func (r *ProjectRepository) GetProjectWithLock(ctx context.Context, projectID, u
 }
 
 func (r *ProjectRepository) CreateProjectWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
-	if project == nil || page == nil {
-		return errors.New("project and page are required")
+	if err := validateProjectWithPage(project, page); err != nil {
+		return err
 	}
-	if project.ID == "" || project.Name == "" || project.OwnerId == "" {
-		return errors.New("project id, name and owner are required")
-	}
-	now := time.Now().UTC()
-	if project.AuditFields == nil {
-		project.AuditFields = &models.AuditFields{}
-	}
-	project.CreatedAt, project.UpdatedAt = now, now
-	page.ProjectId = project.ID
-	page.CreatedAt, page.UpdatedAt = now, now
+	stampProjectAndPage(project, page)
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := gorm.G[models.Project](tx).Omit(clause.Associations).Create(ctx, project); err != nil {
@@ -337,6 +328,26 @@ func (r *ProjectRepository) CreateProjectWithPage(ctx context.Context, project *
 		}
 		return nil
 	})
+}
+
+func validateProjectWithPage(project *models.Project, page *models.Page) error {
+	if project == nil || page == nil {
+		return errors.New("project and page are required")
+	}
+	if project.ID == "" || project.Name == "" || project.OwnerId == "" {
+		return errors.New("project id, name and owner are required")
+	}
+	return nil
+}
+
+func stampProjectAndPage(project *models.Project, page *models.Page) {
+	now := time.Now().UTC()
+	if project.AuditFields == nil {
+		project.AuditFields = &models.AuditFields{}
+	}
+	project.CreatedAt, project.UpdatedAt = now, now
+	page.ProjectId = project.ID
+	page.CreatedAt, page.UpdatedAt = now, now
 }
 
 func (r *ProjectRepository) GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {

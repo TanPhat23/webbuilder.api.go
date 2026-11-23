@@ -136,27 +136,7 @@ func markCompletedWorkflows(writes []InteractionWrite, settings map[string]json.
 	marked := map[string]int{}
 	for _, write := range writes {
 		total[write.WorkflowID]++
-		m, err := object(settings[write.ElementID])
-		if err != nil {
-			failures[write.WorkflowID] = "element settings are not an object"
-			continue
-		}
-		value, exists := m["migratedWorkflowLinks"]
-		if !exists {
-			continue
-		}
-		marks, ok := value.(map[string]any)
-		if !ok {
-			failures[write.WorkflowID] = "migration markers are not an object"
-			continue
-		}
-		if mark, exists := marks[write.LinkID]; exists {
-			if mark != true {
-				failures[write.WorkflowID] = "invalid migration marker"
-				continue
-			}
-			marked[write.WorkflowID]++
-		}
+		checkCompletedWriteMark(write, settings[write.ElementID], marked, failures)
 	}
 	completed := map[string]bool{}
 	for id, count := range marked {
@@ -169,36 +149,68 @@ func markCompletedWorkflows(writes []InteractionWrite, settings map[string]json.
 	return completed
 }
 
+func checkCompletedWriteMark(write InteractionWrite, raw json.RawMessage, marked map[string]int, failures map[string]string) {
+	m, err := object(raw)
+	if err != nil {
+		failures[write.WorkflowID] = "element settings are not an object"
+		return
+	}
+	value, exists := m["migratedWorkflowLinks"]
+	if !exists {
+		return
+	}
+	marks, ok := value.(map[string]any)
+	if !ok {
+		failures[write.WorkflowID] = "migration markers are not an object"
+		return
+	}
+	if mark, exists := marks[write.LinkID]; exists {
+		if mark != true {
+			failures[write.WorkflowID] = "invalid migration marker"
+			return
+		}
+		marked[write.WorkflowID]++
+	}
+}
+
 func validateInteractionTargets(writes []InteractionWrite, settings map[string]json.RawMessage, completed map[string]bool, failures map[string]string) {
 	planned := map[string]string{}
 	for _, write := range writes {
 		if completed[write.WorkflowID] {
 			continue
 		}
-		key := write.ElementID + "\x00" + write.ID
-		if other, exists := planned[key]; exists && other != write.WorkflowID {
-			reason := fmt.Sprintf("multiple workflows generate interaction %s on element %s", write.ID, write.ElementID)
-			failures[other], failures[write.WorkflowID] = reason, reason
-		} else {
-			planned[key] = write.WorkflowID
-		}
-		m, err := object(settings[write.ElementID])
-		if err != nil {
-			failures[write.WorkflowID] = "element settings are not an object"
-			continue
-		}
-		value, exists := m["interactions"]
-		if !exists {
-			continue
-		}
-		existing, ok := value.(map[string]any)
-		if !ok {
-			failures[write.WorkflowID] = "element interactions are not an object"
-			continue
-		}
-		if _, exists := existing[write.ID]; exists {
-			failures[write.WorkflowID] = fmt.Sprintf("element %s already has interaction %s", write.ElementID, write.ID)
-		}
+		recordPlannedInteraction(write, planned, failures)
+		validateExistingElementInteraction(write, settings[write.ElementID], failures)
+	}
+}
+
+func recordPlannedInteraction(write InteractionWrite, planned, failures map[string]string) {
+	key := write.ElementID + "\x00" + write.ID
+	if other, exists := planned[key]; exists && other != write.WorkflowID {
+		reason := fmt.Sprintf("multiple workflows generate interaction %s on element %s", write.ID, write.ElementID)
+		failures[other], failures[write.WorkflowID] = reason, reason
+		return
+	}
+	planned[key] = write.WorkflowID
+}
+
+func validateExistingElementInteraction(write InteractionWrite, raw json.RawMessage, failures map[string]string) {
+	m, err := object(raw)
+	if err != nil {
+		failures[write.WorkflowID] = "element settings are not an object"
+		return
+	}
+	value, exists := m["interactions"]
+	if !exists {
+		return
+	}
+	existing, ok := value.(map[string]any)
+	if !ok {
+		failures[write.WorkflowID] = "element interactions are not an object"
+		return
+	}
+	if _, exists := existing[write.ID]; exists {
+		failures[write.WorkflowID] = fmt.Sprintf("element %s already has interaction %s", write.ElementID, write.ID)
 	}
 }
 
@@ -222,24 +234,40 @@ func checkFlowLocation(flow FlowWrite, raw json.RawMessage, location string, fai
 		failures[flow.WorkflowID] = location + " logic is not an object"
 		return
 	}
-	if len(raw) > 0 && string(raw) != "null" {
-		if err := logic.Validate(logic.Document(m)); err != nil {
-			failures[flow.WorkflowID] = location + " logic is invalid: " + err.Error()
-			return
-		}
-	}
-	value, exists := m["flows"]
-	if !exists || value == nil {
+	if err := validateExistingLocationLogic(m, raw, location); err != nil {
+		failures[flow.WorkflowID] = err.Error()
 		return
 	}
-	flows, ok := value.(map[string]any)
-	if !ok {
-		failures[flow.WorkflowID] = location + " flows are not an object"
+	flows, err := extractLocationFlows(m, location)
+	if err != nil {
+		failures[flow.WorkflowID] = err.Error()
 		return
 	}
 	if _, exists := flows[flow.Name]; exists {
 		failures[flow.WorkflowID] = fmt.Sprintf("flow %s already exists in %s", flow.Name, location)
 	}
+}
+
+func validateExistingLocationLogic(m map[string]any, raw json.RawMessage, location string) error {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	if err := logic.Validate(logic.Document(m)); err != nil {
+		return fmt.Errorf("%s logic is invalid: %w", location, err)
+	}
+	return nil
+}
+
+func extractLocationFlows(m map[string]any, location string) (map[string]any, error) {
+	value, exists := m["flows"]
+	if !exists || value == nil {
+		return nil, nil
+	}
+	flows, ok := value.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s flows are not an object", location)
+	}
+	return flows, nil
 }
 
 func finalizePlan(plan Plan, completed map[string]bool, failures map[string]string) Plan {

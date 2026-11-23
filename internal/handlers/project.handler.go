@@ -170,29 +170,35 @@ func buildProjectColumnUpdates(req *dto.UpdateProjectRequest) (map[string]any, e
 
 func projectFromColumnUpdates(columnUpdates map[string]any) *models.Project {
 	project := &models.Project{}
-	if name, ok := columnUpdates["Name"].(string); ok {
-		project.Name = name
-	}
-	if desc, ok := columnUpdates["Description"].(string); ok {
-		project.Description = &desc
-	}
+	assignStringUpdate(columnUpdates, "Name", &project.Name)
+	assignStringPtrUpdate(columnUpdates, "Description", &project.Description)
+	assignStringPtrUpdate(columnUpdates, "Subdomain", &project.Subdomain)
 	if published, ok := columnUpdates["Published"].(bool); ok {
 		project.Published = published
 	}
-	if sub, ok := columnUpdates["Subdomain"].(string); ok {
-		project.Subdomain = &sub
-	}
-	if styles, ok := columnUpdates["Styles"]; ok {
-		if msg, err := utils.MarshalRawJSON(styles); err == nil {
-			project.Styles = msg
-		}
-	}
-	if header, ok := columnUpdates["Header"]; ok {
-		if msg, err := utils.MarshalRawJSON(header); err == nil {
-			project.Header = msg
-		}
-	}
+	assignRawJSONUpdate(columnUpdates, "Styles", &project.Styles)
+	assignRawJSONUpdate(columnUpdates, "Header", &project.Header)
 	return project
+}
+
+func assignStringUpdate(updates map[string]any, key string, dst *string) {
+	if v, ok := updates[key].(string); ok {
+		*dst = v
+	}
+}
+
+func assignStringPtrUpdate(updates map[string]any, key string, dst **string) {
+	if v, ok := updates[key].(string); ok {
+		*dst = &v
+	}
+}
+
+func assignRawJSONUpdate(updates map[string]any, key string, dst **json.RawMessage) {
+	if raw, ok := updates[key]; ok {
+		if msg, err := utils.MarshalRawJSON(raw); err == nil {
+			*dst = msg
+		}
+	}
 }
 
 // CreateProject creates a project owned by the caller, with its first page.

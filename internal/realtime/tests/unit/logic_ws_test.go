@@ -58,22 +58,37 @@ func (m *memLogic) Update(_ context.Context, _, pageID, user string, patch map[s
 	if !m.write[user] {
 		return logic.Revisioned{}, domainErrors.New(domainErrors.CodeAccessDenied, "no write access", domainErrors.ErrUnauthorized)
 	}
-	current := m.project
-	if pageID != "" {
-		var ok bool
-		if current, ok = m.pages[pageID]; !ok {
-			return logic.Revisioned{}, domainErrors.New(domainErrors.CodeNotFound, "page not found", domainErrors.ErrNotFound)
-		}
+	current, err := m.currentDocLocked(pageID)
+	if err != nil {
+		return logic.Revisioned{}, err
 	}
-	var paths [][]string
-	if len(nullPaths) > 0 {
-		paths = nullPaths[0]
-	}
-	updated, err := logic.MergeWithNulls(current, patch, paths)
+	updated, err := logic.MergeWithNulls(current, patch, firstMemNullPaths(nullPaths))
 	if err != nil {
 		return logic.Revisioned{}, domainErrors.New(domainErrors.CodeValidation, err.Error(), domainErrors.ErrValidation)
 	}
-	project, pages := m.project, map[string]logic.Document{}
+	return m.commitUpdateLocked(pageID, updated)
+}
+
+func (m *memLogic) currentDocLocked(pageID string) (logic.Document, error) {
+	if pageID == "" {
+		return m.project, nil
+	}
+	doc, ok := m.pages[pageID]
+	if !ok {
+		return nil, domainErrors.New(domainErrors.CodeNotFound, "page not found", domainErrors.ErrNotFound)
+	}
+	return doc, nil
+}
+
+func firstMemNullPaths(nullPaths [][][]string) [][]string {
+	if len(nullPaths) > 0 {
+		return nullPaths[0]
+	}
+	return nil
+}
+
+func (m *memLogic) commitUpdateLocked(pageID string, updated logic.Document) (logic.Revisioned, error) {
+	project, pages := m.project, make(map[string]logic.Document, len(m.pages))
 	for id, doc := range m.pages {
 		pages[id] = doc
 	}
@@ -181,20 +196,44 @@ type logicSync struct {
 	PageRevision    *int64         `json:"pageRevision"`
 }
 
+func mustDialLogic(t *testing.T, url, user, page string) *logicClient {
+	t.Helper()
+	client, joined := dialLogic(t, url, user, page)
+	if !joined {
+		t.Fatalf("%s failed to join page %s", user, page)
+	}
+	return client
+}
+
 // Every logic:update (ack and broadcast) and logic:sync carries the document's
 // revision, which increases with each commit, so a client can drop an older
 // sync that arrives after a newer broadcast.
 func TestLogicWS_RevisionsIncreaseAndTravelWithEveryDocument(t *testing.T) {
 	mem := newMemLogic()
 	url := startLogicServer(t, mem)
-	editor, _ := dialLogic(t, url, "editor", "page")
+	editor := mustDialLogic(t, url, "editor", "page")
 	joinSync, ok := editor.next("logic:sync", 3*time.Second)
 	if !ok {
 		t.Fatal("no logic:sync after join")
 	}
-	if got := decode[logicSync](t, joinSync); got.ProjectRevision == nil || *got.ProjectRevision != 0 || got.PageRevision == nil || *got.PageRevision != 0 {
-		t.Fatalf("fresh documents must have revision 0: %s", joinSync.Payload)
+	assertInitialZeroRevisions(t, joinSync)
+	assertProjectRevisionsAdvance(t, editor)
+	assertPageRevisionAdvancesAndSyncs(t, editor)
+}
+
+func assertInitialZeroRevisions(t *testing.T, joinSync wsIn) {
+	t.Helper()
+	got := decode[logicSync](t, joinSync)
+	if got.ProjectRevision == nil || *got.ProjectRevision != 0 {
+		t.Fatalf("fresh project must have revision 0: %s", joinSync.Payload)
 	}
+	if got.PageRevision == nil || *got.PageRevision != 0 {
+		t.Fatalf("fresh page must have revision 0: %s", joinSync.Payload)
+	}
+}
+
+func assertProjectRevisionsAdvance(t *testing.T, editor *logicClient) {
+	t.Helper()
 	var last int64
 	for i, name := range []string{"a", "b", "c"} {
 		editor.raw("logic:update", "page", map[string]any{"scope": "project", "patch": map[string]any{"variables": map[string]any{name: variable("number")}}}, name)
@@ -208,6 +247,10 @@ func TestLogicWS_RevisionsIncreaseAndTravelWithEveryDocument(t *testing.T) {
 		}
 		last = *got.Revision
 	}
+}
+
+func assertPageRevisionAdvancesAndSyncs(t *testing.T, editor *logicClient) {
+	t.Helper()
 	editor.raw("logic:update", "page", map[string]any{"scope": "page", "patch": map[string]any{"flows": map[string]any{"f": map[string]any{"do": []any{map[string]any{"show": ""}}}}}}, "page-draft")
 	msg, ok := editor.next("logic:update", 3*time.Second)
 	if !ok {
@@ -217,12 +260,16 @@ func TestLogicWS_RevisionsIncreaseAndTravelWithEveryDocument(t *testing.T) {
 		t.Fatalf("page revision is counted separately: %s", msg.Payload)
 	}
 	editor.raw("logic:sync", "page", map[string]any{}, "")
-	msg, ok = editor.next("logic:sync", 3*time.Second)
+	syncMsg, ok := editor.next("logic:sync", 3*time.Second)
 	if !ok {
 		t.Fatal("no logic:sync reply")
 	}
-	if got := decode[logicSync](t, msg); got.ProjectRevision == nil || *got.ProjectRevision != 3 || got.PageRevision == nil || *got.PageRevision != 1 {
-		t.Fatalf("sync must carry the latest revisions: %s", msg.Payload)
+	gotSync := decode[logicSync](t, syncMsg)
+	if gotSync.ProjectRevision == nil || *gotSync.ProjectRevision != 3 {
+		t.Fatalf("sync must carry project revision 3: %s", syncMsg.Payload)
+	}
+	if gotSync.PageRevision == nil || *gotSync.PageRevision != 1 {
+		t.Fatalf("sync must carry page revision 1: %s", syncMsg.Payload)
 	}
 }
 
@@ -247,10 +294,7 @@ func TestLogicWS_JoinSendsCurrentLogic(t *testing.T) {
 	}
 	mem.project = seeded
 	url := startLogicServer(t, mem)
-	c, joined := dialLogic(t, url, "viewer", "page")
-	if !joined {
-		t.Fatal("viewer could not join")
-	}
+	c := mustDialLogic(t, url, "viewer", "page")
 	m, ok := c.next("logic:sync", 3*time.Second)
 	if !ok {
 		t.Fatal("no logic:sync after join")
@@ -264,26 +308,30 @@ func TestLogicWS_JoinSendsCurrentLogic(t *testing.T) {
 	}
 }
 
+func assertProjectLogicBroadcast(t *testing.T, name string, c *logicClient, expectOpID string) {
+	t.Helper()
+	m, ok := c.next("logic:update", 3*time.Second)
+	if !ok {
+		t.Fatalf("%s did not receive the project update", name)
+	}
+	got := decode[logicChanged](t, m)
+	if got.Scope != "project" || got.Logic["variables"].(map[string]any)["count"] == nil {
+		t.Fatalf("%s got %s", name, m.Payload)
+	}
+	if expectOpID != "" && m.ClientOpID != expectOpID {
+		t.Fatalf("sender ack lost clientOpId: %+v", m)
+	}
+}
+
 func TestLogicWS_ProjectUpdateReachesEveryPageAndPageUpdateOnlyItsPage(t *testing.T) {
 	mem := newMemLogic()
 	url := startLogicServer(t, mem)
-	a, _ := dialLogic(t, url, "editor", "page")
-	b, _ := dialLogic(t, url, "editor2", "page2")
+	a := mustDialLogic(t, url, "editor", "page")
+	b := mustDialLogic(t, url, "editor2", "page2")
 
 	a.raw("logic:update", "page", map[string]any{"scope": "project", "patch": map[string]any{"variables": map[string]any{"count": variable("number")}}}, "op-1")
-	for name, c := range map[string]*logicClient{"sender": a, "other page": b} {
-		m, ok := c.next("logic:update", 3*time.Second)
-		if !ok {
-			t.Fatalf("%s did not receive the project update", name)
-		}
-		got := decode[logicChanged](t, m)
-		if got.Scope != "project" || got.Logic["variables"].(map[string]any)["count"] == nil {
-			t.Fatalf("%s got %s", name, m.Payload)
-		}
-		if name == "sender" && m.ClientOpID != "op-1" {
-			t.Fatalf("sender ack lost clientOpId: %+v", m)
-		}
-	}
+	assertProjectLogicBroadcast(t, "sender", a, "op-1")
+	assertProjectLogicBroadcast(t, "other page", b, "")
 
 	a.raw("logic:update", "page", map[string]any{"scope": "page", "patch": map[string]any{"flows": map[string]any{"greet": map[string]any{"do": []any{}}}}}, "op-2")
 	m, ok := a.next("logic:update", 3*time.Second)
@@ -298,14 +346,26 @@ func TestLogicWS_ProjectUpdateReachesEveryPageAndPageUpdateOnlyItsPage(t *testin
 func TestLogicWS_RejectedPatchesChangeNothingAndOnlyTheSenderHearsOfIt(t *testing.T) {
 	mem := newMemLogic()
 	url := startLogicServer(t, mem)
-	a, _ := dialLogic(t, url, "editor", "page")
-	b, _ := dialLogic(t, url, "editor2", "page")
+	a := mustDialLogic(t, url, "editor", "page")
+	b := mustDialLogic(t, url, "editor2", "page")
 	a.raw("logic:update", "page", map[string]any{"scope": "project", "patch": map[string]any{"variables": map[string]any{"count": variable("number")}}}, "ok")
-	a.next("logic:update", 3*time.Second)
-	b.next("logic:update", 3*time.Second)
-	before, _ := mem.snapshot()
+	if _, ok := a.next("logic:update", 3*time.Second); !ok {
+		t.Fatal("sender did not get initial update")
+	}
+	if _, ok := b.next("logic:update", 3*time.Second); !ok {
+		t.Fatal("peer did not get initial update")
+	}
+	before, beforePage := mem.snapshot()
+	if beforePage == nil {
+		t.Fatal("expected initial page logic")
+	}
+	assertRejectedLogicCases(t, a)
+	assertNoLeakedLogicBroadcastOrMutation(t, b, mem, before)
+}
 
-	cases := []struct {
+func assertRejectedLogicCases(t *testing.T, a *logicClient) {
+	t.Helper()
+	for _, tc := range []struct {
 		name    string
 		payload map[string]any
 		code    string
@@ -314,8 +374,7 @@ func TestLogicWS_RejectedPatchesChangeNothingAndOnlyTheSenderHearsOfIt(t *testin
 		{"default does not match the type", map[string]any{"scope": "project", "patch": map[string]any{"variables": map[string]any{"x": map[string]any{"type": "number", "default": "no"}}}}, "VALIDATION_ERROR"},
 		{"unknown scope", map[string]any{"scope": "team", "patch": map[string]any{}}, "VALIDATION_ERROR"},
 		{"missing patch", map[string]any{"scope": "project"}, "VALIDATION_ERROR"},
-	}
-	for _, tc := range cases {
+	} {
 		a.raw("logic:update", "page", tc.payload, "bad")
 		em, ok := a.next("error", 3*time.Second)
 		if !ok || em.ClientOpID != "bad" {
@@ -328,31 +387,48 @@ func TestLogicWS_RejectedPatchesChangeNothingAndOnlyTheSenderHearsOfIt(t *testin
 		if reply.Code != tc.code {
 			t.Fatalf("%s: code %q, want %q", tc.name, reply.Code, tc.code)
 		}
-		// The message is the reason only: no repeated code prefix, no repeated cause.
 		if strings.Contains(reply.Message, "[") || strings.Count(reply.Message, "validation failed") > 1 {
 			t.Fatalf("%s: message is not clean: %q", tc.name, reply.Message)
 		}
 	}
+}
+
+func assertNoLeakedLogicBroadcastOrMutation(t *testing.T, b *logicClient, mem *memLogic, before logic.Document) {
+	t.Helper()
 	if other, leaked := b.next("logic:update", 400*time.Millisecond); leaked {
 		t.Fatalf("a rejected patch was broadcast: %s", other.Payload)
 	}
-	after, _ := mem.snapshot()
-	beforeJSON, _ := json.Marshal(before)
-	afterJSON, _ := json.Marshal(after)
+	after, afterPage := mem.snapshot()
+	if afterPage == nil {
+		t.Fatal("expected page logic")
+	}
+	beforeJSON, err := json.Marshal(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterJSON, err := json.Marshal(after)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if string(beforeJSON) != string(afterJSON) {
-		t.Fatalf("rejected patches changed the stored logic: %s -> %s", beforeJSON, afterJSON)
+		t.Fatalf("rejected patches changed stored logic: %s -> %s", beforeJSON, afterJSON)
 	}
 }
 
 func TestLogicWS_ViewersReadButCannotChangeAnything(t *testing.T) {
 	mem := newMemLogic()
 	url := startLogicServer(t, mem)
-	editor, _ := dialLogic(t, url, "editor", "page")
-	viewer, joined := dialLogic(t, url, "viewer", "page")
-	if !joined {
-		t.Fatal("a viewer must be able to join")
+	editor := mustDialLogic(t, url, "editor", "page")
+	viewer := mustDialLogic(t, url, "viewer", "page")
+	assertViewerMutationsRejected(t, viewer, mem)
+	editor.raw("logic:update", "page", map[string]any{"scope": "project", "patch": map[string]any{"variables": map[string]any{"v": variable("string")}}}, "e-op")
+	if _, ok := viewer.next("logic:update", 3*time.Second); !ok {
+		t.Fatal("a viewer should still receive the editor's changes")
 	}
+}
 
+func assertViewerMutationsRejected(t *testing.T, viewer *logicClient, mem *memLogic) {
+	t.Helper()
 	for _, tc := range []struct {
 		typ     string
 		payload any
@@ -371,24 +447,22 @@ func TestLogicWS_ViewersReadButCannotChangeAnything(t *testing.T) {
 			t.Fatalf("%s: code %q, want ACCESS_DENIED", tc.typ, code)
 		}
 	}
-	if project, _ := mem.snapshot(); len(project["variables"].(map[string]any)) != 0 {
+	project, page := mem.snapshot()
+	if page == nil || len(project["variables"].(map[string]any)) != 0 {
 		t.Fatal("a viewer changed the project logic")
-	}
-
-	editor.raw("logic:update", "page", map[string]any{"scope": "project", "patch": map[string]any{"variables": map[string]any{"v": variable("string")}}}, "e-op")
-	if _, ok := viewer.next("logic:update", 3*time.Second); !ok {
-		t.Fatal("a viewer should still receive the editor's changes")
 	}
 }
 
 func TestLogicWS_UsersWithoutAccessAreTurnedAway(t *testing.T) {
 	url := startLogicServer(t, newMemLogic())
-	conn, _, err := websocket.DefaultDialer.Dial(url+"?u=stranger", nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(url+"?u=stranger", nil)
 	if err != nil {
-		t.Fatalf("dial: %v", err)
+		t.Fatalf("dial (resp=%v): %v", resp, err)
 	}
-	defer conn.Close()
-	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	defer func() { _ = conn.Close() }()
+	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	var first wsIn
 	if err := conn.ReadJSON(&first); err != nil || first.Type != "error" {
 		t.Fatalf("expected an error first, got %v %+v", err, first)
@@ -408,7 +482,7 @@ func TestLogicWS_UsersWithoutAccessAreTurnedAway(t *testing.T) {
 func TestLogicWS_RejectsUpdateForPageOtherThanJoined(t *testing.T) {
 	mem := newMemLogic()
 	url := startLogicServer(t, mem)
-	a, _ := dialLogic(t, url, "editor", "page")
+	a := mustDialLogic(t, url, "editor", "page")
 	a.raw("logic:update", "page2", map[string]any{"scope": "page", "patch": map[string]any{"variables": map[string]any{"intrusion": variable("number")}}}, "wrong-page")
 	if _, ok := a.next("error", 2*time.Second); !ok {
 		t.Fatal("expected mismatched page to be rejected")
@@ -417,7 +491,7 @@ func TestLogicWS_RejectsUpdateForPageOtherThanJoined(t *testing.T) {
 
 func TestLegacyWorkflowMessagesAreRejected(t *testing.T) {
 	url := startLogicServer(t, newMemLogic())
-	client, _ := dialLogic(t, url, "editor", "page")
+	client := mustDialLogic(t, url, "editor", "page")
 	client.raw("workflow:create", "page", map[string]any{}, "legacy")
 	msg, ok := client.next("error", 3*time.Second)
 	if !ok {

@@ -48,22 +48,33 @@ func BuildElementTree(elements []entity.Element) []entity.Element {
 	if len(elements) == 0 {
 		return nil
 	}
+	elementMap := indexFlatElements(elements)
+	childrenMap, roots := groupElementsByParent(elements, elementMap)
+	for pid, cids := range childrenMap {
+		sortElementIDs(cids, elementMap)
+		childrenMap[pid] = cids
+	}
+	sortElementIDs(roots, elementMap)
+	return assembleElementForest(roots, elementMap, childrenMap)
+}
 
+func indexFlatElements(elements []entity.Element) map[string]entity.Element {
 	elementMap := make(map[string]entity.Element, len(elements))
 	for _, el := range elements {
 		el.Elements = nil
 		elementMap[el.ID] = el
 	}
+	return elementMap
+}
 
+func groupElementsByParent(elements []entity.Element, elementMap map[string]entity.Element) (map[string][]string, []string) {
 	childrenMap := make(map[string][]string)
 	roots := make([]string, 0)
-
 	for _, el := range elements {
 		if el.ParentID == nil || *el.ParentID == "" {
 			roots = append(roots, el.ID)
 			continue
 		}
-
 		pID := *el.ParentID
 		if _, ok := elementMap[pID]; ok {
 			childrenMap[pID] = append(childrenMap[pID], el.ID)
@@ -71,13 +82,10 @@ func BuildElementTree(elements []entity.Element) []entity.Element {
 			roots = append(roots, el.ID)
 		}
 	}
+	return childrenMap, roots
+}
 
-	for pid, cids := range childrenMap {
-		sortElementIDs(cids, elementMap)
-		childrenMap[pid] = cids
-	}
-	sortElementIDs(roots, elementMap)
-
+func assembleElementForest(roots []string, elementMap map[string]entity.Element, childrenMap map[string][]string) []entity.Element {
 	var build func(id string) entity.Element
 	build = func(id string) entity.Element {
 		node := elementMap[id]
@@ -86,7 +94,6 @@ func BuildElementTree(elements []entity.Element) []entity.Element {
 		}
 		return node
 	}
-
 	result := make([]entity.Element, 0, len(roots))
 	for _, rid := range roots {
 		result = append(result, build(rid))
@@ -156,19 +163,11 @@ func SwapElements(root *entity.Element, id1, id2 string) bool {
 	if root == nil {
 		return false
 	}
-	var idx1, idx2 = -1, -1
-	for i := range root.Elements {
-		if root.Elements[i].ID == id1 {
-			idx1 = i
-		} else if root.Elements[i].ID == id2 {
-			idx2 = i
-		}
-	}
+	idx1, idx2 := findSwapIndices(root.Elements, id1, id2)
 	if idx1 != -1 && idx2 != -1 {
 		root.Elements[idx1], root.Elements[idx2] = root.Elements[idx2], root.Elements[idx1]
 		return true
 	}
-
 	for i := range root.Elements {
 		if SwapElements(&root.Elements[i], id1, id2) {
 			return true
@@ -177,11 +176,24 @@ func SwapElements(root *entity.Element, id1, id2 string) bool {
 	return false
 }
 
+func findSwapIndices(children []entity.Element, id1, id2 string) (int, int) {
+	idx1, idx2 := -1, -1
+	for i := range children {
+		switch children[i].ID {
+		case id1:
+			idx1 = i
+		case id2:
+			idx2 = i
+		}
+	}
+	return idx1, idx2
+}
+
 func CreateElement(root *entity.Element, newElement entity.Element) bool {
 	if root == nil {
 		return false
 	}
-	if (newElement.ParentID == nil && root.ID == "") || (newElement.ParentID != nil && *newElement.ParentID == root.ID) {
+	if matchesParent(root.ID, newElement.ParentID) {
 		newElement.Order = len(root.Elements)
 		root.Elements = append(root.Elements, newElement)
 		return true
@@ -192,6 +204,13 @@ func CreateElement(root *entity.Element, newElement entity.Element) bool {
 		}
 	}
 	return false
+}
+
+func matchesParent(rootID string, parentID *string) bool {
+	if parentID == nil {
+		return rootID == ""
+	}
+	return *parentID == rootID
 }
 
 // FindByID returns a pointer to the element with the given id anywhere in the tree, or nil.

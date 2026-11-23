@@ -30,89 +30,67 @@ func makeEl(id string, children ...entity.Element) entity.Element {
 	}
 }
 
+type flattenCase struct {
+	name    string
+	input   []entity.Element
+	wantIDs []string
+}
+
+func assertFlattenCase(t *testing.T, tc flattenCase) {
+	t.Helper()
+	var origFirstRootChildren int
+	if len(tc.input) > 0 {
+		origFirstRootChildren = len(tc.input[0].Elements)
+	}
+	got := element.FlattenElements(tc.input)
+	if len(tc.wantIDs) == 0 {
+		if len(got) != 0 {
+			t.Fatalf("expected empty result; got %d elements: %v", len(got), got)
+		}
+		return
+	}
+	gotIDs := idsFromElements(got)
+	if !reflect.DeepEqual(gotIDs, tc.wantIDs) {
+		t.Fatalf("unexpected flattened order/ids\ngot:  %v\nwant: %v", gotIDs, tc.wantIDs)
+	}
+	if len(tc.input) > 0 && origFirstRootChildren != len(tc.input[0].Elements) {
+		t.Fatalf("input mutated: expected first root child count %d, got %d", origFirstRootChildren, len(tc.input[0].Elements))
+	}
+	assertNestedPreserved(t, tc.name, gotIDs, got)
+}
+
+func assertNestedPreserved(t *testing.T, caseName string, gotIDs []string, got []entity.Element) {
+	t.Helper()
+	if caseName != "nested elements (multiple roots and nested children)" {
+		return
+	}
+	for i, id := range gotIDs {
+		if id == "r1c1" {
+			if len(got[i].Elements) != 2 {
+				t.Fatalf("expected r1c1 to have 2 child elements preserved, got %d", len(got[i].Elements))
+			}
+			return
+		}
+	}
+	t.Fatalf("r1c1 not found in flattened result: %v", gotIDs)
+}
+
 func TestFlattenElements_TableDriven(t *testing.T) {
-	cases := []struct {
-		name    string
-		input   []entity.Element
-		wantIDs []string
-	}{
-		{
-			name:    "nil input returns empty",
-			input:   nil,
-			wantIDs: []string{},
-		},
-		{
-			name:    "single element",
-			input:   []entity.Element{makeEl("root")},
-			wantIDs: []string{"root"},
-		},
+	cases := []flattenCase{
+		{name: "nil input returns empty", input: nil, wantIDs: []string{}},
+		{name: "single element", input: []entity.Element{makeEl("root")}, wantIDs: []string{"root"}},
 		{
 			name: "nested elements (multiple roots and nested children)",
 			input: []entity.Element{
-				makeEl("root1",
-					makeEl("r1c1", makeEl("r1c1a"), makeEl("r1c1b")),
-					makeEl("r1c2"),
-				),
+				makeEl("root1", makeEl("r1c1", makeEl("r1c1a"), makeEl("r1c1b")), makeEl("r1c2")),
 				makeEl("root2", makeEl("r2c1")),
 			},
 			wantIDs: []string{"root1", "r1c1", "r1c1a", "r1c1b", "r1c2", "root2", "r2c1"},
 		},
-		{
-			name:    "deep chain",
-			input:   []entity.Element{makeEl("a", makeEl("b", makeEl("c")))},
-			wantIDs: []string{"a", "b", "c"},
-		},
+		{name: "deep chain", input: []entity.Element{makeEl("a", makeEl("b", makeEl("c")))}, wantIDs: []string{"a", "b", "c"}},
 	}
-
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			// record a simple property of the input to ensure it isn't modified by FlattenElements
-			var origFirstRootChildren int
-			if len(tc.input) > 0 {
-				origFirstRootChildren = len(tc.input[0].Elements)
-			}
-
-			got := element.FlattenElements(tc.input)
-
-			if len(tc.wantIDs) == 0 {
-				if len(got) != 0 {
-					t.Fatalf("expected empty result; got %d elements: %v", len(got), got)
-				}
-				return
-			}
-
-			gotIDs := idsFromElements(got)
-			if !reflect.DeepEqual(gotIDs, tc.wantIDs) {
-				t.Fatalf("unexpected flattened order/ids\ngot:  %v\nwant: %v", gotIDs, tc.wantIDs)
-			}
-
-			if len(got) != len(tc.wantIDs) {
-				t.Fatalf("unexpected flattened length: got %d want %d", len(got), len(tc.wantIDs))
-			}
-
-			// Ensure the input structure wasn't mutated (basic check)
-			if len(tc.input) > 0 && origFirstRootChildren != len(tc.input[0].Elements) {
-				t.Fatalf("input mutated: expected first root child count %d, got %d", origFirstRootChildren, len(tc.input[0].Elements))
-			}
-
-			// Additional verification for the nested-elements case:
-			if tc.name == "nested elements (multiple roots and nested children)" {
-				// find r1c1 in the flattened list and ensure its child elements are still present on that struct
-				idx := -1
-				for i, id := range gotIDs {
-					if id == "r1c1" {
-						idx = i
-						break
-					}
-				}
-				if idx == -1 {
-					t.Fatalf("r1c1 not found in flattened result: %v", gotIDs)
-				}
-				if len(got[idx].Elements) != 2 {
-					t.Fatalf("expected r1c1 to have 2 child elements preserved, got %d", len(got[idx].Elements))
-				}
-			}
-		})
+		assertFlattenCase(t, tc)
 	}
 }
 
@@ -187,6 +165,17 @@ func TestBuildElementTree_Basic(t *testing.T) {
 	}
 }
 
+func assertTreeChildrenIDs(t *testing.T, roots []entity.Element, parentID string, want []string) {
+	t.Helper()
+	node := findElementByID(roots, parentID)
+	if node == nil || len(node.Elements) != len(want) {
+		t.Fatalf("expected %s to have %d children, got %v", parentID, len(want), node)
+	}
+	if gotIDs := idsFromElements(node.Elements); !reflect.DeepEqual(gotIDs, want) {
+		t.Fatalf("unexpected %s children ids: got %v want %v", parentID, gotIDs, want)
+	}
+}
+
 func TestBuildElementTree_MultipleRootsAndSiblings(t *testing.T) {
 	elements := []entity.Element{
 		{ID: "r1"},
@@ -197,26 +186,11 @@ func TestBuildElementTree_MultipleRootsAndSiblings(t *testing.T) {
 	}
 
 	got := element.BuildElementTree(elements)
-
-	if len(got) != 2 {
-		t.Fatalf("expected 2 root elements, got %d", len(got))
-	}
-	if got[0].ID != "r1" || got[1].ID != "r2" {
+	if len(got) != 2 || got[0].ID != "r1" || got[1].ID != "r2" {
 		t.Fatalf("unexpected root order/ids: %v", idsFromElements(got))
 	}
-
-	r1 := findElementByID(got, "r1")
-	if r1 == nil || len(r1.Elements) != 2 {
-		t.Fatalf("expected r1 to have 2 children, got %v", r1)
-	}
-	if r1.Elements[0].ID != "r1c1" || r1.Elements[1].ID != "r1c2" {
-		t.Fatalf("unexpected r1 children ids: %v", idsFromElements(r1.Elements))
-	}
-
-	r2 := findElementByID(got, "r2")
-	if r2 == nil || len(r2.Elements) != 1 || r2.Elements[0].ID != "r2c1" {
-		t.Fatalf("unexpected r2 children: %v", r2)
-	}
+	assertTreeChildrenIDs(t, got, "r1", []string{"r1c1", "r1c2"})
+	assertTreeChildrenIDs(t, got, "r2", []string{"r2c1"})
 }
 
 func TestBuildElementTree_OrphanBecomesRoot(t *testing.T) {

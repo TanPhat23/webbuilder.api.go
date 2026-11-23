@@ -247,51 +247,53 @@ func (s *ElementService) GetPageElements(ctx context.Context, req *proto.PageEle
 
 func (s *ElementService) convertEditorElementsToProto(elements []models.EditorElement) []*proto.Element {
 	protoElements := make([]*proto.Element, 0, len(elements))
-
 	for _, editorElem := range elements {
-		if editorElem == nil {
-			continue
+		if protoElem := s.convertSingleEditorElementToProto(editorElem); protoElem != nil {
+			protoElements = append(protoElements, protoElem)
 		}
-
-		elem := editorElem.GetElement()
-		if elem == nil {
-			continue
-		}
-
-		protoElem := &proto.Element{
-			Id:             elem.Id,
-			Type:           elem.Type,
-			Content:        elem.Content,
-			Name:           elem.Name,
-			Styles:         string(elem.Styles),
-			TailwindStyles: elem.TailwindStyles,
-			Src:            elem.Src,
-			Href:           elem.Href,
-			ParentId:       elem.ParentId,
-			PageId:         elem.PageId,
-			EventWorkflows: utils.ConvertEventWorkflowsToString(elem.EventWorkflows),
-			Order:          int32(elem.Order),
-		}
-
-		if elem.Settings != nil {
-			settingsStr := string(*elem.Settings)
-			protoElem.Settings = &settingsStr
-		}
-
-		children := utils.GetChildrenFromEditorElement(editorElem)
-		if len(children) > 0 {
-			childElements := make([]models.EditorElement, 0, len(children))
-			for _, child := range children {
-				childElem, err := utils.ConvertToEditorElement(child)
-				if err == nil {
-					childElements = append(childElements, childElem)
-				}
-			}
-			protoElem.Elements = s.convertEditorElementsToProto(childElements)
-		}
-
-		protoElements = append(protoElements, protoElem)
 	}
-
 	return protoElements
+}
+
+func (s *ElementService) convertSingleEditorElementToProto(editorElem models.EditorElement) *proto.Element {
+	if editorElem == nil {
+		return nil
+	}
+	elem := editorElem.GetElement()
+	if elem == nil {
+		return nil
+	}
+	protoElem := &proto.Element{
+		Id:             elem.Id,
+		Type:           elem.Type,
+		Content:        elem.Content,
+		Name:           elem.Name,
+		Styles:         string(elem.Styles),
+		TailwindStyles: elem.TailwindStyles,
+		Src:            elem.Src,
+		Href:           elem.Href,
+		ParentId:       elem.ParentId,
+		PageId:         elem.PageId,
+		EventWorkflows: utils.ConvertEventWorkflowsToString(elem.EventWorkflows),
+		Order:          int32(elem.Order),
+	}
+	if elem.Settings != nil {
+		settingsStr := string(*elem.Settings)
+		protoElem.Settings = &settingsStr
+	}
+	children := utils.GetChildrenFromEditorElement(editorElem)
+	if len(children) > 0 {
+		protoElem.Elements = s.convertChildSliceToProto(children)
+	}
+	return protoElem
+}
+
+func (s *ElementService) convertChildSliceToProto(children []any) []*proto.Element {
+	childElements := make([]models.EditorElement, 0, len(children))
+	for _, child := range children {
+		if childElem, err := utils.ConvertToEditorElement(child); err == nil {
+			childElements = append(childElements, childElem)
+		}
+	}
+	return s.convertEditorElementsToProto(childElements)
 }

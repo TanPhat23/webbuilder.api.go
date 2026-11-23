@@ -8,19 +8,28 @@ import (
 
 func strPtr(s string) *string { return &s }
 
-func TestParentComparisons(t *testing.T) {
-	if !ParentsEqual(nil, nil) || ParentsEqual(nil, strPtr("a")) || ParentsEqual(strPtr("a"), nil) {
-		t.Fatal("unexpected nil parent comparison")
+func TestParentsEqual(t *testing.T) {
+	if !ParentsEqual(nil, nil) {
+		t.Fatal("nil parents should match")
+	}
+	if ParentsEqual(nil, strPtr("a")) || ParentsEqual(strPtr("a"), nil) {
+		t.Fatal("nil and non-nil should not match")
 	}
 	if !ParentsEqual(strPtr("a"), strPtr("a")) || ParentsEqual(strPtr("a"), strPtr("b")) {
-		t.Fatal("unexpected pointer parent comparison")
-	}
-	if !CompareParent(nil, "") || CompareParent(nil, "a") || !CompareParent(strPtr("a"), "a") || CompareParent(strPtr("a"), "b") {
-		t.Fatal("unexpected CompareParent result")
+		t.Fatal("pointer comparison mismatch")
 	}
 }
 
-func TestNormalizeOrderAndInsertAt(t *testing.T) {
+func TestCompareParent(t *testing.T) {
+	if !CompareParent(nil, "") || CompareParent(nil, "a") {
+		t.Fatal("unexpected CompareParent nil result")
+	}
+	if !CompareParent(strPtr("a"), "a") || CompareParent(strPtr("a"), "b") {
+		t.Fatal("unexpected CompareParent value result")
+	}
+}
+
+func TestNormalizeOrder(t *testing.T) {
 	items := []entity.Element{
 		{ID: "e1", Type: "Text", PageID: "p1", Elements: []entity.Element{{ID: "c1", Type: "Text", PageID: "p1"}}},
 		{ID: "e2", Type: "Text", PageID: "p1", OrderKey: "a1"},
@@ -37,26 +46,45 @@ func TestNormalizeOrderAndInsertAt(t *testing.T) {
 			t.Fatalf("keys not strictly increasing: %q <= %q", items[i].OrderKey, items[i-1].OrderKey)
 		}
 	}
-	if items[0].Elements[0].OrderKey == "" || items[0].Elements[0].Order != 0 {
-		t.Fatalf("nested child not normalized: %+v", items[0].Elements[0])
+	if items[0].Elements[0].Order != 0 {
+		t.Fatalf("nested child order not normalized: %+v", items[0].Elements[0])
 	}
+	if items[0].Elements[0].OrderKey == "" {
+		t.Fatalf("nested child order key missing: %+v", items[0].Elements[0])
+	}
+}
 
+func TestInsertAt(t *testing.T) {
+	items := []entity.Element{
+		{ID: "e1", Type: "Text", PageID: "p1"},
+		{ID: "e2", Type: "Text", PageID: "p1", OrderKey: "a1"},
+		{ID: "e3", Type: "Text", PageID: "p1", OrderKey: "a0"},
+	}
+	if err := NormalizeOrder(items); err != nil {
+		t.Fatalf("NormalizeOrder error: %v", err)
+	}
 	inserted, err := InsertAt(items, entity.Element{ID: "mid", Type: "Text", PageID: "p1"}, 1)
 	if err != nil {
 		t.Fatalf("InsertAt error: %v", err)
 	}
-	if len(inserted) != 4 || inserted[1].ID != "mid" || inserted[1].Order != 1 || inserted[3].Order != 3 {
+	if len(inserted) != 4 || inserted[1].ID != "mid" {
+		t.Fatalf("unexpected inserted items: %+v", inserted)
+	}
+	if inserted[1].Order != 1 || inserted[3].Order != 3 {
 		t.Fatalf("unexpected inserted order: %+v", inserted)
 	}
-	if !(inserted[0].OrderKey < inserted[1].OrderKey && inserted[1].OrderKey < inserted[2].OrderKey) {
-		t.Fatalf("inserted key out of order: %q, %q, %q", inserted[0].OrderKey, inserted[1].OrderKey, inserted[2].OrderKey)
+	if inserted[0].OrderKey >= inserted[1].OrderKey {
+		t.Fatalf("inserted[0] key >= inserted[1]: %q >= %q", inserted[0].OrderKey, inserted[1].OrderKey)
+	}
+	if inserted[1].OrderKey >= inserted[2].OrderKey {
+		t.Fatalf("inserted[1] key >= inserted[2]: %q >= %q", inserted[1].OrderKey, inserted[2].OrderKey)
 	}
 	if _, err := InsertAt(items, entity.Element{ID: "bad"}, -1); err == nil {
 		t.Fatal("expected out of range error")
 	}
 }
 
-func TestTreeOperationsBuildFlattenMutateAndDetach(t *testing.T) {
+func TestBuildElementTreeAndFlatten(t *testing.T) {
 	flat := []entity.Element{
 		{ID: "r2", Type: "Frame", PageID: "p1", Order: 1, OrderKey: "a1"},
 		{ID: "c2", Type: "Text", PageID: "p1", ParentID: strPtr("r1"), Order: 1, OrderKey: "b1"},
@@ -65,17 +93,24 @@ func TestTreeOperationsBuildFlattenMutateAndDetach(t *testing.T) {
 		{ID: "orphan", Type: "Text", PageID: "p1", ParentID: strPtr("missing"), Order: 2, OrderKey: "a2"},
 	}
 	tree := BuildElementTree(flat)
-	if len(tree) != 3 || tree[0].ID != "r1" || tree[1].ID != "r2" || tree[2].ID != "orphan" {
+	if len(tree) != 3 || tree[0].ID != "r1" {
 		t.Fatalf("unexpected roots: %+v", tree)
 	}
-	if len(tree[0].Elements) != 2 || tree[0].Elements[0].ID != "c1" || tree[0].Elements[1].ID != "c2" {
+	if tree[1].ID != "r2" || tree[2].ID != "orphan" {
+		t.Fatalf("unexpected root order: %+v", tree)
+	}
+	if len(tree[0].Elements) != 2 {
+		t.Fatalf("expected 2 children on r1: %+v", tree[0].Elements)
+	}
+	if tree[0].Elements[0].ID != "c1" || tree[0].Elements[1].ID != "c2" {
 		t.Fatalf("unexpected children order: %+v", tree[0].Elements)
 	}
-
 	if got := FlattenElements(tree); len(got) != 5 {
 		t.Fatalf("expected 5 flattened elements, got %d", len(got))
 	}
+}
 
+func TestTreeCreateFindSwapUpdateDelete(t *testing.T) {
 	root := entity.Element{ID: "r1", Type: "Frame", PageID: "p1", Elements: []entity.Element{{ID: "c1"}, {ID: "c2"}}}
 	if !CreateElement(&root, entity.Element{ID: "c3", ParentID: strPtr("r1")}) || len(root.Elements) != 3 {
 		t.Fatal("CreateElement failed")
@@ -92,21 +127,27 @@ func TestTreeOperationsBuildFlattenMutateAndDetach(t *testing.T) {
 	if !DeleteElement(&root, "c2") || len(root.Elements) != 2 {
 		t.Fatal("DeleteElement failed")
 	}
+}
 
+func TestTreeChildrenAndDetach(t *testing.T) {
+	root := entity.Element{ID: "r1", Type: "Frame", PageID: "p1", Elements: []entity.Element{{ID: "c3"}, {ID: "c1"}}}
 	children := Children(&root.Elements, "")
 	if len(*children) != 2 {
 		t.Fatalf("expected 2 root children, got %d", len(*children))
 	}
 	detached := Detach(&root.Elements, "c3")
-	if detached == nil || detached.ID != "c3" || len(root.Elements) != 1 || root.Elements[0].Order != 0 {
-		t.Fatalf("unexpected Detach result: %+v remaining=%+v", detached, root.Elements)
+	if detached == nil || detached.ID != "c3" {
+		t.Fatalf("unexpected Detach result: %+v", detached)
+	}
+	if len(root.Elements) != 1 || root.Elements[0].Order != 0 {
+		t.Fatalf("unexpected remaining elements: %+v", root.Elements)
 	}
 	if Detach(&root.Elements, "missing") != nil {
 		t.Fatal("expected nil for missing Detach")
 	}
 }
 
-func TestMergeMapAndApplyProperties(t *testing.T) {
+func TestMergeMap(t *testing.T) {
 	dst := map[string]any{
 		"keep":   1,
 		"remove": "gone",
@@ -125,10 +166,15 @@ func TestMergeMapAndApplyProperties(t *testing.T) {
 		t.Fatal("dst should not be mutated")
 	}
 	style := merged["style"].(map[string]any)
-	if _, hasColor := style["color"]; hasColor || style["margin"] != "4px" || style["padding"] != "8px" {
+	if _, hasColor := style["color"]; hasColor {
+		t.Fatalf("expected color removed: %v", style)
+	}
+	if style["margin"] != "4px" || style["padding"] != "8px" {
 		t.Fatalf("unexpected merged style: %v", style)
 	}
+}
 
+func TestApplyPropertiesValid(t *testing.T) {
 	el := &entity.Element{}
 	if err := ApplyProperties(el, map[string]any{
 		"name":           "Hero",
@@ -140,12 +186,19 @@ func TestMergeMapAndApplyProperties(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("ApplyProperties error: %v", err)
 	}
-	if *el.Name != "Hero" || *el.TailwindStyles != "p-4" || !el.IsLocked {
-		t.Fatalf("unexpected element after ApplyProperties: %+v", el)
+	if *el.Name != "Hero" || *el.TailwindStyles != "p-4" {
+		t.Fatalf("unexpected element strings after ApplyProperties: %+v", el)
+	}
+	if !el.IsLocked {
+		t.Fatalf("expected IsLocked true: %+v", el)
 	}
 	if err := ApplyProperties(el, map[string]any{"content": nil}); err != nil || el.Content != nil {
 		t.Fatalf("expected nil clear, got err=%v content=%v", err, el.Content)
 	}
+}
+
+func TestApplyPropertiesErrors(t *testing.T) {
+	el := &entity.Element{}
 	if err := ApplyProperties(el, map[string]any{"name": 123}); err == nil {
 		t.Fatal("expected non-string error")
 	}

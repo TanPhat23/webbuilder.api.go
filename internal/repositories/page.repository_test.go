@@ -12,7 +12,11 @@ import (
 	"my-go-app/internal/models"
 )
 
-// pageHasArg reports whether any recorded statement was sent with the given bind value.
+var (
+	pageBoom = errors.New("boom")
+	pageCols = []string{"Id", "ProjectId", "Name", "Type"}
+)
+
 func pageHasArg(f *fakeDB, want any) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -26,12 +30,25 @@ func pageHasArg(f *fakeDB, want any) bool {
 	return false
 }
 
-var pageBoom = errors.New("boom")
-
-var pageCols = []string{"Id", "ProjectId", "Name", "Type"}
-
 func pageRow(id, project, name string) []driver.Value {
 	return []driver.Value{id, project, name, "page"}
+}
+
+func assertPageNoErr(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertPageErrPrefix(t *testing.T, err, want error, prefix string) {
+	t.Helper()
+	if !errors.Is(err, want) {
+		t.Fatalf("want %v, got %v", want, err)
+	}
+	if prefix != "" && !strings.HasPrefix(err.Error(), prefix) {
+		t.Fatalf("want prefix %q, got %v", prefix, err)
+	}
 }
 
 func TestPageRepositoryGetPagesByProjectID(t *testing.T) {
@@ -39,227 +56,168 @@ func TestPageRepositoryGetPagesByProjectID(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on("SELECT", pageCols, pageRow("a", "p1", "Home"), pageRow("b", "p1", "About"))
 	got, err := (&PageRepository{db: db}).GetPagesByProjectID(ctx, "p1")
-	if err != nil || len(got) != 2 || got[0].Name != "Home" || got[1].Id != "b" {
-		t.Fatalf("got %+v, %v", got, err)
+	assertPageNoErr(t, err)
+	if len(got) != 2 || got[0].Name != "Home" || got[1].Id != "b" {
+		t.Fatalf("got %+v", got)
 	}
 	if !f.sawQuery("DeletedAt", "IS NULL", "ORDER BY", "ASC") || !pageHasArg(f, "p1") {
 		t.Fatalf("unexpected query: %v", f.queries)
 	}
 
-	db, f = newFakeDB(t)
-	f.onErr("SELECT", pageBoom)
-	got, err = (&PageRepository{db: db}).GetPagesByProjectID(ctx, "p1")
-	if got != nil || !errors.Is(err, pageBoom) || !strings.HasPrefix(err.Error(), "failed to get pages by project ID") {
-		t.Fatalf("got %+v, %v", got, err)
-	}
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr("SELECT", pageBoom)
+	_, err = (&PageRepository{db: dbErr}).GetPagesByProjectID(ctx, "p1")
+	assertPageErrPrefix(t, err, pageBoom, "failed to get pages by project ID")
 }
 
 func TestPageRepositoryGetPageByID(t *testing.T) {
 	ctx := context.Background()
-	t.Run("scoped to the project when given", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on("SELECT", pageCols, pageRow("a", "p1", "Home"))
-		got, err := (&PageRepository{db: db}).GetPageByID(ctx, "a", "p1")
-		if err != nil || got.Id != "a" || got.ProjectId != "p1" {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-		if !f.sawQuery("ProjectId") || !pageHasArg(f, "p1") {
-			t.Fatalf("project filter missing: %v", f.queries)
-		}
-	})
-	t.Run("without a project id only the page is matched", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on("SELECT", pageCols, pageRow("a", "p1", "Home"))
-		if _, err := (&PageRepository{db: db}).GetPageByID(ctx, "a", ""); err != nil {
-			t.Fatal(err)
-		}
-		if f.sawQuery("ProjectId") {
-			t.Fatalf("unexpected project filter: %v", f.queries)
-		}
-	})
-	t.Run("missing", func(t *testing.T) {
-		db, _ := newFakeDB(t)
-		if got, err := (&PageRepository{db: db}).GetPageByID(ctx, "a", "p1"); got != nil || !errors.Is(err, ErrPageNotFound) {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-	})
-	t.Run("database error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("SELECT", pageBoom)
-		_, err := (&PageRepository{db: db}).GetPageByID(ctx, "a", "p1")
-		if !errors.Is(err, pageBoom) || errors.Is(err, ErrPageNotFound) || !strings.HasPrefix(err.Error(), "failed to get page") {
-			t.Fatal(err)
-		}
-	})
+	db, f := newFakeDB(t)
+	f.on("SELECT", pageCols, pageRow("a", "p1", "Home"))
+	got, err := (&PageRepository{db: db}).GetPageByID(ctx, "a", "p1")
+	assertPageNoErr(t, err)
+	if got.Id != "a" || got.ProjectId != "p1" || !f.sawQuery("ProjectId") || !pageHasArg(f, "p1") {
+		t.Fatalf("got=%+v queries=%v", got, f.queries)
+	}
+
+	dbNoProj, fNoProj := newFakeDB(t)
+	fNoProj.on("SELECT", pageCols, pageRow("a", "p1", "Home"))
+	_, err = (&PageRepository{db: dbNoProj}).GetPageByID(ctx, "a", "")
+	assertPageNoErr(t, err)
+	if fNoProj.sawQuery("ProjectId") {
+		t.Fatalf("unexpected project filter: %v", fNoProj.queries)
+	}
+
+	dbMiss, _ := newFakeDB(t)
+	_, err = (&PageRepository{db: dbMiss}).GetPageByID(ctx, "a", "p1")
+	assertPageErrPrefix(t, err, ErrPageNotFound, "")
+
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr("SELECT", pageBoom)
+	_, err = (&PageRepository{db: dbErr}).GetPageByID(ctx, "a", "p1")
+	assertPageErrPrefix(t, err, pageBoom, "failed to get page")
 }
 
-func TestPageRepositoryCreatePage(t *testing.T) {
+func validTestPage() *models.Page {
+	return &models.Page{Id: "pg", ProjectId: "p1", Name: "Home", Type: "page"}
+}
+
+func TestPageRepositoryCreatePageValidation(t *testing.T) {
 	ctx := context.Background()
-	valid := func() *models.Page { return &models.Page{Id: "pg", ProjectId: "p1", Name: "Home", Type: "page"} }
-	t.Run("rejects invalid pages before querying", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		repo := &PageRepository{db: db}
-		noName, noProject, noType := valid(), valid(), valid()
-		noName.Name, noProject.ProjectId, noType.Type = "", "", ""
-		for want, p := range map[string]*models.Page{
-			"page name is required":  noName,
-			"project ID is required": noProject,
-			"page type is required":  noType,
-		} {
-			if err := repo.CreatePage(ctx, p); err == nil || err.Error() != want {
-				t.Fatalf("want %q, got %v", want, err)
-			}
+	db, f := newFakeDB(t)
+	repo := &PageRepository{db: db}
+	noName, noProject, noType := validTestPage(), validTestPage(), validTestPage()
+	noName.Name, noProject.ProjectId, noType.Type = "", "", ""
+	for want, p := range map[string]*models.Page{
+		"page name is required":  noName,
+		"project ID is required": noProject,
+		"page type is required":  noType,
+	} {
+		if err := repo.CreatePage(ctx, p); err == nil || err.Error() != want {
+			t.Fatalf("want %q, got %v", want, err)
 		}
-		if f.queryCount() != 0 {
-			t.Fatalf("queried: %v", f.queries)
-		}
-	})
-	t.Run("defaults styles and stamps timestamps", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		p := valid()
-		if err := (&PageRepository{db: db}).CreatePage(ctx, p); err != nil {
-			t.Fatal(err)
-		}
-		if string(p.Styles) != "{}" || p.CreatedAt.IsZero() || !p.CreatedAt.Equal(p.UpdatedAt) {
-			t.Fatalf("defaults not applied: %+v", p)
-		}
-		if !f.sawQuery("INSERT INTO", "Page") {
-			t.Fatalf("missing insert: %v", f.queries)
-		}
-	})
-	t.Run("keeps given styles", func(t *testing.T) {
-		db, _ := newFakeDB(t)
-		p := valid()
-		p.Styles = []byte(`{"a":1}`)
-		if err := (&PageRepository{db: db}).CreatePage(ctx, p); err != nil || string(p.Styles) != `{"a":1}` {
-			t.Fatalf("got %s, %v", p.Styles, err)
-		}
-	})
-	t.Run("duplicate name maps to ErrPageNameTaken", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("INSERT", &pgconn.PgError{Code: "23505", ConstraintName: "Page_ProjectId_Name_key"})
-		if err := (&PageRepository{db: db}).CreatePage(ctx, valid()); !errors.Is(err, ErrPageNameTaken) {
-			t.Fatal(err)
-		}
-	})
-	t.Run("other unique violations are wrapped, not mapped", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		pgErr := &pgconn.PgError{Code: "23505", ConstraintName: "Page_pkey"}
-		f.onErr("INSERT", pgErr)
-		err := (&PageRepository{db: db}).CreatePage(ctx, valid())
-		if errors.Is(err, ErrPageNameTaken) || !errors.Is(err, pgErr) || !strings.HasPrefix(err.Error(), "failed to create page") {
-			t.Fatal(err)
-		}
-	})
-	t.Run("generic error is wrapped", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("INSERT", pageBoom)
-		if err := (&PageRepository{db: db}).CreatePage(ctx, valid()); !errors.Is(err, pageBoom) {
-			t.Fatal(err)
-		}
-	})
+	}
+	if f.queryCount() != 0 {
+		t.Fatalf("queried: %v", f.queries)
+	}
+}
+
+func TestPageRepositoryCreatePageSuccess(t *testing.T) {
+	ctx := context.Background()
+	db, f := newFakeDB(t)
+	p := validTestPage()
+	assertPageNoErr(t, (&PageRepository{db: db}).CreatePage(ctx, p))
+	if string(p.Styles) != "{}" || p.CreatedAt.IsZero() || !p.CreatedAt.Equal(p.UpdatedAt) || !f.sawQuery("INSERT INTO", "Page") {
+		t.Fatalf("defaults/insert missing: %+v %v", p, f.queries)
+	}
+
+	dbStyled, _ := newFakeDB(t)
+	styled := validTestPage()
+	styled.Styles = []byte(`{"a":1}`)
+	assertPageNoErr(t, (&PageRepository{db: dbStyled}).CreatePage(ctx, styled))
+	if string(styled.Styles) != `{"a":1}` {
+		t.Fatalf("got %s", styled.Styles)
+	}
+}
+
+func TestPageRepositoryCreatePageErrors(t *testing.T) {
+	ctx := context.Background()
+	dbDup, fDup := newFakeDB(t)
+	fDup.onErr("INSERT", &pgconn.PgError{Code: "23505", ConstraintName: "Page_ProjectId_Name_key"})
+	assertPageErrPrefix(t, (&PageRepository{db: dbDup}).CreatePage(ctx, validTestPage()), ErrPageNameTaken, "")
+
+	dbOther, fOther := newFakeDB(t)
+	pgErr := &pgconn.PgError{Code: "23505", ConstraintName: "Page_pkey"}
+	fOther.onErr("INSERT", pgErr)
+	err := (&PageRepository{db: dbOther}).CreatePage(ctx, validTestPage())
+	if errors.Is(err, ErrPageNameTaken) {
+		t.Fatalf("must not map other constraint: %v", err)
+	}
+	assertPageErrPrefix(t, err, pgErr, "failed to create page")
+
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr("INSERT", pageBoom)
+	assertPageErrPrefix(t, (&PageRepository{db: dbErr}).CreatePage(ctx, validTestPage()), pageBoom, "")
 }
 
 func TestPageRepositoryUpdatePage(t *testing.T) {
 	ctx := context.Background()
-	t.Run("updates and bumps UpdatedAt", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onExec("UPDATE", 1)
-		p := &models.Page{Id: "pg", Name: "New"}
-		if err := (&PageRepository{db: db}).UpdatePage(ctx, p); err != nil {
-			t.Fatal(err)
-		}
-		if time.Since(p.UpdatedAt) > time.Minute || !f.sawQuery("UPDATE", "Page", "Name") || !pageHasArg(f, "New") {
-			t.Fatalf("unexpected update: %v %v", f.queries, f.args)
-		}
-	})
-	t.Run("no matching row", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onExec("UPDATE", 0)
-		if err := (&PageRepository{db: db}).UpdatePage(ctx, &models.Page{Id: "pg", Name: "x"}); !errors.Is(err, ErrPageNotFound) {
-			t.Fatal(err)
-		}
-	})
-	t.Run("database error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("UPDATE", pageBoom)
-		err := (&PageRepository{db: db}).UpdatePage(ctx, &models.Page{Id: "pg", Name: "x"})
-		if !errors.Is(err, pageBoom) || !strings.HasPrefix(err.Error(), "failed to update page") {
-			t.Fatal(err)
-		}
-	})
+	db, f := newFakeDB(t)
+	f.onExec("UPDATE", 1)
+	p := &models.Page{Id: "pg", Name: "New"}
+	assertPageNoErr(t, (&PageRepository{db: db}).UpdatePage(ctx, p))
+	if time.Since(p.UpdatedAt) > time.Minute || !f.sawQuery("UPDATE", "Page", "Name") || !pageHasArg(f, "New") {
+		t.Fatalf("unexpected update: %v %v", f.queries, f.args)
+	}
+
+	dbMiss, fMiss := newFakeDB(t)
+	fMiss.onExec("UPDATE", 0)
+	assertPageErrPrefix(t, (&PageRepository{db: dbMiss}).UpdatePage(ctx, &models.Page{Id: "pg", Name: "x"}), ErrPageNotFound, "")
+
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr("UPDATE", pageBoom)
+	assertPageErrPrefix(t, (&PageRepository{db: dbErr}).UpdatePage(ctx, &models.Page{Id: "pg", Name: "x"}), pageBoom, "failed to update page")
 }
 
 func TestPageRepositoryUpdatePageFields(t *testing.T) {
 	ctx := context.Background()
-	t.Run("applies the fields and stamps UpdatedAt", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onExec("UPDATE", 1)
-		updates := map[string]any{"Name": "Renamed"}
-		if err := (&PageRepository{db: db}).UpdatePageFields(ctx, "pg", updates); err != nil {
-			t.Fatal(err)
-		}
-		if _, ok := updates["UpdatedAt"].(time.Time); !ok {
-			t.Fatalf("UpdatedAt not stamped: %v", updates)
-		}
-		if !f.sawQuery("UPDATE", "Name", "UpdatedAt", "DeletedAt") || !pageHasArg(f, "Renamed") {
-			t.Fatalf("unexpected update: %v", f.queries)
-		}
-	})
-	t.Run("no matching row", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onExec("UPDATE", 0)
-		if err := (&PageRepository{db: db}).UpdatePageFields(ctx, "pg", map[string]any{"Name": "x"}); !errors.Is(err, ErrPageNotFound) {
-			t.Fatal(err)
-		}
-	})
-	t.Run("database error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("UPDATE", pageBoom)
-		err := (&PageRepository{db: db}).UpdatePageFields(ctx, "pg", map[string]any{"Name": "x"})
-		if !errors.Is(err, pageBoom) || !strings.HasPrefix(err.Error(), "failed to update page fields") {
-			t.Fatal(err)
-		}
-	})
+	db, f := newFakeDB(t)
+	f.onExec("UPDATE", 1)
+	updates := map[string]any{"Name": "Renamed"}
+	assertPageNoErr(t, (&PageRepository{db: db}).UpdatePageFields(ctx, "pg", updates))
+	if _, ok := updates["UpdatedAt"].(time.Time); !ok {
+		t.Fatalf("UpdatedAt not stamped: %v", updates)
+	}
+	if !f.sawQuery("UPDATE", "Name", "UpdatedAt", "DeletedAt") || !pageHasArg(f, "Renamed") {
+		t.Fatalf("unexpected update: %v", f.queries)
+	}
+
+	dbMiss, fMiss := newFakeDB(t)
+	fMiss.onExec("UPDATE", 0)
+	assertPageErrPrefix(t, (&PageRepository{db: dbMiss}).UpdatePageFields(ctx, "pg", map[string]any{"Name": "x"}), ErrPageNotFound, "")
+
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr("UPDATE", pageBoom)
+	assertPageErrPrefix(t, (&PageRepository{db: dbErr}).UpdatePageFields(ctx, "pg", map[string]any{"Name": "x"}), pageBoom, "failed to update page fields")
 }
 
 // pageWrite runs the shared not-found / database-error matrix for the page statements.
-func pageWrite(t *testing.T, verb string, call func(db *fakeDB, r *PageRepository) error, prefix string, setup func(f *fakeDB)) {
+func pageWrite(t *testing.T, verb string, call func(db *fakeDB, r *PageRepository) error, prefix string) {
 	t.Helper()
-	t.Run("affects a row", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if setup != nil {
-			setup(f)
-		}
-		f.onExec(verb, 1)
-		if err := call(f, &PageRepository{db: db}); err != nil {
-			t.Fatal(err)
-		}
-	})
-	t.Run("affects no row", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if setup != nil {
-			setup(f)
-		}
-		f.onExec(verb, 0)
-		if err := call(f, &PageRepository{db: db}); !errors.Is(err, ErrPageNotFound) {
-			t.Fatal(err)
-		}
-	})
-	t.Run("database error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if setup != nil {
-			setup(f)
-		}
-		f.onErr(verb, pageBoom)
-		err := call(f, &PageRepository{db: db})
-		if !errors.Is(err, pageBoom) || !strings.HasPrefix(err.Error(), prefix) {
-			t.Fatal(err)
-		}
-	})
+	dbOk, fOk := newFakeDB(t)
+	fOk.onExec(verb, 1)
+	assertPageNoErr(t, call(fOk, &PageRepository{db: dbOk}))
+
+	dbMiss, fMiss := newFakeDB(t)
+	fMiss.onExec(verb, 0)
+	assertPageErrPrefix(t, call(fMiss, &PageRepository{db: dbMiss}), ErrPageNotFound, "")
+
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr(verb, pageBoom)
+	assertPageErrPrefix(t, call(fErr, &PageRepository{db: dbErr}), pageBoom, prefix)
 }
 
-func TestPageRepositoryDeletePage(t *testing.T) {
+func TestPageRepositoryDeleteHardDeleteAndRestore(t *testing.T) {
 	ctx := context.Background()
 	pageWrite(t, "UPDATE", func(f *fakeDB, r *PageRepository) error {
 		err := r.DeletePage(ctx, "pg")
@@ -267,38 +225,28 @@ func TestPageRepositoryDeletePage(t *testing.T) {
 			t.Errorf("soft delete expected: %v", f.queries)
 		}
 		return err
-	}, "failed to delete page", nil)
-}
-
-func TestPageRepositoryHardDeletePage(t *testing.T) {
-	ctx := context.Background()
+	}, "failed to delete page")
 	pageWrite(t, "DELETE", func(f *fakeDB, r *PageRepository) error {
 		err := r.HardDeletePage(ctx, "pg")
 		if !f.sawQuery("DELETE FROM", "Page") {
 			t.Errorf("hard delete expected: %v", f.queries)
 		}
 		return err
-	}, "failed to hard delete page", nil)
-}
-
-func TestPageRepositoryRestorePage(t *testing.T) {
-	ctx := context.Background()
+	}, "failed to hard delete page")
 	pageWrite(t, "UPDATE", func(f *fakeDB, r *PageRepository) error {
 		err := r.RestorePage(ctx, "pg")
 		if !f.sawQuery("UPDATE", "DeletedAt", "NULL") {
 			t.Errorf("restore expected: %v", f.queries)
 		}
 		return err
-	}, "failed to restore page", nil)
+	}, "failed to restore page")
 }
 
 func TestPageRepositoryFiltersDeletedPages(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.onExec("UPDATE", 1)
 	r := &PageRepository{db: db}
-	if err := r.RestorePage(context.Background(), "pg"); err != nil {
-		t.Fatal(err)
-	}
+	assertPageNoErr(t, r.RestorePage(context.Background(), "pg"))
 	if !f.sawQuery(`"DeletedAt" IS NOT NULL`) {
 		t.Fatalf("missing quoted predicate: %v", f.queries)
 	}
@@ -310,60 +258,44 @@ func TestPageRepositoryFiltersDeletedPages(t *testing.T) {
 	}
 }
 
+func setPageOwnerCount(f *fakeDB, n int64) {
+	cols, rows := countRow(n)
+	f.on("count(", cols, rows...)
+}
+
 func TestPageRepositoryDeletePageByProjectID(t *testing.T) {
 	ctx := context.Background()
-	ownerCount := func(n int64) func(f *fakeDB) {
-		return func(f *fakeDB) {
-			cols, rows := countRow(n)
-			f.on("count(", cols, rows...)
-		}
+	db, f := newFakeDB(t)
+	setPageOwnerCount(f, 1)
+	f.onExec("UPDATE", 1)
+	assertPageNoErr(t, (&PageRepository{db: db}).DeletePageByProjectID(ctx, "pg", "p1", "u1"))
+	if !pageHasArg(f, "u1") || !pageHasArg(f, "pg") || !f.sawQuery("UPDATE", "DeletedAt") {
+		t.Fatalf("unexpected statements: %v %v", f.queries, f.args)
 	}
-	t.Run("owner deletes the page", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		ownerCount(1)(f)
-		f.onExec("UPDATE", 1)
-		if err := (&PageRepository{db: db}).DeletePageByProjectID(ctx, "pg", "p1", "u1"); err != nil {
-			t.Fatal(err)
-		}
-		if !pageHasArg(f, "u1") || !pageHasArg(f, "pg") || !f.sawQuery("UPDATE", "DeletedAt") {
-			t.Fatalf("unexpected statements: %v %v", f.queries, f.args)
-		}
-	})
-	t.Run("non owner is unauthorized and nothing is deleted", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		ownerCount(0)(f)
-		if err := (&PageRepository{db: db}).DeletePageByProjectID(ctx, "pg", "p1", "u2"); !errors.Is(err, ErrPageUnauthorized) {
-			t.Fatal(err)
-		}
-		if f.sawQuery("UPDATE") {
-			t.Fatalf("must not update: %v", f.queries)
-		}
-	})
-	t.Run("ownership check error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("count(", pageBoom)
-		err := (&PageRepository{db: db}).DeletePageByProjectID(ctx, "pg", "p1", "u1")
-		if !errors.Is(err, pageBoom) || !strings.HasPrefix(err.Error(), "failed to verify project ownership") {
-			t.Fatal(err)
-		}
-	})
-	t.Run("page not in project", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		ownerCount(1)(f)
-		f.onExec("UPDATE", 0)
-		if err := (&PageRepository{db: db}).DeletePageByProjectID(ctx, "pg", "p1", "u1"); !errors.Is(err, ErrPageNotFound) {
-			t.Fatal(err)
-		}
-	})
-	t.Run("update error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		ownerCount(1)(f)
-		f.onErr("UPDATE", pageBoom)
-		err := (&PageRepository{db: db}).DeletePageByProjectID(ctx, "pg", "p1", "u1")
-		if !errors.Is(err, pageBoom) || !strings.HasPrefix(err.Error(), "failed to delete page") {
-			t.Fatal(err)
-		}
-	})
+
+	dbUnauth, fUnauth := newFakeDB(t)
+	setPageOwnerCount(fUnauth, 0)
+	assertPageErrPrefix(t, (&PageRepository{db: dbUnauth}).DeletePageByProjectID(ctx, "pg", "p1", "u2"), ErrPageUnauthorized, "")
+	if fUnauth.sawQuery("UPDATE") {
+		t.Fatalf("must not update: %v", fUnauth.queries)
+	}
+}
+
+func TestPageRepositoryDeletePageByProjectIDErrors(t *testing.T) {
+	ctx := context.Background()
+	db1, f1 := newFakeDB(t)
+	f1.onErr("count(", pageBoom)
+	assertPageErrPrefix(t, (&PageRepository{db: db1}).DeletePageByProjectID(ctx, "pg", "p1", "u1"), pageBoom, "failed to verify project ownership")
+
+	db2, f2 := newFakeDB(t)
+	setPageOwnerCount(f2, 1)
+	f2.onExec("UPDATE", 0)
+	assertPageErrPrefix(t, (&PageRepository{db: db2}).DeletePageByProjectID(ctx, "pg", "p1", "u1"), ErrPageNotFound, "")
+
+	db3, f3 := newFakeDB(t)
+	setPageOwnerCount(f3, 1)
+	f3.onErr("UPDATE", pageBoom)
+	assertPageErrPrefix(t, (&PageRepository{db: db3}).DeletePageByProjectID(ctx, "pg", "p1", "u1"), pageBoom, "failed to delete page")
 }
 
 func TestPageRepositoryExistsAndCount(t *testing.T) {
@@ -373,34 +305,25 @@ func TestPageRepositoryExistsAndCount(t *testing.T) {
 		want bool
 	}{{0, false}, {1, true}, {3, true}} {
 		db, f := newFakeDB(t)
-		cols, rows := countRow(tc.n)
-		f.on("count(", cols, rows...)
+		setPageOwnerCount(f, tc.n)
 		got, err := (&PageRepository{db: db}).ExistsInProject(ctx, "pg", "p1")
-		if err != nil || got != tc.want {
-			t.Fatalf("count %d: got %v, %v", tc.n, got, err)
-		}
-		if !pageHasArg(f, "pg") || !pageHasArg(f, "p1") {
-			t.Fatalf("binds missing: %v", f.args)
+		assertPageNoErr(t, err)
+		if got != tc.want || !pageHasArg(f, "pg") || !pageHasArg(f, "p1") {
+			t.Fatalf("count %d: got %v args=%v", tc.n, got, f.args)
 		}
 	}
-	db, f := newFakeDB(t)
-	f.onErr("count(", pageBoom)
-	got, err := (&PageRepository{db: db}).ExistsInProject(ctx, "pg", "p1")
-	if got || !errors.Is(err, pageBoom) || !strings.HasPrefix(err.Error(), "failed to check page existence") {
-		t.Fatalf("got %v, %v", got, err)
-	}
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr("count(", pageBoom)
+	_, err := (&PageRepository{db: dbErr}).ExistsInProject(ctx, "pg", "p1")
+	assertPageErrPrefix(t, err, pageBoom, "failed to check page existence")
 
-	db, f = newFakeDB(t)
-	cols, rows := countRow(7)
-	f.on("count(", cols, rows...)
-	n, err := (&PageRepository{db: db}).CountPagesByProjectID(ctx, "p1")
-	if err != nil || n != 7 || !pageHasArg(f, "p1") {
-		t.Fatalf("got %d, %v", n, err)
+	dbCnt, fCnt := newFakeDB(t)
+	setPageOwnerCount(fCnt, 7)
+	n, err := (&PageRepository{db: dbCnt}).CountPagesByProjectID(ctx, "p1")
+	assertPageNoErr(t, err)
+	if n != 7 || !pageHasArg(fCnt, "p1") {
+		t.Fatalf("got %d", n)
 	}
-	db, f = newFakeDB(t)
-	f.onErr("count(", pageBoom)
-	n, err = (&PageRepository{db: db}).CountPagesByProjectID(ctx, "p1")
-	if n != 0 || !errors.Is(err, pageBoom) || !strings.HasPrefix(err.Error(), "failed to count pages") {
-		t.Fatalf("got %d, %v", n, err)
-	}
+	_, err = (&PageRepository{db: dbErr}).CountPagesByProjectID(ctx, "p1")
+	assertPageErrPrefix(t, err, pageBoom, "failed to count pages")
 }

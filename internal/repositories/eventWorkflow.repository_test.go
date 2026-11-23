@@ -30,14 +30,33 @@ func eventWorkflowArg(f *fakeDB, want any) bool {
 	return false
 }
 
+func assertWorkflowListQuery(t *testing.T, f *fakeDB, got []models.EventWorkflow, err error, fragments []string, arg any) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 2 || got[0].Id != "w1" {
+		t.Fatalf("unexpected rows: %+v", got)
+	}
+	if got[1].Name != "other" {
+		t.Fatalf("unexpected second row: %+v", got[1])
+	}
+	if !f.sawQuery(fragments...) || !eventWorkflowArg(f, arg) {
+		t.Errorf("query %q args %v", f.queries[0], f.args[0])
+	}
+}
+
 func TestEventWorkflowCreate(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onExec("INSERT INTO", 1)
 	repo := eventWorkflowNew(db)
 	got, err := repo.CreateEventWorkflow(ctx, &models.EventWorkflow{ProjectId: "p1", Name: "flow"})
-	if err != nil || got.Id == "" || got.Name != "flow" {
+	if err != nil || got.Id == "" {
 		t.Fatalf("got %+v, %v", got, err)
+	}
+	if got.Name != "flow" {
+		t.Fatalf("got name=%q, want flow", got.Name)
 	}
 	got, err = repo.CreateEventWorkflow(ctx, &models.EventWorkflow{Id: "mine", ProjectId: "p1", Name: "flow"})
 	if err != nil || got.Id != "mine" {
@@ -59,10 +78,16 @@ func TestEventWorkflowGetByID(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on(eventWorkflowSelect, eventWorkflowCols, []driver.Value{"w1", "p1", "flow", true})
 	got, err := eventWorkflowNew(db).GetEventWorkflowByID(ctx, "w1")
-	if err != nil || got == nil || got.Id != "w1" || !got.Enabled {
+	if err != nil || got == nil {
 		t.Fatalf("got %+v, %v", got, err)
 	}
-	empty, _ := newFakeDB(t)
+	if got.Id != "w1" || !got.Enabled {
+		t.Fatalf("unexpected row: %+v", got)
+	}
+	empty, emptyFake := newFakeDB(t)
+	if emptyFake == nil {
+		t.Fatal("missing fake db")
+	}
 	if got, err := eventWorkflowNew(empty).GetEventWorkflowByID(ctx, "x"); got != nil || err != nil {
 		t.Errorf("missing should be nil,nil; got %+v, %v", got, err)
 	}
@@ -73,81 +98,81 @@ func TestEventWorkflowGetByID(t *testing.T) {
 	}
 }
 
-func TestEventWorkflowListQueries(t *testing.T) {
+func TestEventWorkflowListByProject(t *testing.T) {
+	runWorkflowListCase(t, func(ctx context.Context, r *EventWorkflowRepository) ([]models.EventWorkflow, error) {
+		return r.GetEventWorkflowsByProjectID(ctx, "p1")
+	}, []string{`"ProjectId" =`}, "p1")
+}
+
+func TestEventWorkflowListByProjectWithElements(t *testing.T) {
+	runWorkflowListCase(t, func(ctx context.Context, r *EventWorkflowRepository) ([]models.EventWorkflow, error) {
+		return r.GetEventWorkflowsByProjectIDWithElements(ctx, "p1")
+	}, []string{`"ProjectId" =`}, "p1")
+}
+
+func TestEventWorkflowListEnabled(t *testing.T) {
+	runWorkflowListCase(t, func(ctx context.Context, r *EventWorkflowRepository) ([]models.EventWorkflow, error) {
+		return r.GetEnabledEventWorkflowsByProjectID(ctx, "p1")
+	}, []string{`"Enabled" =`}, true)
+}
+
+func TestEventWorkflowListByName(t *testing.T) {
+	runWorkflowListCase(t, func(ctx context.Context, r *EventWorkflowRepository) ([]models.EventWorkflow, error) {
+		return r.GetEventWorkflowsByName(ctx, "p1", "fl")
+	}, []string{`"Name" ILIKE`}, "%fl%")
+}
+
+func runWorkflowListCase(t *testing.T, call func(context.Context, *EventWorkflowRepository) ([]models.EventWorkflow, error), fragments []string, arg any) {
+	t.Helper()
 	ctx := context.Background()
-	type listFn func(*EventWorkflowRepository) ([]models.EventWorkflow, error)
-	cases := []struct {
-		name      string
-		call      listFn
-		fragments []string
-		arg       any
-	}{
-		{"by project", func(r *EventWorkflowRepository) ([]models.EventWorkflow, error) {
-			return r.GetEventWorkflowsByProjectID(ctx, "p1")
-		}, []string{`"ProjectId" =`}, "p1"},
-		{"by project with elements", func(r *EventWorkflowRepository) ([]models.EventWorkflow, error) {
-			return r.GetEventWorkflowsByProjectIDWithElements(ctx, "p1")
-		}, []string{`"ProjectId" =`}, "p1"},
-		{"enabled by project", func(r *EventWorkflowRepository) ([]models.EventWorkflow, error) {
-			return r.GetEnabledEventWorkflowsByProjectID(ctx, "p1")
-		}, []string{`"Enabled" =`}, true},
-		{"by name", func(r *EventWorkflowRepository) ([]models.EventWorkflow, error) {
-			return r.GetEventWorkflowsByName(ctx, "p1", "fl")
-		}, []string{`"Name" ILIKE`}, "%fl%"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			db, f := newFakeDB(t)
-			f.on(eventWorkflowSelect, eventWorkflowCols, []driver.Value{"w1", "p1", "flow", true}, []driver.Value{"w2", "p1", "other", false})
-			got, err := tc.call(eventWorkflowNew(db))
-			if err != nil || len(got) != 2 || got[0].Id != "w1" || got[1].Name != "other" {
-				t.Fatalf("got %+v, %v", got, err)
-			}
-			if !f.sawQuery(tc.fragments...) || !eventWorkflowArg(f, tc.arg) {
-				t.Errorf("query %q args %v", f.queries[0], f.args[0])
-			}
-			bad, fb := newFakeDB(t)
-			fb.onErr("SELECT", errEventWorkflowBoom)
-			if got, err := tc.call(eventWorkflowNew(bad)); got != nil || !errors.Is(err, errEventWorkflowBoom) {
-				t.Errorf("error case: %+v, %v", got, err)
-			}
-		})
+	db, f := newFakeDB(t)
+	f.on(eventWorkflowSelect, eventWorkflowCols, []driver.Value{"w1", "p1", "flow", true}, []driver.Value{"w2", "p1", "other", false})
+	got, err := call(ctx, eventWorkflowNew(db))
+	assertWorkflowListQuery(t, f, got, err, fragments, arg)
+
+	bad, fb := newFakeDB(t)
+	fb.onErr("SELECT", errEventWorkflowBoom)
+	if got, err := call(ctx, eventWorkflowNew(bad)); got != nil || !errors.Is(err, errEventWorkflowBoom) {
+		t.Errorf("error case: %+v, %v", got, err)
 	}
 }
 
-func TestEventWorkflowUpdate(t *testing.T) {
+func TestEventWorkflowUpdateIncludesJSONWhenProvided(t *testing.T) {
 	ctx := context.Background()
 	desc := "d"
-	t.Run("includes json columns only when provided", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onExec("UPDATE", 1)
-		f.on(eventWorkflowSelect, eventWorkflowCols, []driver.Value{"w1", "p1", "renamed", false})
-		got, err := eventWorkflowNew(db).UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{
-			Name: "renamed", Description: &desc, CanvasData: []byte(`{"a":1}`), Handlers: []byte(`[]`),
-		})
-		if err != nil || got == nil || got.Name != "renamed" {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-		if !f.sawQuery("UPDATE", `"CanvasData"`, `"Handlers"`, `"Enabled"`, `"Name"`) {
-			t.Errorf("update: %v", f.queries)
-		}
+	db, f := newFakeDB(t)
+	f.onExec("UPDATE", 1)
+	f.on(eventWorkflowSelect, eventWorkflowCols, []driver.Value{"w1", "p1", "renamed", false})
+	got, err := eventWorkflowNew(db).UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{
+		Name: "renamed", Description: &desc, CanvasData: []byte(`{"a":1}`), Handlers: []byte(`[]`),
+	})
+	if err != nil || got == nil {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if got.Name != "renamed" {
+		t.Fatalf("got name=%q, want renamed", got.Name)
+	}
+	if !f.sawQuery("UPDATE", `"CanvasData"`, `"Handlers"`, `"Enabled"`, `"Name"`) {
+		t.Errorf("update: %v", f.queries)
+	}
 
-		db2, f2 := newFakeDB(t)
-		f2.onExec("UPDATE", 1)
-		if _, err := eventWorkflowNew(db2).UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "n"}); err != nil {
-			t.Fatal(err)
-		}
-		if f2.sawQuery(`"CanvasData"`) || f2.sawQuery(`"Handlers"`) {
-			t.Errorf("empty json must not be written: %q", f2.queries[0])
-		}
-	})
-	t.Run("update error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("UPDATE", errEventWorkflowBoom)
-		if got, err := eventWorkflowNew(db).UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{}); got != nil || !errors.Is(err, errEventWorkflowBoom) {
-			t.Errorf("got %+v, %v", got, err)
-		}
-	})
+	db2, f2 := newFakeDB(t)
+	f2.onExec("UPDATE", 1)
+	if _, err := eventWorkflowNew(db2).UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "n"}); err != nil {
+		t.Fatal(err)
+	}
+	if f2.sawQuery(`"CanvasData"`) || f2.sawQuery(`"Handlers"`) {
+		t.Errorf("empty json must not be written: %q", f2.queries[0])
+	}
+}
+
+func TestEventWorkflowUpdateError(t *testing.T) {
+	ctx := context.Background()
+	db, f := newFakeDB(t)
+	f.onErr("UPDATE", errEventWorkflowBoom)
+	if got, err := eventWorkflowNew(db).UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{}); got != nil || !errors.Is(err, errEventWorkflowBoom) {
+		t.Errorf("got %+v, %v", got, err)
+	}
 }
 
 func TestEventWorkflowEnabledDeleteAndCount(t *testing.T) {
@@ -176,7 +201,10 @@ func TestEventWorkflowEnabledDeleteAndCount(t *testing.T) {
 	if n, err := repo.CountEventWorkflowsByProjectID(ctx, "p1"); err != nil || n != 4 {
 		t.Errorf("count = %d, %v", n, err)
 	}
+}
 
+func TestEventWorkflowEnabledDeleteAndCountErrors(t *testing.T) {
+	ctx := context.Background()
 	bad, fb := newFakeDB(t)
 	fb.onErr("UPDATE", errEventWorkflowBoom)
 	fb.onErr("DELETE FROM", errEventWorkflowBoom)
@@ -196,65 +224,67 @@ func TestEventWorkflowEnabledDeleteAndCount(t *testing.T) {
 	}
 }
 
-func TestEventWorkflowCheckIfNameExists(t *testing.T) {
-	ctx := context.Background()
-	for _, tc := range []struct {
-		name    string
-		n       int64
-		exclude string
-		want    bool
-	}{
-		{"taken", 1, "", true},
-		{"free", 0, "", false},
-		{"taken by another workflow", 2, "w1", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			db, f := newFakeDB(t)
-			f.on("count(*)", []string{"count"}, []driver.Value{tc.n})
-			got, err := eventWorkflowNew(db).CheckIfWorkflowNameExists(ctx, "p1", "flow", tc.exclude)
-			if err != nil || got != tc.want {
-				t.Errorf("got %v, %v", got, err)
-			}
-			if f.sawQuery(`"Id" !=`) != (tc.exclude != "") {
-				t.Errorf("exclusion clause mismatch: %q", f.queries[0])
-			}
-		})
+func assertWorkflowNameExistsCase(t *testing.T, n int64, exclude string, want bool) {
+	t.Helper()
+	db, f := newFakeDB(t)
+	f.on("count(*)", []string{"count"}, []driver.Value{n})
+	got, err := eventWorkflowNew(db).CheckIfWorkflowNameExists(context.Background(), "p1", "flow", exclude)
+	if err != nil || got != want {
+		t.Errorf("got %v, %v", got, err)
 	}
+	if f.sawQuery(`"Id" !=`) != (exclude != "") {
+		t.Errorf("exclusion clause mismatch: %q", f.queries[0])
+	}
+}
+
+func TestEventWorkflowCheckIfNameExists(t *testing.T) {
+	assertWorkflowNameExistsCase(t, 1, "", true)
+	assertWorkflowNameExistsCase(t, 0, "", false)
+	assertWorkflowNameExistsCase(t, 2, "w1", true)
+
 	bad, fb := newFakeDB(t)
 	fb.onErr("count(*)", errEventWorkflowBoom)
-	if ok, err := eventWorkflowNew(bad).CheckIfWorkflowNameExists(ctx, "p1", "n", ""); ok || !errors.Is(err, errEventWorkflowBoom) {
+	if ok, err := eventWorkflowNew(bad).CheckIfWorkflowNameExists(context.Background(), "p1", "n", ""); ok || !errors.Is(err, errEventWorkflowBoom) {
 		t.Errorf("got %v, %v", ok, err)
 	}
 }
 
-func TestEventWorkflowFilters(t *testing.T) {
+func TestEventWorkflowFiltersNone(t *testing.T) {
+	ctx := context.Background()
+	db, f := newFakeDB(t)
+	f.on(eventWorkflowSelect, eventWorkflowCols, []driver.Value{"w1", "p1", "a", true})
+	got, err := eventWorkflowNew(db).GetEventWorkflowsWithFilters(ctx, "", nil, "")
+	if err != nil || len(got) != 1 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if f.sawQuery(`"ProjectId" =`) || f.sawQuery(`"Enabled" =`) {
+		t.Errorf("unexpected filters: %q", f.queries[0])
+	}
+	if f.sawQuery("ILIKE") {
+		t.Errorf("unexpected ILIKE filter: %q", f.queries[0])
+	}
+}
+
+func TestEventWorkflowFiltersAllAndError(t *testing.T) {
 	ctx := context.Background()
 	enabled := true
-	t.Run("no filters", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on(eventWorkflowSelect, eventWorkflowCols, []driver.Value{"w1", "p1", "a", true})
-		got, err := eventWorkflowNew(db).GetEventWorkflowsWithFilters(ctx, "", nil, "")
-		if err != nil || len(got) != 1 {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-		if f.sawQuery(`"ProjectId" =`) || f.sawQuery(`"Enabled" =`) || f.sawQuery("ILIKE") {
-			t.Errorf("unexpected filters: %q", f.queries[0])
-		}
-	})
-	t.Run("all filters", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if _, err := eventWorkflowNew(db).GetEventWorkflowsWithFilters(ctx, "p1", &enabled, "fl"); err != nil {
-			t.Fatal(err)
-		}
-		if !f.sawQuery(`"ProjectId" =`, `"Enabled" =`, `"Name" ILIKE`) || !eventWorkflowArg(f, "%fl%") || !eventWorkflowArg(f, "p1") || !eventWorkflowArg(f, true) {
-			t.Errorf("query %q args %v", f.queries[0], f.args[0])
-		}
-	})
-	t.Run("error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("SELECT", errEventWorkflowBoom)
-		if got, err := eventWorkflowNew(db).GetEventWorkflowsWithFilters(ctx, "", nil, ""); got != nil || !errors.Is(err, errEventWorkflowBoom) {
-			t.Errorf("got %+v, %v", got, err)
-		}
-	})
+	db, f := newFakeDB(t)
+	if _, err := eventWorkflowNew(db).GetEventWorkflowsWithFilters(ctx, "p1", &enabled, "fl"); err != nil {
+		t.Fatal(err)
+	}
+	if !f.sawQuery(`"ProjectId" =`, `"Enabled" =`, `"Name" ILIKE`) {
+		t.Errorf("query %q", f.queries[0])
+	}
+	if !eventWorkflowArg(f, "%fl%") || !eventWorkflowArg(f, "p1") {
+		t.Errorf("args %v", f.args[0])
+	}
+	if !eventWorkflowArg(f, true) {
+		t.Errorf("missing enabled arg: %v", f.args[0])
+	}
+
+	bad, fb := newFakeDB(t)
+	fb.onErr("SELECT", errEventWorkflowBoom)
+	if got, err := eventWorkflowNew(bad).GetEventWorkflowsWithFilters(ctx, "", nil, ""); got != nil || !errors.Is(err, errEventWorkflowBoom) {
+		t.Errorf("got %+v, %v", got, err)
+	}
 }

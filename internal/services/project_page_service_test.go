@@ -9,19 +9,40 @@ import (
 	"my-go-app/internal/repositories"
 )
 
-func TestEnsureProjectVisible(t *testing.T) {
-	ctx := context.Background()
-	project := &models.Project{ID: "p1"}
+type visibleProjectCase struct {
+	name       string
+	userID     string
+	access     func(context.Context, string, string) (*models.Project, error)
+	public     func(context.Context, string) (*models.Project, error)
+	wantErr    error
+	wantAccess bool
+	wantPublic bool
+}
 
-	tests := []struct {
-		name       string
-		userID     string
-		access     func(context.Context, string, string) (*models.Project, error)
-		public     func(context.Context, string) (*models.Project, error)
-		wantErr    error
-		wantAccess bool
-		wantPublic bool
-	}{
+func runVisibleProjectCases(t *testing.T, tests []visibleProjectCase) {
+	t.Helper()
+	ctx := context.Background()
+	for _, tc := range tests {
+		repo := &fkProjectRepo{OnGetProjectWithAccess: tc.access, OnGetPublicProjectByID: tc.public}
+		err := ensureProjectVisible(ctx, repo, "p1", tc.userID)
+		if !errors.Is(err, tc.wantErr) {
+			t.Fatalf("%s: err = %v, want %v", tc.name, err, tc.wantErr)
+		}
+		if tc.wantErr == nil && err != nil {
+			t.Fatalf("%s: unexpected err = %v", tc.name, err)
+		}
+		if repo.Called("GetProjectWithAccess") != tc.wantAccess {
+			t.Fatalf("%s: access called = %v, want %v", tc.name, repo.Called("GetProjectWithAccess"), tc.wantAccess)
+		}
+		if repo.Called("GetPublicProjectByID") != tc.wantPublic {
+			t.Fatalf("%s: public called = %v, want %v", tc.name, repo.Called("GetPublicProjectByID"), tc.wantPublic)
+		}
+	}
+}
+
+func TestEnsureProjectVisibleMembersAndErrors(t *testing.T) {
+	project := &models.Project{ID: "p1"}
+	runVisibleProjectCases(t, []visibleProjectCase{
 		{
 			name:       "member passes without public lookup",
 			userID:     "u1",
@@ -61,6 +82,12 @@ func TestEnsureProjectVisible(t *testing.T) {
 			wantErr:    errBoom,
 			wantAccess: true,
 		},
+	})
+}
+
+func TestEnsureProjectVisibleAnonymous(t *testing.T) {
+	project := &models.Project{ID: "p1"}
+	runVisibleProjectCases(t, []visibleProjectCase{
 		{
 			name:       "anonymous user skips access check for published project",
 			public:     func(context.Context, string) (*models.Project, error) { return project, nil },
@@ -78,96 +105,75 @@ func TestEnsureProjectVisible(t *testing.T) {
 			wantErr:    errBoom,
 			wantPublic: true,
 		},
+	})
+}
+
+func assertProjectGetter(
+	t *testing.T,
+	call func(*ProjectService, string, string) (*models.Project, error),
+	hook func(*fkProjectRepo, func(context.Context, string, string) (*models.Project, error)),
+) {
+	t.Helper()
+	emptyRepo := &fkProjectRepo{}
+	svc := NewProjectService(emptyRepo, nil, nil)
+	_, err := call(svc, "", "u1")
+	wantErr(t, err, "projectId is required")
+	_, err = call(svc, "p1", "")
+	wantErr(t, err, "userId is required")
+	wantCalls(t, emptyRepo.Calls)
+
+	repo := &fkProjectRepo{}
+	hook(repo, func(_ context.Context, p, u string) (*models.Project, error) {
+		return &models.Project{ID: p, OwnerId: u}, nil
+	})
+	got, err := call(NewProjectService(repo, nil, nil), "p1", "u1")
+	wantNoErr(t, err)
+	if got.ID != "p1" || got.OwnerId != "u1" {
+		t.Fatalf("got %+v", got)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			repo := &fkProjectRepo{OnGetProjectWithAccess: tc.access, OnGetPublicProjectByID: tc.public}
-			err := ensureProjectVisible(ctx, repo, "p1", tc.userID)
-			if !errors.Is(err, tc.wantErr) || (tc.wantErr == nil && err != nil) {
-				t.Fatalf("err = %v, want %v", err, tc.wantErr)
-			}
-			if repo.Called("GetProjectWithAccess") != tc.wantAccess {
-				t.Fatalf("access called = %v, want %v", repo.Called("GetProjectWithAccess"), tc.wantAccess)
-			}
-			if repo.Called("GetPublicProjectByID") != tc.wantPublic {
-				t.Fatalf("public called = %v, want %v", repo.Called("GetPublicProjectByID"), tc.wantPublic)
-			}
-		})
+	hook(repo, func(context.Context, string, string) (*models.Project, error) { return nil, errBoom })
+	_, err = call(NewProjectService(repo, nil, nil), "p1", "u1")
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestProjectServiceGetters(t *testing.T) {
 	ctx := context.Background()
-
-	t.Run("GetPublicProjectByID forwards", func(t *testing.T) {
-		repo := &fkProjectRepo{OnGetPublicProjectByID: func(_ context.Context, id string) (*models.Project, error) {
-			return &models.Project{ID: id}, nil
-		}}
-		p, err := NewProjectService(repo, nil, nil).GetPublicProjectByID(ctx, "p1")
-		wantNoErr(t, err)
-		if p.ID != "p1" {
-			t.Fatalf("id = %q", p.ID)
-		}
-	})
-
-	for _, tc := range []struct {
-		name string
-		call func(*ProjectService, string, string) (*models.Project, error)
-		hook func(*fkProjectRepo, func(context.Context, string, string) (*models.Project, error))
-	}{
-		{"GetProjectByID", func(s *ProjectService, p, u string) (*models.Project, error) { return s.GetProjectByID(ctx, p, u) },
-			func(r *fkProjectRepo, f func(context.Context, string, string) (*models.Project, error)) {
-				r.OnGetProjectByID = f
-			}},
-		{"GetProjectWithAccess", func(s *ProjectService, p, u string) (*models.Project, error) {
-			return s.GetProjectWithAccess(ctx, p, u)
-		},
-			func(r *fkProjectRepo, f func(context.Context, string, string) (*models.Project, error)) {
-				r.OnGetProjectWithAccess = f
-			}},
-		{"GetProjectWithLock", func(s *ProjectService, p, u string) (*models.Project, error) { return s.GetProjectWithLock(ctx, p, u) },
-			func(r *fkProjectRepo, f func(context.Context, string, string) (*models.Project, error)) {
-				r.OnGetProjectWithLock = f
-			}},
-	} {
-		t.Run(tc.name+" validation", func(t *testing.T) {
-			repo := &fkProjectRepo{}
-			svc := NewProjectService(repo, nil, nil)
-			_, err := tc.call(svc, "", "u1")
-			wantErr(t, err, "projectId is required")
-			_, err = tc.call(svc, "p1", "")
-			wantErr(t, err, "userId is required")
-			wantCalls(t, repo.Calls)
-		})
-		t.Run(tc.name+" success and repo error", func(t *testing.T) {
-			repo := &fkProjectRepo{}
-			tc.hook(repo, func(_ context.Context, p, u string) (*models.Project, error) {
-				return &models.Project{ID: p, OwnerId: u}, nil
-			})
-			got, err := tc.call(NewProjectService(repo, nil, nil), "p1", "u1")
-			wantNoErr(t, err)
-			if got.ID != "p1" || got.OwnerId != "u1" {
-				t.Fatalf("got %+v", got)
-			}
-			tc.hook(repo, func(context.Context, string, string) (*models.Project, error) { return nil, errBoom })
-			_, err = tc.call(NewProjectService(repo, nil, nil), "p1", "u1")
-			if !errors.Is(err, errBoom) {
-				t.Fatalf("err = %v", err)
-			}
-		})
+	repo := &fkProjectRepo{OnGetPublicProjectByID: func(_ context.Context, id string) (*models.Project, error) {
+		return &models.Project{ID: id}, nil
+	}}
+	p, err := NewProjectService(repo, nil, nil).GetPublicProjectByID(ctx, "p1")
+	wantNoErr(t, err)
+	if p.ID != "p1" {
+		t.Fatalf("id = %q", p.ID)
 	}
 
-	t.Run("GetProjectByID and GetProjectWithAccess reject nil project", func(t *testing.T) {
-		repo := &fkProjectRepo{
-			OnGetProjectByID:       func(context.Context, string, string) (*models.Project, error) { return nil, nil },
-			OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) { return nil, nil },
-		}
-		svc := NewProjectService(repo, nil, nil)
-		_, err := svc.GetProjectByID(ctx, "p1", "u1")
-		wantErr(t, err, "project does not exist")
-		_, err = svc.GetProjectWithAccess(ctx, "p1", "u1")
-		wantErr(t, err, "project does not exist")
-	})
+	assertProjectGetter(t,
+		func(s *ProjectService, p, u string) (*models.Project, error) { return s.GetProjectByID(ctx, p, u) },
+		func(r *fkProjectRepo, f func(context.Context, string, string) (*models.Project, error)) {
+			r.OnGetProjectByID = f
+		})
+	assertProjectGetter(t,
+		func(s *ProjectService, p, u string) (*models.Project, error) { return s.GetProjectWithAccess(ctx, p, u) },
+		func(r *fkProjectRepo, f func(context.Context, string, string) (*models.Project, error)) {
+			r.OnGetProjectWithAccess = f
+		})
+	assertProjectGetter(t,
+		func(s *ProjectService, p, u string) (*models.Project, error) { return s.GetProjectWithLock(ctx, p, u) },
+		func(r *fkProjectRepo, f func(context.Context, string, string) (*models.Project, error)) {
+			r.OnGetProjectWithLock = f
+		})
+
+	nilRepo := &fkProjectRepo{
+		OnGetProjectByID:       func(context.Context, string, string) (*models.Project, error) { return nil, nil },
+		OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) { return nil, nil },
+	}
+	svc := NewProjectService(nilRepo, nil, nil)
+	_, err = svc.GetProjectByID(ctx, "p1", "u1")
+	wantErr(t, err, "project does not exist")
+	_, err = svc.GetProjectWithAccess(ctx, "p1", "u1")
+	wantErr(t, err, "project does not exist")
 }
 
 func TestProjectServiceListings(t *testing.T) {
@@ -242,116 +248,97 @@ func TestProjectServiceGetProjectPages(t *testing.T) {
 
 func TestProjectServiceCreateErrorPaths(t *testing.T) {
 	ctx := context.Background()
+	repo := &fkProjectRepo{OnCreateProject: func(context.Context, *models.Project) error { return errBoom }}
+	got, err := NewProjectService(repo, nil, nil).CreateProject(ctx, &models.Project{Name: "n", OwnerId: "o"})
+	if !errors.Is(err, errBoom) || got != nil {
+		t.Fatalf("got %v, err %v", got, err)
+	}
 
-	t.Run("CreateProject repository failure", func(t *testing.T) {
-		repo := &fkProjectRepo{OnCreateProject: func(context.Context, *models.Project) error { return errBoom }}
-		got, err := NewProjectService(repo, nil, nil).CreateProject(ctx, &models.Project{Name: "n", OwnerId: "o"})
-		if !errors.Is(err, errBoom) || got != nil {
-			t.Fatalf("got %v, err %v", got, err)
-		}
-	})
-
-	t.Run("CreateProjectWithPage validation", func(t *testing.T) {
-		for name, p := range map[string]*models.Project{
-			"nil":           nil,
-			"missing name":  {OwnerId: "o"},
-			"missing owner": {Name: "n"},
-		} {
-			repo := &fkProjectRepo{}
-			_, err := NewProjectService(repo, nil, nil).CreateProjectWithPage(ctx, p)
-			wantErr(t, err, "project name and ownerId are required")
-			if len(repo.Calls) != 0 {
-				t.Fatalf("%s: repo called", name)
-			}
-		}
-	})
-
-	t.Run("CreateProjectWithPage creates an empty component-free first page", func(t *testing.T) {
-		var gotPage *models.Page
-		repo := &fkProjectRepo{OnCreateProjectWithPage: func(_ context.Context, _ *models.Project, pg *models.Page) error {
-			gotPage = pg
-			return nil
-		}}
-		_, err := NewProjectService(repo, nil, nil).CreateProjectWithPage(ctx, &models.Project{Name: "n", OwnerId: "o"})
-		wantNoErr(t, err)
-		if gotPage.Type != "page" || gotPage.Name != "" || string(gotPage.Styles) != "{}" {
-			t.Fatalf("page = %+v", gotPage)
-		}
-	})
-
-	t.Run("CreateProjectWithPage repository failure", func(t *testing.T) {
-		repo := &fkProjectRepo{OnCreateProjectWithPage: func(context.Context, *models.Project, *models.Page) error { return errBoom }}
-		got, err := NewProjectService(repo, nil, nil).CreateProjectWithPage(ctx, &models.Project{Name: "n", OwnerId: "o"})
-		if !errors.Is(err, errBoom) || got != nil {
-			t.Fatalf("got %v, err %v", got, err)
-		}
-	})
+	failRepo := &fkProjectRepo{OnCreateProjectWithPage: func(context.Context, *models.Project, *models.Page) error { return errBoom }}
+	got, err = NewProjectService(failRepo, nil, nil).CreateProjectWithPage(ctx, &models.Project{Name: "n", OwnerId: "o"})
+	if !errors.Is(err, errBoom) || got != nil {
+		t.Fatalf("got %v, err %v", got, err)
+	}
 }
 
-func TestProjectServiceUpdateProject(t *testing.T) {
+func TestProjectServiceCreateWithPageValidationAndEmptyPage(t *testing.T) {
+	ctx := context.Background()
+	for name, p := range map[string]*models.Project{
+		"nil":           nil,
+		"missing name":  {OwnerId: "o"},
+		"missing owner": {Name: "n"},
+	} {
+		repo := &fkProjectRepo{}
+		_, err := NewProjectService(repo, nil, nil).CreateProjectWithPage(ctx, p)
+		wantErr(t, err, "project name and ownerId are required")
+		if len(repo.Calls) != 0 {
+			t.Fatalf("%s: repo called", name)
+		}
+	}
+
+	var gotPage *models.Page
+	repo := &fkProjectRepo{OnCreateProjectWithPage: func(_ context.Context, _ *models.Project, pg *models.Page) error {
+		gotPage = pg
+		return nil
+	}}
+	_, err := NewProjectService(repo, nil, nil).CreateProjectWithPage(ctx, &models.Project{Name: "n", OwnerId: "o"})
+	wantNoErr(t, err)
+	if gotPage.Type != "page" || gotPage.Name != "" || string(gotPage.Styles) != "{}" {
+		t.Fatalf("page = %+v", gotPage)
+	}
+}
+
+func TestProjectServiceUpdateProjectValidationAndAccessDenied(t *testing.T) {
+	ctx := context.Background()
+	svc := NewProjectService(&fkProjectRepo{}, nil, nil)
+	_, err := svc.UpdateProject(ctx, "", "u", &models.Project{})
+	wantErr(t, err, "projectId is required")
+	_, err = svc.UpdateProject(ctx, "p", "", &models.Project{})
+	wantErr(t, err, "userId is required")
+	_, err = svc.UpdateProject(ctx, "p", "u", nil)
+	wantErr(t, err, "project cannot be nil")
+
+	deniedRepo := &fkProjectRepo{OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) {
+		return nil, repositories.ErrProjectUnauthorized
+	}}
+	_, err = NewProjectService(deniedRepo, nil, nil).UpdateProject(ctx, "p1", "u1", &models.Project{Name: "x"})
+	if !errors.Is(err, repositories.ErrProjectUnauthorized) {
+		t.Fatalf("err = %v", err)
+	}
+	if deniedRepo.Called("UpdateProject") {
+		t.Fatal("UpdateProject called without access")
+	}
+}
+
+func TestProjectServiceUpdateProjectFieldInheritanceAndOverride(t *testing.T) {
 	ctx := context.Background()
 	desc, sub := strp("old description"), strp("old-sub")
 	styles, header := rawp(`{"a":1}`), rawp(`{"h":1}`)
 	existing := &models.Project{ID: "p1", Name: "old", Description: desc, Subdomain: sub, Styles: styles, Header: header}
 
-	t.Run("validation", func(t *testing.T) {
-		svc := NewProjectService(&fkProjectRepo{}, nil, nil)
-		_, err := svc.UpdateProject(ctx, "", "u", &models.Project{})
-		wantErr(t, err, "projectId is required")
-		_, err = svc.UpdateProject(ctx, "p", "", &models.Project{})
-		wantErr(t, err, "userId is required")
-		_, err = svc.UpdateProject(ctx, "p", "u", nil)
-		wantErr(t, err, "project cannot be nil")
-	})
+	var got map[string]any
+	captureRepo := &fkProjectRepo{
+		OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) { return existing, nil },
+		OnUpdateProject: func(_ context.Context, _, _ string, u map[string]any) (*models.Project, error) {
+			got = u
+			return &models.Project{ID: "p1"}, nil
+		},
+	}
+	_, err := NewProjectService(captureRepo, nil, nil).UpdateProject(ctx, "p1", "u1", &models.Project{Published: true})
+	wantNoErr(t, err)
+	if got["Name"] != "old" || got["Description"] != desc || got["Subdomain"] != sub {
+		t.Fatalf("updates = %+v", got)
+	}
+	if got["Styles"] != styles || got["Header"] != header || got["Published"] != true {
+		t.Fatalf("updates = %+v", got)
+	}
 
-	t.Run("blank fields inherit from existing project", func(t *testing.T) {
-		var got map[string]any
-		repo := &fkProjectRepo{
-			OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) { return existing, nil },
-			OnUpdateProject: func(_ context.Context, _, _ string, u map[string]any) (*models.Project, error) {
-				got = u
-				return &models.Project{ID: "p1"}, nil
-			},
-		}
-		_, err := NewProjectService(repo, nil, nil).UpdateProject(ctx, "p1", "u1", &models.Project{Published: true})
-		wantNoErr(t, err)
-		if got["Name"] != "old" || got["Description"] != desc || got["Subdomain"] != sub || got["Styles"] != styles || got["Header"] != header {
-			t.Fatalf("updates = %+v", got)
-		}
-		if got["Published"] != true {
-			t.Fatalf("Published not forwarded: %+v", got)
-		}
-	})
-
-	t.Run("supplied fields override existing", func(t *testing.T) {
-		var got map[string]any
-		repo := &fkProjectRepo{
-			OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) { return existing, nil },
-			OnUpdateProject: func(_ context.Context, _, _ string, u map[string]any) (*models.Project, error) {
-				got = u
-				return nil, nil
-			},
-		}
-		newDesc := strp("new")
-		_, err := NewProjectService(repo, nil, nil).UpdateProject(ctx, "p1", "u1", &models.Project{Name: "fresh", Description: newDesc})
-		wantNoErr(t, err)
-		if got["Name"] != "fresh" || got["Description"] != newDesc {
-			t.Fatalf("updates = %+v", got)
-		}
-	})
-
-	t.Run("no access means no write", func(t *testing.T) {
-		repo := &fkProjectRepo{OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) {
-			return nil, repositories.ErrProjectUnauthorized
-		}}
-		_, err := NewProjectService(repo, nil, nil).UpdateProject(ctx, "p1", "u1", &models.Project{Name: "x"})
-		if !errors.Is(err, repositories.ErrProjectUnauthorized) {
-			t.Fatalf("err = %v", err)
-		}
-		if repo.Called("UpdateProject") {
-			t.Fatal("UpdateProject called without access")
-		}
-	})
+	newDesc := strp("new")
+	_, err = NewProjectService(captureRepo, nil, nil).UpdateProject(ctx, "p1", "u1", &models.Project{Name: "fresh", Description: newDesc})
+	wantNoErr(t, err)
+	if got["Name"] != "fresh" || got["Description"] != newDesc {
+		t.Fatalf("updates = %+v", got)
+	}
 }
 
 func TestProjectServiceAccessGuardedMutations(t *testing.T) {
@@ -428,7 +415,8 @@ func TestProjectServiceExistsForUserAndAccess(t *testing.T) {
 	if !ok {
 		t.Fatal("expected project to exist")
 	}
-	ok, _ = svc.ExistsForUser(ctx, "p2", "u1")
+	ok, err = svc.ExistsForUser(ctx, "p2", "u1")
+	wantNoErr(t, err)
 	if ok {
 		t.Fatal("unexpected existence")
 	}
@@ -576,10 +564,12 @@ func TestPageServiceGetPublicPageByID(t *testing.T) {
 	})
 }
 
-func TestPageServiceCreatePage(t *testing.T) {
-	ctx := context.Background()
-	valid := func() *models.Page { return &models.Page{ProjectId: "p", Name: "Home", Type: "page"} }
+func newValidTestPage() *models.Page {
+	return &models.Page{ProjectId: "p", Name: "Home", Type: "page"}
+}
 
+func TestPageServiceCreatePageValidation(t *testing.T) {
+	ctx := context.Background()
 	validation := map[string]func(*models.Page) *models.Page{
 		"page cannot be nil":    func(*models.Page) *models.Page { return nil },
 		"projectId is required": func(p *models.Page) *models.Page { p.ProjectId = ""; return p },
@@ -587,48 +577,46 @@ func TestPageServiceCreatePage(t *testing.T) {
 		"page type is required": func(p *models.Page) *models.Page { p.Type = ""; return p },
 	}
 	for msg, mutate := range validation {
-		t.Run(msg, func(t *testing.T) {
-			pr := &fkPageRepo{}
-			_, err := newPageSvc(pr, &fkProjectRepo{}).CreatePage(ctx, mutate(valid()))
-			wantErr(t, err, msg)
-			if len(pr.Calls) != 0 {
-				t.Fatal("page repo called")
-			}
-		})
+		pr := &fkPageRepo{}
+		_, err := newPageSvc(pr, &fkProjectRepo{}).CreatePage(ctx, mutate(newValidTestPage()))
+		wantErr(t, err, msg)
+		if len(pr.Calls) != 0 {
+			t.Fatalf("%s: page repo called", msg)
+		}
+	}
+}
+
+func TestPageServiceCreatePageLookupAndInsert(t *testing.T) {
+	ctx := context.Background()
+
+	errProjects := &fkProjectRepo{OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) { return nil, errBoom }}
+	_, err := newPageSvc(&fkPageRepo{}, errProjects).CreatePage(ctx, newValidTestPage())
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("err = %v", err)
 	}
 
-	t.Run("project lookup error", func(t *testing.T) {
-		projects := &fkProjectRepo{OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) { return nil, errBoom }}
-		_, err := newPageSvc(&fkPageRepo{}, projects).CreatePage(ctx, valid())
-		if !errors.Is(err, errBoom) {
-			t.Fatalf("err = %v", err)
-		}
-	})
-	t.Run("project does not exist", func(t *testing.T) {
-		projects := &fkProjectRepo{OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) { return nil, nil }}
-		pr := &fkPageRepo{}
-		_, err := newPageSvc(pr, projects).CreatePage(ctx, valid())
-		wantErr(t, err, "project does not exist")
-		if len(pr.Calls) != 0 {
-			t.Fatal("page created for missing project")
-		}
-	})
-	t.Run("success and insert failure", func(t *testing.T) {
-		projects := &fkProjectRepo{OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) { return &models.Project{}, nil }}
-		var stored *models.Page
-		pr := &fkPageRepo{OnCreatePage: func(_ context.Context, p *models.Page) error { stored = p; return nil }}
-		in := valid()
-		got, err := newPageSvc(pr, projects).CreatePage(ctx, in)
-		wantNoErr(t, err)
-		if got != in || stored != in {
-			t.Fatal("page not stored/returned as given")
-		}
-		pr.OnCreatePage = func(context.Context, *models.Page) error { return errBoom }
-		got, err = newPageSvc(pr, projects).CreatePage(ctx, valid())
-		if !errors.Is(err, errBoom) || got != nil {
-			t.Fatalf("got %v err %v", got, err)
-		}
-	})
+	missingProjects := &fkProjectRepo{OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) { return nil, nil }}
+	pr := &fkPageRepo{}
+	_, err = newPageSvc(pr, missingProjects).CreatePage(ctx, newValidTestPage())
+	wantErr(t, err, "project does not exist")
+	if len(pr.Calls) != 0 {
+		t.Fatal("page created for missing project")
+	}
+
+	projects := &fkProjectRepo{OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) { return &models.Project{}, nil }}
+	var stored *models.Page
+	pr = &fkPageRepo{OnCreatePage: func(_ context.Context, p *models.Page) error { stored = p; return nil }}
+	in := newValidTestPage()
+	got, err := newPageSvc(pr, projects).CreatePage(ctx, in)
+	wantNoErr(t, err)
+	if got != in || stored != in {
+		t.Fatal("page not stored/returned as given")
+	}
+	pr.OnCreatePage = func(context.Context, *models.Page) error { return errBoom }
+	got, err = newPageSvc(pr, projects).CreatePage(ctx, newValidTestPage())
+	if !errors.Is(err, errBoom) || got != nil {
+		t.Fatalf("got %v err %v", got, err)
+	}
 }
 
 func TestPageServiceUpdates(t *testing.T) {

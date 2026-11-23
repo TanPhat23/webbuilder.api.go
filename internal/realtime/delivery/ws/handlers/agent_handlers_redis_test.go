@@ -35,8 +35,12 @@ type agentHandlersRedisTab struct{ err error }
 
 func (t agentHandlersRedisTab) Send(domainEntity.Message) error { return t.err }
 
-func agentHandlersRedisRequestBytes(id string) []byte {
-	b, _ := json.Marshal(agentproto.Request{RequestID: id, UserID: "u1", ProjectID: "p1", PageID: "pg1", Tool: "get_code", Args: json.RawMessage(`{}`)})
+func agentHandlersRedisRequestBytes(t *testing.T, id string) []byte {
+	t.Helper()
+	b, err := json.Marshal(agentproto.Request{RequestID: id, UserID: "u1", ProjectID: "p1", PageID: "pg1", Tool: "get_code", Args: json.RawMessage(`{}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return b
 }
 
@@ -45,6 +49,7 @@ func TestRedisClaimer_OnlyFirstClaimWinsAndErrorsSurface(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer rdb.Close()
 	c := redisClaimer{rdb}
+
 	won, err := c.Claim(context.Background(), "req-1")
 	if err != nil || !won {
 		t.Fatalf("first claim: %v %v", won, err)
@@ -52,8 +57,8 @@ func TestRedisClaimer_OnlyFirstClaimWinsAndErrorsSurface(t *testing.T) {
 	if won, err = c.Claim(context.Background(), "req-1"); err != nil || won {
 		t.Fatalf("second claim must lose: %v %v", won, err)
 	}
-	if won, _ = c.Claim(context.Background(), "req-2"); !won {
-		t.Fatal("a different request must be claimable")
+	if won, err = c.Claim(context.Background(), "req-2"); err != nil || !won {
+		t.Fatalf("a different request must be claimable: %v %v", won, err)
 	}
 	if ttl := mr.TTL("agent:claim:req-1"); ttl <= 0 || ttl > 30*time.Second {
 		t.Fatalf("claim ttl = %v", ttl)
@@ -72,8 +77,7 @@ func TestHubLocator_ReturnsNilInterfaceWhenNoTabAndTheClientWhenPresent(t *testi
 	}
 	c := env.dial("u1")
 	c.join(handlerTestPage)
-	got := loc.MostRecentClient(handlerTestProject, "u1")
-	if got == nil {
+	if got := loc.MostRecentClient(handlerTestProject, "u1"); got == nil {
 		t.Fatal("expected the joined tab")
 	}
 	if loc.MostRecentClient(handlerTestProject, "someone-else") != nil {
@@ -120,7 +124,7 @@ func TestAgentBridge_RunIgnoresBadPayloadsAndStopsWhenBusCloses(t *testing.T) {
 	} {
 		_ = bus.Publish(context.Background(), agentproto.RequestChannelPrefix+"u1", bad)
 	}
-	_ = bus.Publish(context.Background(), agentproto.RequestChannelPrefix+"u1", agentHandlersRedisRequestBytes("good"))
+	_ = bus.Publish(context.Background(), agentproto.RequestChannelPrefix+"u1", agentHandlersRedisRequestBytes(t, "good"))
 	waitFor(t, "good request delivered", func() bool { return tab.count() == 1 })
 	if tab.count() != 1 {
 		t.Fatalf("bad payloads must not be delivered, tab got %d", tab.count())
@@ -139,7 +143,10 @@ func TestAgentBridge_DeliverSkipsWhenClaimLostOrFails(t *testing.T) {
 		"error": {err: errors.New("redis down")},
 	} {
 		bus := &agentproto.MemBus{}
-		acks, stop, _ := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"r")
+		acks, stop, err := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"r")
+		if err != nil {
+			t.Fatalf("%s PSubscribe: %v", name, err)
+		}
 		tab := &fakeTab{}
 		b := newAgentBridge(fakeLocator{byUser: map[string]agentTarget{"p1/u1": tab}}, bus, claim, handlerTestLogger())
 		b.deliver(context.Background(), agentproto.Request{RequestID: "r", UserID: "u1", ProjectID: "p1"})
@@ -157,7 +164,10 @@ func TestAgentBridge_DeliverSkipsWhenClaimLostOrFails(t *testing.T) {
 
 func TestAgentBridge_FailedSendForgetsTheRequestAndDoesNotAck(t *testing.T) {
 	bus := &agentproto.MemBus{}
-	acks, stop, _ := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"r")
+	acks, stop, err := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"r")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer stop()
 	tab := agentHandlersRedisTab{err: errors.New("socket closed")}
 	b := newAgentBridge(fakeLocator{byUser: map[string]agentTarget{"p1/u1": tab}}, bus, newMemClaimer(), handlerTestLogger())
@@ -170,7 +180,7 @@ func TestAgentBridge_FailedSendForgetsTheRequestAndDoesNotAck(t *testing.T) {
 		t.Fatal("must not ack a failed delivery")
 	case <-time.After(30 * time.Millisecond):
 	}
-	err := b.handleResponse(context.Background(), tab, domainEntity.Message{RequestID: "r", Payload: json.RawMessage(`{"ok":true}`)})
+	err = b.handleResponse(context.Background(), tab, domainEntity.Message{RequestID: "r", Payload: json.RawMessage(`{"ok":true}`)})
 	if !domainErrors.IsCode(err, domainErrors.CodeValidation) {
 		t.Fatalf("response for an unsent request: %v", err)
 	}
@@ -178,7 +188,10 @@ func TestAgentBridge_FailedSendForgetsTheRequestAndDoesNotAck(t *testing.T) {
 
 func TestAgentBridge_UnreadableResponseIsReportedAsInternalErrorToTheRelay(t *testing.T) {
 	bus := &agentproto.MemBus{}
-	resps, stop, _ := bus.PSubscribe(context.Background(), agentproto.ResponseChannelPrefix+"r")
+	resps, stop, err := bus.PSubscribe(context.Background(), agentproto.ResponseChannelPrefix+"r")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer stop()
 	tab := &fakeTab{}
 	b := newAgentBridge(fakeLocator{byUser: map[string]agentTarget{"p1/u1": tab}}, bus, newMemClaimer(), handlerTestLogger())
@@ -189,12 +202,54 @@ func TestAgentBridge_UnreadableResponseIsReportedAsInternalErrorToTheRelay(t *te
 	select {
 	case m := <-resps:
 		var r agentproto.Response
-		_ = json.Unmarshal(m.Payload, &r)
+		if err := json.Unmarshal(m.Payload, &r); err != nil {
+			t.Fatal(err)
+		}
 		if r.OK || r.RequestID != "r" || r.Error == nil || r.Error.Code != agentproto.CodeInternal {
 			t.Fatalf("%+v", r)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("no response published")
+	}
+}
+
+func publishUntilTabReceivesAgentReq(t *testing.T, bus agentproto.Bus, tab *handlerConn, body []byte) handlerMsg {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	got := make(chan handlerMsg, 1)
+	go func() { got <- tab.next("agent:request") }()
+	for time.Now().Before(deadline) {
+		if err := bus.Publish(context.Background(), agentproto.RequestChannelPrefix+"u1", body); err != nil {
+			t.Fatalf("publish request: %v", err)
+		}
+		select {
+		case delivered := <-got:
+			return delivered
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	t.Fatal("tab never received the agent request")
+	return handlerMsg{}
+}
+
+func assertE2EAgentDeliveryAndAck(t *testing.T, delivered handlerMsg, acks <-chan agentproto.BusMessage) {
+	t.Helper()
+	if delivered.RequestID != "e2e" || delivered.PageID != handlerTestPage {
+		t.Fatalf("%+v", delivered)
+	}
+	var payload struct {
+		Tool   string          `json:"tool"`
+		Args   json.RawMessage `json:"args"`
+		PageID string          `json:"pageId"`
+	}
+	delivered.decode(t, &payload)
+	if payload.Tool != "get_code" || string(payload.Args) != `{"a":1}` || payload.PageID != handlerTestPage {
+		t.Fatalf("payload %+v", payload)
+	}
+	select {
+	case <-acks:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no ack")
 	}
 }
 
@@ -227,44 +282,13 @@ func TestAgentBridge_EndToEndThroughHandlerWithRedis(t *testing.T) {
 	defer stopResp()
 
 	req := agentproto.Request{RequestID: "e2e", UserID: "u1", ProjectID: handlerTestProject, PageID: handlerTestPage, Tool: "get_code", Args: json.RawMessage(`{"a":1}`)}
-	body, _ := json.Marshal(req)
-	// Run subscribes asynchronously; publish until the tab hears it.
-	deadline := time.Now().Add(3 * time.Second)
-	var delivered handlerMsg
-	got := make(chan handlerMsg, 1)
-	go func() { got <- tab.next("agent:request") }()
-	for published := false; !published || time.Now().Before(deadline); {
-		_ = bus.Publish(context.Background(), agentproto.RequestChannelPrefix+"u1", body)
-		published = true
-		select {
-		case delivered = <-got:
-			goto delivered
-		case <-time.After(100 * time.Millisecond):
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("tab never received the agent request")
-		}
+	body, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
 	}
-delivered:
-	if delivered.RequestID != "e2e" || delivered.PageID != handlerTestPage {
-		t.Fatalf("%+v", delivered)
-	}
-	var payload struct {
-		Tool   string          `json:"tool"`
-		Args   json.RawMessage `json:"args"`
-		PageID string          `json:"pageId"`
-	}
-	delivered.decode(t, &payload)
-	if payload.Tool != "get_code" || string(payload.Args) != `{"a":1}` || payload.PageID != handlerTestPage {
-		t.Fatalf("payload %+v", payload)
-	}
-	select {
-	case <-acks:
-	case <-time.After(2 * time.Second):
-		t.Fatal("no ack")
-	}
+	delivered := publishUntilTabReceivesAgentReq(t, bus, tab, body)
+	assertE2EAgentDeliveryAndAck(t, delivered, acks)
 
-	// A different user's tab cannot answer it.
 	intruder := env.dial("u2")
 	intruder.send("agent:response", map[string]any{"ok": true}, "", "e2e")
 	intruder.expectError("VALIDATION_ERROR", "unknown agent request")
@@ -273,7 +297,9 @@ delivered:
 	select {
 	case m := <-resps:
 		var r agentproto.Response
-		_ = json.Unmarshal(m.Payload, &r)
+		if err := json.Unmarshal(m.Payload, &r); err != nil {
+			t.Fatal(err)
+		}
 		if !r.OK || r.RequestID != "e2e" {
 			t.Fatalf("%+v", r)
 		}

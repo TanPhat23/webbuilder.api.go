@@ -652,6 +652,25 @@ func TestUpdateProject_RepositoryError(t *testing.T) {
 	}
 }
 
+func assertFallbackProjectUpdates(t *testing.T, existingProject *models.Project, updates map[string]any) {
+	t.Helper()
+	if updates["Name"].(string) != existingProject.Name {
+		t.Errorf("expected name fallback, got %v", updates["Name"])
+	}
+	if desc, ok := updates["Description"].(*string); !ok || desc == nil || *desc != *existingProject.Description {
+		t.Errorf("expected description fallback, got %v", updates["Description"])
+	}
+	if sub, ok := updates["Subdomain"].(*string); !ok || sub == nil || *sub != *existingProject.Subdomain {
+		t.Errorf("expected subdomain fallback, got %v", updates["Subdomain"])
+	}
+	if styles, ok := updates["Styles"].(*json.RawMessage); !ok || styles == nil || string(*styles) != string(*existingProject.Styles) {
+		t.Errorf("expected styles fallback, got %v", updates["Styles"])
+	}
+	if header, ok := updates["Header"].(*json.RawMessage); !ok || header == nil || string(*header) != string(*existingProject.Header) {
+		t.Errorf("expected header fallback, got %v", updates["Header"])
+	}
+}
+
 func TestUpdateProject_UsesExistingFieldsWhenInputEmptyOrNil(t *testing.T) {
 	existingDescription := "Original Description"
 	existingSubdomain := "original"
@@ -672,21 +691,7 @@ func TestUpdateProject_UsesExistingFieldsWhenInputEmptyOrNil(t *testing.T) {
 		return existingProject, nil
 	})
 	projectRepo.SetUpdateProject(func(ctx context.Context, projID, userID string, updates map[string]any) (*models.Project, error) {
-		if updates["Name"].(string) != existingProject.Name {
-			t.Errorf("expected name fallback, got %v", updates["Name"])
-		}
-		if updates["Description"].(*string) == nil || *updates["Description"].(*string) != *existingProject.Description {
-			t.Errorf("expected description fallback, got %v", updates["Description"])
-		}
-		if updates["Subdomain"].(*string) == nil || *updates["Subdomain"].(*string) != *existingProject.Subdomain {
-			t.Errorf("expected subdomain fallback, got %v", updates["Subdomain"])
-		}
-		if updates["Styles"].(*json.RawMessage) == nil || string(*updates["Styles"].(*json.RawMessage)) != string(*existingProject.Styles) {
-			t.Errorf("expected styles fallback, got %v", updates["Styles"])
-		}
-		if updates["Header"].(*json.RawMessage) == nil || string(*updates["Header"].(*json.RawMessage)) != string(*existingProject.Header) {
-			t.Errorf("expected header fallback, got %v", updates["Header"])
-		}
+		assertFallbackProjectUpdates(t, existingProject, updates)
 		return existingProject, nil
 	})
 

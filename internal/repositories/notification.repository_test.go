@@ -11,7 +11,11 @@ import (
 	"my-go-app/internal/models"
 )
 
-// notificationHasArg reports whether any recorded statement was sent with the given bind value.
+var (
+	notificationBoom = errors.New("boom")
+	notificationCols = []string{"Id", "UserId", "Type", "Title", "Description", "Read"}
+)
+
 func notificationHasArg(f *fakeDB, want any) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -25,10 +29,6 @@ func notificationHasArg(f *fakeDB, want any) bool {
 	return false
 }
 
-var notificationBoom = errors.New("boom")
-
-var notificationCols = []string{"Id", "UserId", "Type", "Title", "Description", "Read"}
-
 func notificationRow(id string, read bool) []driver.Value {
 	return []driver.Value{id, "u1", "alert", "Title " + id, "desc", read}
 }
@@ -41,249 +41,260 @@ func notificationCounts(f *fakeDB, values ...int64) {
 	}
 }
 
-func TestNotificationRepositoryListForUser(t *testing.T) {
+func assertNotificationNoErr(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertNotificationErrPrefix(t *testing.T, err, want error, prefix string) {
+	t.Helper()
+	if !errors.Is(err, want) {
+		t.Fatalf("want %v, got %v", want, err)
+	}
+	if prefix != "" && !strings.HasPrefix(err.Error(), prefix) {
+		t.Fatalf("want prefix %q, got %v", prefix, err)
+	}
+}
+
+func TestNotificationRepositoryListForUserWithStats(t *testing.T) {
 	ctx := context.Background()
-	t.Run("returns notifications with stats and filter counts", func(t *testing.T) {
+	db, f := newFakeDB(t)
+	f.on("ORDER BY", notificationCols, notificationRow("n1", false), notificationRow("n2", true))
+	notificationCounts(f, 10, 4, 2, 1, 2, 3, 4)
+	got, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{})
+	assertNotificationNoErr(t, err)
+	assertListedNotificationStats(t, f, got)
+}
+
+func assertListedNotificationStats(t *testing.T, f *fakeDB, got *models.NotificationList) {
+	t.Helper()
+	if len(got.Notifications) != 2 || got.Notifications[0].Id != "n1" || !got.Notifications[1].Read {
+		t.Fatalf("unexpected notifications %+v", got.Notifications)
+	}
+	if got.Stats.Total != 10 || got.Stats.Unread != 4 || got.Stats.ReadToday != 2 {
+		t.Fatalf("stats %+v", got.Stats)
+	}
+	fc := got.FilterCounts
+	if fc.Messages != 1 || fc.Followers != 2 || fc.Alerts != 3 {
+		t.Fatalf("filter counts %+v", fc)
+	}
+	if fc.Updates != 4 || fc.All != 10 || fc.Unread != 4 {
+		t.Fatalf("filter counts %+v", fc)
+	}
+	for _, typ := range []string{"message", "user", "alert", "settings"} {
+		if !notificationHasArg(f, typ) {
+			t.Fatalf("count for type %q missing: %v", typ, f.args)
+		}
+	}
+}
+
+func TestNotificationRepositoryListFiltersAndEmpty(t *testing.T) {
+	ctx := context.Background()
+	dbEmpty, _ := newFakeDB(t)
+	emptyGot, err := (&NotificationRepository{db: dbEmpty}).ListForUser(ctx, "u1", models.NotificationFilter{Filter: "all"})
+	assertNotificationNoErr(t, err)
+	if emptyGot.Notifications == nil || len(emptyGot.Notifications) != 0 {
+		t.Fatalf("got %+v", emptyGot)
+	}
+
+	dbUnread, fUnread := newFakeDB(t)
+	_, err = (&NotificationRepository{db: dbUnread}).ListForUser(ctx, "u1", models.NotificationFilter{Filter: "unread"})
+	assertNotificationNoErr(t, err)
+	if !fUnread.sawQuery("ORDER BY", "Read", "false") {
+		t.Fatalf("list query should filter unread: %v", fUnread.queries)
+	}
+
+	dbType, fType := newFakeDB(t)
+	_, err = (&NotificationRepository{db: dbType}).ListForUser(ctx, "u1", models.NotificationFilter{Filter: "settings"})
+	assertNotificationNoErr(t, err)
+	if !fType.sawQuery("ORDER BY", "Type") || !notificationHasArg(fType, "settings") {
+		t.Fatalf("list query should filter by type: %v", fType.queries)
+	}
+}
+
+func TestNotificationRepositoryListSearch(t *testing.T) {
+	ctx := context.Background()
+	db, f := newFakeDB(t)
+	_, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Search: "  hello "})
+	assertNotificationNoErr(t, err)
+	if !f.sawQuery("ILIKE", "Title", "Description") || !notificationHasArg(f, "%hello%") {
+		t.Fatalf("trimmed search missing: %v %v", f.queries, f.args)
+	}
+
+	dbBlank, fBlank := newFakeDB(t)
+	_, err = (&NotificationRepository{db: dbBlank}).ListForUser(ctx, "u1", models.NotificationFilter{Search: "   "})
+	assertNotificationNoErr(t, err)
+	if fBlank.sawQuery("ILIKE") {
+		t.Fatalf("blank search should not filter: %v", fBlank.queries)
+	}
+}
+
+func TestNotificationRepositoryListLimits(t *testing.T) {
+	ctx := context.Background()
+	for _, limit := range []int{0, -3, 500} {
 		db, f := newFakeDB(t)
-		f.on("ORDER BY", notificationCols, notificationRow("n1", false), notificationRow("n2", true))
-		notificationCounts(f, 10, 4, 2, 1, 2, 3, 4)
-		got, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{})
-		if err != nil {
-			t.Fatal(err)
+		_, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Limit: limit})
+		assertNotificationNoErr(t, err)
+		if !notificationHasArg(f, int64(50)) && !f.sawQuery("LIMIT 50") {
+			t.Fatalf("limit %d should clamp to 50: %v %v", limit, f.queries, f.args)
 		}
-		if len(got.Notifications) != 2 || got.Notifications[0].Id != "n1" || !got.Notifications[1].Read {
-			t.Fatalf("unexpected notifications %+v", got.Notifications)
-		}
-		if got.Stats.Total != 10 || got.Stats.Unread != 4 || got.Stats.ReadToday != 2 {
-			t.Fatalf("stats %+v", got.Stats)
-		}
-		fc := got.FilterCounts
-		if fc.Messages != 1 || fc.Followers != 2 || fc.Alerts != 3 || fc.Updates != 4 || fc.All != 10 || fc.Unread != 4 {
-			t.Fatalf("filter counts %+v", fc)
-		}
-		for _, typ := range []string{"message", "user", "alert", "settings"} {
-			if !notificationHasArg(f, typ) {
-				t.Fatalf("count for type %q missing: %v", typ, f.args)
+	}
+	db, f := newFakeDB(t)
+	_, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Limit: 7})
+	assertNotificationNoErr(t, err)
+	if !notificationHasArg(f, int64(7)) && !f.sawQuery("LIMIT 7") {
+		t.Fatalf("limit 7 missing: %v %v", f.queries, f.args)
+	}
+}
+
+func TestNotificationRepositoryListReadTodayAndErrors(t *testing.T) {
+	ctx := context.Background()
+	db, f := newFakeDB(t)
+	_, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{})
+	assertNotificationNoErr(t, err)
+	y, m, d := time.Now().Date()
+	want := time.Date(y, m, d, 0, 0, 0, 0, time.Local).UTC()
+	if !hasBoundTime(f, want) {
+		t.Fatalf("start of day %v not bound", want)
+	}
+
+	dbErr1, fErr1 := newFakeDB(t)
+	fErr1.onErr("ORDER BY", notificationBoom)
+	got1, err := (&NotificationRepository{db: dbErr1}).ListForUser(ctx, "u1", models.NotificationFilter{})
+	if got1 != nil {
+		t.Fatalf("expected nil, got %+v", got1)
+	}
+	assertNotificationErrPrefix(t, err, notificationBoom, "list notifications")
+
+	dbErr2, fErr2 := newFakeDB(t)
+	fErr2.onErr("count(", notificationBoom)
+	got2, err := (&NotificationRepository{db: dbErr2}).ListForUser(ctx, "u1", models.NotificationFilter{})
+	if got2 != nil {
+		t.Fatalf("expected nil, got %+v", got2)
+	}
+	assertNotificationErrPrefix(t, err, notificationBoom, "count notifications")
+}
+
+func hasBoundTime(f *fakeDB, want time.Time) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, args := range f.args {
+		for _, a := range args {
+			if ts, ok := a.Value.(time.Time); ok && ts.Equal(want) {
+				return true
 			}
 		}
-	})
-	t.Run("empty result is an empty slice", func(t *testing.T) {
-		db, _ := newFakeDB(t)
-		got, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Filter: "all"})
-		if err != nil || got.Notifications == nil || len(got.Notifications) != 0 {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-	})
-	t.Run("unread filter", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if _, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Filter: "unread"}); err != nil {
-			t.Fatal(err)
-		}
-		if !f.sawQuery("ORDER BY", "Read", "false") {
-			t.Fatalf("list query should filter unread: %v", f.queries)
-		}
-	})
-	t.Run("type filter", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if _, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Filter: "settings"}); err != nil {
-			t.Fatal(err)
-		}
-		if !f.sawQuery("ORDER BY", "Type") || !notificationHasArg(f, "settings") {
-			t.Fatalf("list query should filter by type: %v", f.queries)
-		}
-	})
-	t.Run("search matches title and description", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if _, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Search: "  hello "}); err != nil {
-			t.Fatal(err)
-		}
-		if !f.sawQuery("ILIKE", "Title", "Description") || !notificationHasArg(f, "%hello%") {
-			t.Fatalf("trimmed search missing: %v %v", f.queries, f.args)
-		}
-	})
-	t.Run("blank search is ignored", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if _, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Search: "   "}); err != nil {
-			t.Fatal(err)
-		}
-		if f.sawQuery("ILIKE") {
-			t.Fatalf("blank search should not filter: %v", f.queries)
-		}
-	})
-	t.Run("limit is clamped to the default", func(t *testing.T) {
-		for _, limit := range []int{0, -3, 500} {
-			db, f := newFakeDB(t)
-			if _, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Limit: limit}); err != nil {
-				t.Fatal(err)
-			}
-			if !notificationHasArg(f, int64(50)) && !f.sawQuery("LIMIT 50") {
-				t.Fatalf("limit %d should clamp to 50: %v %v", limit, f.queries, f.args)
-			}
-		}
-	})
-	t.Run("a smaller limit is honoured", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if _, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{Limit: 7}); err != nil {
-			t.Fatal(err)
-		}
-		if !notificationHasArg(f, int64(7)) && !f.sawQuery("LIMIT 7") {
-			t.Fatalf("limit 7 missing: %v %v", f.queries, f.args)
-		}
-	})
-	t.Run("read-today count is bound to the start of the local day in UTC", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		if _, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{}); err != nil {
-			t.Fatal(err)
-		}
-		y, m, d := time.Now().Date()
-		want := time.Date(y, m, d, 0, 0, 0, 0, time.Local).UTC()
-		found := false
-		f.mu.Lock()
-		for _, args := range f.args {
-			for _, a := range args {
-				if ts, ok := a.Value.(time.Time); ok && ts.Equal(want) {
-					found = true
-				}
-			}
-		}
-		f.mu.Unlock()
-		if !found {
-			t.Fatalf("start of day %v not bound", want)
-		}
-	})
-	t.Run("list query error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("ORDER BY", notificationBoom)
-		got, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{})
-		if got != nil || !errors.Is(err, notificationBoom) || !strings.HasPrefix(err.Error(), "list notifications") {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-	})
-	t.Run("count query error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("count(", notificationBoom)
-		got, err := (&NotificationRepository{db: db}).ListForUser(ctx, "u1", models.NotificationFilter{})
-		if got != nil || !errors.Is(err, notificationBoom) || !strings.HasPrefix(err.Error(), "count notifications") {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-	})
+	}
+	return false
 }
 
 func TestNotificationRepositorySetRead(t *testing.T) {
 	ctx := context.Background()
-	t.Run("updates and returns the notification", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on("SELECT", notificationCols, notificationRow("n1", false))
-		got, err := (&NotificationRepository{db: db}).SetRead(ctx, "u1", "n1", true)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !got.Read || got.Id != "n1" || time.Since(got.UpdatedAt) > time.Minute {
-			t.Fatalf("unexpected notification %+v", got)
-		}
-		if !f.sawQuery("UPDATE", "Notification", "Read") || !notificationHasArg(f, true) {
-			t.Fatalf("update missing: %v", f.queries)
-		}
-	})
-	t.Run("can mark unread", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on("SELECT", notificationCols, notificationRow("n1", true))
-		got, err := (&NotificationRepository{db: db}).SetRead(ctx, "u1", "n1", false)
-		if err != nil || got.Read {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-	})
-	t.Run("not found for this user", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		got, err := (&NotificationRepository{db: db}).SetRead(ctx, "u1", "n1", true)
-		if got != nil || !errors.Is(err, ErrNotificationNotFound) {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-		if f.sawQuery("UPDATE") {
-			t.Fatal("must not update a missing notification")
-		}
-	})
-	t.Run("lookup error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("SELECT", notificationBoom)
-		_, err := (&NotificationRepository{db: db}).SetRead(ctx, "u1", "n1", true)
-		if !errors.Is(err, notificationBoom) || errors.Is(err, ErrNotificationNotFound) || !strings.HasPrefix(err.Error(), "get notification") {
-			t.Fatal(err)
-		}
-	})
-	t.Run("update error", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.on("SELECT", notificationCols, notificationRow("n1", false))
-		f.onErr("UPDATE", notificationBoom)
-		got, err := (&NotificationRepository{db: db}).SetRead(ctx, "u1", "n1", true)
-		if got != nil || !errors.Is(err, notificationBoom) || !strings.HasPrefix(err.Error(), "update notification") {
-			t.Fatalf("got %+v, %v", got, err)
-		}
-	})
+	db, f := newFakeDB(t)
+	f.on("SELECT", notificationCols, notificationRow("n1", false))
+	got, err := (&NotificationRepository{db: db}).SetRead(ctx, "u1", "n1", true)
+	assertNotificationNoErr(t, err)
+	if !got.Read || got.Id != "n1" || time.Since(got.UpdatedAt) > time.Minute {
+		t.Fatalf("unexpected notification %+v", got)
+	}
+	if !f.sawQuery("UPDATE", "Notification", "Read") || !notificationHasArg(f, true) {
+		t.Fatalf("update missing: %v", f.queries)
+	}
+
+	dbUnread, fUnread := newFakeDB(t)
+	fUnread.on("SELECT", notificationCols, notificationRow("n1", true))
+	unreadGot, err := (&NotificationRepository{db: dbUnread}).SetRead(ctx, "u1", "n1", false)
+	assertNotificationNoErr(t, err)
+	if unreadGot.Read {
+		t.Fatalf("got %+v", unreadGot)
+	}
+}
+
+func TestNotificationRepositorySetReadErrors(t *testing.T) {
+	ctx := context.Background()
+	dbMiss, fMiss := newFakeDB(t)
+	got, err := (&NotificationRepository{db: dbMiss}).SetRead(ctx, "u1", "n1", true)
+	if got != nil || fMiss.sawQuery("UPDATE") {
+		t.Fatalf("got %+v, queries=%v", got, fMiss.queries)
+	}
+	assertNotificationErrPrefix(t, err, ErrNotificationNotFound, "")
+
+	dbLookup, fLookup := newFakeDB(t)
+	fLookup.onErr("SELECT", notificationBoom)
+	_, err = (&NotificationRepository{db: dbLookup}).SetRead(ctx, "u1", "n1", true)
+	if errors.Is(err, ErrNotificationNotFound) {
+		t.Fatalf("unexpected not-found: %v", err)
+	}
+	assertNotificationErrPrefix(t, err, notificationBoom, "get notification")
+
+	dbUpd, fUpd := newFakeDB(t)
+	fUpd.on("SELECT", notificationCols, notificationRow("n1", false))
+	fUpd.onErr("UPDATE", notificationBoom)
+	gotUpd, err := (&NotificationRepository{db: dbUpd}).SetRead(ctx, "u1", "n1", true)
+	if gotUpd != nil {
+		t.Fatalf("expected nil, got %+v", gotUpd)
+	}
+	assertNotificationErrPrefix(t, err, notificationBoom, "update notification")
 }
 
 func TestNotificationRepositoryMarkAllRead(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onExec("UPDATE", 3)
-	if err := (&NotificationRepository{db: db}).MarkAllRead(ctx, "u1"); err != nil {
-		t.Fatal(err)
-	}
+	assertNotificationNoErr(t, (&NotificationRepository{db: db}).MarkAllRead(ctx, "u1"))
 	if !f.sawQuery("UPDATE", "Notification", "Read", "UserId") || !notificationHasArg(f, "u1") || !notificationHasArg(f, true) {
 		t.Fatalf("unexpected statements: %v %v", f.queries, f.args)
 	}
 
-	db, f = newFakeDB(t)
-	f.onErr("UPDATE", notificationBoom)
-	if err := (&NotificationRepository{db: db}).MarkAllRead(ctx, "u1"); !errors.Is(err, notificationBoom) {
-		t.Fatal(err)
-	}
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr("UPDATE", notificationBoom)
+	assertNotificationErrPrefix(t, (&NotificationRepository{db: dbErr}).MarkAllRead(ctx, "u1"), notificationBoom, "")
 }
 
 func TestNotificationRepositoryCreate(t *testing.T) {
 	ctx := context.Background()
-	t.Run("stamps id and timestamps", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		n := &models.Notification{UserId: "u1", Type: "alert", Title: "T", Description: "d"}
-		if err := (&NotificationRepository{db: db}).Create(ctx, n); err != nil {
-			t.Fatal(err)
+	db, f := newFakeDB(t)
+	n := &models.Notification{UserId: "u1", Type: "alert", Title: "T", Description: "d"}
+	assertNotificationNoErr(t, (&NotificationRepository{db: db}).Create(ctx, n))
+	if n.Id == "" || n.CreatedAt.IsZero() {
+		t.Fatalf("not stamped: %+v", n)
+	}
+	if !n.CreatedAt.Equal(n.UpdatedAt) || n.CreatedAt.Location() != time.UTC {
+		t.Fatalf("bad timestamps: %+v", n)
+	}
+	if !f.sawQuery("INSERT INTO", "Notification") || !notificationHasArg(f, n.Id) {
+		t.Fatalf("missing insert: %v", f.queries)
+	}
+
+	dbFixed, _ := newFakeDB(t)
+	fixed := &models.Notification{Id: "fixed", UserId: "u1", Type: "alert", Title: "T"}
+	assertNotificationNoErr(t, (&NotificationRepository{db: dbFixed}).Create(ctx, fixed))
+	if fixed.Id != "fixed" {
+		t.Fatalf("got %+v", fixed)
+	}
+}
+
+func TestNotificationRepositoryCreateValidationAndError(t *testing.T) {
+	ctx := context.Background()
+	db, f := newFakeDB(t)
+	repo := &NotificationRepository{db: db}
+	for _, n := range []*models.Notification{
+		{Type: "alert", Title: "T"},
+		{UserId: "u1", Title: "T"},
+		{UserId: "u1", Type: "alert"},
+	} {
+		if err := repo.Create(ctx, n); err == nil || err.Error() != "userId, type and title are required" {
+			t.Fatalf("%+v: %v", n, err)
 		}
-		if n.Id == "" || n.CreatedAt.IsZero() || !n.CreatedAt.Equal(n.UpdatedAt) || n.CreatedAt.Location() != time.UTC {
-			t.Fatalf("not stamped: %+v", n)
-		}
-		if !f.sawQuery("INSERT INTO", "Notification") || !notificationHasArg(f, n.Id) {
-			t.Fatalf("missing insert: %v", f.queries)
-		}
-	})
-	t.Run("keeps a caller supplied id", func(t *testing.T) {
-		db, _ := newFakeDB(t)
-		n := &models.Notification{Id: "fixed", UserId: "u1", Type: "alert", Title: "T"}
-		if err := (&NotificationRepository{db: db}).Create(ctx, n); err != nil || n.Id != "fixed" {
-			t.Fatalf("got %+v, %v", n, err)
-		}
-	})
-	t.Run("requires user, type and title", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		repo := &NotificationRepository{db: db}
-		for _, n := range []*models.Notification{
-			{Type: "alert", Title: "T"},
-			{UserId: "u1", Title: "T"},
-			{UserId: "u1", Type: "alert"},
-		} {
-			if err := repo.Create(ctx, n); err == nil || err.Error() != "userId, type and title are required" {
-				t.Fatalf("%+v: %v", n, err)
-			}
-		}
-		if f.queryCount() != 0 {
-			t.Fatalf("invalid notifications must not reach the database: %v", f.queries)
-		}
-	})
-	t.Run("database error is returned", func(t *testing.T) {
-		db, f := newFakeDB(t)
-		f.onErr("INSERT", notificationBoom)
-		err := (&NotificationRepository{db: db}).Create(ctx, &models.Notification{UserId: "u1", Type: "alert", Title: "T"})
-		if !errors.Is(err, notificationBoom) {
-			t.Fatal(err)
-		}
-	})
+	}
+	if f.queryCount() != 0 {
+		t.Fatalf("invalid notifications must not reach the database: %v", f.queries)
+	}
+
+	dbErr, fErr := newFakeDB(t)
+	fErr.onErr("INSERT", notificationBoom)
+	err := (&NotificationRepository{db: dbErr}).Create(ctx, &models.Notification{UserId: "u1", Type: "alert", Title: "T"})
+	assertNotificationErrPrefix(t, err, notificationBoom, "")
 }

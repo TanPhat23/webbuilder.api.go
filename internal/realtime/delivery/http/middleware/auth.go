@@ -134,15 +134,28 @@ func fetchMappedUser(ctx context.Context, userClient *user.Client, subject strin
 		logger.Default().Debugf("AuthMiddleware: failed to fetch user from Clerk: %v", err)
 		return mapped
 	}
+	payload, ok := decodeClerkUserPayload(usr)
+	if !ok {
+		return mapped
+	}
+	applyClerkUserFields(mapped, payload)
+	return mapped
+}
+
+func decodeClerkUserPayload(usr any) (clerkUserPayload, bool) {
 	// Marshal through JSON so mapping does not depend on exact Clerk SDK field pointer shapes.
 	raw, err := json.Marshal(usr)
 	if err != nil {
-		return mapped
+		return clerkUserPayload{}, false
 	}
 	var payload clerkUserPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return mapped
+		return clerkUserPayload{}, false
 	}
+	return payload, true
+}
+
+func applyClerkUserFields(mapped *entity.User, payload clerkUserPayload) {
 	if len(payload.EmailAddresses) > 0 && payload.EmailAddresses[0].EmailAddress != "" {
 		mapped.Email = payload.EmailAddresses[0].EmailAddress
 	}
@@ -155,5 +168,4 @@ func fetchMappedUser(ctx context.Context, userClient *user.Client, subject strin
 	if payload.ImageURL != "" {
 		mapped.ImageUrl = &payload.ImageURL
 	}
-	return mapped
 }

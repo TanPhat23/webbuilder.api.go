@@ -22,40 +22,68 @@ func NewLogicRepository(db *gorm.DB) *LogicRepository { return &LogicRepository{
 // transaction, preserving its value and advancing both document revisions.
 func (r *LogicRepository) Move(ctx context.Context, projectID, pageID, userID, kind, name, to string) (logic.Revisioned, logic.Revisioned, error) {
 	var none logic.Revisioned
-	key, err := logicSectionKey(kind)
+	key, err := validateMoveParams(kind, pageID, name, to)
 	if err != nil {
 		return none, none, err
 	}
-	if pageID == "" || name == "" || (to != "project" && to != "page") {
-		return none, none, fmt.Errorf("%w: invalid move", domainErrors.ErrValidation)
-	}
-
 	tx, cleanup, err := r.beginTx(ctx)
 	if err != nil {
 		return none, none, err
 	}
 	defer cleanup()
 
-	project, err := lockAndAuthorizeProject(ctx, tx, projectID, userID)
+	project, pages, page, err := loadMoveTargetDocs(ctx, tx, projectID, pageID, userID)
 	if err != nil {
 		return none, none, err
+	}
+	if err := applyAndValidateMove(project, pages, page, key, name, to); err != nil {
+		return none, none, err
+	}
+	return commitMovedLogic(ctx, tx, projectID, pageID, project, page)
+}
+
+func validateMoveParams(kind, pageID, name, to string) (string, error) {
+	key, err := logicSectionKey(kind)
+	if err != nil {
+		return "", err
+	}
+	if pageID == "" || name == "" {
+		return "", fmt.Errorf("%w: invalid move", domainErrors.ErrValidation)
+	}
+	if to != "project" && to != "page" {
+		return "", fmt.Errorf("%w: invalid move", domainErrors.ErrValidation)
+	}
+	return key, nil
+}
+
+func loadMoveTargetDocs(ctx context.Context, tx *sql.Tx, projectID, pageID, userID string) (logic.Document, map[string]logic.Document, logic.Document, error) {
+	project, err := lockAndAuthorizeProject(ctx, tx, projectID, userID)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	pages, err := loadProjectPages(ctx, tx, projectID)
 	if err != nil {
-		return none, none, err
+		return nil, nil, nil, err
 	}
 	page, ok := pages[pageID]
 	if !ok {
-		return none, none, domainErrors.ErrNotFound
+		return nil, nil, nil, domainErrors.ErrNotFound
 	}
+	return project, pages, page, nil
+}
 
+func applyAndValidateMove(project logic.Document, pages map[string]logic.Document, page logic.Document, key, name, to string) error {
 	if err := transferLogicEntry(project, page, key, name, to); err != nil {
-		return none, none, err
+		return err
 	}
 	if err := logic.ValidateScopes(project, pages); err != nil {
-		return none, none, fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
+		return fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
 	}
+	return nil
+}
 
+func commitMovedLogic(ctx context.Context, tx *sql.Tx, projectID, pageID string, project, page logic.Document) (logic.Revisioned, logic.Revisioned, error) {
+	var none logic.Revisioned
 	projectRevision, err := saveProjectLogic(ctx, tx, projectID, project)
 	if err != nil {
 		return none, none, err
@@ -210,37 +238,11 @@ func (r *LogicRepository) Apply(ctx context.Context, projectID, pageID, userID s
 		return none, err
 	}
 
-	current := project
-	if pageID != "" {
-		var ok bool
-		current, ok = pages[pageID]
-		if !ok {
-			return none, fmt.Errorf("%w: page not found in project", domainErrors.ErrNotFound)
-		}
-	}
-	var paths [][]string
-	if len(nullPaths) > 0 {
-		paths = nullPaths[0]
-	}
-	updated, err := logic.MergeWithNulls(current, patch, paths)
+	updated, err := mergeScopedLogicDoc(project, pages, pageID, patch, firstNullPaths(nullPaths))
 	if err != nil {
-		return none, fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
+		return none, err
 	}
-	if pageID == "" {
-		project = updated
-	} else {
-		pages[pageID] = updated
-	}
-	if err := logic.ValidateScopes(project, pages); err != nil {
-		return none, fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
-	}
-
-	var revision int64
-	if pageID == "" {
-		revision, err = saveProjectLogic(ctx, tx, projectID, updated)
-	} else {
-		revision, err = savePageLogic(ctx, tx, projectID, pageID, updated)
-	}
+	revision, err := saveScopedLogicDoc(ctx, tx, projectID, pageID, updated)
 	if err != nil {
 		return none, err
 	}
@@ -248,6 +250,51 @@ func (r *LogicRepository) Apply(ctx context.Context, projectID, pageID, userID s
 		return none, err
 	}
 	return logic.Revisioned{Doc: updated, Revision: revision}, nil
+}
+
+func firstNullPaths(nullPaths [][][]string) [][]string {
+	if len(nullPaths) > 0 {
+		return nullPaths[0]
+	}
+	return nil
+}
+
+func mergeScopedLogicDoc(project logic.Document, pages map[string]logic.Document, pageID string, patch map[string]any, paths [][]string) (logic.Document, error) {
+	current, err := selectLogicScope(project, pages, pageID)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := logic.MergeWithNulls(current, patch, paths)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
+	}
+	if pageID == "" {
+		project = updated
+	} else {
+		pages[pageID] = updated
+	}
+	if err := logic.ValidateScopes(project, pages); err != nil {
+		return nil, fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
+	}
+	return updated, nil
+}
+
+func selectLogicScope(project logic.Document, pages map[string]logic.Document, pageID string) (logic.Document, error) {
+	if pageID == "" {
+		return project, nil
+	}
+	current, ok := pages[pageID]
+	if !ok {
+		return nil, fmt.Errorf("%w: page not found in project", domainErrors.ErrNotFound)
+	}
+	return current, nil
+}
+
+func saveScopedLogicDoc(ctx context.Context, tx *sql.Tx, projectID, pageID string, updated logic.Document) (int64, error) {
+	if pageID == "" {
+		return saveProjectLogic(ctx, tx, projectID, updated)
+	}
+	return savePageLogic(ctx, tx, projectID, pageID, updated)
 }
 
 // Get reads both scopes while holding a project share lock, so no concurrent

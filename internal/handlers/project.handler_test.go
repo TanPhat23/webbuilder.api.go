@@ -109,16 +109,23 @@ func projectHandlerApp(user string, svc *projectHandlerStub) *fiber.App {
 	})
 }
 
+func expectKitStatus(t *testing.T, r kitReply, want int, expect string) {
+	t.Helper()
+	if expect == "" {
+		kitExpect(t, r, want)
+		return
+	}
+	kitExpect(t, r, want, expect)
+}
+
 func TestProjectListHandlers(t *testing.T) {
 	for _, path := range []string{"/projects", "/my-projects"} {
-		t.Run(path, func(t *testing.T) {
-			svc := &projectHandlerStub{}
-			kitExpect(t, kitSend(t, projectHandlerApp("u1", svc), "GET", path, ""), 200, "Site", "u1")
-			if svc.gotUser != "u1" {
-				t.Fatalf("user = %q", svc.gotUser)
-			}
-			kitExpect(t, kitSend(t, projectHandlerApp("", &projectHandlerStub{}), "GET", path, ""), 401)
-		})
+		svc := &projectHandlerStub{}
+		kitExpect(t, kitSend(t, projectHandlerApp("u1", svc), "GET", path, ""), 200, "Site", "u1")
+		if svc.gotUser != "u1" {
+			t.Fatalf("user = %q", svc.gotUser)
+		}
+		kitExpect(t, kitSend(t, projectHandlerApp("", &projectHandlerStub{}), "GET", path, ""), 401)
 	}
 	kitExpect(t, kitSend(t, projectHandlerApp("u1", &projectHandlerStub{err: errInternal}), "GET", "/projects", ""), 500, "Failed to retrieve projects")
 	kitExpect(t, kitSend(t, projectHandlerApp("u1", &projectHandlerStub{err: errInternal}), "GET", "/my-projects", ""), 500, "Failed to retrieve projects by user ID")
@@ -153,21 +160,22 @@ func TestProjectReadHandlerStatuses(t *testing.T) {
 		{"access failure", "u1", "/projects/p1/access", errInternal, 500, "Failed to check project access"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			svc := &projectHandlerStub{err: tc.err}
-			r := kitSend(t, projectHandlerApp(tc.user, svc), "GET", tc.path, "")
-			if tc.expect == "" {
-				kitExpect(t, r, tc.want)
-			} else {
-				kitExpect(t, r, tc.want, tc.expect)
-			}
-			if tc.want == 200 && tc.user != "" && (svc.gotProject != "p1" || svc.gotUser != "u1") {
-				t.Fatalf("service got project=%q user=%q", svc.gotProject, svc.gotUser)
-			}
-			if tc.name == "public ok" && svc.gotPublic != "p1" {
-				t.Fatalf("public id = %q", svc.gotPublic)
-			}
-		})
+		svc := &projectHandlerStub{err: tc.err}
+		r := kitSend(t, projectHandlerApp(tc.user, svc), "GET", tc.path, "")
+		expectKitStatus(t, r, tc.want, tc.expect)
+		assertReadCallTracked(t, tc.name, tc.user, tc.want, svc)
+	}
+}
+
+func assertReadCallTracked(t *testing.T, name, user string, want int, svc *projectHandlerStub) {
+	t.Helper()
+	if want == 200 && user != "" {
+		if svc.gotProject != "p1" || svc.gotUser != "u1" {
+			t.Fatalf("%s: service got project=%q user=%q", name, svc.gotProject, svc.gotUser)
+		}
+	}
+	if name == "public ok" && svc.gotPublic != "p1" {
+		t.Fatalf("public id = %q", svc.gotPublic)
 	}
 }
 
@@ -191,19 +199,44 @@ func TestUpdateProjectMapsEveryField(t *testing.T) {
 	if svc.gotProject != "p1" || svc.gotUser != "u1" || p == nil {
 		t.Fatalf("service got project=%q user=%q sent=%v", svc.gotProject, svc.gotUser, p)
 	}
-	if p.Name != "Renamed" || p.Description == nil || *p.Description != "About" || !p.Published || p.Subdomain == nil || *p.Subdomain != "mysite" {
+	assertUpdatedProjectScalars(t, p)
+	assertUpdatedProjectJSON(t, p)
+}
+
+func assertUpdatedProjectScalars(t *testing.T, p *models.Project) {
+	t.Helper()
+	if p.Name != "Renamed" || !p.Published {
 		t.Fatalf("scalar fields = %+v", p)
 	}
-	if p.Styles == nil || string(*p.Styles) != `{"bg":"red"}` || p.Header == nil || string(*p.Header) != `{"h":1}` {
-		t.Fatalf("styles=%v header=%v", p.Styles, p.Header)
+	if p.Description == nil || *p.Description != "About" {
+		t.Fatalf("description = %v", p.Description)
+	}
+	if p.Subdomain == nil || *p.Subdomain != "mysite" {
+		t.Fatalf("subdomain = %v", p.Subdomain)
+	}
+}
+
+func assertUpdatedProjectJSON(t *testing.T, p *models.Project) {
+	t.Helper()
+	if p.Styles == nil || string(*p.Styles) != `{"bg":"red"}` {
+		t.Fatalf("styles = %v", p.Styles)
+	}
+	if p.Header == nil || string(*p.Header) != `{"h":1}` {
+		t.Fatalf("header = %v", p.Header)
 	}
 }
 
 func TestUpdateProjectPartialAndUnpublish(t *testing.T) {
 	svc := &projectHandlerStub{}
 	kitExpect(t, kitSend(t, projectHandlerApp("u1", svc), "PATCH", "/projects/p1", `{"published":false}`), 200)
-	if svc.sent.Published || svc.sent.Name != "" || svc.sent.Description != nil || svc.sent.Subdomain != nil || svc.sent.Styles != nil || svc.sent.Header != nil {
+	if svc.sent.Published || svc.sent.Name != "" {
 		t.Fatalf("only published should be set: %+v", svc.sent)
+	}
+	if svc.sent.Description != nil || svc.sent.Subdomain != nil {
+		t.Fatalf("description/subdomain must be nil: %+v", svc.sent)
+	}
+	if svc.sent.Styles != nil || svc.sent.Header != nil {
+		t.Fatalf("styles/header must be nil: %+v", svc.sent)
 	}
 	// A non-object style value is kept as raw JSON.
 	svc = &projectHandlerStub{}
@@ -232,50 +265,62 @@ func TestUpdateProjectRejections(t *testing.T) {
 		{"failure", "u1", "/projects/p1", `{"name":"a"}`, errInternal, 500, "Failed to update project"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			svc := &projectHandlerStub{err: tc.err}
-			r := kitSend(t, projectHandlerApp(tc.user, svc), "PATCH", tc.path, tc.body)
-			if tc.expect == "" {
-				kitExpect(t, r, tc.want)
-			} else {
-				kitExpect(t, r, tc.want, tc.expect)
-			}
-			if tc.err == nil && svc.sent != nil {
-				t.Fatalf("service reached for a rejected request: %+v", svc.sent)
-			}
-		})
+		svc := &projectHandlerStub{err: tc.err}
+		r := kitSend(t, projectHandlerApp(tc.user, svc), "PATCH", tc.path, tc.body)
+		expectKitStatus(t, r, tc.want, tc.expect)
+		if tc.err == nil && svc.sent != nil {
+			t.Fatalf("%s: service reached for a rejected request: %+v", tc.name, svc.sent)
+		}
 	}
 }
 
-func TestCreateProject(t *testing.T) {
-	t.Run("defaults styles to an empty object and owns the project by the caller", func(t *testing.T) {
-		svc := &projectHandlerStub{}
-		r := kitSend(t, projectHandlerApp("u1", svc), "POST", "/projects", `{"name":"Blog"}`)
-		kitExpect(t, r, 201, "Blog", "generated")
-		p := svc.sent
-		if p.OwnerId != "u1" || p.Name != "Blog" || p.Published || p.Header != nil || p.Styles == nil || string(*p.Styles) != "{}" {
-			t.Fatalf("sent %+v", p)
-		}
-	})
-	t.Run("forwards every field", func(t *testing.T) {
-		svc := &projectHandlerStub{}
-		id := uuid.NewString()
-		body := `{"id":"` + id + `","name":"Blog","description":"d","subdomain":"myblog","published":true,"styles":{"a":1},"header":{"b":2}}`
-		r := kitSend(t, projectHandlerApp("u1", svc), "POST", "/projects", body)
-		kitExpect(t, r, 201, id)
-		p := svc.sent
-		if p.ID != id || p.Description == nil || *p.Description != "d" || p.Subdomain == nil || *p.Subdomain != "myblog" || !p.Published {
-			t.Fatalf("sent %+v", p)
-		}
-		if string(*p.Styles) != `{"a":1}` || p.Header == nil || string(*p.Header) != `{"b":2}` {
-			t.Fatalf("styles=%s header=%v", *p.Styles, p.Header)
-		}
-		var got models.Project
-		r.decode(t, &got)
-		if got.ID != id || got.OwnerId != "u1" {
-			t.Fatalf("response %+v", got)
-		}
-	})
+func TestCreateProjectDefaults(t *testing.T) {
+	svc := &projectHandlerStub{}
+	r := kitSend(t, projectHandlerApp("u1", svc), "POST", "/projects", `{"name":"Blog"}`)
+	kitExpect(t, r, 201, "Blog", "generated")
+	p := svc.sent
+	if p.OwnerId != "u1" || p.Name != "Blog" || p.Published {
+		t.Fatalf("sent %+v", p)
+	}
+	if p.Header != nil || p.Styles == nil || string(*p.Styles) != "{}" {
+		t.Fatalf("styles/header mismatch %+v", p)
+	}
+}
+
+func TestCreateProjectForwardsEveryField(t *testing.T) {
+	svc := &projectHandlerStub{}
+	id := uuid.NewString()
+	body := `{"id":"` + id + `","name":"Blog","description":"d","subdomain":"myblog","published":true,"styles":{"a":1},"header":{"b":2}}`
+	r := kitSend(t, projectHandlerApp("u1", svc), "POST", "/projects", body)
+	kitExpect(t, r, 201, id)
+	assertCreatedProjectForwarded(t, svc.sent, id)
+	var got models.Project
+	r.decode(t, &got)
+	if got.ID != id || got.OwnerId != "u1" {
+		t.Fatalf("response %+v", got)
+	}
+}
+
+func assertCreatedProjectForwarded(t *testing.T, p *models.Project, id string) {
+	t.Helper()
+	if p.ID != id || !p.Published {
+		t.Fatalf("sent %+v", p)
+	}
+	if p.Description == nil || *p.Description != "d" {
+		t.Fatalf("description mismatch %+v", p)
+	}
+	if p.Subdomain == nil || *p.Subdomain != "myblog" {
+		t.Fatalf("subdomain mismatch %+v", p)
+	}
+	if p.Styles == nil || string(*p.Styles) != `{"a":1}` {
+		t.Fatalf("styles mismatch %+v", p)
+	}
+	if p.Header == nil || string(*p.Header) != `{"b":2}` {
+		t.Fatalf("header mismatch %+v", p)
+	}
+}
+
+func TestCreateProjectRejections(t *testing.T) {
 	for _, tc := range []struct {
 		name, user, body string
 		err              error
@@ -289,17 +334,11 @@ func TestCreateProject(t *testing.T) {
 		{"non alphanumeric subdomain", "u1", `{"name":"a","subdomain":"my-site"}`, nil, 0, ""},
 		{"failure", "u1", `{"name":"a"}`, errInternal, 500, "Failed to create project"},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			svc := &projectHandlerStub{err: tc.err}
-			r := kitSend(t, projectHandlerApp(tc.user, svc), "POST", "/projects", tc.body)
-			if tc.expect == "" {
-				kitExpect(t, r, tc.want)
-			} else {
-				kitExpect(t, r, tc.want, tc.expect)
-			}
-			if tc.err == nil && svc.sent != nil {
-				t.Fatal("project created for a rejected request")
-			}
-		})
+		svc := &projectHandlerStub{err: tc.err}
+		r := kitSend(t, projectHandlerApp(tc.user, svc), "POST", "/projects", tc.body)
+		expectKitStatus(t, r, tc.want, tc.expect)
+		if tc.err == nil && svc.sent != nil {
+			t.Fatalf("%s: project created for a rejected request", tc.name)
+		}
 	}
 }

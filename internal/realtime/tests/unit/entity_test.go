@@ -47,83 +47,66 @@ func TestClient_RoomID(t *testing.T) {
 	}
 }
 
-func TestMessageFactory_Create(t *testing.T) {
-	projectID := "test-project"
-	pageID := "test-page"
+func TestMessageFactory_CreateWithPayload(t *testing.T) {
+	projectID, pageID := "test-project", "test-page"
 	f := wsentity.NewMessageFactory(projectID, pageID)
+	payload := domainEntity.PayloadPresence{UserID: "user-123", UserName: "Tester"}
+	msg, err := f.Create(domainEntity.TypePresence, payload)
+	if err != nil {
+		t.Fatalf("failed to create message: %v", err)
+	}
+	if msg.Type != domainEntity.TypePresence || msg.ProjectID != projectID {
+		t.Errorf("unexpected header: %+v", msg)
+	}
+	if msg.PageID != pageID {
+		t.Errorf("expected pageID %s, got %s", pageID, msg.PageID)
+	}
+	var decoded domainEntity.PayloadPresence
+	if err := json.Unmarshal(msg.Payload, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal payload: %v", err)
+	}
+	if decoded.UserID != payload.UserID || decoded.UserName != payload.UserName {
+		t.Errorf("payload data mismatch")
+	}
+}
 
-	t.Run("create with payload", func(t *testing.T) {
-		payload := domainEntity.PayloadPresence{
-			UserID:   "user-123",
-			UserName: "Tester",
-		}
-		msg, err := f.Create(domainEntity.TypePresence, payload)
-		if err != nil {
-			t.Fatalf("failed to create message: %v", err)
-		}
-
-		if msg.Type != domainEntity.TypePresence {
-			t.Errorf("expected type %s, got %s", domainEntity.TypePresence, msg.Type)
-		}
-		if msg.ProjectID != projectID {
-			t.Errorf("expected projectID %s, got %s", projectID, msg.ProjectID)
-		}
-		if msg.PageID != pageID {
-			t.Errorf("expected pageID %s, got %s", pageID, msg.PageID)
-		}
-
-		var decoded domainEntity.PayloadPresence
-		if err := json.Unmarshal(msg.Payload, &decoded); err != nil {
-			t.Fatalf("failed to unmarshal payload: %v", err)
-		}
-		if decoded.UserID != payload.UserID || decoded.UserName != payload.UserName {
-			t.Errorf("payload data mismatch")
-		}
-	})
-
-	t.Run("create without payload", func(t *testing.T) {
-		msg, err := f.Create(domainEntity.TypeLeave, nil)
-		if err != nil {
-			t.Fatalf("failed to create message: %v", err)
-		}
-		if msg.Payload != nil {
-			t.Errorf("expected nil payload, got %v", msg.Payload)
-		}
-	})
+func TestMessageFactory_CreateWithoutPayload(t *testing.T) {
+	f := wsentity.NewMessageFactory("test-project", "test-page")
+	msg, err := f.Create(domainEntity.TypeLeave, nil)
+	if err != nil {
+		t.Fatalf("failed to create message: %v", err)
+	}
+	if msg.Payload != nil {
+		t.Errorf("expected nil payload, got %v", msg.Payload)
+	}
 }
 
 func TestMessageFactory_Helpers(t *testing.T) {
 	f := wsentity.NewMessageFactory("p1", "pg1")
+	id := "el-delete-id"
+	msg, err := f.DeleteElement(id)
+	if err != nil || msg.Type != domainEntity.TypeElementDelete {
+		t.Fatalf("DeleteElement failed: %v %+v", err, msg)
+	}
+	var delPayload domainEntity.PayloadElementDelete
+	if err := json.Unmarshal(msg.Payload, &delPayload); err != nil {
+		t.Fatalf("unmarshal delete payload: %v", err)
+	}
+	if delPayload.ID != id {
+		t.Errorf("expected id %s, got %s", id, delPayload.ID)
+	}
 
-	t.Run("ElementDelete", func(t *testing.T) {
-		id := "el-delete-id"
-		msg, _ := f.DeleteElement(id)
-		if msg.Type != domainEntity.TypeElementDelete {
-			t.Errorf("wrong type: %s", msg.Type)
-		}
-
-		var payload domainEntity.PayloadElementDelete
-		json.Unmarshal(msg.Payload, &payload)
-		if payload.ID != id {
-			t.Errorf("expected id %s, got %s", id, payload.ID)
-		}
-	})
-
-	t.Run("Error", func(t *testing.T) {
-		code := "TEST_ERROR"
-		errMsg := "something went wrong"
-		msg := f.Error(code, errMsg)
-
-		if msg.Type != domainEntity.TypeError {
-			t.Errorf("wrong type: %s", msg.Type)
-		}
-
-		var payload domainEntity.PayloadError
-		json.Unmarshal(msg.Payload, &payload)
-		if payload.Code != code || payload.Message != errMsg {
-			t.Errorf("unexpected error payload: %+v", payload)
-		}
-	})
+	errMsg := f.Error("TEST_ERROR", "something went wrong")
+	if errMsg.Type != domainEntity.TypeError {
+		t.Errorf("wrong type: %s", errMsg.Type)
+	}
+	var errPayload domainEntity.PayloadError
+	if err := json.Unmarshal(errMsg.Payload, &errPayload); err != nil {
+		t.Fatalf("unmarshal error payload: %v", err)
+	}
+	if errPayload.Code != "TEST_ERROR" || errPayload.Message != "something went wrong" {
+		t.Errorf("unexpected error payload: %+v", errPayload)
+	}
 }
 
 func TestDecodePayload(t *testing.T) {
@@ -142,64 +125,46 @@ func TestDecodePayload(t *testing.T) {
 	}
 }
 
+func assertPresenceEntry(t *testing.T, u domainEntity.UserPresence, id, name string, cx, cy float64, wantElem *string) {
+	t.Helper()
+	if u.UserID != id || u.UserName != name {
+		t.Fatalf("unexpected user identity: %+v", u)
+	}
+	if u.Presence.CursorX != cx || u.Presence.CursorY != cy {
+		t.Fatalf("unexpected coords: %+v", u.Presence)
+	}
+	if wantElem == nil {
+		if u.Presence.ElementID != nil {
+			t.Fatalf("expected nil elementId, got %+v", u.Presence)
+		}
+		return
+	}
+	if u.Presence.ElementID == nil || *u.Presence.ElementID != *wantElem {
+		t.Fatalf("expected elementId %q, got %+v", *wantElem, u.Presence)
+	}
+}
+
 func TestMessageFactory_SyncPage_SerializesUserPresence(t *testing.T) {
 	f := wsentity.NewMessageFactory("p1", "pg1")
-
-	// Prepare two user presences (one without elementId, one with elementId)
 	elem := "elem-42"
 	users := []domainEntity.UserPresence{
-		{
-			UserID:   "user-1",
-			UserName: "Tester",
-			Presence: domainEntity.Presence{
-				CursorX:   0.12,
-				CursorY:   0.34,
-				ElementID: nil,
-			},
-		},
-		{
-			UserID:   "user-2",
-			UserName: "Bob",
-			Presence: domainEntity.Presence{
-				CursorX:   0.56,
-				CursorY:   0.78,
-				ElementID: &elem,
-			},
-		},
+		{UserID: "user-1", UserName: "Tester", Presence: domainEntity.Presence{CursorX: 0.12, CursorY: 0.34}},
+		{UserID: "user-2", UserName: "Bob", Presence: domainEntity.Presence{CursorX: 0.56, CursorY: 0.78, ElementID: &elem}},
 	}
 
 	msg, err := f.SyncPage(nil, nil, users)
 	if err != nil {
 		t.Fatalf("SyncPage failed: %v", err)
 	}
-
 	var payload domainEntity.PayloadSync
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 		t.Fatalf("failed to unmarshal payload: %v", err)
 	}
-
 	if len(payload.Users) != 2 {
 		t.Fatalf("expected 2 users, got %d", len(payload.Users))
 	}
-
-	u0 := payload.Users[0]
-	if u0.UserID != "user-1" || u0.UserName != "Tester" {
-		t.Fatalf("unexpected user0: %+v", u0)
-	}
-	if u0.Presence.CursorX != 0.12 || u0.Presence.CursorY != 0.34 || u0.Presence.ElementID != nil {
-		t.Fatalf("unexpected presence for user0: %+v", u0.Presence)
-	}
-
-	u1 := payload.Users[1]
-	if u1.UserID != "user-2" || u1.UserName != "Bob" {
-		t.Fatalf("unexpected user1: %+v", u1)
-	}
-	if u1.Presence.CursorX != 0.56 || u1.Presence.CursorY != 0.78 {
-		t.Fatalf("unexpected presence coords for user1: %+v", u1.Presence)
-	}
-	if u1.Presence.ElementID == nil || *u1.Presence.ElementID != "elem-42" {
-		t.Fatalf("unexpected presence elementId for user1: %+v", u1.Presence)
-	}
+	assertPresenceEntry(t, payload.Users[0], "user-1", "Tester", 0.12, 0.34, nil)
+	assertPresenceEntry(t, payload.Users[1], "user-2", "Bob", 0.56, 0.78, &elem)
 }
 
 func TestHub_Basic(t *testing.T) {

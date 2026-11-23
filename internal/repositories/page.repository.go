@@ -71,20 +71,8 @@ func (r *PageRepository) GetPageByID(ctx context.Context, pageID, projectID stri
 }
 
 func (r *PageRepository) CreatePage(ctx context.Context, page *models.Page) error {
-	if page == nil {
-		return errors.New("page cannot be nil")
-	}
-
-	if page.Name == "" {
-		return errors.New("page name is required")
-	}
-
-	if page.ProjectId == "" {
-		return errors.New("project ID is required")
-	}
-
-	if page.Type == "" {
-		return errors.New("page type is required")
+	if err := validateNewPage(page); err != nil {
+		return err
 	}
 	if len(page.Styles) == 0 {
 		page.Styles = []byte("{}")
@@ -94,16 +82,29 @@ func (r *PageRepository) CreatePage(ctx context.Context, page *models.Page) erro
 	page.CreatedAt = now
 	page.UpdatedAt = now
 
-	err := gorm.G[models.Page](r.db).Create(ctx, page)
-
-	if err != nil {
+	if err := gorm.G[models.Page](r.db).Create(ctx, page); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "Page_ProjectId_Name_key" {
 			return ErrPageNameTaken
 		}
 		return fmt.Errorf("failed to create page: %w", err)
 	}
+	return nil
+}
 
+func validateNewPage(page *models.Page) error {
+	if page == nil {
+		return errors.New("page cannot be nil")
+	}
+	if page.Name == "" {
+		return errors.New("page name is required")
+	}
+	if page.ProjectId == "" {
+		return errors.New("project ID is required")
+	}
+	if page.Type == "" {
+		return errors.New("page type is required")
+	}
 	return nil
 }
 

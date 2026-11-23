@@ -18,41 +18,29 @@ import (
 	"my-go-app/internal/realtime/repository"
 )
 
-// Every test uses its own schema; existing databases and other tests are untouched.
-func legacyRealtimeDatabase(t *testing.T) (string, *gorm.DB) {
+func closeSQLHandle(t *testing.T, db *gorm.DB) {
 	t.Helper()
-	dsn := os.Getenv("WEBBUILDER_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("set WEBBUILDER_TEST_DATABASE_URL to run PostgreSQL schema regressions")
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Errorf("db.DB: %v", err)
+		return
 	}
-	admin, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err := sqlDB.Close(); err != nil {
+		t.Errorf("close sqlDB: %v", err)
+	}
+}
+
+func openSchemaDB(t *testing.T, dsn string) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema := "ws_regression_" + uuid.NewString()[:8]
-	if err := admin.Exec(`CREATE SCHEMA "` + schema + `"`).Error; err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := admin.Exec(`DROP SCHEMA "` + schema + `" CASCADE`).Error; err != nil {
-			t.Error(err)
-		}
-		sqlDB, _ := admin.DB()
-		_ = sqlDB.Close()
-	})
-	parsed, err := url.Parse(dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	query := parsed.Query()
-	query.Set("search_path", schema)
-	parsed.RawQuery = query.Encode()
-	testDSN := parsed.String()
-	db, err := gorm.Open(postgres.Open(testDSN), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { sqlDB, _ := db.DB(); _ = sqlDB.Close() })
+	return db
+}
+
+func seedLegacyElementTable(t *testing.T, db *gorm.DB) {
+	t.Helper()
 	// "OrderKey" as goose's 00001_baseline.sql creates it: nullable, no default.
 	if err := db.Exec(`CREATE TABLE "Element" (
   "Id" text PRIMARY KEY, "Name" text, "Type" text NOT NULL, "Content" text,
@@ -65,6 +53,37 @@ func legacyRealtimeDatabase(t *testing.T) (string, *gorm.DB) {
 	if err := db.Exec(`INSERT INTO "Element" ("Id", "Type", "Content", "PageId") VALUES (?, 'Text', 'saved', 'page')`, testElemID).Error; err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Every test uses its own schema; existing databases and other tests are untouched.
+func legacyRealtimeDatabase(t *testing.T) (string, *gorm.DB) {
+	t.Helper()
+	dsn := os.Getenv("WEBBUILDER_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("set WEBBUILDER_TEST_DATABASE_URL to run PostgreSQL schema regressions")
+	}
+	admin := openSchemaDB(t, dsn)
+	schema := "ws_regression_" + uuid.NewString()[:8]
+	if err := admin.Exec(`CREATE SCHEMA "` + schema + `"`).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := admin.Exec(`DROP SCHEMA "` + schema + `" CASCADE`).Error; err != nil {
+			t.Error(err)
+		}
+		closeSQLHandle(t, admin)
+	})
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := parsed.Query()
+	query.Set("search_path", schema)
+	parsed.RawQuery = query.Encode()
+	testDSN := parsed.String()
+	db := openSchemaDB(t, testDSN)
+	t.Cleanup(func() { closeSQLHandle(t, db) })
+	seedLegacyElementTable(t, db)
 	return testDSN, db
 }
 
@@ -76,8 +95,7 @@ func TestPostgresStartupDoesNotChangeSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sqlDB, _ := db.DB()
-	defer sqlDB.Close()
+	t.Cleanup(func() { closeSQLHandle(t, db) })
 	var element entity.Element
 	if err := db.First(&element, `"Id" = ?`, testElemID).Error; err != nil {
 		t.Fatalf("elements with a NULL order key must load: %v", err)
@@ -99,8 +117,7 @@ func TestPostgresStartupDoesNotChangeSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	againSQL, _ := again.DB()
-	defer againSQL.Close()
+	t.Cleanup(func() { closeSQLHandle(t, again) })
 	if again.Migrator().HasColumn("Element", "OrderKey") {
 		t.Fatal("startup added a column; schema changes belong in goose migrations")
 	}
@@ -125,37 +142,8 @@ func TestElementUpsertPersistsChangedOrderKey(t *testing.T) {
 	}
 }
 
-func TestWSPageWithNullOrderKeysJoinsAndSendsElements(t *testing.T) {
-	dsn, legacy := legacyRealtimeDatabase(t)
-	for _, statement := range []string{
-		`CREATE TABLE "Page" ("Id" text PRIMARY KEY, "ProjectId" text)`,
-		`INSERT INTO "Page" ("Id", "ProjectId") VALUES ('page', 'proj')`,
-		`CREATE TABLE "ElementComment" ("Id" text PRIMARY KEY, "ElementId" text, "DeletedAt" timestamptz)`,
-		`CREATE TABLE "ElementEventWorkflow" ("Id" text PRIMARY KEY, "ElementId" text)`,
-	} {
-		if err := legacy.Exec(statement).Error; err != nil {
-			t.Fatal(err)
-		}
-	}
-	db, err := database.NewPostgresConnection(database.Config{URL: dsn})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, _ := db.DB()
-	defer sqlDB.Close()
-	endpoint, _ := startWSServerWithElements(t, repository.NewElementRepository(db))
-	client, snapshot := dialAndJoin(t, endpoint)
-	var page struct {
-		Elements []entity.Element `json:"elements"`
-		Seq      int64            `json:"seq"`
-	}
-	if err := json.Unmarshal(snapshot.Payload, &page); err != nil {
-		t.Fatal(err)
-	}
-	if len(page.Elements) != 1 || page.Elements[0].ID != testElemID || page.Elements[0].Content == nil || *page.Elements[0].Content != "saved" {
-		t.Fatalf("legacy elements did not arrive: %s", snapshot.Payload)
-	}
-	id := uuid.NewString()
+func assertCreateAndUpdateViaWS(t *testing.T, client *wsTestClient, id string) {
+	t.Helper()
 	client.sendRequest("element:create", map[string]any{"element": map[string]any{"id": id, "type": "Text", "content": "new", "parentId": nil}}, "create-after-join")
 	created, ok := client.next("element:create", 3*time.Second)
 	if !ok || created.RequestID != "create-after-join" || created.Seq != 1 {
@@ -166,8 +154,43 @@ func TestWSPageWithNullOrderKeysJoinsAndSendsElements(t *testing.T) {
 	if !ok || updated.RequestID != "update-after-join" || updated.Seq != 2 {
 		t.Fatalf("update not acknowledged: ok=%v message=%+v", ok, updated)
 	}
+}
+
+func TestWSPageWithNullOrderKeysJoinsAndSendsElements(t *testing.T) {
+	dsn, legacy := legacyRealtimeDatabase(t)
+	if err := legacy.Exec(`CREATE TABLE "Page" ("Id" text PRIMARY KEY, "ProjectId" text);
+		INSERT INTO "Page" ("Id", "ProjectId") VALUES ('page', 'proj');
+		CREATE TABLE "ElementComment" ("Id" text PRIMARY KEY, "ElementId" text, "DeletedAt" timestamptz);
+		CREATE TABLE "ElementEventWorkflow" ("Id" text PRIMARY KEY, "ElementId" text)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	db, err := database.NewPostgresConnection(database.Config{URL: dsn})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeSQLHandle(t, db) })
+	endpoint, docs := startWSServerWithElements(t, repository.NewElementRepository(db))
+	if docs == nil {
+		t.Fatal("missing docs")
+	}
+	client, snapshot := dialAndJoin(t, endpoint)
+	var page struct {
+		Elements []entity.Element `json:"elements"`
+		Seq      int64            `json:"seq"`
+	}
+	if err := json.Unmarshal(snapshot.Payload, &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Elements) != 1 || page.Elements[0].ID != testElemID {
+		t.Fatalf("legacy elements did not arrive: %s", snapshot.Payload)
+	}
+	if page.Elements[0].Content == nil || *page.Elements[0].Content != "saved" {
+		t.Fatalf("legacy content unexpected: %s", snapshot.Payload)
+	}
+	id := uuid.NewString()
+	assertCreateAndUpdateViaWS(t, client, id)
 	client.sendRequest("sync:page", map[string]any{}, "read-back")
-	snapshot, ok = client.next("sync:page", 3*time.Second)
+	snapshot, ok := client.next("sync:page", 3*time.Second)
 	if !ok {
 		t.Fatal("page no longer syncs after edits")
 	}
@@ -175,7 +198,10 @@ func TestWSPageWithNullOrderKeysJoinsAndSendsElements(t *testing.T) {
 		t.Fatal(err)
 	}
 	added := findElementByID(page.Elements, id)
-	if added == nil || added.Content == nil || *added.Content != "updated" || added.OrderKey == "" {
-		t.Fatalf("synced page lost edits: %s", snapshot.Payload)
+	if added == nil || added.Content == nil {
+		t.Fatalf("synced page missing edited element: %s", snapshot.Payload)
+	}
+	if *added.Content != "updated" || added.OrderKey == "" {
+		t.Fatalf("synced page lost edits: %+v", added)
 	}
 }

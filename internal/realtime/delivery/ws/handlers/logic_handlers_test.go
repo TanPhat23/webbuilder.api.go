@@ -95,6 +95,16 @@ func TestLogic_UnavailableWhenNoLogicUseCase(t *testing.T) {
 	}
 }
 
+func assertLogicSyncPayload(t *testing.T, p domainEntity.PayloadLogicSync) {
+	t.Helper()
+	if p.PageID != handlerTestPage || p.ProjectRevision != 4 || p.PageRevision != 7 {
+		t.Fatalf("unexpected sync metadata: %+v", p)
+	}
+	if p.Project["scope"] != "project" || p.Page["scope"] != "page" {
+		t.Fatalf("unexpected sync docs: %+v", p)
+	}
+}
+
 func TestLogicSync_RepliesWithBothDocumentsAndRevisions(t *testing.T) {
 	lg := newLogicHandlersFake()
 	env := handlerTestNew(t, lg, nil)
@@ -102,12 +112,12 @@ func TestLogicSync_RepliesWithBothDocumentsAndRevisions(t *testing.T) {
 	c.join(handlerTestPage)
 	c.send("logic:sync", nil, "", "sync-1")
 	m := c.next("logic:sync")
+	if m.RequestID != "sync-1" {
+		t.Fatalf("requestId = %q", m.RequestID)
+	}
 	var p domainEntity.PayloadLogicSync
 	m.decode(t, &p)
-	if m.RequestID != "sync-1" || p.PageID != handlerTestPage || p.ProjectRevision != 4 || p.PageRevision != 7 ||
-		p.Project["scope"] != "project" || p.Page["scope"] != "page" {
-		t.Fatalf("%+v %+v", m, p)
-	}
+	assertLogicSyncPayload(t, p)
 	last := lg.gets[len(lg.gets)-1]
 	if last.project != handlerTestProject || last.page != handlerTestPage || last.user != "u1" {
 		t.Fatalf("Get called with %+v", last)
@@ -141,6 +151,22 @@ func TestJoin_SucceedsEvenWhenInitialLogicSyncFails(t *testing.T) {
 	}
 }
 
+func assertProjectScopeUpdateEcho(t *testing.T, name string, c *handlerConn) {
+	t.Helper()
+	m := c.next("logic:update")
+	var p domainEntity.PayloadLogicChanged
+	m.decode(t, &p)
+	if m.ClientOpID != "op-l" || m.RequestID != "req-l" {
+		t.Fatalf("%s ids: %+v", name, m)
+	}
+	if p.Scope != "project" || p.PageID != "" {
+		t.Fatalf("%s scope: %+v", name, p)
+	}
+	if p.Revision != 4 || p.Logic["scope"] != "project" {
+		t.Fatalf("%s doc: %+v", name, p)
+	}
+}
+
 func TestLogicUpdate_ProjectScopeBroadcastsToEveryPageOfTheProject(t *testing.T) {
 	lg := newLogicHandlersFake()
 	env := handlerTestNew(t, lg, nil)
@@ -152,15 +178,8 @@ func TestLogicUpdate_ProjectScopeBroadcastsToEveryPageOfTheProject(t *testing.T)
 		"scope": "project", "patch": map[string]any{"variables": map[string]any{"x": 1}},
 		"nullPaths": [][]string{{"variables", "y"}},
 	}, "op-l", "req-l")
-	for name, c := range map[string]*handlerConn{"sender": a, "other page": b} {
-		m := c.next("logic:update")
-		var p domainEntity.PayloadLogicChanged
-		m.decode(t, &p)
-		if m.ClientOpID != "op-l" || m.RequestID != "req-l" || p.Scope != "project" || p.PageID != "" ||
-			p.Revision != 4 || p.Logic["scope"] != "project" {
-			t.Fatalf("%s: %+v %+v", name, m, p)
-		}
-	}
+	assertProjectScopeUpdateEcho(t, "sender", a)
+	assertProjectScopeUpdateEcho(t, "other page", b)
 	got := lg.updates[0]
 	if got.project != handlerTestProject || got.page != "" || got.user != "alice" {
 		t.Fatalf("call %+v", got)
@@ -168,7 +187,7 @@ func TestLogicUpdate_ProjectScopeBroadcastsToEveryPageOfTheProject(t *testing.T)
 	if !reflect.DeepEqual(got.nullPaths, [][][]string{{{"variables", "y"}}}) {
 		t.Fatalf("nullPaths = %v", got.nullPaths)
 	}
-	if vars, _ := got.patch["variables"].(map[string]any); vars["x"] != float64(1) {
+	if vars, ok := got.patch["variables"].(map[string]any); !ok || vars["x"] != float64(1) {
 		t.Fatalf("patch = %v", got.patch)
 	}
 }
@@ -186,8 +205,11 @@ func TestLogicUpdate_PageScopeStaysOnThePage(t *testing.T) {
 		m := c.next("logic:update")
 		var p domainEntity.PayloadLogicChanged
 		m.decode(t, &p)
-		if p.Scope != "page" || p.PageID != handlerTestPage || p.Revision != 7 || m.PageID != handlerTestPage {
-			t.Fatalf("%+v %+v", m, p)
+		if p.Scope != "page" || p.PageID != handlerTestPage {
+			t.Fatalf("scope/page: %+v", p)
+		}
+		if p.Revision != 7 || m.PageID != handlerTestPage {
+			t.Fatalf("rev/header: %+v %+v", m, p)
 		}
 	}
 	if d := other.drain(); len(handlerOfType(d, "logic:update")) != 0 {
@@ -222,9 +244,9 @@ func TestLogicUpdate_ValidationAndErrors(t *testing.T) {
 
 	lg.err = domainErrors.New(domainErrors.CodeValidation, "name already used", nil)
 	c.send("logic:update", map[string]any{"scope": "project", "patch": map[string]any{"v": 1}}, "op-r", "")
-	m, _ := c.expectError("VALIDATION_ERROR", "name already used")
-	if m.ClientOpID != "op-r" {
-		t.Fatalf("clientOpId = %q", m.ClientOpID)
+	m, errPayload := c.expectError("VALIDATION_ERROR", "name already used")
+	if m.ClientOpID != "op-r" || errPayload.Code != "VALIDATION_ERROR" {
+		t.Fatalf("clientOpId=%q payload=%+v", m.ClientOpID, errPayload)
 	}
 }
 
@@ -254,10 +276,10 @@ func TestLogicMove_BroadcastsBothDocumentsToTheWholeProject(t *testing.T) {
 		m := c.next("logic:move")
 		var p domainEntity.PayloadLogicSync
 		m.decode(t, &p)
-		if m.ClientOpID != "op-mv" || m.RequestID != "req-mv" || p.PageID != handlerTestPage ||
-			p.ProjectRevision != 4 || p.PageRevision != 7 || p.Project["scope"] != "project" || p.Page["scope"] != "page" {
-			t.Fatalf("%s: %+v %+v", name, m, p)
+		if m.ClientOpID != "op-mv" || m.RequestID != "req-mv" {
+			t.Fatalf("%s ids: %+v", name, m)
 		}
+		assertLogicSyncPayload(t, p)
 	}
 	want := logicHandlersMoveCall{handlerTestProject, handlerTestPage, "alice", "variable", "count", "project"}
 	if lg.moves[0] != want {

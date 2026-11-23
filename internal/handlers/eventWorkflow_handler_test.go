@@ -166,16 +166,19 @@ func TestEventWorkflowHandlerStatuses(t *testing.T) {
 		{"elements missing param", "", "GET", "/noparam/elements", "", nil, false, 400, "id is required"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			svc := &eventWorkflowSvcStub{err: tc.err, nilOnGet: tc.nilOnGet}
-			r := kitSend(t, eventWorkflowDefaultKit(tc.user, svc, nil), tc.method, tc.path, tc.body)
-			if tc.contains == "" {
-				kitExpect(t, r, tc.want)
-			} else {
-				kitExpect(t, r, tc.want, tc.contains)
-			}
-		})
+		svc := &eventWorkflowSvcStub{err: tc.err, nilOnGet: tc.nilOnGet}
+		r := kitSend(t, eventWorkflowDefaultKit(tc.user, svc, nil), tc.method, tc.path, tc.body)
+		assertKitOutcome(t, tc.name, r, tc.want, tc.contains)
 	}
+}
+
+func assertKitOutcome(t *testing.T, name string, r kitReply, want int, contains string) {
+	t.Helper()
+	if contains == "" {
+		kitExpect(t, r, want)
+		return
+	}
+	kitExpect(t, r, want, contains)
 }
 
 func TestEventWorkflowElementsInternalError(t *testing.T) {
@@ -202,17 +205,25 @@ func TestEventWorkflowCreateMapsRequestAndDefaultsJSON(t *testing.T) {
 	r := kitSend(t, eventWorkflowDefaultKit("u5", svc, nil), "POST", "/workflows",
 		`{"projectId":"p2","name":"Flow","description":"desc","canvasData":{"nodes":[]},"handlers":[{"a":1}],"enabled":true}`)
 	kitExpect(t, r, 201)
-	c := svc.created
-	if svc.createUser != "u5" || c == nil || c.ProjectId != "p2" || c.Name != "Flow" || c.Description == nil || *c.Description != "desc" || !c.Enabled {
-		t.Fatalf("user=%q created=%+v", svc.createUser, c)
-	}
-	if string(c.CanvasData) != "{}" && string(c.CanvasData) != `{"nodes":[]}` {
-		t.Fatalf("canvas %s", c.CanvasData)
-	}
+	assertCreatedEventWorkflow(t, svc)
 	// The service returned no JSON fields, so the handler must fill in defaults.
 	body := r.object(t)
 	if string(mustMarshal(t, body["canvasData"])) != "{}" || string(mustMarshal(t, body["handlers"])) != "[]" {
 		t.Fatalf("defaults not applied: %s", r.body)
+	}
+}
+
+func assertCreatedEventWorkflow(t *testing.T, svc *eventWorkflowSvcStub) {
+	t.Helper()
+	c := svc.created
+	if svc.createUser != "u5" || c == nil || c.ProjectId != "p2" || c.Name != "Flow" || !c.Enabled {
+		t.Fatalf("user=%q created=%+v", svc.createUser, c)
+	}
+	if c.Description == nil || *c.Description != "desc" {
+		t.Fatalf("unexpected description: %+v", c.Description)
+	}
+	if string(c.CanvasData) != "{}" && string(c.CanvasData) != `{"nodes":[]}` {
+		t.Fatalf("canvas %s", c.CanvasData)
 	}
 }
 
@@ -268,14 +279,21 @@ func TestEventWorkflowUpdateMapsBody(t *testing.T) {
 	r := kitSend(t, eventWorkflowDefaultKit("", svc, nil), "PUT", "/workflows/w8",
 		`{"name":"New","description":"d","canvasData":{"k":1},"handlers":[],"enabled":true}`)
 	kitExpect(t, r, 200, `"name":"New"`)
-	u := svc.updated
-	if svc.updatedID != "w8" || u == nil || u.Name != "New" || u.Description == nil || *u.Description != "d" || !u.Enabled || string(u.CanvasData) != `{"k":1}` {
-		t.Fatalf("id=%q updated=%+v", svc.updatedID, u)
-	}
+	assertUpdatedWorkflow(t, svc.updatedID, svc.updated)
 	// An omitted enabled value preserves the existing setting.
 	kitExpect(t, kitSend(t, eventWorkflowDefaultKit("", svc, nil), "PUT", "/workflows/w8", `{"name":"New"}`), 200)
 	if !svc.updated.Enabled {
 		t.Fatal("omitted enabled must preserve the existing value")
+	}
+}
+
+func assertUpdatedWorkflow(t *testing.T, updatedID string, u *models.EventWorkflow) {
+	t.Helper()
+	if updatedID != "w8" || u == nil || u.Name != "New" || !u.Enabled {
+		t.Fatalf("id=%q updated=%+v", updatedID, u)
+	}
+	if u.Description == nil || *u.Description != "d" || string(u.CanvasData) != `{"k":1}` {
+		t.Fatalf("unexpected description/canvas: %+v", u)
 	}
 }
 

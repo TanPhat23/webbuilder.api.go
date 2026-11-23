@@ -174,80 +174,117 @@ func TestEventWorkflowService_PublicProjectGuarded(t *testing.T) {
 	}
 
 	for _, o := range ops {
-		t.Run(o.name, func(t *testing.T) {
-			t.Run("missing project id", func(t *testing.T) {
-				e := newEventWorkflowEnv(true, nil)
-				_, err := o.call(e.svc, "")
-				wantErr(t, err, o.noArg)
-				wantCalls(t, e.proj.Calls)
-			})
-			t.Run("project lookup error wrapped", func(t *testing.T) {
-				e := newEventWorkflowEnv(true, errBoom)
-				_, err := o.call(e.svc, "p")
-				wantErr(t, err, "failed to verify project")
-				if !errors.Is(err, errBoom) {
-					t.Fatalf("err = %v", err)
-				}
-				wantCalls(t, e.repo.Calls)
-			})
-			t.Run("project missing", func(t *testing.T) {
-				e := newEventWorkflowEnv(false, nil)
-				_, err := o.call(e.svc, "p")
-				wantErr(t, err, "project does not exist")
-				wantCalls(t, e.repo.Calls)
-			})
-			t.Run("delegates", func(t *testing.T) {
-				e := newEventWorkflowEnv(true, nil)
-				o.hook(e.repo)
-				n, err := o.call(e.svc, "p")
-				wantNoErr(t, err)
-				if o.name != "DeleteByProject" && n != 1 {
-					t.Fatalf("n = %d", n)
-				}
-				wantCalls(t, e.repo.Calls, o.method)
-			})
-		})
+		assertPublicProjectGuardedOp(t, ctx, o.name, o.hook, o.call, o.method, o.noArg)
 	}
 
-	t.Run("ByName and NameExists require name", func(t *testing.T) {
-		e := newEventWorkflowEnv(true, nil)
-		_, err := e.svc.GetEventWorkflowsByName(ctx, "p", "")
-		wantErr(t, err, "workflow name is required")
-		_, err = e.svc.CheckIfWorkflowNameExists(ctx, "p", "", "")
-		wantErr(t, err, "workflow name is required")
-	})
-	t.Run("repo errors propagate", func(t *testing.T) {
-		e := newEventWorkflowEnv(true, nil)
-		e.repo.OnGetEventWorkflowsByProjectID = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
-		e.repo.OnGetEventWorkflowsByProjectIDWithElements = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
-		e.repo.OnGetEnabledEventWorkflowsByProjectID = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
-		e.repo.OnGetEventWorkflowsByName = func(context.Context, string, string) ([]models.EventWorkflow, error) { return nil, errBoom }
-		e.repo.OnDeleteEventWorkflowsByProjectID = func(context.Context, string) error { return errBoom }
-		e.repo.OnCountEventWorkflowsByProjectID = func(context.Context, string) (int64, error) { return 0, errBoom }
-		e.repo.OnCheckIfWorkflowNameExists = func(context.Context, string, string, string) (bool, error) { return false, errBoom }
-		errs := []error{}
-		_, err := e.svc.GetEventWorkflowsByProjectID(ctx, "p")
-		errs = append(errs, err)
-		_, err = e.svc.GetEventWorkflowsByProjectIDWithElements(ctx, "p")
-		errs = append(errs, err)
-		_, err = e.svc.GetEnabledEventWorkflowsByProjectID(ctx, "p")
-		errs = append(errs, err)
-		_, err = e.svc.GetEventWorkflowsByName(ctx, "p", "n")
-		errs = append(errs, err)
-		errs = append(errs, e.svc.DeleteEventWorkflowsByProjectID(ctx, "p"))
-		_, err = e.svc.CountEventWorkflowsByProjectID(ctx, "p")
-		errs = append(errs, err)
-		_, err = e.svc.CheckIfWorkflowNameExists(ctx, "p", "n", "")
-		errs = append(errs, err)
-		for i, err := range errs {
-			if !errors.Is(err, errBoom) {
-				t.Errorf("op %d: err = %v", i, err)
-			}
-		}
-	})
+	e := newEventWorkflowEnv(true, nil)
+	_, err := e.svc.GetEventWorkflowsByName(ctx, "p", "")
+	wantErr(t, err, "workflow name is required")
+	_, err = e.svc.CheckIfWorkflowNameExists(ctx, "p", "", "")
+	wantErr(t, err, "workflow name is required")
+	assertPublicProjectGuardedErrors(t, ctx)
 }
 
-func TestEventWorkflowService_Update(t *testing.T) {
+func assertPublicProjectGuardedOp(
+	t *testing.T,
+	ctx context.Context,
+	name string,
+	hook func(*fkEventWorkflowRepo),
+	call func(*EventWorkflowService, string) (int, error),
+	method, noArg string,
+) {
+	t.Helper()
+	e1 := newEventWorkflowEnv(true, nil)
+	_, err := call(e1.svc, "")
+	wantErr(t, err, noArg)
+	wantCalls(t, e1.proj.Calls)
+
+	e2 := newEventWorkflowEnv(true, errBoom)
+	_, err = call(e2.svc, "p")
+	wantErr(t, err, "failed to verify project")
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("%s: err = %v", name, err)
+	}
+	wantCalls(t, e2.repo.Calls)
+
+	e3 := newEventWorkflowEnv(false, nil)
+	_, err = call(e3.svc, "p")
+	wantErr(t, err, "project does not exist")
+	wantCalls(t, e3.repo.Calls)
+
+	e4 := newEventWorkflowEnv(true, nil)
+	hook(e4.repo)
+	n, err := call(e4.svc, "p")
+	wantNoErr(t, err)
+	if name != "DeleteByProject" && n != 1 {
+		t.Fatalf("%s: n = %d", name, n)
+	}
+	wantCalls(t, e4.repo.Calls, method)
+}
+
+func assertPublicProjectGuardedErrors(t *testing.T, ctx context.Context) {
+	t.Helper()
+	e := newEventWorkflowEnv(true, nil)
+	e.repo.OnGetEventWorkflowsByProjectID = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
+	e.repo.OnGetEventWorkflowsByProjectIDWithElements = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
+	e.repo.OnGetEnabledEventWorkflowsByProjectID = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
+	e.repo.OnGetEventWorkflowsByName = func(context.Context, string, string) ([]models.EventWorkflow, error) { return nil, errBoom }
+	e.repo.OnDeleteEventWorkflowsByProjectID = func(context.Context, string) error { return errBoom }
+	e.repo.OnCountEventWorkflowsByProjectID = func(context.Context, string) (int64, error) { return 0, errBoom }
+	e.repo.OnCheckIfWorkflowNameExists = func(context.Context, string, string, string) (bool, error) { return false, errBoom }
+
+	errs := []error{}
+	_, err := e.svc.GetEventWorkflowsByProjectID(ctx, "p")
+	errs = append(errs, err)
+	_, err = e.svc.GetEventWorkflowsByProjectIDWithElements(ctx, "p")
+	errs = append(errs, err)
+	_, err = e.svc.GetEnabledEventWorkflowsByProjectID(ctx, "p")
+	errs = append(errs, err)
+	_, err = e.svc.GetEventWorkflowsByName(ctx, "p", "n")
+	errs = append(errs, err)
+	errs = append(errs, e.svc.DeleteEventWorkflowsByProjectID(ctx, "p"))
+	_, err = e.svc.CountEventWorkflowsByProjectID(ctx, "p")
+	errs = append(errs, err)
+	_, err = e.svc.CheckIfWorkflowNameExists(ctx, "p", "n", "")
+	errs = append(errs, err)
+	for i, err := range errs {
+		if !errors.Is(err, errBoom) {
+			t.Errorf("op %d: err = %v", i, err)
+		}
+	}
+}
+
+func TestEventWorkflowService_UpdateValidationAndLookups(t *testing.T) {
+	ctx := context.Background()
+	existing := &models.EventWorkflow{Id: "w1", ProjectId: "p1", Name: "old"}
+	e := newEventWorkflowEnv(true, nil)
+	_, err := e.svc.UpdateEventWorkflow(ctx, "", &models.EventWorkflow{Name: "n"})
+	wantErr(t, err, "workflow id is required")
+	_, err = e.svc.UpdateEventWorkflow(ctx, "w1", nil)
+	wantErr(t, err, "workflow cannot be nil")
+	_, err = e.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{})
+	wantErr(t, err, "workflow name is required")
+	wantCalls(t, e.repo.Calls)
+
+	eErr := newEventWorkflowEnv(true, nil)
+	eErr.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return nil, errBoom }
+	if _, err := eErr.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "n"}); !errors.Is(err, errBoom) {
+		t.Fatalf("err = %v", err)
+	}
+
+	eMiss := newEventWorkflowEnv(true, nil)
+	eMiss.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return nil, nil }
+	_, err = eMiss.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "n"})
+	wantErr(t, err, "workflow does not exist")
+
+	eProj := newEventWorkflowEnv(true, nil)
+	eProj.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return existing, nil }
+	_, err = eProj.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "n", ProjectId: "other"})
+	wantErr(t, err, "projectId cannot be changed")
+	wantCalls(t, eProj.repo.Calls, "GetEventWorkflowByID")
+}
+
+func TestEventWorkflowService_UpdateFieldInheritanceAndOverrides(t *testing.T) {
 	ctx := context.Background()
 	created := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
 	desc := "desc"
@@ -257,69 +294,41 @@ func TestEventWorkflowService_Update(t *testing.T) {
 	}
 	existing.CreatedAt = created
 
-	t.Run("validation", func(t *testing.T) {
-		e := newEventWorkflowEnv(true, nil)
-		_, err := e.svc.UpdateEventWorkflow(ctx, "", &models.EventWorkflow{Name: "n"})
-		wantErr(t, err, "workflow id is required")
-		_, err = e.svc.UpdateEventWorkflow(ctx, "w1", nil)
-		wantErr(t, err, "workflow cannot be nil")
-		_, err = e.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{})
-		wantErr(t, err, "workflow name is required")
-		wantCalls(t, e.repo.Calls)
-	})
-	t.Run("lookup error", func(t *testing.T) {
-		e := newEventWorkflowEnv(true, nil)
-		e.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return nil, errBoom }
-		_, err := e.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "n"})
-		if !errors.Is(err, errBoom) {
-			t.Fatalf("err = %v", err)
+	e1 := newEventWorkflowEnv(true, nil)
+	e1.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return existing, nil }
+	var got *models.EventWorkflow
+	e1.repo.OnUpdateEventWorkflow = func(_ context.Context, _ string, w *models.EventWorkflow) (*models.EventWorkflow, error) {
+		got = w
+		return w, nil
+	}
+	_, err := e1.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "new"})
+	wantNoErr(t, err)
+	assertInheritedWorkflowFields(t, got, &desc, created)
+
+	e2 := newEventWorkflowEnv(true, nil)
+	e2.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return existing, nil }
+	e2.repo.OnUpdateEventWorkflow = func(_ context.Context, _ string, w *models.EventWorkflow) (*models.EventWorkflow, error) {
+		if *w.Description != "mine" || string(w.CanvasData) != "{}" || string(w.Handlers) != "[]" || !w.CreatedAt.Equal(created.Add(time.Hour)) {
+			t.Errorf("overwritten: %+v", w)
 		}
-	})
-	t.Run("not found", func(t *testing.T) {
-		e := newEventWorkflowEnv(true, nil)
-		e.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return nil, nil }
-		_, err := e.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "n"})
-		wantErr(t, err, "workflow does not exist")
-	})
-	t.Run("project change rejected", func(t *testing.T) {
-		e := newEventWorkflowEnv(true, nil)
-		e.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return existing, nil }
-		_, err := e.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "n", ProjectId: "other"})
-		wantErr(t, err, "projectId cannot be changed")
-		wantCalls(t, e.repo.Calls, "GetEventWorkflowByID")
-	})
-	t.Run("missing fields inherited", func(t *testing.T) {
-		e := newEventWorkflowEnv(true, nil)
-		e.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return existing, nil }
-		var got *models.EventWorkflow
-		e.repo.OnUpdateEventWorkflow = func(_ context.Context, id string, w *models.EventWorkflow) (*models.EventWorkflow, error) {
-			got = w
-			return w, nil
-		}
-		_, err := e.svc.UpdateEventWorkflow(ctx, "w1", &models.EventWorkflow{Name: "new"})
-		wantNoErr(t, err)
-		if got.Description != &desc || string(got.CanvasData) != "{\"c\":1}" || string(got.Handlers) != "[2]" ||
-			got.ProjectId != "p1" || !got.CreatedAt.Equal(created) || got.Name != "new" {
-			t.Fatalf("got = %+v", got)
-		}
-	})
-	t.Run("provided fields kept and repo error", func(t *testing.T) {
-		e := newEventWorkflowEnv(true, nil)
-		e.repo.OnGetEventWorkflowByID = func(context.Context, string) (*models.EventWorkflow, error) { return existing, nil }
-		e.repo.OnUpdateEventWorkflow = func(_ context.Context, id string, w *models.EventWorkflow) (*models.EventWorkflow, error) {
-			if *w.Description != "mine" || string(w.CanvasData) != "{}" || string(w.Handlers) != "[]" || !w.CreatedAt.Equal(created.Add(time.Hour)) {
-				t.Errorf("overwritten: %+v", w)
-			}
-			return nil, errBoom
-		}
-		mine := "mine"
-		in := &models.EventWorkflow{Name: "n", ProjectId: "p1", Description: &mine, CanvasData: []byte("{}"), Handlers: []byte("[]")}
-		in.CreatedAt = created.Add(time.Hour)
-		_, err := e.svc.UpdateEventWorkflow(ctx, "w1", in)
-		if !errors.Is(err, errBoom) {
-			t.Fatalf("err = %v", err)
-		}
-	})
+		return nil, errBoom
+	}
+	mine := "mine"
+	in := &models.EventWorkflow{Name: "n", ProjectId: "p1", Description: &mine, CanvasData: []byte("{}"), Handlers: []byte("[]")}
+	in.CreatedAt = created.Add(time.Hour)
+	if _, err := e2.svc.UpdateEventWorkflow(ctx, "w1", in); !errors.Is(err, errBoom) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func assertInheritedWorkflowFields(t *testing.T, got *models.EventWorkflow, desc *string, created time.Time) {
+	t.Helper()
+	if got.Description != desc || got.ProjectId != "p1" || got.Name != "new" {
+		t.Fatalf("scalar inheritance mismatch: %+v", got)
+	}
+	if string(got.CanvasData) != "{\"c\":1}" || string(got.Handlers) != "[2]" || !got.CreatedAt.Equal(created) {
+		t.Fatalf("payload/time inheritance mismatch: %+v", got)
+	}
 }
 
 func TestEventWorkflowService_EnabledAndDelete(t *testing.T) {
