@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 type Collaborator struct {
 	User      User             `gorm:"foreignKey:UserId" json:"user,omitempty"`
 	Project   Project          `gorm:"foreignKey:ProjectId" json:"project,omitempty"`
@@ -14,16 +12,6 @@ type Collaborator struct {
 
 func (Collaborator) TableName() string {
 	return `public."Collaborator"`
-}
-
-type CollaboratorResponse struct {
-	Id        string           `json:"id"`
-	UserId    string           `json:"userId"`
-	ProjectId string           `json:"projectId"`
-	Role      CollaboratorRole `json:"role"`
-	CreatedAt time.Time        `json:"createdAt"`
-	UpdatedAt time.Time        `json:"updatedAt"`
-	User      *User            `json:"user,omitempty"`
 }
 
 type UpdateCollaboratorRoleRequest struct {

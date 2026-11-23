@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"strconv"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 )
@@ -103,4 +105,29 @@ func ValidateCollaboratorID(collaboratorID string) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Collaborator ID is required")
 	}
 	return nil
+}
+
+// ParsePositiveIntQuery parses a >0 query integer, returning fallback when missing or invalid.
+func ParsePositiveIntQuery(c fiber.Ctx, name string, fallback int) int {
+	if raw := c.Query(name); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			return v
+		}
+	}
+	return fallback
+}
+
+// ParseNonNegativeIntQuery parses a >=0 query integer, returning fallback when missing or invalid.
+func ParseNonNegativeIntQuery(c fiber.Ctx, name string, fallback int) int {
+	if raw := c.Query(name); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v >= 0 {
+			return v
+		}
+	}
+	return fallback
+}
+
+// ParsePagination parses positive "limit" and non-negative "offset" query params.
+func ParsePagination(c fiber.Ctx, defaultLimit int) (limit, offset int) {
+	return ParsePositiveIntQuery(c, "limit", defaultLimit), ParseNonNegativeIntQuery(c, "offset", 0)
 }

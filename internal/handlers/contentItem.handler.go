@@ -5,7 +5,6 @@ import (
 	"my-go-app/internal/models"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
-	"strconv"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -94,23 +93,16 @@ func (h *ContentItemHandler) UpdateContentItem(c fiber.Ctx) error {
 	}
 
 	rawBody := map[string]any{}
-	if req.Published != nil {
-		rawBody["published"] = *req.Published
-	}
-	if req.Slug != nil {
-		rawBody["slug"] = *req.Slug
-	}
-	if req.Title != nil {
-		rawBody["title"] = *req.Title
-	}
+	utils.SetIfNotNil(rawBody, "published", req.Published)
+	utils.SetIfNotNil(rawBody, "slug", req.Slug)
+	utils.SetIfNotNil(rawBody, "title", req.Title)
 
 	columnUpdates, err := utils.BuildColumnUpdates(rawBody, contentItemAllowedCols)
 	if err != nil {
 		return err
 	}
 
-	hasFieldValueUpdates := req.FieldValues != nil && len(req.FieldValues) > 0
-	if !hasFieldValueUpdates {
+	if len(req.FieldValues) == 0 {
 		if err := utils.RequireUpdates(columnUpdates); err != nil {
 			return err
 		}
@@ -140,24 +132,9 @@ func (h *ContentItemHandler) DeleteContentItem(c fiber.Ctx) error {
 
 func (h *ContentItemHandler) GetPublicContentItems(c fiber.Ctx) error {
 	contentTypeId := c.Query("contentTypeId")
-	sortBy := c.Query("sortBy", "createdAt")
 	sortOrder := c.Query("sortOrder", "desc")
-
-	sortByMap := map[string]string{
-		"createdAt": "CreatedAt",
-		"updatedAt": "UpdatedAt",
-		"title":     "Title",
-	}
-	if mapped, ok := sortByMap[sortBy]; ok {
-		sortBy = mapped
-	} else {
-		sortBy = "CreatedAt"
-	}
-
-	limit := 10
-	if l, err := strconv.Atoi(c.Query("limit", "10")); err == nil && l > 0 {
-		limit = l
-	}
+	sortBy := resolveContentItemSortBy(c.Query("sortBy", "createdAt"))
+	limit := utils.ParsePositiveIntQuery(c, "limit", 10)
 
 	contentItems, err := h.contentItemService.GetPublicContentItems(c.RequestCtx(), contentTypeId, limit, sortBy, sortOrder)
 	if err != nil {
@@ -165,6 +142,17 @@ func (h *ContentItemHandler) GetPublicContentItems(c fiber.Ctx) error {
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItems(contentItems))
+}
+
+func resolveContentItemSortBy(raw string) string {
+	switch raw {
+	case "updatedAt":
+		return "UpdatedAt"
+	case "title":
+		return "Title"
+	default:
+		return "CreatedAt"
+	}
 }
 
 func (h *ContentItemHandler) GetPublicContentItemBySlug(c fiber.Ctx) error {

@@ -161,54 +161,41 @@ func (s *InvitationService) GetInvitationsByProject(ctx context.Context, project
 	return s.invitationRepo.GetInvitationsByProject(ctx, projectID)
 }
 
-func (s *InvitationService) DeleteInvitation(ctx context.Context, id string) error {
+func (s *InvitationService) requireInvitation(ctx context.Context, id string) (*models.Invitation, error) {
 	if id == "" {
-		return errors.New("invitation id is required")
+		return nil, errors.New("invitation id is required")
 	}
-
 	invitation, err := s.GetInvitationByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if invitation == nil {
-		return errors.New("invitation does not exist")
+		return nil, errors.New("invitation does not exist")
 	}
+	return invitation, nil
+}
 
+func (s *InvitationService) DeleteInvitation(ctx context.Context, id string) error {
+	if _, err := s.requireInvitation(ctx, id); err != nil {
+		return err
+	}
 	return s.invitationRepo.DeleteInvitation(ctx, id)
 }
 
 func (s *InvitationService) CancelInvitation(ctx context.Context, id string) error {
-	if id == "" {
-		return errors.New("invitation id is required")
-	}
-
-	invitation, err := s.GetInvitationByID(ctx, id)
-	if err != nil {
+	if _, err := s.requireInvitation(ctx, id); err != nil {
 		return err
 	}
-	if invitation == nil {
-		return errors.New("invitation does not exist")
-	}
-
 	return s.invitationRepo.CancelInvitation(ctx, id)
 }
 
 func (s *InvitationService) UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error {
-	if id == "" {
-		return errors.New("invitation id is required")
-	}
 	if status == "" {
 		return errors.New("status is required")
 	}
-
-	invitation, err := s.GetInvitationByID(ctx, id)
-	if err != nil {
+	if _, err := s.requireInvitation(ctx, id); err != nil {
 		return err
 	}
-	if invitation == nil {
-		return errors.New("invitation does not exist")
-	}
-
 	return s.invitationRepo.UpdateInvitationStatus(ctx, id, status)
 }
 

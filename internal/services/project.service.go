@@ -120,17 +120,13 @@ func (s *ProjectService) CreateProject(ctx context.Context, project *models.Proj
 	return project, nil
 }
 
-func (s *ProjectService) UpdateProject(ctx context.Context, projectID, userID string, project *models.Project) (*models.Project, error) {
+func (s *ProjectService) requireProjectAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 	if userID == "" {
 		return nil, errors.New("userId is required")
 	}
-	if project == nil {
-		return nil, errors.New("project cannot be nil")
-	}
-
 	existing, err := s.GetProjectWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, err
@@ -138,7 +134,10 @@ func (s *ProjectService) UpdateProject(ctx context.Context, projectID, userID st
 	if existing == nil {
 		return nil, errors.New("project does not exist")
 	}
+	return existing, nil
+}
 
+func mergeProjectUpdateFields(existing, project *models.Project) map[string]any {
 	if project.Name == "" {
 		project.Name = existing.Name
 	}
@@ -154,8 +153,7 @@ func (s *ProjectService) UpdateProject(ctx context.Context, projectID, userID st
 	if project.Header == nil {
 		project.Header = existing.Header
 	}
-
-	updates := map[string]any{
+	return map[string]any{
 		"Name":        project.Name,
 		"Description": project.Description,
 		"Published":   project.Published,
@@ -163,55 +161,37 @@ func (s *ProjectService) UpdateProject(ctx context.Context, projectID, userID st
 		"Styles":      project.Styles,
 		"Header":      project.Header,
 	}
+}
 
-	return s.projectRepo.UpdateProject(ctx, projectID, userID, updates)
+func (s *ProjectService) UpdateProject(ctx context.Context, projectID, userID string, project *models.Project) (*models.Project, error) {
+	if project == nil {
+		return nil, errors.New("project cannot be nil")
+	}
+	existing, err := s.requireProjectAccess(ctx, projectID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.projectRepo.UpdateProject(ctx, projectID, userID, mergeProjectUpdateFields(existing, project))
 }
 
 func (s *ProjectService) DeleteProject(ctx context.Context, projectID, userID string) error {
-	if projectID == "" {
-		return errors.New("projectId is required")
-	}
-	if userID == "" {
-		return errors.New("userId is required")
-	}
-
-	_, err := s.GetProjectWithAccess(ctx, projectID, userID)
-	if err != nil {
+	if _, err := s.requireProjectAccess(ctx, projectID, userID); err != nil {
 		return err
 	}
-
 	return s.projectRepo.DeleteProject(ctx, projectID, userID)
 }
 
 func (s *ProjectService) HardDeleteProject(ctx context.Context, projectID, userID string) error {
-	if projectID == "" {
-		return errors.New("projectId is required")
-	}
-	if userID == "" {
-		return errors.New("userId is required")
-	}
-
-	_, err := s.GetProjectWithAccess(ctx, projectID, userID)
-	if err != nil {
+	if _, err := s.requireProjectAccess(ctx, projectID, userID); err != nil {
 		return err
 	}
-
 	return s.projectRepo.HardDeleteProject(ctx, projectID, userID)
 }
 
 func (s *ProjectService) RestoreProject(ctx context.Context, projectID, userID string) error {
-	if projectID == "" {
-		return errors.New("projectId is required")
-	}
-	if userID == "" {
-		return errors.New("userId is required")
-	}
-
-	_, err := s.GetProjectWithAccess(ctx, projectID, userID)
-	if err != nil {
+	if _, err := s.requireProjectAccess(ctx, projectID, userID); err != nil {
 		return err
 	}
-
 	return s.projectRepo.RestoreProject(ctx, projectID, userID)
 }
 

@@ -45,18 +45,6 @@ type CreateInvitationRequest struct {
 	Role      CollaboratorRole `json:"role"       validate:"required,oneof=owner editor viewer"`
 }
 
-type InvitationResponse struct {
-	Id         string           `json:"id"`
-	Email      string           `json:"email"`
-	ProjectId  string           `json:"project_id"`
-	Role       CollaboratorRole `json:"role"`
-	Token      string           `json:"token"`
-	Status     InvitationStatus `json:"status"`
-	ExpiresAt  time.Time        `json:"expires_at"`
-	CreatedAt  time.Time        `json:"created_at"`
-	AcceptedAt *time.Time       `json:"accepted_at,omitempty"`
-}
-
 type AcceptInvitationRequest struct {
 	Token string `json:"token" validate:"required,min=1,max=255"`
 }

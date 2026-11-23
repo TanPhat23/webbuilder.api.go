@@ -28,17 +28,6 @@ type UpdateElementCommentRequest struct {
 	Resolved *bool   `json:"resolved"`
 }
 
-type ElementCommentResponse struct {
-	Id        string         `json:"id"`
-	Content   string         `json:"content"`
-	AuthorId  string         `json:"authorId"`
-	ElementId string         `json:"elementId"`
-	CreatedAt string         `json:"createdAt"`
-	UpdatedAt string         `json:"updatedAt"`
-	Resolved  bool           `json:"resolved"`
-	Author    *CommentAuthor `json:"author,omitempty"`
-}
-
 // CommentAuthor is the public author shape embedded in comment responses.
 type CommentAuthor struct {
 	Id        string  `json:"id"`

@@ -16,10 +16,6 @@ func (Image) TableName() string {
 	return `public."Image"`
 }
 
-type CreateImageRequest struct {
-	ImageName *string `json:"image_name" validate:"omitempty,min=1,max=255"`
-}
-
 type ImageUploadResponse struct {
 	ImageId   string    `json:"image_id"`
 	ImageLink string    `json:"image_link"`

@@ -71,35 +71,24 @@ func (h *ElementCommentHandler) GetElementComments(c fiber.Ctx) error {
 	}
 	elementID := ids[0]
 
-	filter := &models.ElementCommentFilter{
-		Limit:     20,
-		Offset:    0,
-		SortBy:    "CreatedAt",
+	limit, offset := utils.ParsePagination(c, 20)
+	filter := models.ElementCommentFilter{
+		Limit:     limit,
+		Offset:    offset,
+		SortBy:    c.Query("sortBy", "CreatedAt"),
 		SortOrder: "DESC",
-	}
-
-	if l, err := strconv.Atoi(c.Query("limit", "20")); err == nil && l > 0 {
-		filter.Limit = l
-	}
-	if o, err := strconv.Atoi(c.Query("offset", "0")); err == nil && o >= 0 {
-		filter.Offset = o
-	}
-	if authorID := c.Query("authorId"); authorID != "" {
-		filter.AuthorId = authorID
+		AuthorId:  c.Query("authorId"),
 	}
 	if resolved := c.Query("resolved"); resolved != "" {
 		if r, err := strconv.ParseBool(resolved); err == nil {
 			filter.Resolved = &r
 		}
 	}
-	if sortBy := c.Query("sortBy"); sortBy != "" {
-		filter.SortBy = sortBy
-	}
 	if sortOrder := c.Query("sortOrder"); sortOrder == "ASC" || sortOrder == "DESC" {
 		filter.SortOrder = sortOrder
 	}
 
-	comments, err := h.elementCommentService.GetElementComments(c.RequestCtx(), elementID, *filter)
+	comments, err := h.elementCommentService.GetElementComments(c.RequestCtx(), elementID, filter)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
@@ -131,12 +120,8 @@ func (h *ElementCommentHandler) UpdateElementComment(c fiber.Ctx) error {
 	}
 
 	updates := map[string]any{}
-	if req.Content != nil {
-		updates["content"] = *req.Content
-	}
-	if req.Resolved != nil {
-		updates["resolved"] = *req.Resolved
-	}
+	utils.SetIfNotNil(updates, "content", req.Content)
+	utils.SetIfNotNil(updates, "resolved", req.Resolved)
 
 	if err := utils.RequireUpdates(updates); err != nil {
 		return err
@@ -189,14 +174,7 @@ func (h *ElementCommentHandler) GetCommentsByAuthorID(c fiber.Ctx) error {
 	}
 	authorID := ids[0]
 
-	limit := 20
-	offset := 0
-	if l, err := strconv.Atoi(c.Query("limit", "20")); err == nil && l > 0 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(c.Query("offset", "0")); err == nil && o >= 0 {
-		offset = o
-	}
+	limit, offset := utils.ParsePagination(c, 20)
 
 	comments, err := h.elementCommentService.GetElementCommentsByAuthorID(c.RequestCtx(), authorID, limit, offset)
 	if err != nil {
@@ -214,14 +192,7 @@ func (h *ElementCommentHandler) GetCommentsByProjectID(c fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	limit := 20
-	offset := 0
-	if l, err := strconv.Atoi(c.Query("limit", "20")); err == nil && l > 0 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(c.Query("offset", "0")); err == nil && o >= 0 {
-		offset = o
-	}
+	limit, offset := utils.ParsePagination(c, 20)
 
 	comments, err := h.elementCommentService.GetElementCommentsByProjectID(c.RequestCtx(), projectID, userID, limit, offset)
 	if err != nil {

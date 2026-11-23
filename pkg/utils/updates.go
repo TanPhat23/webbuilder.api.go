@@ -35,3 +35,20 @@ func BuildColumnUpdates(updates map[string]any, allowed map[string]string) (map[
 	}
 	return cols, nil
 }
+
+// SetIfNotNil copies *val into dst[key] when val is non-nil.
+func SetIfNotNil[T any](dst map[string]any, key string, val *T) {
+	if val != nil {
+		dst[key] = *val
+	}
+}
+
+// MarshalRawJSON marshals v into a *json.RawMessage.
+func MarshalRawJSON(v any) (*json.RawMessage, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	msg := json.RawMessage(b)
+	return &msg, nil
+}

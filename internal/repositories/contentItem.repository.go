@@ -112,15 +112,8 @@ func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *model
 		}
 
 		// Create field values
-		for i := range fieldValues {
-			if fieldValues[i].Id == "" {
-				fieldValues[i].Id = cuid.New()
-			}
-			fieldValues[i].ContentItemId = ci.Id
-
-			if err := gorm.G[models.ContentFieldValue](tx).Create(ctx, &fieldValues[i]); err != nil {
-				return fmt.Errorf("failed to create field value: %w", err)
-			}
+		if err := insertContentFieldValues(ctx, tx, ci.Id, fieldValues); err != nil {
+			return err
 		}
 
 		return nil
@@ -131,6 +124,40 @@ func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *model
 	}
 
 	return r.GetContentItemByID(ctx, ci.Id)
+}
+
+func insertContentFieldValues(ctx context.Context, tx *gorm.DB, contentItemID string, fieldValues []models.ContentFieldValue) error {
+	for i := range fieldValues {
+		if fieldValues[i].Id == "" {
+			fieldValues[i].Id = cuid.New()
+		}
+		fieldValues[i].ContentItemId = contentItemID
+		if err := gorm.G[models.ContentFieldValue](tx).Create(ctx, &fieldValues[i]); err != nil {
+			return fmt.Errorf("failed to create field value: %w", err)
+		}
+	}
+	return nil
+}
+
+func applyContentItemUpdates(ctx context.Context, tx *gorm.DB, existing *models.ContentItem, updates map[string]any) error {
+	normalizeUpdateColumns(updates)
+	if newSlug, ok := updates["Slug"].(string); ok {
+		count, err := gorm.G[models.ContentItem](tx).
+			Where("\"ContentTypeId\" = ? AND \"Slug\" = ? AND \"Id\" != ?", existing.ContentTypeId, newSlug, existing.Id).
+			Count(ctx, "*")
+		if err != nil {
+			return fmt.Errorf("failed to check slug uniqueness: %w", err)
+		}
+		if count > 0 {
+			return ErrContentItemDuplicate
+		}
+	}
+
+	updates["UpdatedAt"] = time.Now()
+	if err := tx.Model(&models.ContentItem{}).Where("\"Id\" = ?", existing.Id).Updates(updates).Error; err != nil {
+		return fmt.Errorf("failed to update content item: %w", err)
+	}
+	return nil
 }
 
 func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
@@ -154,47 +181,13 @@ func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string
 				Delete(ctx); err != nil {
 				return fmt.Errorf("failed to delete existing field values: %w", err)
 			}
-
-			for i := range fieldValues {
-				if fieldValues[i].Id == "" {
-					fieldValues[i].Id = cuid.New()
-				}
-				fieldValues[i].ContentItemId = id
-
-				if err := gorm.G[models.ContentFieldValue](tx).Create(ctx, &fieldValues[i]); err != nil {
-					return fmt.Errorf("failed to create field value: %w", err)
-				}
+			if err := insertContentFieldValues(ctx, tx, id, fieldValues); err != nil {
+				return err
 			}
 		}
-
 		if len(updates) > 0 {
-			if value, ok := updates["slug"]; ok {
-				updates["Slug"] = value
-				delete(updates, "slug")
-			}
-			if newSlug, ok := updates["Slug"].(string); ok {
-				count, err := gorm.G[models.ContentItem](tx).
-					Where("\"ContentTypeId\" = ? AND \"Slug\" = ? AND \"Id\" != ?", existing.ContentTypeId, newSlug, id).
-					Count(ctx, "*")
-
-				if err != nil {
-					return fmt.Errorf("failed to check slug uniqueness: %w", err)
-				}
-
-				if count > 0 {
-					return ErrContentItemDuplicate
-				}
-			}
-
-			updates["UpdatedAt"] = time.Now()
-
-			if err := tx.Model(&models.ContentItem{}).
-				Where("\"Id\" = ?", id).
-				Updates(updates).Error; err != nil {
-				return fmt.Errorf("failed to update content item: %w", err)
-			}
+			return applyContentItemUpdates(ctx, tx, existing, updates)
 		}
-
 		return nil
 	})
 
@@ -202,7 +195,6 @@ func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string
 		return nil, err
 	}
 
-	// Fetch and return updated content item
 	return r.GetContentItemByID(ctx, id)
 }
 

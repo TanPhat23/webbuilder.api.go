@@ -180,34 +180,38 @@ func (r *ProjectRepository) CreateProject(ctx context.Context, project *models.P
 	return nil
 }
 
+func (r *ProjectRepository) ensureOwner(ctx context.Context, projectID, userID string) error {
+	if projectID == "" || userID == "" {
+		return errors.New("projectID and userID are required")
+	}
+	count, err := gorm.G[models.Project](r.db).
+		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
+		Count(ctx, "*")
+	if err != nil {
+		return fmt.Errorf("failed to verify project ownership: %w", err)
+	}
+	if count == 0 {
+		return ErrProjectUnauthorized
+	}
+	return nil
+}
+
 func (r *ProjectRepository) UpdateProject(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
-
 	if len(updates) == 0 {
 		return nil, errors.New("no updates provided")
 	}
-
-	// Verify ownership first
-	count, err := gorm.G[models.Project](r.db).
-		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
-		Count(ctx, "*")
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify project ownership: %w", err)
-	}
-
-	if count == 0 {
-		return nil, ErrProjectUnauthorized
+	if err := r.ensureOwner(ctx, projectID, userID); err != nil {
+		return nil, err
 	}
 
 	// Callers (handlers) are expected to pass a pre-built, allowlisted map.
 	// We only stamp UpdatedAt here so it is always consistent.
 	updates["UpdatedAt"] = time.Now()
 
-	// Perform update
-	err = r.db.WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Model(&models.Project{}).
 		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
 		Updates(updates).Error
@@ -216,31 +220,16 @@ func (r *ProjectRepository) UpdateProject(ctx context.Context, projectID, userID
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 
-	// Fetch and return updated project
 	return r.GetProjectByID(ctx, projectID, userID)
 }
 
 func (r *ProjectRepository) DeleteProject(ctx context.Context, projectID, userID string) error {
-	if projectID == "" || userID == "" {
-		return errors.New("projectID and userID are required")
+	if err := r.ensureOwner(ctx, projectID, userID); err != nil {
+		return err
 	}
 
-	// Verify ownership
-	count, err := gorm.G[models.Project](r.db).
-		Where(`"Id" = ? AND "OwnerId" = ? AND "DeletedAt" IS NULL`, projectID, userID).
-		Count(ctx, "*")
-
-	if err != nil {
-		return fmt.Errorf("failed to verify project ownership: %w", err)
-	}
-
-	if count == 0 {
-		return ErrProjectUnauthorized
-	}
-
-	// Soft delete
 	now := time.Now()
-	_, err = gorm.G[models.Project](r.db).
+	_, err := gorm.G[models.Project](r.db).
 		Where(&models.Project{ID: projectID, OwnerId: userID}).
 		Update(ctx, `"DeletedAt"`, now)
 

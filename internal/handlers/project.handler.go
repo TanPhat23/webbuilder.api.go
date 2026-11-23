@@ -131,62 +131,11 @@ func (h *ProjectHandler) UpdateProject(c fiber.Ctx) error {
 		return err
 	}
 
-	rawBody := map[string]any{}
-	if req.Name != nil {
-		rawBody["name"] = *req.Name
-	}
-	if req.Description != nil {
-		rawBody["description"] = *req.Description
-	}
-	if req.Published != nil {
-		rawBody["published"] = *req.Published
-	}
-	if req.Subdomain != nil {
-		rawBody["subdomain"] = *req.Subdomain
-	}
-	if req.Styles != nil {
-		rawBody["styles"] = req.Styles
-	}
-	if req.Header != nil {
-		rawBody["header"] = req.Header
-	}
-
-	columnUpdates, err := utils.BuildColumnUpdates(rawBody, projectAllowedCols)
+	columnUpdates, err := buildProjectColumnUpdates(req)
 	if err != nil {
 		return err
 	}
-	if err := utils.RequireUpdates(columnUpdates); err != nil {
-		return err
-	}
-
-	project := &models.Project{}
-
-	if name, ok := columnUpdates["Name"]; ok {
-		project.Name = name.(string)
-	}
-	if description, ok := columnUpdates["Description"]; ok {
-		desc := description.(string)
-		project.Description = &desc
-	}
-	if published, ok := columnUpdates["Published"]; ok {
-		project.Published = published.(bool)
-	}
-	if subdomain, ok := columnUpdates["Subdomain"]; ok {
-		sub := subdomain.(string)
-		project.Subdomain = &sub
-	}
-	if styles, ok := columnUpdates["Styles"]; ok {
-		if styleBytes, err := json.Marshal(styles); err == nil {
-			msg := json.RawMessage(styleBytes)
-			project.Styles = &msg
-		}
-	}
-	if header, ok := columnUpdates["Header"]; ok {
-		if headerBytes, err := json.Marshal(header); err == nil {
-			msg := json.RawMessage(headerBytes)
-			project.Header = &msg
-		}
-	}
+	project := projectFromColumnUpdates(columnUpdates)
 
 	updatedProject, err := h.projectService.UpdateProject(c.RequestCtx(), projectID, userID, project)
 	if err != nil {
@@ -196,6 +145,55 @@ func (h *ProjectHandler) UpdateProject(c fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, updatedProject)
 }
 
+func buildProjectColumnUpdates(req *dto.UpdateProjectRequest) (map[string]any, error) {
+	rawBody := map[string]any{}
+	utils.SetIfNotNil(rawBody, "name", req.Name)
+	utils.SetIfNotNil(rawBody, "description", req.Description)
+	utils.SetIfNotNil(rawBody, "published", req.Published)
+	utils.SetIfNotNil(rawBody, "subdomain", req.Subdomain)
+	if req.Styles != nil {
+		rawBody["styles"] = req.Styles
+	}
+	if req.Header != nil {
+		rawBody["header"] = req.Header
+	}
+
+	columnUpdates, err := utils.BuildColumnUpdates(rawBody, projectAllowedCols)
+	if err != nil {
+		return nil, err
+	}
+	if err := utils.RequireUpdates(columnUpdates); err != nil {
+		return nil, err
+	}
+	return columnUpdates, nil
+}
+
+func projectFromColumnUpdates(columnUpdates map[string]any) *models.Project {
+	project := &models.Project{}
+	if name, ok := columnUpdates["Name"].(string); ok {
+		project.Name = name
+	}
+	if desc, ok := columnUpdates["Description"].(string); ok {
+		project.Description = &desc
+	}
+	if published, ok := columnUpdates["Published"].(bool); ok {
+		project.Published = published
+	}
+	if sub, ok := columnUpdates["Subdomain"].(string); ok {
+		project.Subdomain = &sub
+	}
+	if styles, ok := columnUpdates["Styles"]; ok {
+		if msg, err := utils.MarshalRawJSON(styles); err == nil {
+			project.Styles = msg
+		}
+	}
+	if header, ok := columnUpdates["Header"]; ok {
+		if msg, err := utils.MarshalRawJSON(header); err == nil {
+			project.Header = msg
+		}
+	}
+	return project
+}
 
 // CreateProject creates a project owned by the caller, with its first page.
 func (h *ProjectHandler) CreateProject(c fiber.Ctx) error {
@@ -210,11 +208,11 @@ func (h *ProjectHandler) CreateProject(c fiber.Ctx) error {
 
 	styles := json.RawMessage(`{}`)
 	if req.Styles != nil {
-		b, err := json.Marshal(req.Styles)
+		msg, err := utils.MarshalRawJSON(req.Styles)
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "Invalid styles")
 		}
-		styles = b
+		styles = *msg
 	}
 	project := &models.Project{
 		ID:          req.Id,
@@ -226,12 +224,11 @@ func (h *ProjectHandler) CreateProject(c fiber.Ctx) error {
 		Styles:      &styles,
 	}
 	if req.Header != nil {
-		b, err := json.Marshal(req.Header)
+		msg, err := utils.MarshalRawJSON(req.Header)
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "Invalid header")
 		}
-		header := json.RawMessage(b)
-		project.Header = &header
+		project.Header = msg
 	}
 
 	created, err := h.projectService.CreateProjectWithPage(c.RequestCtx(), project)
