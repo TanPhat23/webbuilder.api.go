@@ -54,7 +54,7 @@ func (h *ProjectHandler) GetProjectByID(c fiber.Ctx) error {
 
 	project, err := h.projectService.GetProjectWithAccess(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve project")
+		return handleProjectError(c, err, "Failed to retrieve project")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, project)
@@ -82,13 +82,10 @@ func (h *ProjectHandler) GetProjectPages(c fiber.Ctx) error {
 	}
 	projectID := ids[0]
 
-	if _, err := h.projectService.GetProjectWithAccess(c.RequestCtx(), projectID, userID); err != nil {
-		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
-	}
-
+	// The service verifies access, so a separate check here would repeat the query.
 	pages, err := h.projectService.GetProjectPages(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve project pages")
+		return handleProjectError(c, err, "Failed to retrieve project pages")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, pages)
@@ -116,7 +113,7 @@ func (h *ProjectHandler) DeleteProject(c fiber.Ctx) error {
 	projectID := ids[0]
 
 	if err := h.projectService.DeleteProject(c.RequestCtx(), projectID, userID); err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to delete project")
+		return handleProjectError(c, err, "Failed to delete project")
 	}
 
 	return utils.SendNoContent(c)
@@ -193,7 +190,7 @@ func (h *ProjectHandler) UpdateProject(c fiber.Ctx) error {
 
 	updatedProject, err := h.projectService.UpdateProject(c.RequestCtx(), projectID, userID, project)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to update project")
+		return handleProjectError(c, err, "Failed to update project")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updatedProject)

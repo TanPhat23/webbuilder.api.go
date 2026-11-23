@@ -26,6 +26,9 @@ var serverID = uuid.NewString()
 type registerRequest struct {
 	client *Client
 	done   chan struct{}
+	// rejected is set (before done closes) when the room was shutting down and did not
+	// take the client; the caller then joins a fresh room.
+	rejected *bool
 }
 
 // unregisterRequest represents a request to remove a client from a room.
@@ -42,8 +45,11 @@ type redisEnvelope struct {
 
 // Hub manages multiple rooms and synchronizes state across multiple nodes via Redis.
 type Hub struct {
-	mu          sync.RWMutex
-	rooms       map[string]*Room
+	// rooms maps room ID to *Room. Every broadcast, presence update and lookup reads
+	// it from its own goroutine while rooms open and close rarely, which is what
+	// sync.Map is for: reads take no lock, whereas an RWMutex reader count is one
+	// cache line every core writes (about 30x slower at 16 cores, see lookup_bench_test.go).
+	rooms       sync.Map
 	redisClient *redis.Client
 	parentCtx   context.Context
 	wg          *sync.WaitGroup
@@ -54,7 +60,6 @@ type Hub struct {
 // NewHub creates a new Hub. If rdb is provided, it enables horizontal scalability using Redis Pub/Sub.
 func NewHub(parentCtx context.Context, wg *sync.WaitGroup, sendBuf int, rdb *redis.Client, lg logger.Logger) *Hub {
 	h := &Hub{
-		rooms:       make(map[string]*Room),
 		redisClient: rdb,
 		parentCtx:   parentCtx,
 		wg:          wg,
@@ -69,26 +74,49 @@ func NewHub(parentCtx context.Context, wg *sync.WaitGroup, sendBuf int, rdb *red
 	return h
 }
 
-// getOrCreateRoom returns an existing room or initializes a new one.
-func (h *Hub) getOrCreateRoom(roomID string) *Room {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	r := h.rooms[roomID]
-	if r == nil {
-		r = NewRoom(roomID, h.parentCtx, h.wg, h.sendBuf, h.logger)
-		r.onEmpty = func(rid string) {
-			h.mu.Lock()
-			delete(h.rooms, rid)
-			h.mu.Unlock()
-		}
-		h.rooms[roomID] = r
-		go r.run()
+// room returns the open room with that ID, or nil.
+func (h *Hub) room(roomID string) *Room {
+	if v, ok := h.rooms.Load(roomID); ok {
+		return v.(*Room)
 	}
-	return r
+	return nil
 }
 
-// Register adds a client to a room and waits for confirmation.
+// getOrCreateRoom returns an existing room or initializes a new one.
+func (h *Hub) getOrCreateRoom(roomID string) *Room {
+	for {
+		if r := h.room(roomID); r != nil {
+			if r.ctx.Err() == nil {
+				return r
+			}
+			// The room is shutting down (it emptied, or the hub is stopping) and has not
+			// left the table yet: replace it rather than hand out a room that never answers.
+			h.rooms.CompareAndDelete(roomID, r)
+			if h.parentCtx.Err() != nil {
+				return r
+			}
+			continue
+		}
+
+		r := NewRoom(roomID, h.parentCtx, h.wg, h.sendBuf, h.logger)
+		r.onEmpty = func(rid string) {
+			// Only remove this room: a newer room may already own the ID.
+			h.rooms.CompareAndDelete(rid, r)
+		}
+		if existing, loaded := h.rooms.LoadOrStore(roomID, r); loaded {
+			r.cancel() // lost the race; this room never ran
+			if er := existing.(*Room); er.ctx.Err() == nil || h.parentCtx.Err() != nil {
+				return er
+			}
+			continue
+		}
+		go r.run()
+		return r
+	}
+}
+
+// Register adds a client to a room and waits for confirmation. If the room closes
+// while the client is joining (its last client left), the client joins a new room.
 func (h *Hub) Register(ctx context.Context, client *Client) error {
 	if client == nil {
 		return nil
@@ -98,19 +126,32 @@ func (h *Hub) Register(ctx context.Context, client *Client) error {
 		return nil
 	}
 
-	r := h.getOrCreateRoom(roomID)
-	done := make(chan struct{})
+	for {
+		r := h.getOrCreateRoom(roomID)
+		done := make(chan struct{})
+		var rejected bool
 
-	select {
-	case r.register <- registerRequest{client: client, done: done}:
+		select {
+		case r.register <- registerRequest{client: client, done: done, rejected: &rejected}:
+		case <-r.ctx.Done():
+			// The room stopped before taking the request.
+			if h.parentCtx.Err() != nil {
+				return h.parentCtx.Err()
+			}
+			continue
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
 		select {
 		case <-done:
+			if rejected {
+				continue
+			}
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-	case <-ctx.Done():
-		return ctx.Err()
 	}
 }
 
@@ -124,10 +165,7 @@ func (h *Hub) Unregister(ctx context.Context, client *Client) error {
 		return nil
 	}
 
-	h.mu.RLock()
-	r := h.rooms[roomID]
-	h.mu.RUnlock()
-
+	r := h.room(roomID)
 	if r == nil {
 		return nil
 	}
@@ -141,6 +179,9 @@ func (h *Hub) Unregister(ctx context.Context, client *Client) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	case <-r.ctx.Done():
+		// The room already stopped and closed all its clients, this one included.
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -174,14 +215,14 @@ func (h *Hub) Broadcast(roomID string, msg domainEntity.Message, sender *Client)
 // BroadcastProject sends a message to all rooms within a project (project-level and per-page rooms).
 // It collects all rooms whose ID equals 'projectID' or starts with 'projectID:' and broadcasts to each.
 func (h *Hub) BroadcastProject(projectID string, msg domainEntity.Message, sender *Client) {
-	h.mu.RLock()
-	roomIDs := make([]string, 0, len(h.rooms))
-	for rid := range h.rooms {
-		if rid == projectID || strings.HasPrefix(rid, projectID+":") {
+	var roomIDs []string
+	prefix := projectID + ":"
+	h.rooms.Range(func(key, _ any) bool {
+		if rid := key.(string); rid == projectID || strings.HasPrefix(rid, prefix) {
 			roomIDs = append(roomIDs, rid)
 		}
-	}
-	h.mu.RUnlock()
+		return true
+	})
 
 	for _, rid := range roomIDs {
 		h.Broadcast(rid, msg, sender)
@@ -190,10 +231,7 @@ func (h *Hub) BroadcastProject(projectID string, msg domainEntity.Message, sende
 
 // localBroadcast sends a message to clients connected to this specific server instance.
 func (h *Hub) localBroadcast(roomID string, msg domainEntity.Message, sender *Client) {
-	h.mu.RLock()
-	r := h.rooms[roomID]
-	h.mu.RUnlock()
-
+	r := h.room(roomID)
 	if r == nil {
 		return
 	}
@@ -259,11 +297,7 @@ func (h *Hub) listenRedis() {
 }
 
 func (h *Hub) GetRoomParticipants(roomID string) []domainEntity.UserPresence {
-	h.mu.RLock()
-	r := h.rooms[roomID]
-	h.mu.RUnlock()
-
-	if r != nil {
+	if r := h.room(roomID); r != nil {
 		return r.GetParticipants()
 	}
 	return []domainEntity.UserPresence{}
@@ -271,14 +305,14 @@ func (h *Hub) GetRoomParticipants(roomID string) []domainEntity.UserPresence {
 
 // MostRecentClient returns the user's most recently active connection on this instance.
 func (h *Hub) MostRecentClient(projectID, userID string) *Client {
-	h.mu.RLock()
-	rooms := make([]*Room, 0, len(h.rooms))
-	for id, r := range h.rooms {
-		if id == projectID || strings.HasPrefix(id, projectID+":") {
-			rooms = append(rooms, r)
+	var rooms []*Room
+	prefix := projectID + ":"
+	h.rooms.Range(func(key, value any) bool {
+		if id := key.(string); id == projectID || strings.HasPrefix(id, prefix) {
+			rooms = append(rooms, value.(*Room))
 		}
-	}
-	h.mu.RUnlock()
+		return true
+	})
 
 	var best *Client
 	for _, r := range rooms {

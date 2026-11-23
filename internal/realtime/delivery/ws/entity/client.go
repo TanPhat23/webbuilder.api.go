@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"encoding/json"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -26,8 +27,10 @@ type Client struct {
 	// is never chosen as the editor tab for agent calls.
 	Writer bool
 	// sendMu guards send/sendClosed so a send can never race with the channel being closed.
-	sendMu     sync.RWMutex
-	send       chan domainEntity.Message
+	sendMu sync.RWMutex
+	// send holds frames that are already JSON encoded, so a broadcast to a whole
+	// room is marshalled once instead of once per client.
+	send       chan []byte
 	sendClosed bool
 
 	// connMu serializes every write to and close of Conn: the websocket library allows only
@@ -64,10 +67,10 @@ func (c *Client) Touch() { c.lastActive.Store(time.Now().UnixNano()) }
 func (c *Client) LastActiveUnixNano() int64 { return c.lastActive.Load() }
 
 // openSend (re)creates the client's send channel and returns it.
-func (c *Client) openSend(buf int) chan domainEntity.Message {
+func (c *Client) openSend(buf int) chan []byte {
 	c.sendMu.Lock()
 	defer c.sendMu.Unlock()
-	c.send = make(chan domainEntity.Message, buf)
+	c.send = make(chan []byte, buf)
 	c.sendClosed = false
 	return c.send
 }
@@ -82,17 +85,30 @@ func (c *Client) CloseSend() {
 	}
 }
 
-// TrySend attempts to enqueue a message onto the client's send channel.
-// Returns false if the channel is not initialized, already closed, or if the client
-// is slow (i.e., the channel buffer is full).
+// EncodeFrame marshals a message into the frame written to a websocket client.
+func EncodeFrame(msg domainEntity.Message) ([]byte, error) { return json.Marshal(msg) }
+
+// TrySend encodes msg and attempts to enqueue it. See TrySendFrame.
 func (c *Client) TrySend(msg domainEntity.Message) bool {
+	frame, err := EncodeFrame(msg)
+	if err != nil {
+		return false
+	}
+	return c.TrySendFrame(frame)
+}
+
+// TrySendFrame attempts to enqueue an encoded frame onto the client's send channel.
+// Returns false if the channel is not initialized, already closed, or if the client
+// is slow (i.e., the channel buffer is full). The frame must not be modified afterwards:
+// a broadcast shares one frame between all its recipients.
+func (c *Client) TrySendFrame(frame []byte) bool {
 	c.sendMu.RLock()
 	defer c.sendMu.RUnlock()
 	if c.send == nil || c.sendClosed {
 		return false
 	}
 	select {
-	case c.send <- msg:
+	case c.send <- frame:
 		return true
 	default:
 		return false
@@ -124,6 +140,19 @@ func (c *Client) WriteJSON(msg any) error {
 		_ = d.SetWriteDeadline(time.Now().Add(writeWait))
 	}
 	return c.Conn.WriteJSON(msg)
+}
+
+// WriteFrame writes one already encoded JSON frame as a text message. Safe for concurrent use.
+func (c *Client) WriteFrame(frame []byte) error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	if c.released || c.closing || c.Conn == nil {
+		return ErrConnReleased
+	}
+	if d, ok := any(c.Conn).(interface{ SetWriteDeadline(time.Time) error }); ok {
+		_ = d.SetWriteDeadline(time.Now().Add(writeWait))
+	}
+	return c.Conn.WriteMessage(websocket.TextMessage, frame)
 }
 
 // CloseConn closes the connection unless it was already released. After a close frame

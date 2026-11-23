@@ -84,7 +84,7 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflowsByPageId(c fiber.C
 	}
 
 	if _, err := h.projectService.GetProjectWithAccess(c.RequestCtx(), page.ProjectId, userID); err != nil {
-		return utils.SendError(c, fiber.StatusForbidden, "Access denied to project", err, userID)
+		return handleProjectError(c, err, "Failed to verify project access")
 	}
 
 	eews, err := h.elementEventWorkflowService.GetElementEventWorkflowsByPageID(c.RequestCtx(), pageID)

@@ -27,7 +27,9 @@ func SendError(c fiber.Ctx, status int, message string, err error, userID ...str
 		Error:        message,
 		ErrorMessage: "",
 	}
-	if err != nil {
+	// Server errors carry database and library internals; log them, and give the
+	// client the requestId to quote instead.
+	if err != nil && status < fiber.StatusInternalServerError {
 		response.ErrorMessage = err.Error()
 	}
 	if len(userID) > 0 {

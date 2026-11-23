@@ -72,6 +72,17 @@ func (r *Room) run() {
 
 		case req := <-r.register:
 			client := req.client
+			if r.ctx.Err() != nil {
+				// This room is shutting down (its last client just left): adding the client
+				// would start a writer that is cancelled at once. Make the caller retry.
+				if req.rejected != nil {
+					*req.rejected = true
+				}
+				if req.done != nil {
+					close(req.done)
+				}
+				continue
+			}
 			r.mu.Lock()
 			if _, ok := r.clients[client]; !ok {
 				send := client.openSend(r.sendBuf)
@@ -110,12 +121,23 @@ func (r *Room) run() {
 			}
 
 		case msg := <-r.broadcast:
+			// Encode once and share the frame: marshalling per client was a sixth of
+			// the CPU of a 200-client fan-out.
+			frame, err := EncodeFrame(msg.message)
+			if err != nil {
+				// Every writer would have failed on this message and closed its connection.
+				if r.logger != nil {
+					r.logger.Errorf("room %s: cannot encode %s broadcast, closing room clients to force resync: %v", r.PageID, msg.message.Type, err)
+				}
+				r.closeAllClients()
+				continue
+			}
 			r.mu.Lock()
 			for client := range r.clients {
 				if msg.sender != nil && client == msg.sender {
 					continue
 				}
-				if !client.TrySend(msg.message) {
+				if !client.TrySendFrame(frame) {
 					// Slow client: never drop a single message silently (clients rely on
 					// gap-free seq numbers). Close its send channel, which makes the writer
 					// close the connection, so the client reconnects and resyncs.
@@ -133,7 +155,7 @@ func (r *Room) run() {
 
 // clientWriter is responsible for writing messages from a client's send
 // channel to the WebSocket connection. It uses the room's context to stop.
-func (r *Room) clientWriter(c *Client, send <-chan domainEntity.Message) {
+func (r *Room) clientWriter(c *Client, send <-chan []byte) {
 	defer r.wg.Done()
 
 	for {
@@ -142,13 +164,13 @@ func (r *Room) clientWriter(c *Client, send <-chan domainEntity.Message) {
 			c.CloseConn()
 			return
 
-		case msg, ok := <-send:
+		case frame, ok := <-send:
 			if !ok {
 				c.CloseConn()
 				return
 			}
 
-			if err := c.WriteJSON(msg); err != nil {
+			if err := c.WriteFrame(frame); err != nil {
 				if r.logger != nil {
 					r.logger.Errorf("websocket write error (page=%s): %v", c.PageID, err)
 				}

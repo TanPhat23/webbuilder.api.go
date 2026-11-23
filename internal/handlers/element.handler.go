@@ -121,16 +121,10 @@ func (h *ElementHandler) sendPageElements(c fiber.Ctx, projectID string, pageIDs
 // "already answered" for success.
 func (h *ElementHandler) requireAccess(c fiber.Ctx, projectID, userID string) error {
 	_, err := h.projects.GetProjectWithAccess(c.RequestCtx(), projectID, userID)
-	switch {
-	case err == nil:
+	if err == nil {
 		return nil
-	case errors.Is(err, repositories.ErrProjectUnauthorized):
-		return fiber.NewError(fiber.StatusForbidden, "You do not have access to this project")
-	case errors.Is(err, repositories.ErrProjectNotFound):
-		return fiber.NewError(fiber.StatusNotFound, "Project not found")
-	default:
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to verify project access")
 	}
+	return projectAccessFiberError(err, "Failed to verify project access")
 }
 
 // requirePublished returns a fiber error unless the project is published.
