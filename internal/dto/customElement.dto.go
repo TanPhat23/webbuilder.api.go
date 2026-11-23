@@ -6,7 +6,7 @@ type CreateCustomElementRequest struct {
 	Structure    json.RawMessage `json:"structure"    validate:"required"`
 	DefaultProps json.RawMessage `json:"defaultProps" validate:"omitempty"`
 	Name         string          `json:"name"         validate:"required,min=1,max=255"`
-	Version      string          `json:"version"      validate:"required,min=1,max=50"`
+	Version      string          `json:"version"      validate:"omitempty,min=1,max=50"`
 	TypeId       *string         `json:"typeId"       validate:"omitempty,min=1,max=255"`
 	Description  *string         `json:"description"  validate:"omitempty,min=1,max=1000"`
 	Category     *string         `json:"category"     validate:"omitempty,min=1,max=100"`
