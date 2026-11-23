@@ -28,50 +28,72 @@ func DryRun(ctx context.Context, db *sql.DB) (Plan, error) {
 	return plan, nil
 }
 
+type migrationSnapshot struct {
+	input        Input
+	settings     map[string]json.RawMessage
+	projectLogic map[string]json.RawMessage
+	pageLogic    map[string]json.RawMessage
+	pageProject  map[string]string
+}
+
 func planInTx(ctx context.Context, tx *sql.Tx) (Plan, error) {
-	var err error
-	input := Input{}
-	settings := map[string]json.RawMessage{}
-	projectLogic := map[string]json.RawMessage{}
-	pageLogic := map[string]json.RawMessage{}
-	pageProject := map[string]string{}
-	query := func(q string, scan func(*sql.Rows) error) error {
-		rows, err := tx.QueryContext(ctx, q)
-		if err != nil {
+	snap, err := loadMigrationSnapshot(ctx, tx)
+	if err != nil {
+		return Plan{}, err
+	}
+	plan := BuildPlan(snap.input)
+	failures := map[string]string{}
+	completed := markCompletedWorkflows(plan.Interactions, snap.settings, failures)
+	validateInteractionTargets(plan.Interactions, snap.settings, completed, failures)
+	validateFlowTargets(plan.Flows, snap, completed, failures)
+	return finalizePlan(plan, completed, failures), nil
+}
+
+func queryTxRows(ctx context.Context, tx *sql.Tx, q string, scan func(*sql.Rows) error) error {
+	rows, err := tx.QueryContext(ctx, q)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		if err := scan(rows); err != nil {
 			return err
 		}
-		defer rows.Close()
-		for rows.Next() {
-			if err := scan(rows); err != nil {
-				return err
-			}
-		}
-		return rows.Err()
 	}
-	if err = query(`SELECT "Id", "Logic" FROM "Project"`, func(r *sql.Rows) error {
+	return rows.Err()
+}
+
+func loadMigrationSnapshot(ctx context.Context, tx *sql.Tx) (*migrationSnapshot, error) {
+	s := &migrationSnapshot{
+		settings:     map[string]json.RawMessage{},
+		projectLogic: map[string]json.RawMessage{},
+		pageLogic:    map[string]json.RawMessage{},
+		pageProject:  map[string]string{},
+	}
+	if err := queryTxRows(ctx, tx, `SELECT "Id", "Logic" FROM "Project"`, func(r *sql.Rows) error {
 		var id string
 		var raw []byte
 		if err := r.Scan(&id, &raw); err != nil {
 			return err
 		}
-		projectLogic[id] = raw
+		s.projectLogic[id] = raw
 		return nil
 	}); err != nil {
-		return Plan{}, fmt.Errorf("read projects: %w", err)
+		return nil, fmt.Errorf("read projects: %w", err)
 	}
-	if err = query(`SELECT "Id", "ProjectId", "Logic" FROM "Page"`, func(r *sql.Rows) error {
+	if err := queryTxRows(ctx, tx, `SELECT "Id", "ProjectId", "Logic" FROM "Page"`, func(r *sql.Rows) error {
 		var id, p string
 		var raw []byte
 		if err := r.Scan(&id, &p, &raw); err != nil {
 			return err
 		}
-		pageLogic[id] = raw
-		pageProject[id] = p
+		s.pageLogic[id] = raw
+		s.pageProject[id] = p
 		return nil
 	}); err != nil {
-		return Plan{}, fmt.Errorf("read pages: %w", err)
+		return nil, fmt.Errorf("read pages: %w", err)
 	}
-	if err = query(`SELECT "Id", "PageId", "Settings" FROM "Element"`, func(r *sql.Rows) error {
+	if err := queryTxRows(ctx, tx, `SELECT "Id", "PageId", "Settings" FROM "Element"`, func(r *sql.Rows) error {
 		var e Element
 		var p sql.NullString
 		var raw []byte
@@ -79,57 +101,61 @@ func planInTx(ctx context.Context, tx *sql.Tx) (Plan, error) {
 			return err
 		}
 		e.PageID = p.String
-		e.ProjectID = pageProject[e.PageID]
-		input.Elements = append(input.Elements, e)
-		settings[e.ID] = raw
+		e.ProjectID = s.pageProject[e.PageID]
+		s.input.Elements = append(s.input.Elements, e)
+		s.settings[e.ID] = raw
 		return nil
 	}); err != nil {
-		return Plan{}, fmt.Errorf("read elements: %w", err)
+		return nil, fmt.Errorf("read elements: %w", err)
 	}
-	if err = query(`SELECT "Id", "ProjectId", "Enabled", "Handlers" FROM "EventWorkflow"`, func(r *sql.Rows) error {
+	if err := queryTxRows(ctx, tx, `SELECT "Id", "ProjectId", "Enabled", "Handlers" FROM "EventWorkflow"`, func(r *sql.Rows) error {
 		var w Workflow
 		if err := r.Scan(&w.ID, &w.ProjectID, &w.Enabled, &w.Handlers); err != nil {
 			return err
 		}
-		input.Workflows = append(input.Workflows, w)
+		s.input.Workflows = append(s.input.Workflows, w)
 		return nil
 	}); err != nil {
-		return Plan{}, fmt.Errorf("read workflows: %w", err)
+		return nil, fmt.Errorf("read workflows: %w", err)
 	}
-	if err = query(`SELECT "Id", "WorkflowId", "ElementId", "EventName" FROM "ElementEventWorkflow"`, func(r *sql.Rows) error {
+	if err := queryTxRows(ctx, tx, `SELECT "Id", "WorkflowId", "ElementId", "EventName" FROM "ElementEventWorkflow"`, func(r *sql.Rows) error {
 		var l Link
 		if err := r.Scan(&l.ID, &l.WorkflowID, &l.ElementID, &l.Event); err != nil {
 			return err
 		}
-		input.Links = append(input.Links, l)
+		s.input.Links = append(s.input.Links, l)
 		return nil
 	}); err != nil {
-		return Plan{}, fmt.Errorf("read workflow links: %w", err)
+		return nil, fmt.Errorf("read workflow links: %w", err)
 	}
-	plan := BuildPlan(input)
-	failures := map[string]string{}
+	return s, nil
+}
+
+func markCompletedWorkflows(writes []InteractionWrite, settings map[string]json.RawMessage, failures map[string]string) map[string]bool {
 	total := map[string]int{}
 	marked := map[string]int{}
-	for _, write := range plan.Interactions {
+	for _, write := range writes {
 		total[write.WorkflowID]++
 		m, err := object(settings[write.ElementID])
 		if err != nil {
 			failures[write.WorkflowID] = "element settings are not an object"
 			continue
 		}
-		if value, exists := m["migratedWorkflowLinks"]; exists {
-			marks, ok := value.(map[string]any)
-			if !ok {
-				failures[write.WorkflowID] = "migration markers are not an object"
+		value, exists := m["migratedWorkflowLinks"]
+		if !exists {
+			continue
+		}
+		marks, ok := value.(map[string]any)
+		if !ok {
+			failures[write.WorkflowID] = "migration markers are not an object"
+			continue
+		}
+		if mark, exists := marks[write.LinkID]; exists {
+			if mark != true {
+				failures[write.WorkflowID] = "invalid migration marker"
 				continue
 			}
-			if mark, exists := marks[write.LinkID]; exists {
-				if mark != true {
-					failures[write.WorkflowID] = "invalid migration marker"
-					continue
-				}
-				marked[write.WorkflowID]++
-			}
+			marked[write.WorkflowID]++
 		}
 	}
 	completed := map[string]bool{}
@@ -140,70 +166,83 @@ func planInTx(ctx context.Context, tx *sql.Tx) (Plan, error) {
 			failures[id] = "workflow has only partially migrated links"
 		}
 	}
-	plannedInteractions := map[string]string{}
-	for _, write := range plan.Interactions {
+	return completed
+}
+
+func validateInteractionTargets(writes []InteractionWrite, settings map[string]json.RawMessage, completed map[string]bool, failures map[string]string) {
+	planned := map[string]string{}
+	for _, write := range writes {
 		if completed[write.WorkflowID] {
 			continue
 		}
 		key := write.ElementID + "\x00" + write.ID
-		if other, exists := plannedInteractions[key]; exists && other != write.WorkflowID {
+		if other, exists := planned[key]; exists && other != write.WorkflowID {
 			reason := fmt.Sprintf("multiple workflows generate interaction %s on element %s", write.ID, write.ElementID)
 			failures[other], failures[write.WorkflowID] = reason, reason
 		} else {
-			plannedInteractions[key] = write.WorkflowID
+			planned[key] = write.WorkflowID
 		}
 		m, err := object(settings[write.ElementID])
 		if err != nil {
 			failures[write.WorkflowID] = "element settings are not an object"
 			continue
 		}
-		if value, exists := m["interactions"]; exists {
-			existing, ok := value.(map[string]any)
-			if !ok {
-				failures[write.WorkflowID] = "element interactions are not an object"
-				continue
-			}
-			if _, exists := existing[write.ID]; exists {
-				failures[write.WorkflowID] = fmt.Sprintf("element %s already has interaction %s", write.ElementID, write.ID)
-			}
+		value, exists := m["interactions"]
+		if !exists {
+			continue
+		}
+		existing, ok := value.(map[string]any)
+		if !ok {
+			failures[write.WorkflowID] = "element interactions are not an object"
+			continue
+		}
+		if _, exists := existing[write.ID]; exists {
+			failures[write.WorkflowID] = fmt.Sprintf("element %s already has interaction %s", write.ElementID, write.ID)
 		}
 	}
-	for _, flow := range plan.Flows {
+}
+
+func validateFlowTargets(flows []FlowWrite, snap *migrationSnapshot, completed map[string]bool, failures map[string]string) {
+	for _, flow := range flows {
 		if completed[flow.WorkflowID] {
 			continue
 		}
-		check := func(raw json.RawMessage, location string) {
-			m, err := object(raw)
-			if err != nil {
-				failures[flow.WorkflowID] = location + " logic is not an object"
-				return
-			}
-			if len(raw) > 0 && string(raw) != "null" {
-				if err := logic.Validate(logic.Document(m)); err != nil {
-					failures[flow.WorkflowID] = location + " logic is invalid: " + err.Error()
-					return
-				}
-			}
-			value, exists := m["flows"]
-			if !exists || value == nil {
-				return
-			}
-			flows, ok := value.(map[string]any)
-			if !ok {
-				failures[flow.WorkflowID] = location + " flows are not an object"
-				return
-			}
-			if _, exists := flows[flow.Name]; exists {
-				failures[flow.WorkflowID] = fmt.Sprintf("flow %s already exists in %s", flow.Name, location)
-			}
-		}
-		check(projectLogic[flow.ProjectID], "project")
-		for page, project := range pageProject {
+		checkFlowLocation(flow, snap.projectLogic[flow.ProjectID], "project", failures)
+		for page, project := range snap.pageProject {
 			if project == flow.ProjectID {
-				check(pageLogic[page], "page "+page)
+				checkFlowLocation(flow, snap.pageLogic[page], "page "+page, failures)
 			}
 		}
 	}
+}
+
+func checkFlowLocation(flow FlowWrite, raw json.RawMessage, location string, failures map[string]string) {
+	m, err := object(raw)
+	if err != nil {
+		failures[flow.WorkflowID] = location + " logic is not an object"
+		return
+	}
+	if len(raw) > 0 && string(raw) != "null" {
+		if err := logic.Validate(logic.Document(m)); err != nil {
+			failures[flow.WorkflowID] = location + " logic is invalid: " + err.Error()
+			return
+		}
+	}
+	value, exists := m["flows"]
+	if !exists || value == nil {
+		return
+	}
+	flows, ok := value.(map[string]any)
+	if !ok {
+		failures[flow.WorkflowID] = location + " flows are not an object"
+		return
+	}
+	if _, exists := flows[flow.Name]; exists {
+		failures[flow.WorkflowID] = fmt.Sprintf("flow %s already exists in %s", flow.Name, location)
+	}
+}
+
+func finalizePlan(plan Plan, completed map[string]bool, failures map[string]string) Plan {
 	interactions := plan.Interactions[:0]
 	for _, w := range plan.Interactions {
 		if _, bad := failures[w.WorkflowID]; !bad && !completed[w.WorkflowID] {
@@ -222,7 +261,7 @@ func planInTx(ctx context.Context, tx *sql.Tx) (Plan, error) {
 		plan.Issues = append(plan.Issues, Issue{WorkflowID: id, Reason: reason})
 	}
 	sort.Slice(plan.Issues, func(i, j int) bool { return plan.Issues[i].WorkflowID < plan.Issues[j].WorkflowID })
-	return plan, nil
+	return plan
 }
 func object(raw json.RawMessage) (map[string]any, error) {
 	if len(raw) == 0 || string(raw) == "null" {

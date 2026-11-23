@@ -101,34 +101,71 @@ func translateList(handlers []map[string]any, depth int) ([]Step, error) {
 	return result, nil
 }
 
-func translateAction(c map[string]any) ([]Step, error) {
-	kind, _ := c["type"].(string)
-	allowed := map[string][]string{
-		"navigate":    {"target", "value", "openInNewTab", "replaceHistory"},
-		"showElement": {"elementId", "animationDuration"}, "hideElement": {"elementId", "animationDuration"}, "toggleElement": {"elementId", "animationDuration"},
-		"showNotification": {"message", "notificationType", "duration"}, "customCode": {"code"},
-		"copyToClipboard": {"text", "successMessage"}, "downloadFile": {"url", "filename"},
-		"submitForm": {"formElementId"}, "resetForm": {"formElementId"}, "modal": {"action", "modalId"},
-		"scrollTo":    {"target", "value", "behavior", "offsetY"},
-		"toggleClass": {"elementId", "className", "animationDuration"}, "addClass": {"elementId", "className", "animationDuration"}, "removeClass": {"elementId", "className", "animationDuration"},
-		"playAnimation": {"elementId", "animationType", "duration", "delay"},
+var actionAllowedFields = map[string][]string{
+	"navigate":         {"target", "value", "openInNewTab", "replaceHistory"},
+	"showElement":      {"elementId", "animationDuration"},
+	"hideElement":      {"elementId", "animationDuration"},
+	"toggleElement":    {"elementId", "animationDuration"},
+	"showNotification": {"message", "notificationType", "duration"},
+	"customCode":       {"code"},
+	"copyToClipboard":  {"text", "successMessage"},
+	"downloadFile":     {"url", "filename"},
+	"submitForm":       {"formElementId"},
+	"resetForm":        {"formElementId"},
+	"modal":            {"action", "modalId"},
+	"scrollTo":         {"target", "value", "behavior", "offsetY"},
+	"toggleClass":      {"elementId", "className", "animationDuration"},
+	"addClass":         {"elementId", "className", "animationDuration"},
+	"removeClass":      {"elementId", "className", "animationDuration"},
+	"playAnimation":    {"elementId", "animationType", "duration", "delay"},
+}
+
+var (
+	actionStringKeys = []string{
+		"target", "value", "elementId", "message", "notificationType", "code", "text",
+		"successMessage", "url", "filename", "formElementId", "action", "modalId",
+		"behavior", "className", "animationType",
 	}
-	allowedFields, known := allowed[kind]
+	actionBoolKeys        = []string{"openInNewTab", "replaceHistory"}
+	actionNumberKeys      = []string{"duration", "delay", "animationDuration", "offsetY"}
+	classNamePattern      = regexp.MustCompile(`^[A-Za-z0-9_:/\[\].%-]+$`)
+	visibilityVerbByKind  = map[string]string{"showElement": "show", "hideElement": "hide", "toggleElement": "toggle"}
+	classOpVerbByKind     = map[string]string{"toggleClass": "toggle", "addClass": "add", "removeClass": "remove"}
+	validToastTypes       = map[string]bool{"success": true, "error": true, "info": true, "warning": true}
+	validAnimationPresets = map[string]bool{"fadeIn": true, "slideIn": true, "bounce": true, "pulse": true, "shake": true, "spin": true}
+)
+
+func cfgStr(c map[string]any, key string) string {
+	v, _ := c[key].(string)
+	return v
+}
+
+func requireCfgStr(c map[string]any, kind, key string) (string, error) {
+	v := cfgStr(c, key)
+	if strings.TrimSpace(v) == "" {
+		return "", fmt.Errorf("%s: missing %s", kind, key)
+	}
+	return v, nil
+}
+
+func validateActionConfig(kind string, c map[string]any) error {
+	allowedFields, known := actionAllowedFields[kind]
 	if !known {
-		return nil, fmt.Errorf("unsupported action %q", kind)
+		return fmt.Errorf("unsupported action %q", kind)
 	}
-	permitted := map[string]bool{"type": true}
+	permitted := make(map[string]bool, len(allowedFields)+1)
+	permitted["type"] = true
 	for _, key := range allowedFields {
 		permitted[key] = true
 	}
 	for key := range c {
 		if !permitted[key] {
-			return nil, fmt.Errorf("%s: unsupported field %s", kind, key)
+			return fmt.Errorf("%s: unsupported field %s", kind, key)
 		}
 	}
 	// Legacy action strings are literal. The new runtime interpolates templates,
 	// so translating template-like values would change their meaning.
-	for _, key := range []string{"target", "value", "elementId", "message", "notificationType", "code", "text", "successMessage", "url", "filename", "formElementId", "action", "modalId", "behavior", "className", "animationType"} {
+	for _, key := range actionStringKeys {
 		value, exists := c[key]
 		if !exists || value == nil {
 			continue
@@ -140,191 +177,251 @@ func translateAction(c map[string]any) ([]Step, error) {
 		}
 		v, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("%s: invalid %s", kind, key)
+			return fmt.Errorf("%s: invalid %s", kind, key)
 		}
 		if strings.Contains(v, "{{") {
-			return nil, fmt.Errorf("%s: %s contains a literal template marker requiring manual migration", kind, key)
+			return fmt.Errorf("%s: %s contains a literal template marker requiring manual migration", kind, key)
 		}
 	}
-	for _, key := range []string{"openInNewTab", "replaceHistory"} {
+	for _, key := range actionBoolKeys {
 		if value, exists := c[key]; exists && value != nil {
 			if _, ok := value.(bool); !ok {
-				return nil, fmt.Errorf("%s: invalid %s", kind, key)
+				return fmt.Errorf("%s: invalid %s", kind, key)
 			}
 		}
 	}
-	for _, key := range []string{"duration", "delay", "animationDuration", "offsetY"} {
+	for _, key := range actionNumberKeys {
 		if value, exists := c[key]; exists && value != nil {
-			if n, ok := value.(float64); !ok || (key != "offsetY" && n < 0) || (key == "duration" && n == 0) {
-				return nil, fmt.Errorf("%s: invalid %s", kind, key)
+			if !isValidActionNumber(key, value) {
+				return fmt.Errorf("%s: invalid %s", kind, key)
 			}
 		}
 	}
-	str := func(key string) string { v, _ := c[key].(string); return v }
-	required := func(key string) (string, error) {
-		v := str(key)
-		if strings.TrimSpace(v) == "" {
-			return "", fmt.Errorf("%s: missing %s", kind, key)
-		}
-		return v, nil
+	return nil
+}
+
+func isValidActionNumber(key string, value any) bool {
+	n, ok := value.(float64)
+	if !ok {
+		return false
 	}
-	var s Step
+	if key != "offsetY" && n < 0 {
+		return false
+	}
+	if key == "duration" && n == 0 {
+		return false
+	}
+	return true
+}
+
+func translateAction(c map[string]any) ([]Step, error) {
+	kind := cfgStr(c, "type")
+	if err := validateActionConfig(kind, c); err != nil {
+		return nil, err
+	}
+
 	switch kind {
 	case "navigate":
-		v, e := required("value")
-		if e != nil {
-			return nil, e
-		}
-		if replace, _ := c["replaceHistory"].(bool); replace {
-			return nil, fmt.Errorf("navigate: replaceHistory needs manual review")
-		}
-		s = Step{"navigate": v}
-		if x, ok := c["openInNewTab"].(bool); ok {
-			s["newTab"] = x
-		}
-		if x, ok := c["replaceHistory"].(bool); ok {
-			s["replace"] = x
-		}
+		return translateNavigateAction(c)
 	case "showElement", "hideElement", "toggleElement":
-		v, e := required("elementId")
-		if e != nil {
-			return nil, e
-		}
-		verb := map[string]string{"showElement": "show", "hideElement": "hide", "toggleElement": "toggle"}[kind]
-		s = Step{verb: v}
-		if d, ok := c["animationDuration"].(float64); ok {
-			s["duration"] = d
-		}
+		return translateVisibilityAction(kind, c)
 	case "showNotification":
-		v, e := required("message")
-		if e != nil {
-			return nil, e
-		}
-		if kind := str("notificationType"); kind != "" && kind != "success" && kind != "error" && kind != "info" && kind != "warning" {
-			return nil, fmt.Errorf("invalid notification type")
-		}
-		s = Step{"toast": v}
-		if v := str("notificationType"); v != "" {
-			s["kind"] = v
-		}
-		if d, ok := c["duration"].(float64); ok {
-			s["duration"] = d
-		}
+		return translateNotificationAction(c)
 	case "customCode":
 		return nil, fmt.Errorf("customCode uses a different runtime scope and needs manual migration")
 	case "copyToClipboard":
-		v, e := required("text")
-		if e != nil {
-			return nil, e
-		}
-		if str("successMessage") != "" {
-			return nil, fmt.Errorf("copy success message unsupported")
-		}
-		s = Step{"copy": v}
+		return translateCopyAction(c)
 	case "downloadFile":
-		v, e := required("url")
-		if e != nil {
-			return nil, e
-		}
-		s = Step{"download": v}
-		if v := str("filename"); v != "" {
-			s["filename"] = v
-		}
+		return translateDownloadAction(c)
 	case "submitForm", "resetForm":
-		v, e := required("formElementId")
-		if e != nil {
-			return nil, e
-		}
-		verb := "submit"
-		if kind == "resetForm" {
-			verb = "reset"
-		}
-		s = Step{verb: v}
+		return translateFormAction(kind, c)
 	case "modal":
-		v, e := required("action")
-		if e != nil {
-			return nil, e
-		}
-		if v != "open" && v != "close" {
-			return nil, fmt.Errorf("invalid modal action")
-		}
-		s = Step{"modal": v}
-		if v := str("modalId"); v != "" {
-			s["target"] = v
-		}
+		return translateModalAction(c)
 	case "scrollTo":
-		if target := str("target"); target != "elementId" && target != "position" {
-			return nil, fmt.Errorf("invalid scroll target")
-		}
-		if behavior := str("behavior"); behavior != "" && behavior != "smooth" && behavior != "auto" {
-			return nil, fmt.Errorf("invalid scroll behavior")
-		}
-		v, ok := c["value"]
-		if str("target") == "elementId" {
-			id, valid := v.(string)
-			if !valid || strings.TrimSpace(id) == "" {
-				return nil, fmt.Errorf("invalid scroll element")
-			}
-		}
-		if !ok {
-			return nil, fmt.Errorf("missing scroll value")
-		}
-		if str("target") == "position" {
-			switch n := v.(type) {
-			case float64:
-				v = n
-			case string:
-				return nil, fmt.Errorf("string position %q needs manual conversion", n)
-			default:
-				return nil, fmt.Errorf("invalid position")
-			}
-		}
-		s = Step{"scroll": v}
-		if v := str("behavior"); v != "" {
-			s["smooth"] = v == "smooth"
-		}
-		if v, ok := c["offsetY"].(float64); ok {
-			s["offset"] = v
-		}
+		return translateScrollAction(c)
 	case "toggleClass", "addClass", "removeClass":
-		id, e := required("elementId")
-		if e != nil {
-			return nil, e
-		}
-		name, e := required("className")
-		if e != nil {
-			return nil, e
-		}
-		if !regexp.MustCompile(`^[A-Za-z0-9_:/\[\].%-]+$`).MatchString(name) {
-			return nil, fmt.Errorf("invalid class name")
-		}
-		if _, ok := c["animationDuration"]; ok {
-			return nil, fmt.Errorf("class animation duration unsupported")
-		}
-		s = Step{"class": map[string]string{"toggleClass": "toggle", "addClass": "add", "removeClass": "remove"}[kind], "target": id, "name": name}
+		return translateClassAction(kind, c)
 	case "playAnimation":
-		id, e := required("elementId")
-		if e != nil {
-			return nil, e
-		}
-		preset, e := required("animationType")
-		if e != nil {
-			return nil, e
-		}
-		switch preset {
-		case "fadeIn", "slideIn", "bounce", "pulse", "shake", "spin":
-		default:
-			return nil, fmt.Errorf("invalid animation preset")
-		}
-		s = Step{"animate": id, "preset": preset}
-		if d, ok := c["duration"].(float64); ok {
-			s["duration"] = d
-		}
-		if d, ok := c["delay"].(float64); ok && d > 0 {
-			return []Step{{"wait": d}, s}, nil
-		}
+		return translatePlayAnimationAction(c)
 	default:
 		return nil, fmt.Errorf("unsupported action %q", kind)
+	}
+}
+
+func translateNavigateAction(c map[string]any) ([]Step, error) {
+	v, err := requireCfgStr(c, "navigate", "value")
+	if err != nil {
+		return nil, err
+	}
+	if replace, _ := c["replaceHistory"].(bool); replace {
+		return nil, fmt.Errorf("navigate: replaceHistory needs manual review")
+	}
+	s := Step{"navigate": v}
+	if x, ok := c["openInNewTab"].(bool); ok {
+		s["newTab"] = x
+	}
+	if x, ok := c["replaceHistory"].(bool); ok {
+		s["replace"] = x
+	}
+	return []Step{s}, nil
+}
+
+func translateVisibilityAction(kind string, c map[string]any) ([]Step, error) {
+	v, err := requireCfgStr(c, kind, "elementId")
+	if err != nil {
+		return nil, err
+	}
+	s := Step{visibilityVerbByKind[kind]: v}
+	if d, ok := c["animationDuration"].(float64); ok {
+		s["duration"] = d
+	}
+	return []Step{s}, nil
+}
+
+func translateNotificationAction(c map[string]any) ([]Step, error) {
+	v, err := requireCfgStr(c, "showNotification", "message")
+	if err != nil {
+		return nil, err
+	}
+	toastKind := cfgStr(c, "notificationType")
+	if toastKind != "" && !validToastTypes[toastKind] {
+		return nil, fmt.Errorf("invalid notification type")
+	}
+	s := Step{"toast": v}
+	if toastKind != "" {
+		s["kind"] = toastKind
+	}
+	if d, ok := c["duration"].(float64); ok {
+		s["duration"] = d
+	}
+	return []Step{s}, nil
+}
+
+func translateCopyAction(c map[string]any) ([]Step, error) {
+	v, err := requireCfgStr(c, "copyToClipboard", "text")
+	if err != nil {
+		return nil, err
+	}
+	if cfgStr(c, "successMessage") != "" {
+		return nil, fmt.Errorf("copy success message unsupported")
+	}
+	return []Step{{"copy": v}}, nil
+}
+
+func translateDownloadAction(c map[string]any) ([]Step, error) {
+	v, err := requireCfgStr(c, "downloadFile", "url")
+	if err != nil {
+		return nil, err
+	}
+	s := Step{"download": v}
+	if filename := cfgStr(c, "filename"); filename != "" {
+		s["filename"] = filename
+	}
+	return []Step{s}, nil
+}
+
+func translateFormAction(kind string, c map[string]any) ([]Step, error) {
+	v, err := requireCfgStr(c, kind, "formElementId")
+	if err != nil {
+		return nil, err
+	}
+	verb := "submit"
+	if kind == "resetForm" {
+		verb = "reset"
+	}
+	return []Step{{verb: v}}, nil
+}
+
+func translateModalAction(c map[string]any) ([]Step, error) {
+	v, err := requireCfgStr(c, "modal", "action")
+	if err != nil {
+		return nil, err
+	}
+	if v != "open" && v != "close" {
+		return nil, fmt.Errorf("invalid modal action")
+	}
+	s := Step{"modal": v}
+	if target := cfgStr(c, "modalId"); target != "" {
+		s["target"] = target
+	}
+	return []Step{s}, nil
+}
+
+func translateScrollAction(c map[string]any) ([]Step, error) {
+	target := cfgStr(c, "target")
+	if target != "elementId" && target != "position" {
+		return nil, fmt.Errorf("invalid scroll target")
+	}
+	behavior := cfgStr(c, "behavior")
+	if behavior != "" && behavior != "smooth" && behavior != "auto" {
+		return nil, fmt.Errorf("invalid scroll behavior")
+	}
+	v, ok := c["value"]
+	if target == "elementId" {
+		id, valid := v.(string)
+		if !valid || strings.TrimSpace(id) == "" {
+			return nil, fmt.Errorf("invalid scroll element")
+		}
+	}
+	if !ok {
+		return nil, fmt.Errorf("missing scroll value")
+	}
+	if target == "position" {
+		switch n := v.(type) {
+		case float64:
+			v = n
+		case string:
+			return nil, fmt.Errorf("string position %q needs manual conversion", n)
+		default:
+			return nil, fmt.Errorf("invalid position")
+		}
+	}
+	s := Step{"scroll": v}
+	if behavior != "" {
+		s["smooth"] = behavior == "smooth"
+	}
+	if offset, ok := c["offsetY"].(float64); ok {
+		s["offset"] = offset
+	}
+	return []Step{s}, nil
+}
+
+func translateClassAction(kind string, c map[string]any) ([]Step, error) {
+	id, err := requireCfgStr(c, kind, "elementId")
+	if err != nil {
+		return nil, err
+	}
+	name, err := requireCfgStr(c, kind, "className")
+	if err != nil {
+		return nil, err
+	}
+	if !classNamePattern.MatchString(name) {
+		return nil, fmt.Errorf("invalid class name")
+	}
+	if _, ok := c["animationDuration"]; ok {
+		return nil, fmt.Errorf("class animation duration unsupported")
+	}
+	return []Step{{"class": classOpVerbByKind[kind], "target": id, "name": name}}, nil
+}
+
+func translatePlayAnimationAction(c map[string]any) ([]Step, error) {
+	id, err := requireCfgStr(c, "playAnimation", "elementId")
+	if err != nil {
+		return nil, err
+	}
+	preset, err := requireCfgStr(c, "playAnimation", "animationType")
+	if err != nil {
+		return nil, err
+	}
+	if !validAnimationPresets[preset] {
+		return nil, fmt.Errorf("invalid animation preset")
+	}
+	s := Step{"animate": id, "preset": preset}
+	if d, ok := c["duration"].(float64); ok {
+		s["duration"] = d
+	}
+	if d, ok := c["delay"].(float64); ok && d > 0 {
+		return []Step{{"wait": d}, s}, nil
 	}
 	return []Step{s}, nil
 }

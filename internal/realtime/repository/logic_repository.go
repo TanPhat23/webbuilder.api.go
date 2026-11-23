@@ -22,70 +22,119 @@ func NewLogicRepository(db *gorm.DB) *LogicRepository { return &LogicRepository{
 // transaction, preserving its value and advancing both document revisions.
 func (r *LogicRepository) Move(ctx context.Context, projectID, pageID, userID, kind, name, to string) (logic.Revisioned, logic.Revisioned, error) {
 	var none logic.Revisioned
-	key := ""
-	switch kind {
-	case "variable":
-		key = "variables"
-	case "flow":
-		key = "flows"
-	default:
-		return none, none, fmt.Errorf("%w: invalid logic kind", domainErrors.ErrValidation)
+	key, err := logicSectionKey(kind)
+	if err != nil {
+		return none, none, err
 	}
 	if pageID == "" || name == "" || (to != "project" && to != "page") {
 		return none, none, fmt.Errorf("%w: invalid move", domainErrors.ErrValidation)
 	}
-	db, err := r.db.DB()
+
+	tx, cleanup, err := r.beginTx(ctx)
 	if err != nil {
 		return none, none, err
+	}
+	defer cleanup()
+
+	project, err := lockAndAuthorizeProject(ctx, tx, projectID, userID)
+	if err != nil {
+		return none, none, err
+	}
+	pages, err := loadProjectPages(ctx, tx, projectID)
+	if err != nil {
+		return none, none, err
+	}
+	page, ok := pages[pageID]
+	if !ok {
+		return none, none, domainErrors.ErrNotFound
+	}
+
+	if err := transferLogicEntry(project, page, key, name, to); err != nil {
+		return none, none, err
+	}
+	if err := logic.ValidateScopes(project, pages); err != nil {
+		return none, none, fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
+	}
+
+	projectRevision, err := saveProjectLogic(ctx, tx, projectID, project)
+	if err != nil {
+		return none, none, err
+	}
+	pageRevision, err := savePageLogic(ctx, tx, projectID, pageID, page)
+	if err != nil {
+		return none, none, err
+	}
+	if err := tx.Commit(); err != nil {
+		return none, none, err
+	}
+	return logic.Revisioned{Doc: project, Revision: projectRevision}, logic.Revisioned{Doc: page, Revision: pageRevision}, nil
+}
+
+func logicSectionKey(kind string) (string, error) {
+	switch kind {
+	case "variable":
+		return "variables", nil
+	case "flow":
+		return "flows", nil
+	default:
+		return "", fmt.Errorf("%w: invalid logic kind", domainErrors.ErrValidation)
+	}
+}
+
+func (r *LogicRepository) beginTx(ctx context.Context) (*sql.Tx, func(), error) {
+	db, err := r.db.DB()
+	if err != nil {
+		return nil, nil, err
 	}
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return none, none, err
+		return nil, nil, err
 	}
-	defer tx.Rollback()
+	return tx, func() { _ = tx.Rollback() }, nil
+}
+
+func lockAndAuthorizeProject(ctx context.Context, tx *sql.Tx, projectID, userID string) (logic.Document, error) {
 	var raw []byte
 	var owner string
 	if err := tx.QueryRowContext(ctx, `SELECT "Logic", "OwnerId" FROM "Project" WHERE "Id" = $1 AND "DeletedAt" IS NULL FOR UPDATE`, projectID).Scan(&raw, &owner); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return none, none, domainErrors.ErrNotFound
+			return nil, domainErrors.ErrNotFound
 		}
-		return none, none, err
+		return nil, fmt.Errorf("project: %w", err)
 	}
 	if err := authorizeLogic(ctx, tx, projectID, userID, owner, true); err != nil {
-		return none, none, err
+		return nil, err
 	}
-	project, err := decodeLogic(raw)
-	if err != nil {
-		return none, none, err
-	}
+	return decodeLogic(raw)
+}
+
+func loadProjectPages(ctx context.Context, tx *sql.Tx, projectID string) (map[string]logic.Document, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT "Id", "Logic" FROM "Page" WHERE "ProjectId" = $1 AND "DeletedAt" IS NULL`, projectID)
 	if err != nil {
-		return none, none, err
+		return nil, err
 	}
+	defer rows.Close()
+
 	pages := make(map[string]logic.Document)
 	for rows.Next() {
 		var id string
 		var data []byte
 		if err := rows.Scan(&id, &data); err != nil {
-			rows.Close()
-			return none, none, err
+			return nil, err
 		}
 		doc, err := decodeLogic(data)
 		if err != nil {
-			rows.Close()
-			return none, none, err
+			return nil, err
 		}
 		pages[id] = doc
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
-		return none, none, err
+		return nil, err
 	}
-	rows.Close()
-	page, ok := pages[pageID]
-	if !ok {
-		return none, none, domainErrors.ErrNotFound
-	}
+	return pages, nil
+}
+
+func transferLogicEntry(project, page logic.Document, key, name, to string) error {
 	from, dest := project, page
 	if to == "project" {
 		from, dest = page, project
@@ -93,39 +142,38 @@ func (r *LogicRepository) Move(ctx context.Context, projectID, pageID, userID, k
 	source, sourceOK := from[key].(map[string]any)
 	target, targetOK := dest[key].(map[string]any)
 	if !sourceOK || !targetOK {
-		return none, none, fmt.Errorf("%w: invalid logic document", domainErrors.ErrValidation)
+		return fmt.Errorf("%w: invalid logic document", domainErrors.ErrValidation)
 	}
 	value, exists := source[name]
 	if !exists {
-		return none, none, fmt.Errorf("%w: definition not found", domainErrors.ErrNotFound)
+		return fmt.Errorf("%w: definition not found", domainErrors.ErrNotFound)
 	}
 	if _, exists := target[name]; exists {
-		return none, none, fmt.Errorf("%w: destination already contains definition", domainErrors.ErrValidation)
+		return fmt.Errorf("%w: destination already contains definition", domainErrors.ErrValidation)
 	}
 	delete(source, name)
 	target[name] = value
-	if err := logic.ValidateScopes(project, pages); err != nil {
-		return none, none, fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
-	}
-	projectJSON, err := json.Marshal(project)
+	return nil
+}
+
+func saveProjectLogic(ctx context.Context, tx *sql.Tx, projectID string, doc logic.Document) (int64, error) {
+	encoded, err := json.Marshal(doc)
 	if err != nil {
-		return none, none, err
+		return 0, err
 	}
-	pageJSON, err := json.Marshal(page)
+	var revision int64
+	err = tx.QueryRowContext(ctx, `UPDATE "Project" SET "Logic" = $1::jsonb, "LogicRevision" = "LogicRevision" + 1 WHERE "Id" = $2 RETURNING "LogicRevision"`, string(encoded), projectID).Scan(&revision)
+	return revision, err
+}
+
+func savePageLogic(ctx context.Context, tx *sql.Tx, projectID, pageID string, doc logic.Document) (int64, error) {
+	encoded, err := json.Marshal(doc)
 	if err != nil {
-		return none, none, err
+		return 0, err
 	}
-	var projectRevision, pageRevision int64
-	if err := tx.QueryRowContext(ctx, `UPDATE "Project" SET "Logic" = $1::jsonb, "LogicRevision" = "LogicRevision" + 1 WHERE "Id" = $2 RETURNING "LogicRevision"`, string(projectJSON), projectID).Scan(&projectRevision); err != nil {
-		return none, none, err
-	}
-	if err := tx.QueryRowContext(ctx, `UPDATE "Page" SET "Logic" = $1::jsonb, "LogicRevision" = "LogicRevision" + 1 WHERE "Id" = $2 AND "ProjectId" = $3 AND "DeletedAt" IS NULL RETURNING "LogicRevision"`, string(pageJSON), pageID, projectID).Scan(&pageRevision); err != nil {
-		return none, none, err
-	}
-	if err := tx.Commit(); err != nil {
-		return none, none, err
-	}
-	return logic.Revisioned{Doc: project, Revision: projectRevision}, logic.Revisioned{Doc: page, Revision: pageRevision}, nil
+	var revision int64
+	err = tx.QueryRowContext(ctx, `UPDATE "Page" SET "Logic" = $1::jsonb, "LogicRevision" = "LogicRevision" + 1 WHERE "Id" = $2 AND "ProjectId" = $3 AND "DeletedAt" IS NULL RETURNING "LogicRevision"`, string(encoded), pageID, projectID).Scan(&revision)
+	return revision, err
 }
 
 func decodeLogic(raw []byte) (logic.Document, error) {
@@ -147,54 +195,21 @@ func decodeLogic(raw []byte) (logic.Document, error) {
 // The document's revision is incremented in the same statement that stores it.
 func (r *LogicRepository) Apply(ctx context.Context, projectID, pageID, userID string, patch map[string]any, nullPaths ...[][]string) (logic.Revisioned, error) {
 	var none logic.Revisioned
-	db, err := r.db.DB()
+	tx, cleanup, err := r.beginTx(ctx)
 	if err != nil {
 		return none, err
 	}
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	defer cleanup()
+
+	project, err := lockAndAuthorizeProject(ctx, tx, projectID, userID)
 	if err != nil {
 		return none, err
 	}
-	defer tx.Rollback()
-	var raw []byte
-	var owner string
-	if err := tx.QueryRowContext(ctx, `SELECT "Logic", "OwnerId" FROM "Project" WHERE "Id" = $1 AND "DeletedAt" IS NULL FOR UPDATE`, projectID).Scan(&raw, &owner); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return none, domainErrors.ErrNotFound
-		}
-		return none, fmt.Errorf("project: %w", err)
-	}
-	if err := authorizeLogic(ctx, tx, projectID, userID, owner, true); err != nil {
-		return none, err
-	}
-	project, err := decodeLogic(raw)
+	pages, err := loadProjectPages(ctx, tx, projectID)
 	if err != nil {
 		return none, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT "Id", "Logic" FROM "Page" WHERE "ProjectId" = $1 AND "DeletedAt" IS NULL`, projectID)
-	if err != nil {
-		return none, err
-	}
-	pages := make(map[string]logic.Document)
-	for rows.Next() {
-		var id string
-		var data []byte
-		if err := rows.Scan(&id, &data); err != nil {
-			rows.Close()
-			return none, err
-		}
-		doc, err := decodeLogic(data)
-		if err != nil {
-			rows.Close()
-			return none, err
-		}
-		pages[id] = doc
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return none, err
-	}
-	rows.Close()
+
 	current := project
 	if pageID != "" {
 		var ok bool
@@ -219,15 +234,12 @@ func (r *LogicRepository) Apply(ctx context.Context, projectID, pageID, userID s
 	if err := logic.ValidateScopes(project, pages); err != nil {
 		return none, fmt.Errorf("%w: %v", domainErrors.ErrValidation, err)
 	}
-	encoded, err := json.Marshal(updated)
-	if err != nil {
-		return none, err
-	}
+
 	var revision int64
 	if pageID == "" {
-		err = tx.QueryRowContext(ctx, `UPDATE "Project" SET "Logic" = $1::jsonb, "LogicRevision" = "LogicRevision" + 1 WHERE "Id" = $2 RETURNING "LogicRevision"`, string(encoded), projectID).Scan(&revision)
+		revision, err = saveProjectLogic(ctx, tx, projectID, updated)
 	} else {
-		err = tx.QueryRowContext(ctx, `UPDATE "Page" SET "Logic" = $1::jsonb, "LogicRevision" = "LogicRevision" + 1 WHERE "Id" = $2 AND "ProjectId" = $3 AND "DeletedAt" IS NULL RETURNING "LogicRevision"`, string(encoded), pageID, projectID).Scan(&revision)
+		revision, err = savePageLogic(ctx, tx, projectID, pageID, updated)
 	}
 	if err != nil {
 		return none, err
@@ -242,15 +254,12 @@ func (r *LogicRepository) Apply(ctx context.Context, projectID, pageID, userID s
 // logic writer can interleave between the two reads.
 func (r *LogicRepository) Get(ctx context.Context, projectID, pageID, userID string) (logic.Revisioned, logic.Revisioned, error) {
 	var none logic.Revisioned
-	db, err := r.db.DB()
+	tx, cleanup, err := r.beginTx(ctx)
 	if err != nil {
 		return none, none, err
 	}
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
-	if err != nil {
-		return none, none, err
-	}
-	defer tx.Rollback()
+	defer cleanup()
+
 	var rawProject, rawPage []byte
 	var projectRevision, pageRevision int64
 	var owner string

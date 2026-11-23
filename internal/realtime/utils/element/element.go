@@ -73,51 +73,10 @@ func BuildElementTree(elements []entity.Element) []entity.Element {
 	}
 
 	for pid, cids := range childrenMap {
-		keyed := true
-		for _, id := range cids {
-			if elementMap[id].OrderKey == "" {
-				keyed = false
-				break
-			}
-		}
-		sort.SliceStable(cids, func(i, j int) bool {
-			a := elementMap[cids[i]]
-			b := elementMap[cids[j]]
-			if keyed {
-				if a.OrderKey != b.OrderKey {
-					return a.OrderKey < b.OrderKey
-				}
-				return a.ID < b.ID
-			}
-			if a.Order != b.Order {
-				return a.Order < b.Order
-			}
-			return a.ID < b.ID
-		})
+		sortElementIDs(cids, elementMap)
 		childrenMap[pid] = cids
 	}
-
-	keyed := true
-	for _, id := range roots {
-		if elementMap[id].OrderKey == "" {
-			keyed = false
-			break
-		}
-	}
-	sort.SliceStable(roots, func(i, j int) bool {
-		a := elementMap[roots[i]]
-		b := elementMap[roots[j]]
-		if keyed {
-			if a.OrderKey != b.OrderKey {
-				return a.OrderKey < b.OrderKey
-			}
-			return a.ID < b.ID
-		}
-		if a.Order != b.Order {
-			return a.Order < b.Order
-		}
-		return a.ID < b.ID
-	})
+	sortElementIDs(roots, elementMap)
 
 	var build func(id string) entity.Element
 	build = func(id string) entity.Element {
@@ -133,6 +92,30 @@ func BuildElementTree(elements []entity.Element) []entity.Element {
 		result = append(result, build(rid))
 	}
 	return result
+}
+
+func sortElementIDs(ids []string, elementMap map[string]entity.Element) {
+	keyed := true
+	for _, id := range ids {
+		if elementMap[id].OrderKey == "" {
+			keyed = false
+			break
+		}
+	}
+	sort.SliceStable(ids, func(i, j int) bool {
+		a := elementMap[ids[i]]
+		b := elementMap[ids[j]]
+		if keyed {
+			if a.OrderKey != b.OrderKey {
+				return a.OrderKey < b.OrderKey
+			}
+			return a.ID < b.ID
+		}
+		if a.Order != b.Order {
+			return a.Order < b.Order
+		}
+		return a.ID < b.ID
+	})
 }
 
 func UpdateElement(root *entity.Element, updated entity.Element) bool {
@@ -256,38 +239,35 @@ func MergeMap(dst, patch map[string]any) map[string]any {
 // Supported keys: name, content, href, src, tailwindStyles (string or null) and isLocked (bool).
 // Unknown keys or wrongly typed values are rejected; properties are never stored in Settings.
 func ApplyProperties(el *entity.Element, props map[string]any) error {
+	stringTargets := map[string]**string{
+		"name":           &el.Name,
+		"content":        &el.Content,
+		"href":           &el.Href,
+		"src":            &el.Src,
+		"tailwindStyles": &el.TailwindStyles,
+	}
 	for k, v := range props {
-		switch k {
-		case "name", "content", "href", "src", "tailwindStyles":
-			var ptr *string
-			if v != nil {
-				str, ok := v.(string)
-				if !ok {
-					return fmt.Errorf("property %q must be a string or null", k)
-				}
-				ptr = &str
+		if dst, ok := stringTargets[k]; ok {
+			if v == nil {
+				*dst = nil
+				continue
 			}
-			switch k {
-			case "name":
-				el.Name = ptr
-			case "content":
-				el.Content = ptr
-			case "href":
-				el.Href = ptr
-			case "src":
-				el.Src = ptr
-			case "tailwindStyles":
-				el.TailwindStyles = ptr
+			str, ok := v.(string)
+			if !ok {
+				return fmt.Errorf("property %q must be a string or null", k)
 			}
-		case "isLocked":
+			*dst = &str
+			continue
+		}
+		if k == "isLocked" {
 			b, ok := v.(bool)
 			if !ok {
 				return fmt.Errorf("property %q must be a boolean", k)
 			}
 			el.IsLocked = b
-		default:
-			return fmt.Errorf("unsupported property %q", k)
+			continue
 		}
+		return fmt.Errorf("unsupported property %q", k)
 	}
 	return nil
 }

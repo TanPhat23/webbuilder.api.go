@@ -127,92 +127,106 @@ func (h *Handler) HandleWebSocket(c *websocket.Conn) {
 	// A helper socket (?conn=writer) coexists with the editor's own connection.
 	client.Writer = c.Query("conn") == "writer"
 
-	if projectID != "" && h.access != nil {
-		read, write, err := h.access.Access(context.Background(), projectID, user.ID)
-		if err != nil {
-			h.logger.Errorf("access check failed for user=%s project=%s: %v", user.ID, projectID, err)
-			_ = client.WriteJSON(client.Factory().Error(domainErrors.CodeInternal, "could not check access"))
-			client.Release()
-			return
-		}
-		if !read {
-			// Same reply whether the project is missing or private.
-			_ = client.WriteJSON(client.Factory().Error(domainErrors.CodeAccessDenied, "you do not have access to this project"))
-			client.Release()
-			return
-		}
-		client.ReadOnly = !write
-	}
-
-	if projectID == "" {
-		errMsg := client.Factory().Error(domainErrors.CodeValidation, "project ID is required")
-		_ = client.WriteJSON(errMsg)
+	if !h.authorizeWSClient(client, projectID, user.ID) {
 		client.Release()
 		return
 	}
 
 	ck := connKey(projectID, user.ID)
 	if !client.Writer {
-		h.activeConnsMu.Lock()
-		if old, exists := h.activeConns[ck]; exists {
-			h.logger.Infof("Closing stale connection for user=%s project=%s", user.ID, projectID)
-			// Send the close frame before Unregister closes old's send channel: its writer
-			// would otherwise close the socket first.
-			old.CloseAsReplaced()
-			_ = h.hub.Unregister(h.ctx, old)
-			old.CloseSend()
-		}
-		h.activeConns[ck] = client
-		h.activeConnsMu.Unlock()
+		h.replaceActiveConn(ck, client)
 	}
 
+	defer h.cleanupWSClient(ck, client)
+
 	ctx := context.Background()
+	h.readWSLoop(ctx, c, client, user.ID)
+}
 
-	defer func() {
-		_ = h.hub.Unregister(h.ctx, client)
-		client.CloseSend()
+func (h *Handler) authorizeWSClient(client *wsentity.Client, projectID, userID string) bool {
+	if projectID == "" {
+		_ = client.WriteJSON(client.Factory().Error(domainErrors.CodeValidation, "project ID is required"))
+		return false
+	}
+	if h.access == nil {
+		return true
+	}
+	read, write, err := h.access.Access(context.Background(), projectID, userID)
+	if err != nil {
+		h.logger.Errorf("access check failed for user=%s project=%s: %v", userID, projectID, err)
+		_ = client.WriteJSON(client.Factory().Error(domainErrors.CodeInternal, "could not check access"))
+		return false
+	}
+	if !read {
+		// Same reply whether the project is missing or private.
+		_ = client.WriteJSON(client.Factory().Error(domainErrors.CodeAccessDenied, "you do not have access to this project"))
+		return false
+	}
+	client.ReadOnly = !write
+	return true
+}
 
-		h.activeConnsMu.Lock()
-		if h.activeConns[ck] == client {
-			delete(h.activeConns, ck)
-		}
-		h.activeConnsMu.Unlock()
+func (h *Handler) replaceActiveConn(ck string, client *wsentity.Client) {
+	h.activeConnsMu.Lock()
+	if old, exists := h.activeConns[ck]; exists {
+		h.logger.Infof("Closing stale connection for user=%s project=%s", client.User.ID, client.ProjectID)
+		// Send the close frame before Unregister closes old's send channel: its writer
+		// would otherwise close the socket first.
+		old.CloseAsReplaced()
+		_ = h.hub.Unregister(h.ctx, old)
+		old.CloseSend()
+	}
+	h.activeConns[ck] = client
+	h.activeConnsMu.Unlock()
+}
 
-		// Must be last: fences off the writer goroutine before the library recycles the conn.
-		client.Release()
-	}()
+func (h *Handler) cleanupWSClient(ck string, client *wsentity.Client) {
+	_ = h.hub.Unregister(h.ctx, client)
+	client.CloseSend()
 
+	h.activeConnsMu.Lock()
+	if h.activeConns[ck] == client {
+		delete(h.activeConns, ck)
+	}
+	h.activeConnsMu.Unlock()
+
+	// Must be last: fences off the writer goroutine before the library recycles the conn.
+	client.Release()
+}
+
+func (h *Handler) readWSLoop(ctx context.Context, c *websocket.Conn, client *wsentity.Client, userID string) {
 	for {
 		var msg domainEntity.Message
 		if err := c.ReadJSON(&msg); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				h.logger.Errorf("websocket error: %v", err)
 			}
-			break
+			return
 		}
-		h.logger.Infof("Received message: type=%s from userID=%s", msg.Type, user.ID)
+		h.logger.Infof("Received message: type=%s from userID=%s", msg.Type, userID)
 		h.logger.Debugf("Message details: %+v", msg)
 
 		if err := h.processMessage(ctx, client, msg); err != nil {
-			h.logger.Errorf("Error processing message %s: %v", msg.Type, err)
-
-			// Extract structured error code if available
-			errCode := domainErrors.CodeProcessError
-			// Clients get the structured message only: err.Error() would add the
-			// code again and the wrapped cause, which can be a database error.
-			errText := err.Error()
-			var appErr *domainErrors.AppError
-			if errors.As(err, &appErr) {
-				errCode = appErr.Code
-				errText = appErr.Message
-			}
-
-			errMsg := client.Factory().ErrorForOp(errCode, errText, msg.ClientOpID)
-			errMsg.RequestID = msg.RequestID
-			if sendErr := client.Send(errMsg); sendErr != nil {
-				h.logger.Errorf("failed to send error to client: %v", sendErr)
-			}
+			h.sendProcessError(client, msg, err)
 		}
+	}
+}
+
+func (h *Handler) sendProcessError(client *wsentity.Client, msg domainEntity.Message, err error) {
+	h.logger.Errorf("Error processing message %s: %v", msg.Type, err)
+	errCode := domainErrors.CodeProcessError
+	// Clients get the structured message only: err.Error() would add the
+	// code again and the wrapped cause, which can be a database error.
+	errText := err.Error()
+	var appErr *domainErrors.AppError
+	if errors.As(err, &appErr) {
+		errCode = appErr.Code
+		errText = appErr.Message
+	}
+	errMsg := client.Factory().ErrorForOp(errCode, errText, msg.ClientOpID)
+	errMsg.RequestID = msg.RequestID
+	if sendErr := client.Send(errMsg); sendErr != nil {
+		h.logger.Errorf("failed to send error to client: %v", sendErr)
 	}
 }
 

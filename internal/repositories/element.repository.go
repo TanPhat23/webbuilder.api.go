@@ -409,27 +409,33 @@ func (r *ElementRepository) createElementsAndSettings(ctx context.Context, tx *g
 }
 
 func (r *ElementRepository) flattenElementsForInsert(_ context.Context, _ *gorm.DB, rootElements []models.EditorElement, _ string) ([]models.Element, error) {
+	flattened, err := flattenEditorElementTree(rootElements)
+	if err != nil {
+		return nil, err
+	}
+	if err := assignSiblingOrderKeys(flattened); err != nil {
+		return nil, err
+	}
+	return flattened, nil
+}
+
+func flattenEditorElementTree(rootElements []models.EditorElement) ([]models.Element, error) {
 	type queueItem struct {
 		element  models.EditorElement
 		parentID *string
 	}
 
-	// Initialize queue with root elements
 	queue := make([]queueItem, 0, len(rootElements))
-
 	for _, e := range rootElements {
 		if e != nil {
-			queue = append(queue, queueItem{element: e, parentID: nil})
+			queue = append(queue, queueItem{element: e})
 		}
 	}
 
 	flattened := make([]models.Element, 0, 256)
-
-	// Process queue
 	for len(queue) > 0 {
 		item := queue[0]
 		queue = queue[1:]
-
 		if item.element == nil {
 			continue
 		}
@@ -438,7 +444,6 @@ func (r *ElementRepository) flattenElementsForInsert(_ context.Context, _ *gorm.
 		if base == nil {
 			continue
 		}
-
 		if base.Id == "" {
 			id, err := ids.NewV7()
 			if err != nil {
@@ -446,33 +451,28 @@ func (r *ElementRepository) flattenElementsForInsert(_ context.Context, _ *gorm.
 			}
 			base.Id = id
 		}
-
 		if base.ParentId != nil && *base.ParentId == "" {
 			base.ParentId = nil
 		}
-
 		if item.parentID != nil {
 			base.ParentId = item.parentID
 		}
-
 		flattened = append(flattened, *base)
 
-		children := utils.GetChildrenFromEditorElement(item.element)
-		for _, child := range children {
+		for _, child := range utils.GetChildrenFromEditorElement(item.element) {
 			childEditor, err := utils.ConvertToEditorElement(child)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert child element: %w", err)
 			}
 			parentID := base.Id
-			queue = append(queue, queueItem{
-				element:  childEditor,
-				parentID: &parentID,
-			})
+			queue = append(queue, queueItem{element: childEditor, parentID: &parentID})
 		}
 	}
+	return flattened, nil
+}
 
-	// A replacement has already deleted all project elements. Within each page
-	// and parent, the incoming tree order is the intended order.
+// assignSiblingOrderKeys ensures every sibling group carries monotonic valid fracdex OrderKeys.
+func assignSiblingOrderKeys(flattened []models.Element) error {
 	type siblingGroup struct{ pageID, parentID string }
 	groups := make(map[siblingGroup][]int)
 	for i := range flattened {
@@ -486,30 +486,36 @@ func (r *ElementRepository) flattenElementsForInsert(_ context.Context, _ *gorm.
 		}
 		groups[group] = append(groups[group], i)
 	}
+
 	for _, indices := range groups {
-		valid := true
-		previous := ""
-		for position, index := range indices {
-			elem := &flattened[index]
-			elem.Order = position + 1
-			if elem.OrderKey == nil || *elem.OrderKey == "" || (previous != "" && *elem.OrderKey <= previous) {
-				valid = false
-				continue
-			}
-			if _, err := fracdex.KeyBetween(*elem.OrderKey, ""); err != nil {
-				valid = false
-			}
-			previous = *elem.OrderKey
+		if hasValidOrderKeys(flattened, indices) {
+			continue
 		}
-		if !valid {
-			keys, err := fracdex.NKeysBetween("", "", uint(len(indices)))
-			if err != nil {
-				return nil, fmt.Errorf("failed to assign element order keys: %w", err)
-			}
-			for position, index := range indices {
-				flattened[index].OrderKey = &keys[position]
-			}
+		keys, err := fracdex.NKeysBetween("", "", uint(len(indices)))
+		if err != nil {
+			return fmt.Errorf("failed to assign element order keys: %w", err)
+		}
+		for position, index := range indices {
+			flattened[index].OrderKey = &keys[position]
 		}
 	}
-	return flattened, nil
+	return nil
+}
+
+func hasValidOrderKeys(flattened []models.Element, indices []int) bool {
+	valid := true
+	previous := ""
+	for position, index := range indices {
+		elem := &flattened[index]
+		elem.Order = position + 1
+		if elem.OrderKey == nil || *elem.OrderKey == "" || (previous != "" && *elem.OrderKey <= previous) {
+			valid = false
+			continue
+		}
+		if _, err := fracdex.KeyBetween(*elem.OrderKey, ""); err != nil {
+			valid = false
+		}
+		previous = *elem.OrderKey
+	}
+	return valid
 }

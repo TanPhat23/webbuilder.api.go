@@ -205,30 +205,36 @@ func (r *Room) GetParticipants() []domainEntity.UserPresence {
 
 	users := make([]domainEntity.UserPresence, 0, len(r.clients))
 	for client := range r.clients {
-		if client.User != nil {
-			name := ""
-			if client.User.FirstName != nil {
-				name = *client.User.FirstName
-			}
-			if client.User.LastName != nil {
-				if name != "" {
-					name += " "
-				}
-				name += *client.User.LastName
-			}
-			if name == "" {
-				name = client.User.Email
-			}
-
-			pres := client.GetPresence()
-			users = append(users, domainEntity.UserPresence{
-				UserID:   client.User.ID,
-				UserName: name,
-				Presence: pres,
-			})
+		if client.User == nil {
+			continue
 		}
+		users = append(users, domainEntity.UserPresence{
+			UserID:   client.User.ID,
+			UserName: formatClientName(client.User),
+			Presence: client.GetPresence(),
+		})
 	}
 	return users
+}
+
+func formatClientName(u *domainEntity.User) string {
+	var first, last string
+	if u.FirstName != nil {
+		first = *u.FirstName
+	}
+	if u.LastName != nil {
+		last = *u.LastName
+	}
+	switch {
+	case first != "" && last != "":
+		return first + " " + last
+	case first != "":
+		return first
+	case last != "":
+		return last
+	default:
+		return u.Email
+	}
 }
 
 // ClientsOf returns the room's clients belonging to userID.
