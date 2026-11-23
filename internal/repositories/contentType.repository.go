@@ -138,8 +138,10 @@ func (r *ContentTypeRepository) UpdateContentType(ctx context.Context, id string
 		return nil, ErrContentTypeNotFound
 	}
 
+	normalizeUpdateColumns(updates)
+
 	// If updating name, check for duplicates
-	if newName, ok := updates["name"].(string); ok {
+	if newName, ok := updates["Name"].(string); ok {
 		existingCount, err := gorm.G[models.ContentType](r.db).
 			Where("\"Name\" = ? AND \"Id\" != ?", newName, id).
 			Count(ctx, "*")

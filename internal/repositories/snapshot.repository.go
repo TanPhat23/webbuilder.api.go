@@ -53,7 +53,7 @@ func (r *SnapshotRepository) SaveSnapshot(ctx context.Context, projectID string,
 		First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("project not found")
+			return ErrProjectNotFound
 		}
 		return fmt.Errorf("failed to validate project existence: %w", err)
 	}

@@ -108,7 +108,11 @@ func (r *ContentFieldRepository) UpdateContentField(ctx context.Context, id stri
 	}
 
 	// If updating name, check for duplicates
-	if newName, ok := updates["name"].(string); ok {
+	if value, ok := updates["name"]; ok {
+		updates["Name"] = value
+		delete(updates, "name")
+	}
+	if newName, ok := updates["Name"].(string); ok {
 		count, err := gorm.G[models.ContentField](r.db).
 			Where("\"ContentTypeId\" = ? AND \"Name\" = ? AND \"Id\" != ?", existing.ContentTypeId, newName, id).
 			Count(ctx, "*")

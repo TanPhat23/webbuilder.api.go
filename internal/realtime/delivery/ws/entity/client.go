@@ -67,12 +67,15 @@ func (c *Client) Touch() { c.lastActive.Store(time.Now().UnixNano()) }
 func (c *Client) LastActiveUnixNano() int64 { return c.lastActive.Load() }
 
 // openSend (re)creates the client's send channel and returns it.
-func (c *Client) openSend(buf int) chan []byte {
+func (c *Client) openSend(buf int) (chan []byte, bool) {
 	c.sendMu.Lock()
 	defer c.sendMu.Unlock()
+	if c.send != nil {
+		return c.send, false
+	}
 	c.send = make(chan []byte, buf)
 	c.sendClosed = false
-	return c.send
+	return c.send, true
 }
 
 // CloseSend closes the client's send channel exactly once.

@@ -118,6 +118,8 @@ func (r *CustomElementTypeRepository) UpdateCustomElementType(ctx context.Contex
 		return nil, fmt.Errorf("failed to find custom element type: %w", err)
 	}
 
+	normalizeUpdateColumns(updates)
+
 	err = r.db.WithContext(ctx).
 		Model(&customElementType).
 		Updates(updates).Error

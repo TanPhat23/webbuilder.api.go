@@ -119,12 +119,24 @@ func (h *EventWorkflowHandler) UpdateEventWorkflow(c fiber.Ctx) error {
 		return err
 	}
 
+	name := existing.Name
+	if req.Name != nil {
+		name = *req.Name
+	}
+	enabled := existing.Enabled
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	description := existing.Description
+	if req.Description != nil {
+		description = req.Description
+	}
 	updated, err := h.eventWorkflowService.UpdateEventWorkflow(c.RequestCtx(), workflowID, &models.EventWorkflow{
-		Name:        *req.Name,
-		Description: req.Description,
+		Name:        name,
+		Description: description,
 		CanvasData:  req.CanvasData,
 		Handlers:    req.Handlers,
-		Enabled:     req.Enabled != nil && *req.Enabled,
+		Enabled:     enabled,
 	})
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to update event workflow")
@@ -143,6 +155,10 @@ func (h *EventWorkflowHandler) UpdateEventWorkflowEnabled(c fiber.Ctx) error {
 	req := new(dto.UpdateEventWorkflowEnabledRequest)
 	if err := c.Bind().Body(req); err != nil {
 		return err
+	}
+
+	if req.Enabled == nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "enabled is required", nil)
 	}
 
 	if err := h.eventWorkflowService.UpdateEventWorkflowEnabled(c.RequestCtx(), workflowID, *req.Enabled); err != nil {

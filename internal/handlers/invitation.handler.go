@@ -54,7 +54,7 @@ func (h *InvitationHandler) GetInvitationsByProject(c fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	invitations, err := h.invitationService.GetInvitationsByProject(c.RequestCtx(), projectID)
+	invitations, err := h.invitationService.GetInvitationsByProject(c.RequestCtx(), projectID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve invitations")
 	}
@@ -73,7 +73,7 @@ func (h *InvitationHandler) GetPendingInvitationsByProject(c fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
 	}
 
-	invitations, err := h.invitationService.GetPendingInvitationsByProject(c.RequestCtx(), projectID)
+	invitations, err := h.invitationService.GetPendingInvitationsByProject(c.RequestCtx(), projectID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve pending invitations")
 	}

@@ -132,6 +132,8 @@ func (r *ElementCommentRepository) UpdateElementComment(ctx context.Context, id 
 		return nil, err
 	}
 
+	normalizeUpdateColumns(updates)
+
 	// Update the comment
 	if err := r.db.WithContext(ctx).
 		Model(comment).

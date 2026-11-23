@@ -133,23 +133,20 @@ func (s *ElementService) UnlinkElementFromWorkflow(ctx context.Context, elementI
 		return errors.New("element event workflow repository not initialized")
 	}
 
-	// Check if the association exists
-	exists, err := s.elementEventWorkflowRepo.CheckIfWorkflowLinkedToElement(ctx, elementID, workflowID, eventName)
+	if elementID == "" || workflowID == "" || eventName == "" {
+		return errors.New("element, workflow and event are required")
+	}
+	links, err := s.elementEventWorkflowRepo.GetElementEventWorkflowsByFilters(ctx, elementID, workflowID, eventName)
 	if err != nil {
-		log.Printf("Error checking workflow link: %v", err)
 		return err
 	}
-
-	if !exists {
-		log.Printf("Workflow not linked to element")
+	if len(links) == 0 {
 		return errors.New("workflow not linked to element")
 	}
-
-	// Delete all associations for this element-workflow-event combination
-	err = s.elementEventWorkflowRepo.DeleteElementEventWorkflowsByElementID(ctx, elementID)
-	if err != nil {
-		log.Printf("Error unlinking element %s from workflow %s: %v", elementID, workflowID, err)
-		return err
+	for _, link := range links {
+		if err := s.elementEventWorkflowRepo.DeleteElementEventWorkflow(ctx, link.Id); err != nil {
+			return err
+		}
 	}
 
 	return nil

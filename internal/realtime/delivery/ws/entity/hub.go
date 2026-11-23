@@ -33,6 +33,7 @@ type registerRequest struct {
 
 // unregisterRequest represents a request to remove a client from a room.
 type unregisterRequest struct {
+	detach bool
 	client *Client
 	done   chan struct{}
 }
@@ -157,6 +158,15 @@ func (h *Hub) Register(ctx context.Context, client *Client) error {
 
 // Unregister removes a client from a room.
 func (h *Hub) Unregister(ctx context.Context, client *Client) error {
+	return h.unregister(ctx, client, false)
+}
+
+// Detach removes a client from its room while keeping its connection open.
+func (h *Hub) Detach(ctx context.Context, client *Client) error {
+	return h.unregister(ctx, client, true)
+}
+
+func (h *Hub) unregister(ctx context.Context, client *Client, detach bool) error {
 	if client == nil {
 		return nil
 	}
@@ -172,7 +182,7 @@ func (h *Hub) Unregister(ctx context.Context, client *Client) error {
 
 	done := make(chan struct{})
 	select {
-	case r.unregister <- unregisterRequest{client: client, done: done}:
+	case r.unregister <- unregisterRequest{client: client, done: done, detach: detach}:
 		select {
 		case <-done:
 			return nil

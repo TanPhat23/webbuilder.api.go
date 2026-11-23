@@ -277,7 +277,7 @@ func (r *ProjectRepository) RestoreProject(ctx context.Context, projectID, userI
 
 	rows, err := gorm.G[models.Project](r.db).
 		Where(&models.Project{ID: projectID, OwnerId: userID}).
-		Where("DeletedAt IS NOT NULL").
+		Where(`"DeletedAt" IS NOT NULL`).
 		Update(ctx, `"DeletedAt"`, nil)
 	if err != nil {
 		return fmt.Errorf("failed to restore project: %w", err)

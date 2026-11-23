@@ -85,10 +85,12 @@ func (r *Room) run() {
 			}
 			r.mu.Lock()
 			if _, ok := r.clients[client]; !ok {
-				send := client.openSend(r.sendBuf)
+				send, started := client.openSend(r.sendBuf)
 				r.clients[client] = true
-				r.wg.Add(1)
-				go r.clientWriter(client, send)
+				if started {
+					r.wg.Add(1)
+					go r.clientWriter(client, send)
+				}
 			}
 			r.mu.Unlock()
 
@@ -103,7 +105,9 @@ func (r *Room) run() {
 			r.mu.Lock()
 			if _, ok := r.clients[client]; ok {
 				delete(r.clients, client)
-				client.CloseSend()
+				if !req.detach {
+					client.CloseSend()
+				}
 			}
 			empty := len(r.clients) == 0
 			r.mu.Unlock()
@@ -160,10 +164,6 @@ func (r *Room) clientWriter(c *Client, send <-chan []byte) {
 
 	for {
 		select {
-		case <-r.ctx.Done():
-			c.CloseConn()
-			return
-
 		case frame, ok := <-send:
 			if !ok {
 				c.CloseConn()

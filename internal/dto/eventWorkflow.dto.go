@@ -20,5 +20,5 @@ type UpdateEventWorkflowRequest struct {
 }
 
 type UpdateEventWorkflowEnabledRequest struct {
-	Enabled *bool `json:"enabled" validate:"required"`
+	Enabled *bool `json:"enabled"`
 }

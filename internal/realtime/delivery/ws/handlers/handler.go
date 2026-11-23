@@ -160,6 +160,7 @@ func (h *Handler) HandleWebSocket(c *websocket.Conn) {
 			// would otherwise close the socket first.
 			old.CloseAsReplaced()
 			_ = h.hub.Unregister(h.ctx, old)
+			old.CloseSend()
 		}
 		h.activeConns[ck] = client
 		h.activeConnsMu.Unlock()
@@ -169,6 +170,7 @@ func (h *Handler) HandleWebSocket(c *websocket.Conn) {
 
 	defer func() {
 		_ = h.hub.Unregister(h.ctx, client)
+		client.CloseSend()
 
 		h.activeConnsMu.Lock()
 		if h.activeConns[ck] == client {

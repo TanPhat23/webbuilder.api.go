@@ -9,6 +9,7 @@ import (
 
 	"github.com/lucsky/cuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -94,45 +95,34 @@ func (r *InvitationRepository) AcceptInvitation(ctx context.Context, token strin
 		return errors.New("token and userID are required")
 	}
 
-	invitation, err := r.GetInvitationByToken(ctx, token)
-	if err != nil {
-		return err
-	}
-
-	if time.Now().After(invitation.ExpiresAt) {
-		return ErrInvitationExpired
-	}
-
-	if invitation.Status != models.InvitationStatusPending {
-		return ErrInvitationInvalid
-	}
-
-	collaborator := models.Collaborator{
-		Id:        cuid.New(),
-		UserId:    userID,
-		ProjectId: invitation.ProjectId,
-		Role:      invitation.Role,
-		BaseAuditFields: models.BaseAuditFields{
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-	}
-
-	if err := gorm.G[models.Collaborator](r.db).Create(ctx, &collaborator); err != nil {
-		return fmt.Errorf("failed to create collaborator from invitation: %w", err)
-	}
-
-	now := time.Now()
-	if err := r.db.WithContext(ctx).
-		Model(invitation).
-		Updates(map[string]any{
-			"Status":     models.InvitationStatusAccepted,
-			"AcceptedAt": &now,
-		}).Error; err != nil {
-		return fmt.Errorf("failed to mark invitation as accepted: %w", err)
-	}
-
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var invitation models.Invitation
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(`"Token" = ?`, token).First(&invitation).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvitationNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get invitation by token: %w", err)
+		}
+		if time.Now().After(invitation.ExpiresAt) {
+			return ErrInvitationExpired
+		}
+		if invitation.Status != models.InvitationStatusPending {
+			return ErrInvitationInvalid
+		}
+		now := time.Now()
+		collaborator := models.Collaborator{
+			Id: cuid.New(), UserId: userID, ProjectId: invitation.ProjectId, Role: invitation.Role,
+			BaseAuditFields: models.BaseAuditFields{CreatedAt: now, UpdatedAt: now},
+		}
+		if err := tx.Create(&collaborator).Error; err != nil {
+			return fmt.Errorf("failed to create collaborator from invitation: %w", err)
+		}
+		if err := tx.Model(&invitation).Updates(map[string]any{"Status": models.InvitationStatusAccepted, "AcceptedAt": &now}).Error; err != nil {
+			return fmt.Errorf("failed to mark invitation as accepted: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *InvitationRepository) DeleteInvitation(ctx context.Context, id string) error {

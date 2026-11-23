@@ -16,7 +16,7 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 
 	oldPage := client.PageID
 	if oldPage != "" && oldPage != msg.PageID {
-		_ = h.hub.Unregister(ctx, client)
+		_ = h.hub.Detach(ctx, client)
 	}
 
 	client.SetPageID(msg.PageID)
@@ -38,7 +38,10 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 		h.logger.Errorf("logic sync on join failed (project=%s page=%s): %v", client.ProjectID, client.PageID, err)
 	}
 
-	projElements, _ := h.uc.Element.GetElementsByProjectID(ctx, client.ProjectID)
+	projElements, err := h.uc.Element.GetElementsByProjectID(ctx, client.ProjectID)
+	if err != nil {
+		return err
+	}
 
 	// Send project sync only to the joining client — NOT broadcast to all rooms.
 	// Broadcasting sync:project to every room on every join creates a message storm
@@ -55,7 +58,7 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 
 func (h *Handler) handleLeave(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
 	if client.PageID != "" {
-		_ = h.hub.Unregister(ctx, client)
+		_ = h.hub.Detach(ctx, client)
 		client.SetPageID("")
 	}
 	return nil

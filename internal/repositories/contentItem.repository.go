@@ -168,7 +168,11 @@ func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string
 		}
 
 		if len(updates) > 0 {
-			if newSlug, ok := updates["slug"].(string); ok {
+			if value, ok := updates["slug"]; ok {
+				updates["Slug"] = value
+				delete(updates, "slug")
+			}
+			if newSlug, ok := updates["Slug"].(string); ok {
 				count, err := gorm.G[models.ContentItem](tx).
 					Where("\"ContentTypeId\" = ? AND \"Slug\" = ? AND \"Id\" != ?", existing.ContentTypeId, newSlug, id).
 					Count(ctx, "*")

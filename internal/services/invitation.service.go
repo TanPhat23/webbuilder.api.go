@@ -149,12 +149,12 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, token, userID 
 	return s.invitationRepo.AcceptInvitation(ctx, token, userID)
 }
 
-func (s *InvitationService) GetInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
+func (s *InvitationService) GetInvitationsByProject(ctx context.Context, projectID, userID string) ([]models.Invitation, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	if err := s.CheckProjectOwnership(ctx, projectID, ""); err != nil {
+	if err := s.CheckProjectOwnership(ctx, projectID, userID); err != nil {
 		return nil, err
 	}
 
@@ -212,12 +212,12 @@ func (s *InvitationService) UpdateInvitationStatus(ctx context.Context, id strin
 	return s.invitationRepo.UpdateInvitationStatus(ctx, id, status)
 }
 
-func (s *InvitationService) GetPendingInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
+func (s *InvitationService) GetPendingInvitationsByProject(ctx context.Context, projectID, userID string) ([]models.Invitation, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	if err := s.CheckProjectOwnership(ctx, projectID, ""); err != nil {
+	if err := s.CheckProjectOwnership(ctx, projectID, userID); err != nil {
 		return nil, err
 	}
 

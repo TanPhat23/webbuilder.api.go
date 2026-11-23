@@ -120,7 +120,8 @@ func (r *PageRepository) UpdatePage(ctx context.Context, page *models.Page) erro
 	page.UpdatedAt = time.Now()
 
 	result := r.db.WithContext(ctx).
-		Where(&models.Page{Id: page.Id, AuditFields: models.AuditFields{DeletedAt: nil}}).
+		Where(&models.Page{Id: page.Id}).
+		Where(`"DeletedAt" IS NULL`).
 		Updates(page)
 
 	if result.Error != nil {
@@ -169,7 +170,8 @@ func (r *PageRepository) DeletePage(ctx context.Context, pageID string) error {
 
 	now := time.Now()
 	rows, err := gorm.G[models.Page](r.db).
-		Where(&models.Page{Id: pageID, AuditFields: models.AuditFields{DeletedAt: nil}}).
+		Where(&models.Page{Id: pageID}).
+		Where(`"DeletedAt" IS NULL`).
 		Update(ctx, "\"DeletedAt\"", now)
 	if err != nil {
 		return fmt.Errorf("failed to delete page: %w", err)
@@ -202,7 +204,8 @@ func (r *PageRepository) DeletePageByProjectID(ctx context.Context, pageID, proj
 	// Now delete the page
 	now := time.Now()
 	rows, err := gorm.G[models.Page](r.db).
-		Where(&models.Page{Id: pageID, ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
+		Where(&models.Page{Id: pageID, ProjectId: projectID}).
+		Where(`"DeletedAt" IS NULL`).
 		Update(ctx, "DeletedAt", now)
 	if err != nil {
 		return fmt.Errorf("failed to delete page: %w", err)
@@ -240,7 +243,7 @@ func (r *PageRepository) RestorePage(ctx context.Context, pageID string) error {
 
 	rows, err := gorm.G[models.Page](r.db).
 		Where(&models.Page{Id: pageID}).
-		Where("DeletedAt IS NOT NULL").
+		Where(`"DeletedAt" IS NOT NULL`).
 		Update(ctx, "\"DeletedAt\"", nil)
 	if err != nil {
 		return fmt.Errorf("failed to restore page: %w", err)
@@ -258,7 +261,8 @@ func (r *PageRepository) ExistsInProject(ctx context.Context, pageID, projectID 
 	}
 
 	count, err := gorm.G[models.Page](r.db).
-		Where(&models.Page{Id: pageID, ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
+		Where(&models.Page{Id: pageID, ProjectId: projectID}).
+		Where(`"DeletedAt" IS NULL`).
 		Count(ctx, "*")
 
 	if err != nil {
@@ -274,7 +278,8 @@ func (r *PageRepository) CountPagesByProjectID(ctx context.Context, projectID st
 	}
 
 	count, err := gorm.G[models.Page](r.db).
-		Where(&models.Page{ProjectId: projectID, AuditFields: models.AuditFields{DeletedAt: nil}}).
+		Where(&models.Page{ProjectId: projectID}).
+		Where(`"DeletedAt" IS NULL`).
 		Count(ctx, "*")
 
 	if err != nil {

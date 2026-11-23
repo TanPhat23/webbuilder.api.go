@@ -112,6 +112,8 @@ func (r *CustomElementRepository) UpdateCustomElement(ctx context.Context, id st
 		return nil, fmt.Errorf("failed to find custom element: %w", err)
 	}
 
+	normalizeUpdateColumns(updates)
+
 	result := r.db.WithContext(ctx).
 		Model(&customElement).
 		Where(`"UserId" = ?`, userID).
