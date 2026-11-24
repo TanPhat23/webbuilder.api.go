@@ -50,9 +50,25 @@ func (s *contentTypeSvcStub) DeleteContentType(_ context.Context, id string) err
 	return s.err
 }
 
+func (s *contentTypeSvcStub) GetContentTypesForUser(_ context.Context, _, _ string) ([]models.ContentType, error) {
+	return s.GetContentTypes(context.Background())
+}
+func (s *contentTypeSvcStub) GetContentTypeByIDForUser(_ context.Context, id, _ string) (*models.ContentType, error) {
+	return s.GetContentTypeByID(context.Background(), id)
+}
+func (s *contentTypeSvcStub) CreateContentTypeForUser(_ context.Context, ct *models.ContentType, _ string) (*models.ContentType, error) {
+	return s.CreateContentType(context.Background(), ct)
+}
+func (s *contentTypeSvcStub) UpdateContentTypeForUser(_ context.Context, id, _ string, ct *models.ContentType) (*models.ContentType, error) {
+	return s.UpdateContentType(context.Background(), id, ct)
+}
+func (s *contentTypeSvcStub) DeleteContentTypeForUser(_ context.Context, id, _ string) error {
+	return s.DeleteContentType(context.Background(), id)
+}
+
 func contentTypeKit(svc *contentTypeSvcStub) *fiber.App {
 	h := NewContentTypeHandler(svc)
-	return newKitApp("", func(app *fiber.App) {
+	return newKitApp("u1", func(app *fiber.App) {
 		app.Get("/content-types", h.GetContentTypes)
 		app.Post("/content-types", h.CreateContentType)
 		app.Get("/content-types/:id", h.GetContentTypeByID)

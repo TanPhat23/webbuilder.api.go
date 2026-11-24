@@ -189,9 +189,9 @@ func (r *PageRepository) DeletePageByProjectID(ctx context.Context, pageID, proj
 		return errors.New("pageID, projectID, and userID are required")
 	}
 
-	// First verify project ownership
+	// First verify project write access (owner or editor collaborator)
 	count, err := gorm.G[models.Project](r.db).
-		Where(&models.Project{ID: projectID, OwnerId: userID, AuditFields: &models.AuditFields{DeletedAt: nil}}).
+		Where(`"Id" = ? AND "DeletedAt" IS NULL AND ("OwnerId" = ? OR EXISTS (SELECT 1 FROM "Collaborator" WHERE "ProjectId" = "Project"."Id" AND "UserId" = ? AND "Role" IN ('owner', 'editor')))`, projectID, userID, userID).
 		Count(ctx, "*")
 
 	if err != nil {

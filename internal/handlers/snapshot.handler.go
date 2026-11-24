@@ -31,7 +31,7 @@ func NewSnapshotHandler(
 }
 
 func (h *SnapshotHandler) SaveSnapshot(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -56,8 +56,8 @@ func (h *SnapshotHandler) SaveSnapshot(c fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to build snapshot", err)
 	}
 
-	if err := h.saveSnapshot(c.RequestCtx(), projectID, snapshot, elements); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save and sync snapshot", err)
+	if err := h.saveSnapshot(c.RequestCtx(), projectID, userID, snapshot, elements); err != nil {
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to save and sync snapshot")
 	}
 
 	return utils.SendSuccess(c, fiber.StatusCreated, "Snapshot saved successfully")
@@ -79,13 +79,13 @@ func (h *SnapshotHandler) GetSnapshots(c fiber.Ctx) error {
 }
 
 func (h *SnapshotHandler) GetSnapshotByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "snapshotid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid", "snapshotid")
 	if err != nil {
 		return err
 	}
-	snapshotID := ids[0]
+	projectID, snapshotID := ids[0], ids[1]
 
-	snapshot, err := h.snapshotService.GetSnapshotByID(c.RequestCtx(), snapshotID)
+	snapshot, err := h.snapshotService.GetSnapshotByIDWithAccess(c.RequestCtx(), projectID, snapshotID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Snapshot not found", "Failed to get snapshot")
 	}
@@ -147,8 +147,8 @@ func (h *SnapshotHandler) buildSnapshot(projectID string, req dto.SaveSnapshotRe
 	}, nil
 }
 
-func (h *SnapshotHandler) saveSnapshot(ctx context.Context, projectID string, snapshot models.Snapshot, elements []models.EditorElement) error {
-	if err := h.snapshotService.SaveSnapshot(ctx, projectID, &snapshot); err != nil {
+func (h *SnapshotHandler) saveSnapshot(ctx context.Context, projectID, userID string, snapshot models.Snapshot, elements []models.EditorElement) error {
+	if err := h.snapshotService.SaveSnapshotWithAccess(ctx, projectID, userID, &snapshot); err != nil {
 		log.Printf("Error saving snapshot for project %s: %v", projectID, err)
 		return err
 	}

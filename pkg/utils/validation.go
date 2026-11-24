@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
+
+	"my-go-app/internal/auth"
 )
 
 // Validate is the shared validator instance used across all handlers.
@@ -65,11 +67,11 @@ func RequireUpdates(updates map[string]any) error {
 
 // ValidateUserID extracts and validates the authenticated user ID from context locals.
 func ValidateUserID(c fiber.Ctx) (string, error) {
-	userID, ok := c.Locals("userId").(string)
-	if !ok || userID == "" {
+	id, ok := auth.FromFiber(c)
+	if !ok || id.UserID == "" {
 		return "", fiber.NewError(fiber.StatusUnauthorized, "Unauthorized: You must be logged in")
 	}
-	return userID, nil
+	return id.UserID, nil
 }
 
 // ValidateStruct runs go-playground/validator against the given struct.

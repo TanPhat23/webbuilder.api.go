@@ -42,7 +42,7 @@ func (Invitation) TableName() string {
 type CreateInvitationRequest struct {
 	ProjectID string           `json:"project_id" validate:"required,min=1"`
 	Email     string           `json:"email"      validate:"required,email,max=255"`
-	Role      CollaboratorRole `json:"role"       validate:"required,oneof=owner editor viewer"`
+	Role      CollaboratorRole `json:"role"       validate:"required,oneof=editor viewer"`
 }
 
 type AcceptInvitationRequest struct {

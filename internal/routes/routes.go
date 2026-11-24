@@ -1,6 +1,9 @@
 package routes
 
 import (
+	"context"
+	"encoding/json"
+
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/middleware"
@@ -9,13 +12,33 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const rbacSyncChannel = "rbac:access:changed"
+
+func publishAccessChange(rdb *redis.Client) func(projectID, userID string) {
+	if rdb == nil {
+		return nil
+	}
+	return func(projectID, userID string) {
+		payload, err := json.Marshal(struct {
+			ProjectID string `json:"projectId"`
+			UserID    string `json:"userId"`
+		}{ProjectID: projectID, UserID: userID})
+		if err != nil {
+			return
+		}
+		_ = rdb.Publish(context.Background(), rbacSyncChannel, payload).Err()
+	}
+}
+
 func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService, invitationService *services.InvitationService, redisClient *redis.Client) {
 	publicGroup := app.Group("/api/v1")
 	privateGroup := app.Group("/api/v1", middleware.AuthenticateMiddleware)
 
+	onAccessChanged := publishAccessChange(redisClient)
+
 	ElementRoutes(publicGroup, privateGroup, repos, redisClient)
 	PageRoutes(publicGroup, privateGroup, repos, redisClient)
-	ProjectRoutes(publicGroup, privateGroup, repos)
+	ProjectRoutes(publicGroup, privateGroup, repos, onAccessChanged)
 	ContentRoutes(publicGroup, privateGroup, repos)
 
 	AgentTokenRoutes(privateGroup, repos)
@@ -23,7 +46,7 @@ func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, clou
 	ImageRoutes(privateGroup, repos, cloudinaryService)
 	CustomElementRoutes(privateGroup, repos)
 	InvitationRoutes(privateGroup, invitationService)
-	CollaboratorRoutes(privateGroup, repos)
+	CollaboratorRoutes(privateGroup, repos, onAccessChanged)
 	ElementCommentRoutes(privateGroup, repos)
 	UserRoutes(privateGroup, repos)
 	WorkflowRoutes(privateGroup, repos)

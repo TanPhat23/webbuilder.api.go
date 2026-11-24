@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 
@@ -51,6 +53,9 @@ func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, ema
 	}
 	if role == "" {
 		role = models.RoleEditor
+	}
+	if !authz.IsAssignableCollaboratorRole(authz.Role(role)) {
+		return nil, fmt.Errorf("%w: role %q cannot be assigned in an invitation", authz.ErrForbidden, role)
 	}
 
 	project, err := s.projectRepo.GetProjectByID(ctx, projectID, invitedBy)
@@ -124,7 +129,7 @@ func (s *InvitationService) CheckProjectOwnership(ctx context.Context, projectID
 		return errors.New("project does not exist")
 	}
 	if project.OwnerId != userID {
-		return errors.New("user is not the owner of this project")
+		return fmt.Errorf("%w: user is not the owner of this project", authz.ErrForbidden)
 	}
 
 	return nil
@@ -144,6 +149,33 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, token, userID 
 	}
 	if userID == "" {
 		return errors.New("userId is required")
+	}
+
+	invitation, err := s.invitationRepo.GetInvitationByToken(ctx, token)
+	if err != nil {
+		return err
+	}
+	if invitation == nil {
+		return errors.New("invitation does not exist")
+	}
+	if !authz.IsAssignableCollaboratorRole(authz.Role(invitation.Role)) {
+		return fmt.Errorf("%w: role %q cannot be assigned in an invitation", authz.ErrForbidden, invitation.Role)
+	}
+
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to verify user: %w", err)
+	}
+	if user == nil {
+		return authz.ErrUnauthorized
+	}
+	if !strings.EqualFold(user.Email, invitation.Email) {
+		return fmt.Errorf("%w: invitation belongs to a different email", authz.ErrForbidden)
+	}
+	if s.projectRepo != nil {
+		if access, err := s.projectRepo.GetProjectAccess(ctx, invitation.ProjectId, userID); err == nil && access != nil {
+			return errors.New("user already has access to this project")
+		}
 	}
 
 	return s.invitationRepo.AcceptInvitation(ctx, token, userID)

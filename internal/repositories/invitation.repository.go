@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	ErrInvitationNotFound = errors.New("invitation not found")
-	ErrInvitationExpired  = errors.New("invitation has expired")
-	ErrInvitationInvalid  = errors.New("invitation is no longer pending")
+	ErrInvitationNotFound      = errors.New("invitation not found")
+	ErrInvitationExpired       = errors.New("invitation has expired")
+	ErrInvitationInvalid       = errors.New("invitation is no longer pending")
+	ErrInvitationEmailMismatch = errors.New("invitation belongs to a different email address")
 )
 
 type InvitationRepository struct {

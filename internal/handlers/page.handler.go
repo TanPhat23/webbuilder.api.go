@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"my-go-app/internal/authz"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
@@ -69,13 +70,13 @@ func (h *PageHandler) getPagesByProjectID(c fiber.Ctx, userID string) error {
 }
 
 func (h *PageHandler) GetPageByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid", "pageid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid", "pageid")
 	if err != nil {
 		return err
 	}
-	pageID := ids[1]
+	projectID, pageID := ids[0], ids[1]
 
-	page, err := h.pageService.GetPageByID(c.RequestCtx(), pageID)
+	page, err := h.pageService.GetPageByIDForUser(c.RequestCtx(), projectID, pageID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to retrieve page")
 	}
@@ -113,7 +114,7 @@ func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 	}
 
 	createdPage, err := h.pageService.CreatePageAsUser(c.RequestCtx(), page, userID)
-	if errors.Is(err, repositories.ErrProjectUnauthorized) {
+	if errors.Is(err, repositories.ErrProjectUnauthorized) || errors.Is(err, authz.ErrForbidden) {
 		return utils.SendError(c, fiber.StatusForbidden, "You cannot add pages to this project", err, userID)
 	}
 	if errors.Is(err, repositories.ErrPageNameTaken) {
@@ -127,15 +128,11 @@ func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 }
 
 func (h *PageHandler) UpdatePage(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid", "pageid")
+	userID, ids, err := utils.MustUserAndParams(c, "projectid", "pageid")
 	if err != nil {
 		return err
 	}
-	pageID := ids[1]
-
-	if _, err := h.pageService.GetPageByID(c.RequestCtx(), pageID); err != nil {
-		return utils.HandleRepoError(c, err, "Page not found", "Failed to verify page")
-	}
+	projectID, pageID := ids[0], ids[1]
 
 	req := new(dto.UpdatePageRequest)
 	if err := c.Bind().Body(req); err != nil {
@@ -157,11 +154,11 @@ func (h *PageHandler) UpdatePage(c fiber.Ctx) error {
 		return err
 	}
 
-	if err := h.pageService.UpdatePageFields(c.RequestCtx(), pageID, updates); err != nil {
+	if err := h.pageService.UpdatePageFieldsForUser(c.RequestCtx(), projectID, pageID, userID, updates); err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to update page")
 	}
 
-	updated, err := h.pageService.GetPageByID(c.RequestCtx(), pageID)
+	updated, err := h.pageService.GetPageByIDForUser(c.RequestCtx(), projectID, pageID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to fetch updated page")
 	}

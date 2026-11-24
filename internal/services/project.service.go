@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 
@@ -15,6 +16,7 @@ type ProjectService struct {
 	projectRepo      repositories.ProjectRepositoryInterface
 	collaboratorRepo repositories.CollaboratorRepositoryInterface
 	userRepo         repositories.UserRepositoryInterface
+	onAccessChanged  func(projectID, userID string)
 }
 
 func NewProjectService(
@@ -27,6 +29,12 @@ func NewProjectService(
 		collaboratorRepo: collaboratorRepo,
 		userRepo:         userRepo,
 	}
+}
+
+// SetAccessChangedHook registers a callback invoked after ownership transfer
+// so active realtime connections can refresh permissions.
+func (s *ProjectService) SetAccessChangedHook(fn func(projectID, userID string)) {
+	s.onAccessChanged = fn
 }
 
 func (s *ProjectService) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
@@ -172,6 +180,67 @@ func (s *ProjectService) UpdateProject(ctx context.Context, projectID, userID st
 		return nil, err
 	}
 	return s.projectRepo.UpdateProject(ctx, projectID, userID, mergeProjectUpdateFields(existing, project))
+}
+
+// UpdateProjectColumnUpdates enforces per-field RBAC permissions before updating:
+// Published requires project:publish (owner), Subdomain requires project:settings (owner),
+// and Name/Description/Styles/Header require project:edit (owner or editor).
+func (s *ProjectService) UpdateProjectColumnUpdates(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+	if projectID == "" {
+		return nil, errors.New("projectId is required")
+	}
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
+	if len(updates) == 0 {
+		return nil, errors.New("no updates provided")
+	}
+
+	authorizer := NewProjectAuthorizer(s.projectRepo)
+	if _, hasPublished := updates["Published"]; hasPublished {
+		if _, err := authorizer.Authorize(ctx, projectID, userID, authz.PermProjectPublish); err != nil {
+			return nil, err
+		}
+	}
+	if _, hasSubdomain := updates["Subdomain"]; hasSubdomain {
+		if _, err := authorizer.Authorize(ctx, projectID, userID, authz.PermProjectSettings); err != nil {
+			return nil, err
+		}
+	}
+	for _, field := range []string{"Name", "Description", "Styles", "Header"} {
+		if _, ok := updates[field]; ok {
+			if _, err := authorizer.Authorize(ctx, projectID, userID, authz.PermProjectEdit); err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+
+	return s.projectRepo.UpdateProjectFields(ctx, projectID, userID, updates)
+}
+
+// TransferOwnership moves Project.OwnerId to newOwnerID when authorized with project:transfer.
+func (s *ProjectService) TransferOwnership(ctx context.Context, projectID, currentOwnerID, newOwnerID string) error {
+	if projectID == "" {
+		return errors.New("projectId is required")
+	}
+	if currentOwnerID == "" {
+		return errors.New("userId is required")
+	}
+	if newOwnerID == "" {
+		return errors.New("newOwnerId is required")
+	}
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, currentOwnerID, authz.PermProjectTransfer); err != nil {
+		return err
+	}
+	if err := s.projectRepo.TransferOwnership(ctx, projectID, currentOwnerID, newOwnerID); err != nil {
+		return err
+	}
+	if s.onAccessChanged != nil {
+		s.onAccessChanged(projectID, currentOwnerID)
+		s.onAccessChanged(projectID, newOwnerID)
+	}
+	return nil
 }
 
 func (s *ProjectService) DeleteProject(ctx context.Context, projectID, userID string) error {

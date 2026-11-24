@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"my-go-app/internal/authz"
+)
 
 type Notification struct {
 	Id          string    `gorm:"primaryKey;column:Id;type:varchar(255)" json:"id"`
@@ -46,11 +50,12 @@ type NotificationList struct {
 	FilterCounts  NotificationFilterCounts `json:"filterCounts"`
 }
 
-// ProjectAccess is a user's role on a project (owner or collaborator).
+// ProjectAccess is a user's role and resolved permissions on a project.
 type ProjectAccess struct {
-	UserId         string           `json:"userId"`
-	ProjectId      string           `json:"projectId"`
-	Role           CollaboratorRole `json:"role"`
-	IsOwner        bool             `json:"isOwner"`
-	IsCollaborator bool             `json:"isCollaborator"`
+	UserId         string             `json:"userId"`
+	ProjectId      string             `json:"projectId"`
+	Role           CollaboratorRole   `json:"role"`
+	IsOwner        bool               `json:"isOwner"`
+	IsCollaborator bool               `json:"isCollaborator"`
+	Permissions    []authz.Permission `json:"permissions"`
 }

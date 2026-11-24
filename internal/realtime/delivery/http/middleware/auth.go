@@ -11,6 +11,7 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
 	"github.com/clerk/clerk-sdk-go/v2/user"
 
+	"my-go-app/internal/auth"
 	"my-go-app/internal/realtime/config"
 	"my-go-app/internal/realtime/domain/entity"
 	"my-go-app/internal/realtime/utils/logger"
@@ -58,7 +59,11 @@ func AuthMiddleware(cfg *config.Config) fiber.Handler {
 		}
 
 		mappedUser := fetchMappedUser(ctx, userClient, subject)
-		c.Locals("userId", mappedUser.ID)
+		auth.SetFiber(c, auth.Identity{
+			UserID:     mappedUser.ID,
+			Email:      mappedUser.Email,
+			AuthMethod: "clerk",
+		})
 		c.Locals("user", mappedUser)
 		c.Locals("token", token)
 		return c.Next()

@@ -15,5 +15,5 @@ func (Collaborator) TableName() string {
 }
 
 type UpdateCollaboratorRoleRequest struct {
-	Role CollaboratorRole `json:"role" validate:"required,oneof=owner editor viewer"`
+	Role CollaboratorRole `json:"role" validate:"required,oneof=editor viewer"`
 }

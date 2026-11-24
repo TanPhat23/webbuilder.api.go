@@ -103,6 +103,10 @@ type ProjectRepositoryInterface interface {
 	GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error)
 	// UpdateProject updates a project with ownership verification
 	UpdateProject(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error)
+	// UpdateProjectFields updates pre-authorized project fields for owners or editors
+	UpdateProjectFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error)
+	// TransferOwnership moves project ownership from currentOwnerID to newOwnerID
+	TransferOwnership(ctx context.Context, projectID, currentOwnerID, newOwnerID string) error
 	// DeleteProject soft deletes a project with ownership verification
 	DeleteProject(ctx context.Context, projectID, userID string) error
 	// HardDeleteProject permanently deletes a project
@@ -149,6 +153,10 @@ type PageRepositoryInterface interface {
 type ContentTypeRepositoryInterface interface {
 	// GetContentTypes retrieves all content types
 	GetContentTypes(ctx context.Context) ([]models.ContentType, error)
+	// GetContentTypesByProject retrieves content types scoped to a project
+	GetContentTypesByProject(ctx context.Context, projectID string) ([]models.ContentType, error)
+	// GetContentTypesByUser retrieves content types for projects accessible by userID
+	GetContentTypesByUser(ctx context.Context, userID string) ([]models.ContentType, error)
 	// GetContentTypeByID retrieves a content type by ID
 	GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error)
 	// CreateContentType creates a new content type
@@ -274,6 +282,10 @@ type CollaboratorRepositoryInterface interface {
 	DeleteCollaborator(ctx context.Context, id string) error
 	// IsCollaborator checks if a user is a collaborator on a project
 	IsCollaborator(ctx context.Context, projectID, userID string) (bool, error)
+	// GetCollaboratorByProjectAndUser returns the collaborator record for (projectID, userID) if any
+	GetCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (*models.Collaborator, error)
+	// DeleteCollaboratorByProjectAndUser removes a user's collaborator membership on a project
+	DeleteCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (bool, error)
 }
 
 type EventWorkflowRepositoryInterface interface {

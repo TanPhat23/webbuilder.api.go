@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"my-go-app/internal/authz"
 	"my-go-app/internal/handlers"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
@@ -15,13 +16,14 @@ func WorkflowRoutes(group fiber.Router, repos *repositories.RepositoriesInterfac
 	elementEventWorkflowService := services.NewElementEventWorkflowService(repos.ElementEventWorkflowRepository, repos.ElementRepository, repos.ProjectRepository, repos.PageRepository)
 	projectService := services.NewProjectService(repos.ProjectRepository, repos.CollaboratorRepository, repos.UserRepository)
 	pageService := services.NewPageService(repos.PageRepository, repos.ProjectRepository)
+	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
-	eventWorkflowHandler := handlers.NewEventWorkflowHandler(eventWorkflowService, elementEventWorkflowService)
-	elementEventWorkflowHandler := handlers.NewElementEventWorkflowHandler(elementEventWorkflowService, projectService, pageService)
+	eventWorkflowHandler := handlers.NewEventWorkflowHandler(eventWorkflowService, elementEventWorkflowService).WithAuthorizer(authorizer)
+	elementEventWorkflowHandler := handlers.NewElementEventWorkflowHandler(elementEventWorkflowService, projectService, pageService).WithWorkflowAuth(authorizer, eventWorkflowService, repos.ElementRepository)
 
 	// Project-scoped list. The old GET /event-workflows/:projectid shadowed
 	// GET /event-workflows/:id (same pattern, registered first), so it is gone.
-	group.Get("/projects/:projectid/event-workflows", eventWorkflowHandler.GetEventWorkflowsByProject)
+	group.Get("/projects/:projectid/event-workflows", authorizer.RequireProjectPermission("projectid", authz.PermProjectView), eventWorkflowHandler.GetEventWorkflowsByProject)
 	group.Get("/event-workflows/:id", eventWorkflowHandler.GetEventWorkflowByID)
 	group.Get("/event-workflows/:id/elements", eventWorkflowHandler.GetEventWorkflowElements)
 

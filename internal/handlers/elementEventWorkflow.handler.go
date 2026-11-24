@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"my-go-app/internal/authz"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
+	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 
@@ -13,6 +15,9 @@ type ElementEventWorkflowHandler struct {
 	elementEventWorkflowService services.ElementEventWorkflowServiceInterface
 	projectService              services.ProjectServiceInterface
 	pageService                 services.PageServiceInterface
+	authorizer                  *authz.Authorizer
+	eventWorkflowService        services.EventWorkflowServiceInterface
+	elementRepo                 repositories.ElementRepositoryInterface
 }
 
 func NewElementEventWorkflowHandler(
@@ -25,6 +30,18 @@ func NewElementEventWorkflowHandler(
 		projectService:              projectService,
 		pageService:                 pageService,
 	}
+}
+
+// WithWorkflowAuth enables project-scoped RBAC checks on ID and query-based lookups.
+func (h *ElementEventWorkflowHandler) WithWorkflowAuth(
+	a *authz.Authorizer,
+	ews services.EventWorkflowServiceInterface,
+	elements repositories.ElementRepositoryInterface,
+) *ElementEventWorkflowHandler {
+	h.authorizer = a
+	h.eventWorkflowService = ews
+	h.elementRepo = elements
+	return h
 }
 
 // CreateElementEventWorkflow creates a new element event workflow association.
@@ -53,7 +70,7 @@ func (h *ElementEventWorkflowHandler) CreateElementEventWorkflow(c fiber.Ctx) er
 
 // GetElementEventWorkflowByID retrieves a specific element event workflow.
 func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c fiber.Ctx) error {
-	_, ids, err := utils.MustUserAndParams(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
@@ -66,8 +83,44 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflowByID(c fiber.Ctx) e
 	if eew == nil {
 		return fiber.NewError(fiber.StatusNotFound, "Element event workflow not found")
 	}
+	if h.authorizer != nil {
+		if err := h.authorizeElementOrWorkflow(c, userID, eew.ElementId, eew.WorkflowId); err != nil {
+			return err
+		}
+	}
 
 	return utils.SendJSON(c, fiber.StatusOK, eew)
+}
+
+func (h *ElementEventWorkflowHandler) authorizeElementOrWorkflow(c fiber.Ctx, userID, elementID, workflowID string) error {
+	if h.authorizer == nil {
+		return nil
+	}
+	if elementID != "" && h.elementRepo != nil {
+		el, err := h.elementRepo.GetElementByID(c.RequestCtx(), elementID)
+		if err != nil {
+			return utils.HandleRepoError(c, err, "Element not found", "Failed to verify element access")
+		}
+		if el != nil && el.Page != nil && el.Page.ProjectId != "" {
+			if _, err := h.authorizer.Authorize(c.RequestCtx(), el.Page.ProjectId, userID, authz.PermProjectView); err != nil {
+				return utils.HandleRepoError(c, err, "Project not found", "Failed to verify project access")
+			}
+			return nil
+		}
+	}
+	if workflowID != "" && h.eventWorkflowService != nil {
+		wf, err := h.eventWorkflowService.GetEventWorkflowByID(c.RequestCtx(), workflowID)
+		if err != nil {
+			return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to verify workflow access")
+		}
+		if wf != nil && wf.ProjectId != "" {
+			if _, err := h.authorizer.Authorize(c.RequestCtx(), wf.ProjectId, userID, authz.PermProjectView); err != nil {
+				return utils.HandleRepoError(c, err, "Project not found", "Failed to verify project access")
+			}
+			return nil
+		}
+	}
+	return fiber.NewError(fiber.StatusForbidden, "Access denied")
 }
 
 // GetElementEventWorkflowsByPageId retrieves all element event workflows for a page.
@@ -97,7 +150,7 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflowsByPageId(c fiber.C
 
 // GetElementEventWorkflows retrieves element event workflows with optional filters.
 func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c fiber.Ctx) error {
-	_, err := utils.ValidateUserID(c)
+	userID, err := utils.ValidateUserID(c)
 	if err != nil {
 		return err
 	}
@@ -105,6 +158,15 @@ func (h *ElementEventWorkflowHandler) GetElementEventWorkflows(c fiber.Ctx) erro
 	elementID := c.Query("elementId")
 	workflowID := c.Query("workflowId")
 	eventName := c.Query("eventName")
+
+	if h.authorizer != nil {
+		if elementID == "" && workflowID == "" {
+			return fiber.NewError(fiber.StatusBadRequest, "elementId or workflowId query parameter is required")
+		}
+		if err := h.authorizeElementOrWorkflow(c, userID, elementID, workflowID); err != nil {
+			return err
+		}
+	}
 
 	var (
 		eews     []models.ElementEventWorkflow

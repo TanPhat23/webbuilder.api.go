@@ -5,7 +5,7 @@ import "my-go-app/internal/models"
 type CreateInvitationRequest struct {
 	ProjectID string                  `json:"projectId" validate:"required,min=1"`
 	Email     string                  `json:"email" validate:"required,email,max=255"`
-	Role      models.CollaboratorRole `json:"role" validate:"required,oneof=owner editor viewer"`
+	Role      models.CollaboratorRole `json:"role" validate:"required,oneof=editor viewer"`
 }
 
 type AcceptInvitationRequest struct {

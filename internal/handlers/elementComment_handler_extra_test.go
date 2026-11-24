@@ -68,9 +68,18 @@ func (s *elementCommentSvcStub) DeleteElementComment(_ context.Context, id, user
 	s.delID, s.delUser = strings.Clone(id), strings.Clone(userID)
 	return s.err
 }
+func (s *elementCommentSvcStub) GetElementCommentByIDForUser(_ context.Context, id, _ string) (*models.ElementComment, error) {
+	return s.GetElementCommentByID(context.Background(), id)
+}
+func (s *elementCommentSvcStub) GetElementCommentsForUser(_ context.Context, elementID, _ string, f models.ElementCommentFilter) ([]models.ElementComment, error) {
+	return s.GetElementComments(context.Background(), elementID, f)
+}
 func (s *elementCommentSvcStub) ToggleResolvedStatus(_ context.Context, id string) error {
 	s.toggledID = strings.Clone(id)
 	return s.err
+}
+func (s *elementCommentSvcStub) ToggleResolvedStatusForUser(_ context.Context, id, _ string) error {
+	return s.ToggleResolvedStatus(context.Background(), id)
 }
 func (s *elementCommentSvcStub) GetElementCommentsByAuthorID(_ context.Context, a string, limit, offset int) ([]models.ElementComment, error) {
 	s.authorID, s.limit, s.offset = strings.Clone(a), limit, offset
@@ -132,14 +141,16 @@ func TestElementCommentHandlerStatuses(t *testing.T) {
 		{"create missing element", "u1", "POST", "/element-comments", `{"content":"x"}`, nil, 0, ""},
 		{"create internal", "u1", "POST", "/element-comments", `{"content":"x","elementId":"e1"}`, errInternal, 500, "Failed to create comment"},
 
-		{"get ok", "", "GET", "/element-comments/c1", "", nil, 200, `"id":"c1"`},
-		{"get missing param", "", "GET", "/noparam/get", "", nil, 400, "id is required"},
-		{"get not found", "", "GET", "/element-comments/c1", "", nf, 404, "Comment not found"},
-		{"get internal", "", "GET", "/element-comments/c1", "", errInternal, 500, "Failed to retrieve comment"},
+		{"get ok", "u1", "GET", "/element-comments/c1", "", nil, 200, `"id":"c1"`},
+		{"get unauthenticated", "", "GET", "/element-comments/c1", "", nil, 401, "Unauthorized"},
+		{"get missing param", "u1", "GET", "/noparam/get", "", nil, 400, "id is required"},
+		{"get not found", "u1", "GET", "/element-comments/c1", "", nf, 404, "Comment not found"},
+		{"get internal", "u1", "GET", "/element-comments/c1", "", errInternal, 500, "Failed to retrieve comment"},
 
-		{"list ok", "", "GET", "/elements/e1/comments", "", nil, 200, `"total":42`},
-		{"list missing param", "", "GET", "/noparam/list", "", nil, 400, "elementId is required"},
-		{"list internal", "", "GET", "/elements/e1/comments", "", errInternal, 500, "Failed to retrieve comments"},
+		{"list ok", "u1", "GET", "/elements/e1/comments", "", nil, 200, `"total":42`},
+		{"list unauthenticated", "", "GET", "/elements/e1/comments", "", nil, 401, "Unauthorized"},
+		{"list missing param", "u1", "GET", "/noparam/list", "", nil, 400, "elementId is required"},
+		{"list internal", "u1", "GET", "/elements/e1/comments", "", errInternal, 500, "Failed to retrieve comments"},
 
 		{"update ok", "u1", "PATCH", "/element-comments/c1", `{"content":"edited"}`, nil, 200, "edited"},
 		{"update unauthenticated", "", "PATCH", "/element-comments/c1", `{"content":"edited"}`, nil, 401, "Unauthorized"},
@@ -155,14 +166,16 @@ func TestElementCommentHandlerStatuses(t *testing.T) {
 		{"delete missing param", "u1", "DELETE", "/noparam/delete", "", nil, 400, "id is required"},
 		{"delete internal", "u1", "DELETE", "/element-comments/c1", "", errInternal, 500, "Failed to delete comment"},
 
-		{"toggle ok", "", "PATCH", "/element-comments/c1/toggle-resolved", "", nil, 200, "Resolved status toggled successfully"},
-		{"toggle missing param", "", "PATCH", "/noparam/toggle", "", nil, 400, "id is required"},
-		{"toggle not found", "", "PATCH", "/element-comments/c1/toggle-resolved", "", nf, 404, "Comment not found"},
-		{"toggle internal", "", "PATCH", "/element-comments/c1/toggle-resolved", "", errInternal, 500, "Failed to toggle resolved status"},
+		{"toggle ok", "u1", "PATCH", "/element-comments/c1/toggle-resolved", "", nil, 200, "Resolved status toggled successfully"},
+		{"toggle unauthenticated", "", "PATCH", "/element-comments/c1/toggle-resolved", "", nil, 401, "Unauthorized"},
+		{"toggle missing param", "u1", "PATCH", "/noparam/toggle", "", nil, 400, "id is required"},
+		{"toggle not found", "u1", "PATCH", "/element-comments/c1/toggle-resolved", "", nf, 404, "Comment not found"},
+		{"toggle internal", "u1", "PATCH", "/element-comments/c1/toggle-resolved", "", errInternal, 500, "Failed to toggle resolved status"},
 
-		{"author ok", "", "GET", "/element-comments/author/a1", "", nil, 200, `"authorId":"a1"`},
-		{"author missing param", "", "GET", "/noparam/author", "", nil, 400, "authorId is required"},
-		{"author internal", "", "GET", "/element-comments/author/a1", "", errInternal, 500, "Failed to retrieve comments"},
+		{"author ok", "u1", "GET", "/element-comments/author/u1", "", nil, 200, `"authorId":"u1"`},
+		{"author unauthenticated", "", "GET", "/element-comments/author/u1", "", nil, 401, "Unauthorized"},
+		{"author missing param", "u1", "GET", "/noparam/author", "", nil, 400, "authorId is required"},
+		{"author internal", "u1", "GET", "/element-comments/author/u1", "", errInternal, 500, "Failed to retrieve comments"},
 
 		{"project ok", "u1", "GET", "/projects/p1/comments", "", nil, 200, `"total":7`},
 		{"project unauthenticated", "", "GET", "/projects/p1/comments", "", nil, 401, "Unauthorized"},
@@ -202,7 +215,7 @@ func TestElementCommentCreateStampsAuthorFromSession(t *testing.T) {
 
 func TestElementCommentListDefaultsAndPagination(t *testing.T) {
 	svc := &elementCommentSvcStub{}
-	r := kitSend(t, elementCommentKit("", svc), "GET", "/elements/e1/comments", "")
+	r := kitSend(t, elementCommentKit("u1", svc), "GET", "/elements/e1/comments", "")
 	kitExpect(t, r, 200)
 	want := models.ElementCommentFilter{Limit: 20, Offset: 0, SortBy: "CreatedAt", SortOrder: "DESC"}
 	if svc.filterElem != "e1" || svc.filter != want {
@@ -216,7 +229,7 @@ func TestElementCommentListDefaultsAndPagination(t *testing.T) {
 
 func TestElementCommentListHonoursQueryFilters(t *testing.T) {
 	svc := &elementCommentSvcStub{}
-	kitExpect(t, kitSend(t, elementCommentKit("", svc), "GET",
+	kitExpect(t, kitSend(t, elementCommentKit("u1", svc), "GET",
 		"/elements/e1/comments?limit=5&offset=10&authorId=a9&resolved=true&sortBy=Content&sortOrder=ASC", ""), 200)
 	f := svc.filter
 	if f.Limit != 5 || f.Offset != 10 || f.AuthorId != "a9" {
@@ -229,13 +242,13 @@ func TestElementCommentListHonoursQueryFilters(t *testing.T) {
 
 func TestElementCommentListIgnoresInvalidQueryValues(t *testing.T) {
 	svc := &elementCommentSvcStub{}
-	kitExpect(t, kitSend(t, elementCommentKit("", svc), "GET",
+	kitExpect(t, kitSend(t, elementCommentKit("u1", svc), "GET",
 		"/elements/e1/comments?limit=0&offset=-3&resolved=maybe&sortOrder=sideways", ""), 200)
 	f := svc.filter
 	if f.Limit != 20 || f.Offset != 0 || f.Resolved != nil || f.SortOrder != "DESC" {
 		t.Fatalf("invalid values must fall back to defaults, got %+v", f)
 	}
-	kitExpect(t, kitSend(t, elementCommentKit("", svc), "GET", "/elements/e1/comments?limit=abc&offset=xyz", ""), 200)
+	kitExpect(t, kitSend(t, elementCommentKit("u1", svc), "GET", "/elements/e1/comments?limit=abc&offset=xyz", ""), 200)
 	if svc.filter.Limit != 20 || svc.filter.Offset != 0 {
 		t.Fatalf("non-numeric values must fall back to defaults, got %+v", svc.filter)
 	}
@@ -243,7 +256,7 @@ func TestElementCommentListIgnoresInvalidQueryValues(t *testing.T) {
 
 func TestElementCommentListReportsZeroTotalWhenCountFails(t *testing.T) {
 	svc := &elementCommentSvcStub{countErr: errInternal}
-	r := kitSend(t, elementCommentKit("", svc), "GET", "/elements/e1/comments", "")
+	r := kitSend(t, elementCommentKit("u1", svc), "GET", "/elements/e1/comments", "")
 	kitExpect(t, r, 200)
 	if r.object(t)["total"] != float64(0) {
 		t.Fatalf("body %s", r.body)
@@ -300,11 +313,11 @@ func TestElementCommentDeleteAndToggleForwardIDs(t *testing.T) {
 func TestElementCommentAuthorPagination(t *testing.T) {
 	svc := &elementCommentSvcStub{}
 	app := elementCommentKit("u3", svc)
-	kitExpect(t, kitSend(t, app, "GET", "/element-comments/author/a1?limit=3&offset=6", ""), 200)
-	if svc.authorID != "a1" || svc.limit != 3 || svc.offset != 6 {
+	kitExpect(t, kitSend(t, app, "GET", "/element-comments/author/u3?limit=3&offset=6", ""), 200)
+	if svc.authorID != "u3" || svc.limit != 3 || svc.offset != 6 {
 		t.Fatalf("author=%q limit=%d offset=%d", svc.authorID, svc.limit, svc.offset)
 	}
-	kitExpect(t, kitSend(t, app, "GET", "/element-comments/author/a1?limit=-1&offset=-1", ""), 200)
+	kitExpect(t, kitSend(t, app, "GET", "/element-comments/author/u3?limit=-1&offset=-1", ""), 200)
 	if svc.limit != 20 || svc.offset != 0 {
 		t.Fatalf("limit=%d offset=%d", svc.limit, svc.offset)
 	}

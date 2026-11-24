@@ -69,9 +69,25 @@ func (s *contentItemSvcStub) DeleteContentItem(_ context.Context, id string) err
 	return s.err
 }
 
+func (s *contentItemSvcStub) GetContentItemsByContentTypeForUser(_ context.Context, typeID, _ string) ([]models.ContentItem, error) {
+	return s.GetContentItemsByContentType(context.Background(), typeID)
+}
+func (s *contentItemSvcStub) GetContentItemByIDForUser(_ context.Context, id, _ string) (*models.ContentItem, error) {
+	return s.GetContentItemByID(context.Background(), id)
+}
+func (s *contentItemSvcStub) CreateContentItemForUser(_ context.Context, item *models.ContentItem, vals []models.ContentFieldValue, _ string) (*models.ContentItem, error) {
+	return s.CreateContentItem(context.Background(), item, vals)
+}
+func (s *contentItemSvcStub) UpdateContentItemForUser(_ context.Context, id, _ string, updates map[string]any, vals []models.ContentFieldValue) (*models.ContentItem, error) {
+	return s.UpdateContentItem(context.Background(), id, updates, vals)
+}
+func (s *contentItemSvcStub) DeleteContentItemForUser(_ context.Context, id, _ string) error {
+	return s.DeleteContentItem(context.Background(), id)
+}
+
 func contentItemKit(svc *contentItemSvcStub) *fiber.App {
 	h := NewContentItemHandler(svc)
-	return newKitApp("", func(app *fiber.App) {
+	return newKitApp("u1", func(app *fiber.App) {
 		app.Get("/public/items", h.GetPublicContentItems)
 		app.Get("/public/:contentTypeId/:slug", h.GetPublicContentItemBySlug)
 		app.Get("/types/:contentTypeId/items", h.GetContentItemsByContentType)

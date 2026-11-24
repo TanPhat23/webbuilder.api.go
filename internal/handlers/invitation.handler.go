@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"errors"
 	"log"
+	"my-go-app/internal/authz"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
 	"my-go-app/internal/services"
@@ -37,6 +39,9 @@ func (h *InvitationHandler) CreateInvitation(c fiber.Ctx) error {
 
 	invitation, err := h.invitationService.CreateInvitation(c.RequestCtx(), req.ProjectID, req.Email, req.Role, userID)
 	if err != nil {
+		if errors.Is(err, authz.ErrForbidden) {
+			return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
+		}
 		return utils.SendError(c, fiber.StatusBadRequest, "Failed to create invitation", err, userID)
 	}
 
@@ -94,6 +99,9 @@ func (h *InvitationHandler) AcceptInvitation(c fiber.Ctx) error {
 	}
 
 	if err := h.invitationService.AcceptInvitation(c.RequestCtx(), req.Token, userID); err != nil {
+		if errors.Is(err, authz.ErrForbidden) {
+			return utils.SendError(c, fiber.StatusForbidden, "Access denied", err, userID)
+		}
 		return utils.SendError(c, fiber.StatusBadRequest, "Failed to accept invitation", err, userID)
 	}
 

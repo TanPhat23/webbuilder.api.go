@@ -49,13 +49,13 @@ func (h *ElementCommentHandler) CreateElementComment(c fiber.Ctx) error {
 
 // GET /element-comments/:id
 func (h *ElementCommentHandler) GetElementCommentByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	comment, err := h.elementCommentService.GetElementCommentByID(c.RequestCtx(), commentID)
+	comment, err := h.elementCommentService.GetElementCommentByIDForUser(c.RequestCtx(), commentID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Comment not found", "Failed to retrieve comment")
 	}
@@ -65,7 +65,7 @@ func (h *ElementCommentHandler) GetElementCommentByID(c fiber.Ctx) error {
 
 // GET /elements/:elementId/comments
 func (h *ElementCommentHandler) GetElementComments(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "elementId")
+	userID, ids, err := utils.MustUserAndParams(c, "elementId")
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (h *ElementCommentHandler) GetElementComments(c fiber.Ctx) error {
 		filter.SortOrder = sortOrder
 	}
 
-	comments, err := h.elementCommentService.GetElementComments(c.RequestCtx(), elementID, filter)
+	comments, err := h.elementCommentService.GetElementCommentsForUser(c.RequestCtx(), elementID, userID, filter)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve comments")
 	}
@@ -152,13 +152,13 @@ func (h *ElementCommentHandler) DeleteElementComment(c fiber.Ctx) error {
 
 // PATCH /element-comments/:id/toggle-resolved
 func (h *ElementCommentHandler) ToggleResolvedStatus(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	commentID := ids[0]
 
-	err = h.elementCommentService.ToggleResolvedStatus(c.RequestCtx(), commentID)
+	err = h.elementCommentService.ToggleResolvedStatusForUser(c.RequestCtx(), commentID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Comment not found", "Failed to toggle resolved status")
 	}
@@ -168,11 +168,14 @@ func (h *ElementCommentHandler) ToggleResolvedStatus(c fiber.Ctx) error {
 
 // GET /element-comments/author/:authorId
 func (h *ElementCommentHandler) GetCommentsByAuthorID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "authorId")
+	userID, ids, err := utils.MustUserAndParams(c, "authorId")
 	if err != nil {
 		return err
 	}
 	authorID := ids[0]
+	if authorID != userID {
+		return utils.SendError(c, fiber.StatusForbidden, "You can only view your own comments", nil, userID)
+	}
 
 	limit, offset := utils.ParsePagination(c, 20)
 

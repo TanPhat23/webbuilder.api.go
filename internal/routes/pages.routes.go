@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"my-go-app/internal/authz"
 	"my-go-app/internal/handlers"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
@@ -12,13 +13,14 @@ import (
 func PageRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface, redisClient *redis.Client) {
 	pageService := services.NewPageService(repos.PageRepository, repos.ProjectRepository)
 	pageHandler := handlers.NewPageHandler(pageService)
+	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
 	publicGroup.Get("/pages/public/:projectid", cachePublicPreview(redisClient, repos.ProjectRepository, "route-pages"), pageHandler.GetPublicPagesByProjectID)
 	publicGroup.Get("/pages/public/:projectid/:pageid", pageHandler.GetPublicPageByID)
 
 	privateGroup.Get("/pages/:projectid", pageHandler.GetPagesByProjectID)
-	privateGroup.Get("/pages/:projectid/:pageid", pageHandler.GetPageByID)
-	privateGroup.Post("/pages/:projectid", pageHandler.CreatePage)
-	privateGroup.Patch("/pages/:projectid/:pageid", pageHandler.UpdatePage)
-	privateGroup.Delete("/pages/:projectid/:pageid", pageHandler.DeletePage)
+	privateGroup.Get("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageView), pageHandler.GetPageByID)
+	privateGroup.Post("/pages/:projectid", authorizer.RequireProjectPermission("projectid", authz.PermPageCreate), pageHandler.CreatePage)
+	privateGroup.Patch("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageEdit), pageHandler.UpdatePage)
+	privateGroup.Delete("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageDelete), pageHandler.DeletePage)
 }

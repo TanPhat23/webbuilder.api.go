@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 )
@@ -53,6 +54,21 @@ func (s *PageService) GetPageByID(ctx context.Context, pageID string) (*models.P
 	}
 
 	return s.pageRepo.GetPageByID(ctx, pageID, "")
+}
+
+// GetPageByIDForUser verifies project read access (page:view) and ensures the
+// page belongs to projectID.
+func (s *PageService) GetPageByIDForUser(ctx context.Context, projectID, pageID, userID string) (*models.Page, error) {
+	if projectID == "" {
+		return nil, errors.New("projectId is required")
+	}
+	if pageID == "" {
+		return nil, errors.New("pageId is required")
+	}
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermPageView); err != nil {
+		return nil, err
+	}
+	return s.pageRepo.GetPageByID(ctx, pageID, projectID)
 }
 
 // GetPublicPageByID returns routable pages of a published project.
@@ -136,6 +152,27 @@ func (s *PageService) UpdatePageFields(ctx context.Context, pageID string, updat
 	return s.pageRepo.UpdatePageFields(ctx, pageID, updates)
 }
 
+// UpdatePageFieldsForUser verifies page:edit on projectID and confirms pageID
+// belongs to projectID before applying updates.
+func (s *PageService) UpdatePageFieldsForUser(ctx context.Context, projectID, pageID, userID string, updates map[string]interface{}) error {
+	if projectID == "" {
+		return errors.New("projectId is required")
+	}
+	if pageID == "" {
+		return errors.New("pageId is required")
+	}
+	if len(updates) == 0 {
+		return errors.New("no updates provided")
+	}
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermPageEdit); err != nil {
+		return err
+	}
+	if _, err := s.pageRepo.GetPageByID(ctx, pageID, projectID); err != nil {
+		return err
+	}
+	return s.pageRepo.UpdatePageFields(ctx, pageID, updates)
+}
+
 func (s *PageService) DeletePage(ctx context.Context, pageID string) error {
 	if pageID == "" {
 		return errors.New("pageId is required")
@@ -155,8 +192,7 @@ func (s *PageService) DeletePageByProjectID(ctx context.Context, pageID, project
 		return errors.New("userId is required")
 	}
 
-	_, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
-	if err != nil {
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermPageDelete); err != nil {
 		return err
 	}
 
@@ -174,21 +210,14 @@ func (s *PageService) DeletePageByProjectIDWithoutVerification(ctx context.Conte
 	return s.pageRepo.DeletePageByProjectID(ctx, pageID, projectID, "")
 }
 
-// CreatePageAsUser creates a page after checking the user may edit the
-// project (owner or editor). Viewers and strangers get ErrProjectUnauthorized.
+// CreatePageAsUser creates a page after checking the user holds page:create
+// (owner or editor). Viewers and strangers get ErrForbidden.
 func (s *PageService) CreatePageAsUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error) {
 	if page == nil {
 		return nil, errors.New("page cannot be nil")
 	}
-	access, err := s.projectRepo.GetProjectAccess(ctx, page.ProjectId, userID)
-	if err != nil {
-		if errors.Is(err, repositories.ErrProjectNotFound) {
-			return nil, repositories.ErrProjectUnauthorized
-		}
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, page.ProjectId, userID, authz.PermPageCreate); err != nil {
 		return nil, err
-	}
-	if access.Role != models.RoleOwner && access.Role != models.RoleEditor {
-		return nil, repositories.ErrProjectUnauthorized
 	}
 	if page.Name == "" {
 		return nil, errors.New("page name is required")

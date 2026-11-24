@@ -49,9 +49,25 @@ func (s *contentFieldSvcStub) DeleteContentField(_ context.Context, id string) e
 	return s.err
 }
 
+func (s *contentFieldSvcStub) GetContentFieldsByContentTypeForUser(_ context.Context, typeID, _ string) ([]models.ContentField, error) {
+	return s.GetContentFieldsByContentType(context.Background(), typeID)
+}
+func (s *contentFieldSvcStub) GetContentFieldByIDForUser(_ context.Context, id, _ string) (*models.ContentField, error) {
+	return s.GetContentFieldByID(context.Background(), id)
+}
+func (s *contentFieldSvcStub) CreateContentFieldForUser(_ context.Context, f *models.ContentField, _ string) (*models.ContentField, error) {
+	return s.CreateContentField(context.Background(), f)
+}
+func (s *contentFieldSvcStub) UpdateContentFieldForUser(_ context.Context, id, _ string, updates map[string]any) (*models.ContentField, error) {
+	return s.UpdateContentField(context.Background(), id, updates)
+}
+func (s *contentFieldSvcStub) DeleteContentFieldForUser(_ context.Context, id, _ string) error {
+	return s.DeleteContentField(context.Background(), id)
+}
+
 func contentFieldKit(svc *contentFieldSvcStub) *fiber.App {
 	h := NewContentFieldHandler(svc)
-	return newKitApp("", func(app *fiber.App) {
+	return newKitApp("u1", func(app *fiber.App) {
 		app.Get("/types/:contentTypeId/fields", h.GetContentFieldsByContentType)
 		app.Post("/types/:contentTypeId/fields", h.CreateContentField)
 		app.Get("/fields/:fieldId", h.GetContentFieldByID)

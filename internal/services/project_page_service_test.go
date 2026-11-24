@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 )
@@ -676,21 +677,21 @@ func TestPageServiceDeleteByProject(t *testing.T) {
 		wantErr(t, svc.DeletePageByProjectIDWithoutVerification(ctx, "pg", ""), "projectId is required")
 	})
 	t.Run("access denied blocks delete", func(t *testing.T) {
-		projects := &fkProjectRepo{OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) {
-			return nil, repositories.ErrProjectUnauthorized
+		projects := &fkProjectRepo{OnGetProjectAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
+			return &models.ProjectAccess{Role: models.RoleViewer}, nil
 		}}
 		pr := &fkPageRepo{}
 		err := newPageSvc(pr, projects).DeletePageByProjectID(ctx, "pg", "p", "u")
-		if !errors.Is(err, repositories.ErrProjectUnauthorized) {
-			t.Fatalf("err = %v", err)
+		if err == nil {
+			t.Fatal("expected forbidden error")
 		}
 		if len(pr.Calls) != 0 {
 			t.Fatal("page deleted without access")
 		}
 	})
 	t.Run("authorized delete forwards user", func(t *testing.T) {
-		projects := &fkProjectRepo{OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) {
-			return &models.Project{}, nil
+		projects := &fkProjectRepo{OnGetProjectAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
+			return &models.ProjectAccess{Role: models.RoleEditor}, nil
 		}}
 		var got [3]string
 		pr := &fkPageRepo{OnDeletePageByProjectID: func(_ context.Context, pg, p, u string) error { got = [3]string{pg, p, u}; return nil }}
@@ -734,8 +735,8 @@ func TestPageServiceCreatePageAsUser(t *testing.T) {
 	}{
 		{"owner may create", access(models.RoleOwner, nil), nil, true},
 		{"editor may create", access(models.RoleEditor, nil), nil, true},
-		{"viewer is unauthorized", access(models.RoleViewer, nil), repositories.ErrProjectUnauthorized, false},
-		{"stranger sees unauthorized not not-found", access("", repositories.ErrProjectNotFound), repositories.ErrProjectUnauthorized, false},
+		{"viewer is unauthorized", access(models.RoleViewer, nil), authz.ErrForbidden, false},
+		{"stranger sees unauthorized not not-found", access("", repositories.ErrProjectNotFound), authz.ErrForbidden, false},
 		{"other access errors pass through", access("", errBoom), errBoom, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

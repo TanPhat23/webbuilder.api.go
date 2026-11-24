@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"my-go-app/internal/authz"
 	"my-go-app/internal/handlers"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
@@ -9,16 +10,20 @@ import (
 )
 
 func ContentRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface) {
-	contentTypeService := services.NewContentTypeService(repos.ContentTypeRepository)
-	contentFieldService := services.NewContentFieldService(repos.ContentFieldRepository)
-	contentItemService := services.NewContentItemService(repos.ContentItemRepository)
+	contentTypeService := services.NewContentTypeService(repos.ContentTypeRepository).WithProjectRepo(repos.ProjectRepository)
+	contentFieldService := services.NewContentFieldService(repos.ContentFieldRepository).WithAuth(repos.ContentTypeRepository, repos.ProjectRepository)
+	contentItemService := services.NewContentItemService(repos.ContentItemRepository).WithAuth(repos.ContentTypeRepository, repos.ProjectRepository)
 
 	contentTypeHandler := handlers.NewContentTypeHandler(contentTypeService)
 	contentFieldHandler := handlers.NewContentFieldHandler(contentFieldService)
 	contentItemHandler := handlers.NewContentItemHandler(contentItemService)
+	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
 	publicGroup.Get("/public/content", contentItemHandler.GetPublicContentItems)
 	publicGroup.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicContentItemBySlug)
+
+	privateGroup.Get("/projects/:projectid/content-types", authorizer.RequireProjectPermission("projectid", authz.PermCMSView), contentTypeHandler.GetContentTypes)
+	privateGroup.Post("/projects/:projectid/content-types", authorizer.RequireProjectPermission("projectid", authz.PermCMSEdit), contentTypeHandler.CreateContentType)
 
 	privateGroup.Post("/content-types", contentTypeHandler.CreateContentType)
 	privateGroup.Get("/content-types", contentTypeHandler.GetContentTypes)

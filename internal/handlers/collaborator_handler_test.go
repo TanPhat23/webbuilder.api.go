@@ -30,21 +30,24 @@ func (s *collaboratorSvcStub) GetCollaboratorsByProject(_ context.Context, proje
 	}
 	return []models.Collaborator{{Id: "c1", ProjectId: projectID, UserId: "u2", Role: models.CollaboratorRole("editor")}}, nil
 }
-func (s *collaboratorSvcStub) GetCollaboratorByID(_ context.Context, id string) (*models.Collaborator, error) {
+func (s *collaboratorSvcStub) GetCollaboratorByID(_ context.Context, id, _ string) (*models.Collaborator, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.Collaborator{Id: id, ProjectId: "p1"}, nil
 }
-func (s *collaboratorSvcStub) UpdateCollaboratorRole(_ context.Context, id string, role models.CollaboratorRole) error {
+func (s *collaboratorSvcStub) UpdateCollaboratorRole(_ context.Context, id, _ string, role models.CollaboratorRole) error {
 	s.roleID, s.role = strings.Clone(id), models.CollaboratorRole(strings.Clone(string(role)))
 	return s.err
 }
-func (s *collaboratorSvcStub) DeleteCollaborator(_ context.Context, id string) error {
+func (s *collaboratorSvcStub) DeleteCollaborator(_ context.Context, id, _ string) error {
 	s.deletedID = strings.Clone(id)
 	return s.err
 }
-func (s *collaboratorSvcStub) CreateCollaborator(_ context.Context, c *models.Collaborator) (*models.Collaborator, error) {
+func (s *collaboratorSvcStub) LeaveProject(_ context.Context, _, _ string) error {
+	return s.err
+}
+func (s *collaboratorSvcStub) CreateCollaborator(_ context.Context, _ string, c *models.Collaborator) (*models.Collaborator, error) {
 	s.created = c
 	if s.err != nil {
 		return nil, s.err
@@ -129,9 +132,11 @@ func TestCollaboratorHandlerForwardsArguments(t *testing.T) {
 		t.Fatalf("role update id=%q role=%q", svc.roleID, svc.role)
 	}
 
-	r := kitSend(t, app, "POST", "/collaborators", `{"projectId":"p3","userId":"u4","role":"owner"}`)
+	r := kitSend(t, app, "POST", "/collaborators", `{"projectId":"p3","userId":"u4","role":"editor"}`)
 	kitExpect(t, r, 201, `"id":"c-new"`)
-	if svc.created == nil || svc.created.ProjectId != "p3" || svc.created.UserId != "u4" || svc.created.Role != models.CollaboratorRole("owner") {
+	if svc.created == nil || svc.created.ProjectId != "p3" || svc.created.UserId != "u4" || svc.created.Role != models.CollaboratorRole("editor") {
 		t.Fatalf("created %+v", svc.created)
 	}
+
+	kitExpect(t, kitSend(t, app, "POST", "/collaborators", `{"projectId":"p3","userId":"u4","role":"owner"}`), 0)
 }

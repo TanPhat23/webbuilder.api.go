@@ -8,6 +8,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
+
+	"my-go-app/internal/authz"
 )
 
 // FieldError holds the per-field validation failure detail.
@@ -50,6 +52,19 @@ func NewValidationError(errs validator.ValidationErrors) *ValidationError {
 func HandleRepoError(c fiber.Ctx, err error, notFoundMsg, internalMsg string) error {
 	if err == nil {
 		return nil
+	}
+	if errors.Is(err, authz.ErrUnauthorized) {
+		return SendError(c, fiber.StatusUnauthorized, "Unauthorized", err)
+	}
+	if errors.Is(err, authz.ErrForbidden) {
+		return SendError(c, fiber.StatusForbidden, "You do not have permission to perform this action", err)
+	}
+	if errors.Is(err, authz.ErrNotFound) {
+		msg := notFoundMsg
+		if msg == "" {
+			msg = "Resource not found"
+		}
+		return SendError(c, fiber.StatusNotFound, msg, err)
 	}
 	if notFoundMsg != "" && (errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "not found")) {
 		return SendError(c, fiber.StatusNotFound, notFoundMsg, err)

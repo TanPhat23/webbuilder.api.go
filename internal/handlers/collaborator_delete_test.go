@@ -14,15 +14,16 @@ type deleteCollaboratorStub struct {
 	deleted string
 }
 
-func (s *deleteCollaboratorStub) DeleteCollaborator(_ context.Context, id string) error {
+func (s *deleteCollaboratorStub) DeleteCollaborator(_ context.Context, id, _ string) error {
 	s.deleted = id
 	return nil
 }
 
 func TestDeleteCollaboratorReadsTheRegisteredParameter(t *testing.T) {
 	stub := &deleteCollaboratorStub{}
-	app := fiber.New()
-	app.Delete("/collaborators/:collaboratorid", NewCollaboratorHandler(stub).DeleteCollaborator)
+	app := newKitApp("u1", func(app *fiber.App) {
+		app.Delete("/collaborators/:collaboratorid", NewCollaboratorHandler(stub).DeleteCollaborator)
+	})
 	response, err := app.Test(httptest.NewRequest("DELETE", "/collaborators/collab-1", nil))
 	if err != nil {
 		t.Fatal(err)

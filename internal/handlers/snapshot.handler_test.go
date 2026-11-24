@@ -29,6 +29,10 @@ func (s *snapshotHandlerService) SaveSnapshot(_ context.Context, projectID strin
 	s.savedProject, s.saved = projectID, snap
 	return s.saveErr
 }
+func (s *snapshotHandlerService) SaveSnapshotWithAccess(_ context.Context, projectID, userID string, snap *models.Snapshot) error {
+	s.gotUser = userID
+	return s.SaveSnapshot(context.Background(), projectID, snap)
+}
 func (s *snapshotHandlerService) GetSnapshotsByProjectID(_ context.Context, projectID, userID string) ([]models.Snapshot, error) {
 	s.gotProject, s.gotUser = projectID, userID
 	if s.err != nil {
@@ -42,6 +46,10 @@ func (s *snapshotHandlerService) GetSnapshotByID(_ context.Context, id string) (
 		return nil, s.err
 	}
 	return &models.Snapshot{Id: id, Name: "v1"}, nil
+}
+func (s *snapshotHandlerService) GetSnapshotByIDWithAccess(_ context.Context, projectID, id, userID string) (*models.Snapshot, error) {
+	s.gotProject, s.gotUser = projectID, userID
+	return s.GetSnapshotByID(context.Background(), id)
 }
 func (s *snapshotHandlerService) DeleteSnapshotWithAccess(_ context.Context, id, projectID, userID string) error {
 	s.gotID, s.gotProject, s.gotUser = id, projectID, userID
@@ -67,11 +75,11 @@ func snapshotHandlerApp(user string, svc *snapshotHandlerService, els *snapshotH
 	return newKitApp(user, func(app *fiber.App) {
 		app.Post("/projects/:projectid/snapshots", h.SaveSnapshot)
 		app.Get("/projects/:projectid/snapshots", h.GetSnapshots)
-		app.Get("/snapshots/:snapshotid", h.GetSnapshotByID)
+		app.Get("/projects/:projectid/snapshots/:snapshotid", h.GetSnapshotByID)
 		app.Delete("/projects/:projectid/snapshots/:snapshotid", h.DeleteSnapshot)
 		app.Post("/noproject", h.SaveSnapshot)
 		app.Get("/noproject", h.GetSnapshots)
-		app.Get("/nosnapshot", h.GetSnapshotByID)
+		app.Get("/nosnapshot/:projectid", h.GetSnapshotByID)
 		app.Delete("/nosnapshot/:projectid", h.DeleteSnapshot)
 	})
 }
@@ -80,7 +88,7 @@ const snapshotHandlerBody = `{"id":"snap-1","name":"First","elements":[{"id":"e1
 
 func TestSaveSnapshotStoresSnapshotAndSyncsElements(t *testing.T) {
 	svc, els := &snapshotHandlerService{}, &snapshotHandlerElements{}
-	kitExpect(t, kitSend(t, snapshotHandlerApp("", svc, els), "POST", "/projects/p1/snapshots", snapshotHandlerBody), 201, "Snapshot saved successfully")
+	kitExpect(t, kitSend(t, snapshotHandlerApp("u1", svc, els), "POST", "/projects/p1/snapshots", snapshotHandlerBody), 201, "Snapshot saved successfully")
 	s := svc.saved
 	if svc.savedProject != "p1" || s == nil || s.Id != "snap-1" || s.ProjectId != "p1" || s.Name != "First" || s.Type != "working" || s.Timestamp == 0 {
 		t.Fatalf("saved %+v for %q", s, svc.savedProject)
@@ -97,7 +105,7 @@ func TestSaveSnapshotStoresSnapshotAndSyncsElements(t *testing.T) {
 func TestSaveSnapshotHonoursTypeAndTimestamp(t *testing.T) {
 	svc, els := &snapshotHandlerService{}, &snapshotHandlerElements{}
 	body := `{"id":"s","name":"n","type":"published","timestamp":1700000000123,"elements":[{"id":"e1","type":"Text"}]}`
-	kitExpect(t, kitSend(t, snapshotHandlerApp("", svc, els), "POST", "/projects/p1/snapshots", body), 201)
+	kitExpect(t, kitSend(t, snapshotHandlerApp("u1", svc, els), "POST", "/projects/p1/snapshots", body), 201)
 	if svc.saved.Type != "published" || svc.saved.Timestamp != 1700000000123 {
 		t.Fatalf("type=%q timestamp=%d", svc.saved.Type, svc.saved.Timestamp)
 	}
@@ -108,6 +116,10 @@ func TestSaveSnapshotGeneratesIDWithoutValidator(t *testing.T) {
 	// no struct validator is installed.
 	svc, els := &snapshotHandlerService{}, &snapshotHandlerElements{}
 	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		c.Locals("userId", "u1")
+		return c.Next()
+	})
 	app.Post("/projects/:projectid/snapshots", NewSnapshotHandler(svc, els).SaveSnapshot)
 	kitExpect(t, kitSend(t, app, "POST", "/projects/p1/snapshots", `{"name":"n","elements":[{"id":"e1","type":"Text"}]}`), 201)
 	if _, err := uuid.Parse(svc.saved.Id); err != nil {
@@ -131,7 +143,7 @@ func TestSaveSnapshotRejections(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, els := &snapshotHandlerService{}, &snapshotHandlerElements{}
-			r := kitSend(t, snapshotHandlerApp("", svc, els), "POST", tc.path, tc.body)
+			r := kitSend(t, snapshotHandlerApp("u1", svc, els), "POST", tc.path, tc.body)
 			if tc.expect == "" {
 				kitExpect(t, r, tc.want)
 			} else {
@@ -147,14 +159,14 @@ func TestSaveSnapshotRejections(t *testing.T) {
 func TestSaveSnapshotFailures(t *testing.T) {
 	t.Run("snapshot store fails and elements are left alone", func(t *testing.T) {
 		svc, els := &snapshotHandlerService{saveErr: errInternal}, &snapshotHandlerElements{}
-		kitExpect(t, kitSend(t, snapshotHandlerApp("", svc, els), "POST", "/projects/p1/snapshots", snapshotHandlerBody), 500, "Failed to save and sync snapshot")
+		kitExpect(t, kitSend(t, snapshotHandlerApp("u1", svc, els), "POST", "/projects/p1/snapshots", snapshotHandlerBody), 500, "Failed to save and sync snapshot")
 		if els.calls != 0 {
 			t.Fatal("elements were replaced although the snapshot was not stored")
 		}
 	})
 	t.Run("element sync fails", func(t *testing.T) {
 		svc, els := &snapshotHandlerService{}, &snapshotHandlerElements{err: errors.New("replace failed")}
-		kitExpect(t, kitSend(t, snapshotHandlerApp("", svc, els), "POST", "/projects/p1/snapshots", snapshotHandlerBody), 500, "Failed to save and sync snapshot")
+		kitExpect(t, kitSend(t, snapshotHandlerApp("u1", svc, els), "POST", "/projects/p1/snapshots", snapshotHandlerBody), 500, "Failed to save and sync snapshot")
 	})
 }
 
@@ -170,10 +182,11 @@ func TestSnapshotReadAndDeleteHandlers(t *testing.T) {
 		{"list missing project", "u1", "GET", "/noproject", nil, 400, "projectid is required"},
 		{"list not found", "u1", "GET", "/projects/p1/snapshots", gorm.ErrRecordNotFound, 404, "Project not found"},
 		{"list failure", "u1", "GET", "/projects/p1/snapshots", errInternal, 500, "Failed to get snapshots"},
-		{"get ok", "", "GET", "/snapshots/s9", nil, 200, `"id":"s9"`},
-		{"get missing id", "", "GET", "/nosnapshot", nil, 400, "snapshotid is required"},
-		{"get not found", "", "GET", "/snapshots/s9", gorm.ErrRecordNotFound, 404, "Snapshot not found"},
-		{"get failure", "", "GET", "/snapshots/s9", errInternal, 500, "Failed to get snapshot"},
+		{"get ok", "u1", "GET", "/projects/p1/snapshots/s9", nil, 200, `"id":"s9"`},
+		{"get anonymous", "", "GET", "/projects/p1/snapshots/s9", nil, 401, ""},
+		{"get missing id", "u1", "GET", "/nosnapshot/p1", nil, 400, "snapshotid is required"},
+		{"get not found", "u1", "GET", "/projects/p1/snapshots/s9", gorm.ErrRecordNotFound, 404, "Snapshot not found"},
+		{"get failure", "u1", "GET", "/projects/p1/snapshots/s9", errInternal, 500, "Failed to get snapshot"},
 		{"delete ok", "u1", "DELETE", "/projects/p1/snapshots/s9", nil, 200, "Snapshot deleted successfully"},
 		{"delete anonymous", "", "DELETE", "/projects/p1/snapshots/s9", nil, 401, ""},
 		{"delete missing snapshot id", "u1", "DELETE", "/nosnapshot/p1", nil, 400, "snapshotid is required"},

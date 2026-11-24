@@ -217,12 +217,19 @@ func TestDeletePageByProjectID(t *testing.T) {
 		}
 		return errors.New("failed to delete page")
 	})
-	projectRepo := mockrepo.NewMockProjectRepo().SetGetProjectWithAccess(func(ctx context.Context, projectID, userID string) (*models.Project, error) {
-		if projectID == "proj1" && userID == "user1" {
-			return &models.Project{ID: "proj1"}, nil
-		}
-		return nil, errors.New("access denied")
-	})
+	projectRepo := mockrepo.NewMockProjectRepo().
+		SetGetProjectWithAccess(func(ctx context.Context, projectID, userID string) (*models.Project, error) {
+			if projectID == "proj1" && userID == "user1" {
+				return &models.Project{ID: "proj1"}, nil
+			}
+			return nil, errors.New("access denied")
+		}).
+		SetGetProjectAccess(func(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+			if projectID == "proj1" && userID == "user1" {
+				return &models.ProjectAccess{ProjectId: projectID, UserId: userID, Role: models.RoleEditor}, nil
+			}
+			return nil, errors.New("access denied")
+		})
 	service := newTestPageService(pageRepo, projectRepo)
 
 	assertPageServiceNoErr(t, service.DeletePageByProjectID(context.Background(), "page1", "proj1", "user1"))

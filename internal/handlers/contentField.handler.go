@@ -26,28 +26,28 @@ func NewContentFieldHandler(contentFieldService services.ContentFieldServiceInte
 }
 
 func (h *ContentFieldHandler) GetContentFieldsByContentType(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "contentTypeId")
+	userID, ids, err := utils.MustUserAndParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
 	contentTypeID := ids[0]
 
-	contentFields, err := h.contentFieldService.GetContentFieldsByContentType(c.RequestCtx(), contentTypeID)
+	contentFields, err := h.contentFieldService.GetContentFieldsByContentTypeForUser(c.RequestCtx(), contentTypeID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve content fields")
+		return utils.HandleRepoError(c, err, "Content type not found", "Failed to retrieve content fields")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, contentFields)
 }
 
 func (h *ContentFieldHandler) GetContentFieldByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "fieldId")
+	userID, ids, err := utils.MustUserAndParams(c, "fieldId")
 	if err != nil {
 		return err
 	}
 	fieldID := ids[0]
 
-	contentField, err := h.contentFieldService.GetContentFieldByID(c.RequestCtx(), fieldID)
+	contentField, err := h.contentFieldService.GetContentFieldByIDForUser(c.RequestCtx(), fieldID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to retrieve content field")
 	}
@@ -56,7 +56,7 @@ func (h *ContentFieldHandler) GetContentFieldByID(c fiber.Ctx) error {
 }
 
 func (h *ContentFieldHandler) CreateContentField(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "contentTypeId")
+	userID, ids, err := utils.MustUserAndParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
@@ -74,16 +74,16 @@ func (h *ContentFieldHandler) CreateContentField(c fiber.Ctx) error {
 		ContentTypeId: contentTypeID,
 	}
 
-	created, err := h.contentFieldService.CreateContentField(c.RequestCtx(), contentField)
+	created, err := h.contentFieldService.CreateContentFieldForUser(c.RequestCtx(), contentField, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to create content field")
+		return utils.HandleRepoError(c, err, "Content type not found", "Failed to create content field")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
 func (h *ContentFieldHandler) UpdateContentField(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "fieldId")
+	userID, ids, err := utils.MustUserAndParams(c, "fieldId")
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (h *ContentFieldHandler) UpdateContentField(c fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.contentFieldService.UpdateContentField(c.RequestCtx(), fieldID, updates)
+	updated, err := h.contentFieldService.UpdateContentFieldForUser(c.RequestCtx(), fieldID, userID, updates)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to update content field")
 	}
@@ -122,13 +122,13 @@ func (h *ContentFieldHandler) UpdateContentField(c fiber.Ctx) error {
 }
 
 func (h *ContentFieldHandler) DeleteContentField(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "fieldId")
+	userID, ids, err := utils.MustUserAndParams(c, "fieldId")
 	if err != nil {
 		return err
 	}
 	fieldID := ids[0]
 
-	if err := h.contentFieldService.DeleteContentField(c.RequestCtx(), fieldID); err != nil {
+	if err := h.contentFieldService.DeleteContentFieldForUser(c.RequestCtx(), fieldID, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Content field not found", "Failed to delete content field")
 	}
 

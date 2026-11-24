@@ -110,9 +110,31 @@ func (r *CollaboratorRepository) DeleteCollaborator(ctx context.Context, id stri
 }
 
 func (r *CollaboratorRepository) IsCollaborator(ctx context.Context, projectID, userID string) (bool, error) {
-
 	count, err := gorm.G[models.Collaborator](r.db).
 		Where(&models.Collaborator{ProjectId: projectID, UserId: userID}).
 		Count(ctx, "*")
 	return count > 0, err
+}
+
+func (r *CollaboratorRepository) GetCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (*models.Collaborator, error) {
+	collaborator, err := gorm.G[models.Collaborator](r.db).
+		Where(&models.Collaborator{ProjectId: projectID, UserId: userID}).
+		First(ctx)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &collaborator, nil
+}
+
+func (r *CollaboratorRepository) DeleteCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (bool, error) {
+	rows, err := gorm.G[models.Collaborator](r.db).
+		Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, userID).
+		Delete(ctx)
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
 }

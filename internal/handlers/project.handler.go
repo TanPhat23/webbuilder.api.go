@@ -135,14 +135,32 @@ func (h *ProjectHandler) UpdateProject(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	project := projectFromColumnUpdates(columnUpdates)
 
-	updatedProject, err := h.projectService.UpdateProject(c.RequestCtx(), projectID, userID, project)
+	updatedProject, err := h.projectService.UpdateProjectColumnUpdates(c.RequestCtx(), projectID, userID, columnUpdates)
 	if err != nil {
 		return handleProjectError(c, err, "Failed to update project")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updatedProject)
+}
+
+func (h *ProjectHandler) TransferOwnership(c fiber.Ctx) error {
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	if err != nil {
+		return err
+	}
+	projectID := ids[0]
+
+	req := new(dto.TransferOwnershipRequest)
+	if err := c.Bind().Body(req); err != nil {
+		return err
+	}
+
+	if err := h.projectService.TransferOwnership(c.RequestCtx(), projectID, userID, req.NewOwnerID); err != nil {
+		return handleProjectError(c, err, "Failed to transfer project ownership")
+	}
+
+	return utils.SendSuccess(c, fiber.StatusOK, "Project ownership transferred successfully")
 }
 
 func buildProjectColumnUpdates(req *dto.UpdateProjectRequest) (map[string]any, error) {

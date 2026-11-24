@@ -40,6 +40,8 @@ type ProjectServiceInterface interface {
 	CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error)
 	GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error)
 	UpdateProject(ctx context.Context, projectID, userID string, project *models.Project) (*models.Project, error)
+	UpdateProjectColumnUpdates(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error)
+	TransferOwnership(ctx context.Context, projectID, currentOwnerID, newOwnerID string) error
 	DeleteProject(ctx context.Context, projectID, userID string) error
 	HardDeleteProject(ctx context.Context, projectID, userID string) error
 	RestoreProject(ctx context.Context, projectID, userID string) error
@@ -50,11 +52,13 @@ type ProjectServiceInterface interface {
 type PageServiceInterface interface {
 	GetPagesByProjectID(ctx context.Context, projectID, userID string) ([]models.Page, error)
 	GetPageByID(ctx context.Context, pageID string) (*models.Page, error)
+	GetPageByIDForUser(ctx context.Context, projectID, pageID, userID string) (*models.Page, error)
 	GetPublicPageByID(ctx context.Context, projectID, pageID string) (*models.Page, error)
 	CreatePage(ctx context.Context, page *models.Page) (*models.Page, error)
 	CreatePageAsUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error)
 	UpdatePage(ctx context.Context, pageID string, page *models.Page) (*models.Page, error)
 	UpdatePageFields(ctx context.Context, pageID string, updates map[string]interface{}) error
+	UpdatePageFieldsForUser(ctx context.Context, projectID, pageID, userID string, updates map[string]interface{}) error
 	DeletePage(ctx context.Context, pageID string) error
 	DeletePageByProjectID(ctx context.Context, pageID, projectID, userID string) error
 }
@@ -78,46 +82,64 @@ type ImageServiceInterface interface {
 }
 
 type CollaboratorServiceInterface interface {
-	CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
+	CreateCollaborator(ctx context.Context, callerUserID string, collaborator *models.Collaborator) (*models.Collaborator, error)
 	GetCollaboratorsByProject(ctx context.Context, projectID, userID string) ([]models.Collaborator, error)
-	GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error)
-	UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error
-	DeleteCollaborator(ctx context.Context, id string) error
+	GetCollaboratorByID(ctx context.Context, id, callerUserID string) (*models.Collaborator, error)
+	UpdateCollaboratorRole(ctx context.Context, id, callerUserID string, role models.CollaboratorRole) error
+	DeleteCollaborator(ctx context.Context, id, callerUserID string) error
+	LeaveProject(ctx context.Context, projectID, userID string) error
 	IsCollaborator(ctx context.Context, userID, projectID string) (bool, error)
 }
 
 type SnapshotServiceInterface interface {
 	SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error
+	SaveSnapshotWithAccess(ctx context.Context, projectID, userID string, snapshot *models.Snapshot) error
 	GetSnapshotsByProjectID(ctx context.Context, projectID, userID string) ([]models.Snapshot, error)
 	GetSnapshotByID(ctx context.Context, id string) (*models.Snapshot, error)
+	GetSnapshotByIDWithAccess(ctx context.Context, projectID, snapshotID, userID string) (*models.Snapshot, error)
 	DeleteSnapshot(ctx context.Context, id string) error
 	DeleteSnapshotWithAccess(ctx context.Context, snapshotID, projectID, userID string) error
 }
 
 type ContentTypeServiceInterface interface {
 	GetContentTypes(ctx context.Context) ([]models.ContentType, error)
+	GetContentTypesForUser(ctx context.Context, userID, projectID string) ([]models.ContentType, error)
 	GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error)
+	GetContentTypeByIDForUser(ctx context.Context, id, userID string) (*models.ContentType, error)
 	CreateContentType(ctx context.Context, contentType *models.ContentType) (*models.ContentType, error)
+	CreateContentTypeForUser(ctx context.Context, contentType *models.ContentType, userID string) (*models.ContentType, error)
 	UpdateContentType(ctx context.Context, id string, contentType *models.ContentType) (*models.ContentType, error)
+	UpdateContentTypeForUser(ctx context.Context, id, userID string, contentType *models.ContentType) (*models.ContentType, error)
 	DeleteContentType(ctx context.Context, id string) error
+	DeleteContentTypeForUser(ctx context.Context, id, userID string) error
 }
 
 type ContentFieldServiceInterface interface {
 	GetContentFieldsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error)
+	GetContentFieldsByContentTypeForUser(ctx context.Context, contentTypeID, userID string) ([]models.ContentField, error)
 	GetContentFieldByID(ctx context.Context, id string) (*models.ContentField, error)
+	GetContentFieldByIDForUser(ctx context.Context, id, userID string) (*models.ContentField, error)
 	CreateContentField(ctx context.Context, field *models.ContentField) (*models.ContentField, error)
+	CreateContentFieldForUser(ctx context.Context, field *models.ContentField, userID string) (*models.ContentField, error)
 	UpdateContentField(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error)
+	UpdateContentFieldForUser(ctx context.Context, id, userID string, updates map[string]any) (*models.ContentField, error)
 	DeleteContentField(ctx context.Context, id string) error
+	DeleteContentFieldForUser(ctx context.Context, id, userID string) error
 }
 
 type ContentItemServiceInterface interface {
 	GetContentItemsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error)
+	GetContentItemsByContentTypeForUser(ctx context.Context, contentTypeID, userID string) ([]models.ContentItem, error)
 	GetContentItemByID(ctx context.Context, id string) (*models.ContentItem, error)
+	GetContentItemByIDForUser(ctx context.Context, id, userID string) (*models.ContentItem, error)
 	GetContentItemBySlug(ctx context.Context, contentTypeID, slug string) (*models.ContentItem, error)
 	GetPublicContentItems(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error)
 	CreateContentItem(ctx context.Context, item *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
+	CreateContentItemForUser(ctx context.Context, item *models.ContentItem, fieldValues []models.ContentFieldValue, userID string) (*models.ContentItem, error)
 	UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
+	UpdateContentItemForUser(ctx context.Context, id, userID string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
 	DeleteContentItem(ctx context.Context, id string) error
+	DeleteContentItemForUser(ctx context.Context, id, userID string) error
 }
 
 type CustomElementServiceInterface interface {
@@ -174,12 +196,15 @@ type ElementEventWorkflowServiceInterface interface {
 type ElementCommentServiceInterface interface {
 	CreateElementComment(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error)
 	GetElementCommentByID(ctx context.Context, id string) (*models.ElementComment, error)
+	GetElementCommentByIDForUser(ctx context.Context, id, userID string) (*models.ElementComment, error)
 	GetElementComments(ctx context.Context, elementID string, filter models.ElementCommentFilter) ([]models.ElementComment, error)
+	GetElementCommentsForUser(ctx context.Context, elementID, userID string, filter models.ElementCommentFilter) ([]models.ElementComment, error)
 	UpdateElementComment(ctx context.Context, id string, userID string, updates map[string]any) (*models.ElementComment, error)
 	DeleteElementComment(ctx context.Context, id string, userID string) error
 	GetElementCommentsByAuthorID(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error)
 	CountElementComments(ctx context.Context, elementID string) (int64, error)
 	ToggleResolvedStatus(ctx context.Context, id string) error
+	ToggleResolvedStatusForUser(ctx context.Context, id, userID string) error
 	DeleteElementCommentsByElementID(ctx context.Context, elementID string) error
 	GetElementCommentsByProjectID(ctx context.Context, projectID, userID string, limit int, offset int) ([]models.ElementComment, error)
 	CountElementCommentsByProjectID(ctx context.Context, projectID, userID string) (int64, error)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 )
@@ -11,6 +13,7 @@ import (
 type CollaboratorService struct {
 	collaboratorRepo repositories.CollaboratorRepositoryInterface
 	projectRepo      repositories.ProjectRepositoryInterface
+	onAccessChanged  func(projectID, userID string)
 }
 
 func NewCollaboratorService(
@@ -23,7 +26,16 @@ func NewCollaboratorService(
 	}
 }
 
-func (s *CollaboratorService) CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error) {
+// SetAccessChangedHook registers a callback invoked after role updates or removals
+// so active realtime WebSocket clients immediately refresh permissions.
+func (s *CollaboratorService) SetAccessChangedHook(fn func(projectID, userID string)) {
+	s.onAccessChanged = fn
+}
+
+func (s *CollaboratorService) CreateCollaborator(ctx context.Context, callerUserID string, collaborator *models.Collaborator) (*models.Collaborator, error) {
+	if callerUserID == "" {
+		return nil, authz.ErrUnauthorized
+	}
 	if collaborator == nil {
 		return nil, errors.New("collaborator cannot be nil")
 	}
@@ -33,80 +45,169 @@ func (s *CollaboratorService) CreateCollaborator(ctx context.Context, collaborat
 	if collaborator.UserId == "" {
 		return nil, errors.New("userId is required")
 	}
+	if collaborator.Role == "" {
+		collaborator.Role = models.RoleEditor
+	}
+	if !authz.IsAssignableCollaboratorRole(authz.Role(collaborator.Role)) {
+		return nil, fmt.Errorf("%w: role %q cannot be assigned to a collaborator", authz.ErrForbidden, collaborator.Role)
+	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, collaborator.ProjectId)
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, collaborator.ProjectId, callerUserID, authz.PermCollaboratorInvite); err != nil {
+		return nil, err
+	}
+	if collaborator.UserId == callerUserID {
+		return nil, errors.New("project owner is already a member of this project")
+	}
+	existing, err := s.collaboratorRepo.GetCollaboratorByProjectAndUser(ctx, collaborator.ProjectId, collaborator.UserId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify project: %w", err)
+		return nil, fmt.Errorf("failed to check existing collaborator: %w", err)
 	}
-	if project == nil {
-		return nil, errors.New("project does not exist")
+	if existing != nil {
+		return nil, errors.New("user is already a collaborator on this project")
 	}
 
-	return s.collaboratorRepo.CreateCollaborator(ctx, collaborator)
+	created, err := s.collaboratorRepo.CreateCollaborator(ctx, collaborator)
+	if err != nil {
+		return nil, err
+	}
+	if s.onAccessChanged != nil {
+		s.onAccessChanged(collaborator.ProjectId, collaborator.UserId)
+	}
+	return created, nil
 }
 
 func (s *CollaboratorService) GetCollaboratorsByProject(ctx context.Context, projectID, userID string) ([]models.Collaborator, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
+	if userID == "" {
+		return nil, authz.ErrUnauthorized
+	}
 
-	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
-		return nil, fmt.Errorf("failed to verify project: %w", err)
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermCollaboratorView); err != nil {
+		return nil, err
 	}
 
 	return s.collaboratorRepo.GetCollaboratorsByProject(ctx, projectID)
 }
 
-func (s *CollaboratorService) GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error) {
+func (s *CollaboratorService) GetCollaboratorByID(ctx context.Context, id, callerUserID string) (*models.Collaborator, error) {
 	if id == "" {
 		return nil, errors.New("collaborator id is required")
 	}
+	if callerUserID == "" {
+		return nil, authz.ErrUnauthorized
+	}
 
-	return s.collaboratorRepo.GetCollaboratorByID(ctx, id)
+	collaborator, err := s.collaboratorRepo.GetCollaboratorByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if collaborator == nil {
+		return nil, fmt.Errorf("%w: collaborator not found", authz.ErrNotFound)
+	}
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, collaborator.ProjectId, callerUserID, authz.PermCollaboratorView); err != nil {
+		return nil, err
+	}
+	return collaborator, nil
 }
 
-func (s *CollaboratorService) UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error {
+func (s *CollaboratorService) UpdateCollaboratorRole(ctx context.Context, id, callerUserID string, role models.CollaboratorRole) error {
 	if id == "" {
 		return errors.New("collaborator id is required")
 	}
+	if callerUserID == "" {
+		return authz.ErrUnauthorized
+	}
+	if !authz.IsAssignableCollaboratorRole(authz.Role(role)) {
+		return fmt.Errorf("%w: role %q cannot be assigned to a collaborator", authz.ErrForbidden, role)
+	}
 
-	collaborator, err := s.GetCollaboratorByID(ctx, id)
+	collaborator, err := s.collaboratorRepo.GetCollaboratorByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve collaborator: %w", err)
 	}
 	if collaborator == nil {
-		return errors.New("collaborator does not exist")
+		return fmt.Errorf("%w: collaborator does not exist", authz.ErrNotFound)
 	}
-
 	if collaborator.ProjectId == "" {
 		return errors.New("collaborator projectId is required")
 	}
-
-	project, err := s.projectRepo.GetProjectByID(ctx, collaborator.ProjectId, collaborator.UserId)
-	if err != nil {
-		return fmt.Errorf("failed to verify project ownership: %w", err)
-	}
-	if project == nil {
-		return errors.New("project does not exist")
+	if collaborator.UserId == callerUserID {
+		return fmt.Errorf("%w: cannot change your own role", authz.ErrForbidden)
 	}
 
-	return s.collaboratorRepo.UpdateCollaboratorRole(ctx, id, role)
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, collaborator.ProjectId, callerUserID, authz.PermCollaboratorEdit); err != nil {
+		return err
+	}
+
+	if err := s.collaboratorRepo.UpdateCollaboratorRole(ctx, id, role); err != nil {
+		return err
+	}
+	if s.onAccessChanged != nil {
+		s.onAccessChanged(collaborator.ProjectId, collaborator.UserId)
+	}
+	return nil
 }
 
-func (s *CollaboratorService) DeleteCollaborator(ctx context.Context, id string) error {
+func (s *CollaboratorService) DeleteCollaborator(ctx context.Context, id, callerUserID string) error {
 	if id == "" {
 		return errors.New("collaborator id is required")
 	}
+	if callerUserID == "" {
+		return authz.ErrUnauthorized
+	}
 
-	collaborator, err := s.GetCollaboratorByID(ctx, id)
+	collaborator, err := s.collaboratorRepo.GetCollaboratorByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve collaborator: %w", err)
 	}
 	if collaborator == nil {
-		return errors.New("collaborator does not exist")
+		return fmt.Errorf("%w: collaborator does not exist", authz.ErrNotFound)
 	}
 
-	return s.collaboratorRepo.DeleteCollaborator(ctx, id)
+	if collaborator.UserId != callerUserID {
+		if _, err := authorizeProjectPerm(ctx, s.projectRepo, collaborator.ProjectId, callerUserID, authz.PermCollaboratorRemove); err != nil {
+			return err
+		}
+	}
+
+	if err := s.collaboratorRepo.DeleteCollaborator(ctx, id); err != nil {
+		return err
+	}
+	if s.onAccessChanged != nil {
+		s.onAccessChanged(collaborator.ProjectId, collaborator.UserId)
+	}
+	return nil
+}
+
+func (s *CollaboratorService) LeaveProject(ctx context.Context, projectID, userID string) error {
+	if projectID == "" {
+		return errors.New("projectId is required")
+	}
+	if userID == "" {
+		return authz.ErrUnauthorized
+	}
+
+	access, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermProjectView)
+	if err != nil {
+		return err
+	}
+	if access.IsOwner {
+		return fmt.Errorf("%w: project owner must transfer ownership before leaving", authz.ErrForbidden)
+	}
+
+	removed, err := s.collaboratorRepo.DeleteCollaboratorByProjectAndUser(ctx, projectID, userID)
+	if err != nil {
+		return err
+	}
+	if !removed {
+		return fmt.Errorf("%w: collaborator membership not found", authz.ErrNotFound)
+	}
+	if s.onAccessChanged != nil {
+		s.onAccessChanged(projectID, userID)
+	}
+	return nil
 }
 
 func (s *CollaboratorService) IsCollaborator(ctx context.Context, userID, projectID string) (bool, error) {
@@ -128,17 +229,6 @@ func (s *CollaboratorService) CheckOwnership(ctx context.Context, projectID, use
 		return errors.New("userId is required")
 	}
 
-	project, err := s.projectRepo.GetProjectByID(ctx, projectID, userID)
-	if err != nil {
-		return err
-	}
-	if project == nil {
-		return errors.New("project does not exist")
-	}
-
-	if project.OwnerId != userID {
-		return errors.New("user is not the owner of this project")
-	}
-
-	return nil
+	_, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermProjectDelete)
+	return err
 }

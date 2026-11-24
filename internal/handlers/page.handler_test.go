@@ -72,12 +72,22 @@ func (s *pageHandlerStub) CreatePageAsUser(_ context.Context, page *models.Page,
 	return page, nil
 }
 
+func (s *pageHandlerStub) GetPageByIDForUser(_ context.Context, projectID, pageID, userID string) (*models.Page, error) {
+	s.gotProjectID, s.gotUser = projectID, userID
+	return s.GetPageByID(context.Background(), pageID)
+}
+
 func (s *pageHandlerStub) UpdatePageFields(_ context.Context, pageID string, updates map[string]any) error {
 	s.gotPageID, s.updates = pageID, updates
 	return s.err
 }
 
-func pageHandlerApp(user string, svc *pageHandlerStub) *fiber.App {
+func (s *pageHandlerStub) UpdatePageFieldsForUser(_ context.Context, projectID, pageID, userID string, updates map[string]any) error {
+	s.gotProjectID, s.gotUser = projectID, userID
+	return s.UpdatePageFields(context.Background(), pageID, updates)
+}
+
+func pageHandlerApp(user string, svc services.PageServiceInterface) *fiber.App {
 	h := NewPageHandler(svc)
 	return newKitApp(user, func(app *fiber.App) {
 		app.Get("/projects/:projectid/pages", h.GetPagesByProjectID)
@@ -143,13 +153,14 @@ func TestGetPagesByProject(t *testing.T) {
 
 func TestGetPageByID(t *testing.T) {
 	svc := &pageHandlerStub{}
-	kitExpect(t, kitSend(t, pageHandlerApp("", svc), "GET", "/projects/p1/pages/pg1", ""), 200, `"id":"pg1"`)
+	kitExpect(t, kitSend(t, pageHandlerApp("u1", svc), "GET", "/projects/p1/pages/pg1", ""), 200, `"id":"pg1"`)
 	if svc.gotPageID != "pg1" {
 		t.Fatalf("page id = %q", svc.gotPageID)
 	}
-	kitExpect(t, kitSend(t, pageHandlerApp("", &pageHandlerStub{}), "GET", "/nopage/p1", ""), 400, "pageid is required")
-	kitExpect(t, kitSend(t, pageHandlerApp("", &pageHandlerStub{err: gorm.ErrRecordNotFound}), "GET", "/projects/p1/pages/pg1", ""), 404, "Page not found")
-	kitExpect(t, kitSend(t, pageHandlerApp("", &pageHandlerStub{err: errInternal}), "GET", "/projects/p1/pages/pg1", ""), 500, "Failed to retrieve page")
+	kitExpect(t, kitSend(t, pageHandlerApp("", &pageHandlerStub{}), "GET", "/projects/p1/pages/pg1", ""), 401)
+	kitExpect(t, kitSend(t, pageHandlerApp("u1", &pageHandlerStub{}), "GET", "/nopage/p1", ""), 400, "pageid is required")
+	kitExpect(t, kitSend(t, pageHandlerApp("u1", &pageHandlerStub{err: gorm.ErrRecordNotFound}), "GET", "/projects/p1/pages/pg1", ""), 404, "Page not found")
+	kitExpect(t, kitSend(t, pageHandlerApp("u1", &pageHandlerStub{err: errInternal}), "GET", "/projects/p1/pages/pg1", ""), 500, "Failed to retrieve page")
 }
 
 func TestGetPublicPageByID(t *testing.T) {
@@ -241,7 +252,7 @@ func TestUpdatePage(t *testing.T) {
 	t.Run("updates only the supplied fields and returns the re-read page", func(t *testing.T) {
 		svc := &pageHandlerStub{}
 		r := kitSend(t, pageHandlerApp("u1", svc), "PATCH", "/projects/p1/pages/pg1", `{"name":"New","type":"landing","styles":{"a":1}}`)
-		kitExpect(t, r, 200, `"id":"pg1"`, "read-1")
+		kitExpect(t, r, 200, `"id":"pg1"`, "read-0")
 		want := map[string]any{"Name": "New", "Type": "landing", "Styles": json.RawMessage(`{"a":1}`)}
 		if !reflect.DeepEqual(svc.updates, want) {
 			t.Fatalf("updates = %#v, want %#v", svc.updates, want)
@@ -265,15 +276,12 @@ func TestUpdatePage(t *testing.T) {
 		kitExpect(t, kitSend(t, pageHandlerApp("u1", &pageHandlerStub{}), "PATCH", "/nopage/p1", `{"name":"a"}`), 400, "pageid is required")
 	})
 	t.Run("page missing", func(t *testing.T) {
-		svc := &pageHandlerStub{getErrs: []error{gorm.ErrRecordNotFound}}
+		svc := &pageHandlerUpdateFails{updateErr: gorm.ErrRecordNotFound}
 		kitExpect(t, kitSend(t, pageHandlerApp("u1", svc), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 404, "Page not found")
-		if svc.updates != nil {
-			t.Fatal("updated a page that does not exist")
-		}
 	})
-	t.Run("verify failure", func(t *testing.T) {
-		svc := &pageHandlerStub{getErrs: []error{errInternal}}
-		kitExpect(t, kitSend(t, pageHandlerApp("u1", svc), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 500, "Failed to verify page")
+	t.Run("update failure", func(t *testing.T) {
+		svc := &pageHandlerUpdateFails{updateErr: errInternal}
+		kitExpect(t, kitSend(t, pageHandlerApp("u1", svc), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 500, "Failed to update page")
 	})
 	for _, body := range []string{`{`, `{"name":""}`, `{"type":""}`} {
 		t.Run("invalid body "+body, func(t *testing.T) {
@@ -286,7 +294,7 @@ func TestUpdatePage(t *testing.T) {
 	}
 }
 
-// updateFailingPageStub fails UpdatePageFields only, so the pre and post reads still work.
+// updateFailingPageStub fails UpdatePageFields only, so the post read stays separate.
 type pageHandlerUpdateFails struct {
 	pageHandlerStub
 	updateErr error
@@ -297,6 +305,11 @@ func (s *pageHandlerUpdateFails) UpdatePageFields(ctx context.Context, id string
 	return s.updateErr
 }
 
+func (s *pageHandlerUpdateFails) UpdatePageFieldsForUser(ctx context.Context, projectID, id, userID string, u map[string]any) error {
+	_ = s.pageHandlerStub.UpdatePageFieldsForUser(ctx, projectID, id, userID, u)
+	return s.updateErr
+}
+
 func TestUpdatePageServiceFailures(t *testing.T) {
 	app := func(svc services.PageServiceInterface) *fiber.App {
 		h := NewPageHandler(svc)
@@ -304,7 +317,7 @@ func TestUpdatePageServiceFailures(t *testing.T) {
 	}
 	kitExpect(t, kitSend(t, app(&pageHandlerUpdateFails{updateErr: gorm.ErrRecordNotFound}), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 404, "Page not found")
 	kitExpect(t, kitSend(t, app(&pageHandlerUpdateFails{updateErr: errInternal}), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 500, "Failed to update page")
-	reread := &pageHandlerStub{getErrs: []error{nil, errInternal}}
+	reread := &pageHandlerStub{getErrs: []error{errInternal}}
 	kitExpect(t, kitSend(t, app(reread), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 500, "Failed to fetch updated page")
 	if reread.updates == nil {
 		t.Fatal("update was not applied before the re-read failed")

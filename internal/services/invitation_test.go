@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
+	"my-go-app/internal/repositories"
 )
 
 type invitationFakeMailer struct {
@@ -187,6 +189,38 @@ func TestInvitationService_GetAndAccept(t *testing.T) {
 
 	wantErr(t, e.svc.AcceptInvitation(ctx, "", "u"), "token is required")
 	wantErr(t, e.svc.AcceptInvitation(ctx, "t", ""), "userId is required")
+
+	// Missing invitation
+	e.inv.OnGetInvitationByToken = func(context.Context, string) (*models.Invitation, error) { return nil, nil }
+	wantErr(t, e.svc.AcceptInvitation(ctx, "t", "u"), "invitation does not exist")
+
+	// Reject non-assignable role in invitation
+	e.inv.OnGetInvitationByToken = func(context.Context, string) (*models.Invitation, error) {
+		return &models.Invitation{ProjectId: "p", Email: "u@x.com", Role: models.RoleOwner}, nil
+	}
+	if err := e.svc.AcceptInvitation(ctx, "t", "u"); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("err = %v, want authz.ErrForbidden for owner role", err)
+	}
+
+	// Reject email mismatch
+	e.inv.OnGetInvitationByToken = func(context.Context, string) (*models.Invitation, error) {
+		return &models.Invitation{ProjectId: "p", Email: "invited@x.com", Role: models.RoleEditor}, nil
+	}
+	e.inviter(&models.User{Id: "u", Email: "other@x.com"}, nil)
+	if err := e.svc.AcceptInvitation(ctx, "t", "u"); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("err = %v, want authz.ErrForbidden for email mismatch", err)
+	}
+
+	// Reject CreateInvitation with owner role
+	if _, err := e.svc.CreateInvitation(ctx, "p", "a@x.com", models.RoleOwner, "owner"); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("err = %v, want authz.ErrForbidden when inviting owner", err)
+	}
+
+	// Matching case-insensitive email succeeds
+	e.inviter(&models.User{Id: "u", Email: "INVITED@x.com"}, nil)
+	e.proj.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
+		return nil, repositories.ErrProjectNotFound
+	}
 	e.inv.OnAcceptInvitation = func(_ context.Context, tok, uid string) error {
 		if tok != "t" || uid != "u" {
 			t.Errorf("args %q %q", tok, uid)

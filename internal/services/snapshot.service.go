@@ -3,6 +3,9 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 )
@@ -36,12 +39,26 @@ func (s *SnapshotService) SaveSnapshot(ctx context.Context, projectID string, sn
 	return s.snapshotRepo.SaveSnapshot(ctx, projectID, snapshot)
 }
 
+// SaveSnapshotWithAccess authorizes snapshot:create (owner or editor) before
+// saving the snapshot.
+func (s *SnapshotService) SaveSnapshotWithAccess(ctx context.Context, projectID, userID string, snapshot *models.Snapshot) error {
+	if projectID == "" {
+		return errors.New("projectId is required")
+	}
+	if userID == "" {
+		return authz.ErrUnauthorized
+	}
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermSnapshotCreate); err != nil {
+		return err
+	}
+	return s.SaveSnapshot(ctx, projectID, snapshot)
+}
+
 func (s *SnapshotService) GetSnapshotsByProjectID(ctx context.Context, projectID, userID string) ([]models.Snapshot, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
-
-	if err := ensureProjectVisible(ctx, s.projectRepo, projectID, userID); err != nil {
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermSnapshotView); err != nil {
 		return nil, err
 	}
 
@@ -54,6 +71,32 @@ func (s *SnapshotService) GetSnapshotByID(ctx context.Context, id string) (*mode
 	}
 
 	return s.snapshotRepo.GetSnapshotByID(ctx, id)
+}
+
+// GetSnapshotByIDWithAccess verifies snapshot:view permission on projectID and
+// confirms the snapshot belongs to projectID.
+func (s *SnapshotService) GetSnapshotByIDWithAccess(ctx context.Context, projectID, snapshotID, userID string) (*models.Snapshot, error) {
+	if snapshotID == "" {
+		return nil, errors.New("snapshot id is required")
+	}
+	if projectID == "" {
+		return nil, errors.New("projectId is required")
+	}
+	if userID == "" {
+		return nil, authz.ErrUnauthorized
+	}
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermSnapshotView); err != nil {
+		return nil, err
+	}
+
+	snapshot, err := s.snapshotRepo.GetSnapshotByID(ctx, snapshotID)
+	if err != nil {
+		return nil, err
+	}
+	if snapshot == nil || snapshot.ProjectId != projectID {
+		return nil, fmt.Errorf("%w: snapshot not found", authz.ErrNotFound)
+	}
+	return snapshot, nil
 }
 
 func (s *SnapshotService) DeleteSnapshot(ctx context.Context, id string) error {
@@ -87,7 +130,7 @@ func (s *SnapshotService) DeleteSnapshotWithAccess(ctx context.Context, snapshot
 		return errors.New("snapshot does not belong to the specified project")
 	}
 
-	if _, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID); err != nil {
+	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermSnapshotDelete); err != nil {
 		return err
 	}
 

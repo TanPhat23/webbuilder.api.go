@@ -25,22 +25,31 @@ func NewContentTypeHandler(contentTypeService services.ContentTypeServiceInterfa
 }
 
 func (h *ContentTypeHandler) GetContentTypes(c fiber.Ctx) error {
-	contentTypes, err := h.contentTypeService.GetContentTypes(c.RequestCtx())
+	userID, err := utils.ValidateUserID(c)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve content types")
+		return err
+	}
+	projectID := c.Params("projectid")
+	if projectID == "" {
+		projectID = c.Query("projectId")
+	}
+
+	contentTypes, err := h.contentTypeService.GetContentTypesForUser(c.RequestCtx(), userID, projectID)
+	if err != nil {
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve content types")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, contentTypes)
 }
 
 func (h *ContentTypeHandler) GetContentTypeByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	contentType, err := h.contentTypeService.GetContentTypeByID(c.RequestCtx(), id)
+	contentType, err := h.contentTypeService.GetContentTypeByIDForUser(c.RequestCtx(), id, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content type not found", "Failed to retrieve content type")
 	}
@@ -49,26 +58,38 @@ func (h *ContentTypeHandler) GetContentTypeByID(c fiber.Ctx) error {
 }
 
 func (h *ContentTypeHandler) CreateContentType(c fiber.Ctx) error {
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
 	req := new(dto.CreateContentTypeRequest)
 	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
+	projectID := req.ProjectID
+	if paramProjectID := c.Params("projectid"); paramProjectID != "" {
+		projectID = &paramProjectID
+	} else if queryProjectID := c.Query("projectId"); queryProjectID != "" && (projectID == nil || *projectID == "") {
+		projectID = &queryProjectID
+	}
+
 	contentType := &models.ContentType{
+		ProjectId:   projectID,
 		Name:        req.Name,
 		Description: req.Description,
 	}
 
-	created, err := h.contentTypeService.CreateContentType(c.RequestCtx(), contentType)
+	created, err := h.contentTypeService.CreateContentTypeForUser(c.RequestCtx(), contentType, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to create content type")
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to create content type")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
 func (h *ContentTypeHandler) UpdateContentType(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
@@ -91,7 +112,7 @@ func (h *ContentTypeHandler) UpdateContentType(c fiber.Ctx) error {
 		contentType.Description = req.Description
 	}
 
-	updated, err := h.contentTypeService.UpdateContentType(c.RequestCtx(), id, contentType)
+	updated, err := h.contentTypeService.UpdateContentTypeForUser(c.RequestCtx(), id, userID, contentType)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content type not found", "Failed to update content type")
 	}
@@ -100,16 +121,15 @@ func (h *ContentTypeHandler) UpdateContentType(c fiber.Ctx) error {
 }
 
 func (h *ContentTypeHandler) DeleteContentType(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+	userID, ids, err := utils.MustUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	if err := h.contentTypeService.DeleteContentType(c.RequestCtx(), id); err != nil {
+	if err := h.contentTypeService.DeleteContentTypeForUser(c.RequestCtx(), id, userID); err != nil {
 		return utils.HandleRepoError(c, err, "Content type not found", "Failed to delete content type")
 	}
 
 	return utils.SendNoContent(c)
 }
-

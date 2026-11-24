@@ -6,6 +6,9 @@ import (
 
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
 	"github.com/gofiber/fiber/v3"
+
+	"my-go-app/internal/auth"
+	"my-go-app/internal/authz"
 )
 
 func AuthenticateMiddleware(c fiber.Ctx) error {
@@ -47,7 +50,14 @@ func AuthenticateMiddleware(c fiber.Ctx) error {
 	// The signed session token is the proof of identity. Fetching the user from
 	// Clerk's API here added a network round trip to every request and nothing
 	// downstream reads the result; handlers only need the ID.
-	c.Locals("userId", claim.Subject)
+	id := auth.Identity{
+		UserID:     claim.Subject,
+		AuthMethod: "clerk",
+	}
+	auth.SetFiber(c, id)
+	ctx := auth.WithIdentity(c.RequestCtx(), id)
+	ctx = authz.WithRequestCache(ctx)
+	c.SetContext(ctx)
 
 	// Continue to next handler
 	return c.Next()

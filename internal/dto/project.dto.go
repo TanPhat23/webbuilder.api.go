@@ -19,3 +19,7 @@ type UpdateProjectRequest struct {
 	Subdomain   *string `json:"subdomain"   validate:"omitempty,alphanum,min=3,max=63"`
 	Published   *bool   `json:"published"`
 }
+
+type TransferOwnershipRequest struct {
+	NewOwnerID string `json:"newOwnerId" validate:"required,min=1"`
+}

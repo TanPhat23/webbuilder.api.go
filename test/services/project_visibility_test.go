@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
@@ -22,6 +23,12 @@ func unpublishedProjectRepo(accessibleTo string) *mockrepo.MockProjectRepo {
 				return &models.Project{ID: projectID}, nil
 			}
 			return nil, repositories.ErrProjectUnauthorized
+		}).
+		SetGetProjectAccess(func(_ context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+			if userID == accessibleTo {
+				return &models.ProjectAccess{ProjectId: projectID, UserId: userID, Role: models.RoleOwner, IsOwner: true}, nil
+			}
+			return nil, repositories.ErrProjectNotFound
 		})
 }
 
@@ -38,18 +45,18 @@ func TestGetCollaboratorsByProject_UnpublishedProject(t *testing.T) {
 	}
 
 	_, err = svc.GetCollaboratorsByProject(context.Background(), "p1", "stranger")
-	if !errors.Is(err, repositories.ErrProjectNotFound) {
-		t.Fatalf("stranger: err = %v, want ErrProjectNotFound", err)
+	if !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("stranger: err = %v, want authz.ErrForbidden", err)
 	}
 }
 
-func TestGetCollaboratorsByProject_PublishedProjectStaysVisible(t *testing.T) {
+func TestGetCollaboratorsByProject_PublishedProjectRejectsStrangers(t *testing.T) {
 	projects := mockrepo.NewMockProjectRepo().
 		SetGetPublicProjectByID(func(_ context.Context, id string) (*models.Project, error) {
 			return &models.Project{ID: id, Published: true}, nil
 		}).
-		SetGetProjectWithAccess(func(context.Context, string, string) (*models.Project, error) {
-			return nil, repositories.ErrProjectUnauthorized
+		SetGetProjectAccess(func(context.Context, string, string) (*models.ProjectAccess, error) {
+			return nil, repositories.ErrProjectNotFound
 		})
 	collabs := mockrepo.NewMockCollaboratorRepo().
 		SetGetCollaboratorsByProject(func(context.Context, string) ([]models.Collaborator, error) {
@@ -57,8 +64,8 @@ func TestGetCollaboratorsByProject_PublishedProjectStaysVisible(t *testing.T) {
 		})
 	svc := services.NewCollaboratorService(collabs, projects)
 
-	if _, err := svc.GetCollaboratorsByProject(context.Background(), "p1", "stranger"); err != nil {
-		t.Fatalf("published project should stay readable: %v", err)
+	if _, err := svc.GetCollaboratorsByProject(context.Background(), "p1", "stranger"); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("non-member should not see collaborator list: %v", err)
 	}
 }
 

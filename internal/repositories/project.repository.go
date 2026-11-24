@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"time"
 
@@ -368,6 +369,7 @@ func (r *ProjectRepository) GetProjectAccess(ctx context.Context, projectID, use
 	access := &models.ProjectAccess{UserId: userID, ProjectId: projectID}
 	if project.OwnerId == userID {
 		access.Role, access.IsOwner = models.RoleOwner, true
+		access.Permissions = authz.PermissionsForRole(authz.RoleOwner)
 		return access, nil
 	}
 
@@ -382,5 +384,102 @@ func (r *ProjectRepository) GetProjectAccess(ctx context.Context, projectID, use
 		return nil, fmt.Errorf("failed to get collaborator: %w", err)
 	}
 	access.Role, access.IsCollaborator = collaborator.Role, true
+	access.Permissions = authz.PermissionsForRole(authz.Role(collaborator.Role))
 	return access, nil
+}
+
+// UpdateProjectFields updates pre-authorized project columns without forcing
+// OwnerId equality in SQL (so editors can update content fields allowed by RBAC).
+func (r *ProjectRepository) UpdateProjectFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+	if projectID == "" || userID == "" {
+		return nil, errors.New("projectID and userID are required")
+	}
+	if len(updates) == 0 {
+		return nil, errors.New("no updates provided")
+	}
+	if _, err := r.GetProjectWithAccess(ctx, projectID, userID); err != nil {
+		return nil, err
+	}
+
+	updates["UpdatedAt"] = time.Now()
+	err := r.db.WithContext(ctx).
+		Model(&models.Project{}).
+		Where(`"Id" = ? AND "DeletedAt" IS NULL`, projectID).
+		Updates(updates).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to update project: %w", err)
+	}
+
+	return r.GetProjectWithAccess(ctx, projectID, userID)
+}
+
+// TransferOwnership atomically moves Project.OwnerId from currentOwnerID to
+// newOwnerID and converts the previous owner into an editor collaborator.
+func (r *ProjectRepository) TransferOwnership(ctx context.Context, projectID, currentOwnerID, newOwnerID string) error {
+	if projectID == "" || currentOwnerID == "" || newOwnerID == "" {
+		return errors.New("projectID, currentOwnerID and newOwnerID are required")
+	}
+	if currentOwnerID == newOwnerID {
+		return errors.New("new owner must be a different user")
+	}
+
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var project models.Project
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(`"Id" = ? AND "DeletedAt" IS NULL`, projectID).
+			First(&project).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrProjectNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("failed to lock project: %w", err)
+		}
+		if project.OwnerId != currentOwnerID {
+			return ErrProjectUnauthorized
+		}
+
+		var targetUser models.User
+		if err := tx.Select(`"Id"`).Where(`"Id" = ?`, newOwnerID).First(&targetUser).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("target user not found")
+			}
+			return fmt.Errorf("failed to verify new owner: %w", err)
+		}
+
+		now := time.Now()
+		if err := tx.Model(&models.Project{}).
+			Where(`"Id" = ?`, projectID).
+			Updates(map[string]any{"OwnerId": newOwnerID, "UpdatedAt": now}).Error; err != nil {
+			return fmt.Errorf("failed to transfer ownership: %w", err)
+		}
+
+		if err := tx.Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, newOwnerID).
+			Delete(&models.Collaborator{}).Error; err != nil {
+			return fmt.Errorf("failed to clear new owner collaborator row: %w", err)
+		}
+
+		var prevCollab models.Collaborator
+		err = tx.Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, currentOwnerID).First(&prevCollab).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			collab := models.Collaborator{
+				Id:        "collab-" + projectID + "-" + currentOwnerID,
+				UserId:    currentOwnerID,
+				ProjectId: projectID,
+				Role:      models.RoleEditor,
+				BaseAuditFields: models.BaseAuditFields{
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			}
+			if err := tx.Create(&collab).Error; err != nil {
+				return fmt.Errorf("failed to add previous owner as editor: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("failed to check previous owner collaborator row: %w", err)
+		} else if err := tx.Model(&prevCollab).Updates(map[string]any{"Role": models.RoleEditor, "UpdatedAt": now}).Error; err != nil {
+			return fmt.Errorf("failed to update previous owner role: %w", err)
+		}
+
+		return nil
+	})
 }

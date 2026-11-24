@@ -192,3 +192,17 @@ func (m *MockProjectRepo) SetGetProjectAccess(fn func(context.Context, string, s
 	m.Set("GetProjectAccess", fn)
 	return m
 }
+
+func (m *MockProjectRepo) UpdateProjectFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+	if fn := m.Get("UpdateProjectFields"); fn != nil {
+		return fn.(func(context.Context, string, string, map[string]any) (*models.Project, error))(ctx, projectID, userID, updates)
+	}
+	return m.UpdateProject(ctx, projectID, userID, updates)
+}
+
+func (m *MockProjectRepo) TransferOwnership(ctx context.Context, projectID, currentOwnerID, newOwnerID string) error {
+	if fn := m.Get("TransferOwnership"); fn != nil {
+		return fn.(func(context.Context, string, string, string) error)(ctx, projectID, currentOwnerID, newOwnerID)
+	}
+	return nil
+}

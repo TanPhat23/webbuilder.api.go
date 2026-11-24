@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 )
@@ -67,21 +68,20 @@ func TestSnapshotService_GetSnapshotsByProjectID(t *testing.T) {
 	})
 	t.Run("not visible", func(t *testing.T) {
 		pr := &fkProjectRepo{
-			OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) {
-				return nil, repositories.ErrProjectUnauthorized
+			OnGetProjectAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
+				return nil, repositories.ErrProjectNotFound
 			},
-			OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) { return nil, nil },
 		}
 		sr := &fkSnapshotRepo{}
 		_, err := NewSnapshotService(sr, nil, pr).GetSnapshotsByProjectID(ctx, "p1", "u")
-		if !errors.Is(err, repositories.ErrProjectNotFound) {
-			t.Fatalf("err = %v", err)
+		if !errors.Is(err, authz.ErrForbidden) {
+			t.Fatalf("err = %v, want authz.ErrForbidden", err)
 		}
 		wantCalls(t, sr.Calls)
 	})
 	t.Run("ok", func(t *testing.T) {
-		pr := &fkProjectRepo{OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) {
-			return &models.Project{}, nil
+		pr := &fkProjectRepo{OnGetProjectAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
+			return &models.ProjectAccess{ProjectId: "p1", UserId: "u", Role: models.RoleViewer}, nil
 		}}
 		sr := &fkSnapshotRepo{OnGetSnapshotsByProjectID: func(_ context.Context, pid string) ([]models.Snapshot, error) {
 			if pid != "p1" {
@@ -136,9 +136,12 @@ func TestSnapshotService_GetAndDelete(t *testing.T) {
 
 func TestSnapshotService_DeleteSnapshotWithAccess(t *testing.T) {
 	ctx := context.Background()
-	access := func(err error) *fkProjectRepo {
-		return &fkProjectRepo{OnGetProjectWithAccess: func(context.Context, string, string) (*models.Project, error) {
-			return &models.Project{}, err
+	access := func(role models.CollaboratorRole, err error) *fkProjectRepo {
+		return &fkProjectRepo{OnGetProjectAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
+			if err != nil {
+				return nil, err
+			}
+			return &models.ProjectAccess{ProjectId: "p", UserId: "u", Role: role, IsOwner: role == models.RoleOwner}, nil
 		}}
 	}
 	found := func(pid string) *fkSnapshotRepo {
@@ -180,15 +183,15 @@ func TestSnapshotService_DeleteSnapshotWithAccess(t *testing.T) {
 	})
 	t.Run("access denied", func(t *testing.T) {
 		sr := found("p")
-		err := NewSnapshotService(sr, nil, access(repositories.ErrProjectUnauthorized)).DeleteSnapshotWithAccess(ctx, "s", "p", "u")
-		if !errors.Is(err, repositories.ErrProjectUnauthorized) {
-			t.Fatalf("err = %v", err)
+		err := NewSnapshotService(sr, nil, access(models.RoleEditor, nil)).DeleteSnapshotWithAccess(ctx, "s", "p", "u")
+		if !errors.Is(err, authz.ErrForbidden) {
+			t.Fatalf("err = %v, want authz.ErrForbidden", err)
 		}
 		wantCalls(t, sr.Calls, "GetSnapshotByID")
 	})
 	t.Run("deleted", func(t *testing.T) {
 		sr := found("p")
-		wantNoErr(t, NewSnapshotService(sr, nil, access(nil)).DeleteSnapshotWithAccess(ctx, "s", "p", "u"))
+		wantNoErr(t, NewSnapshotService(sr, nil, access(models.RoleOwner, nil)).DeleteSnapshotWithAccess(ctx, "s", "p", "u"))
 		wantCalls(t, sr.Calls, "GetSnapshotByID", "DeleteSnapshot")
 	})
 }

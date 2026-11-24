@@ -68,6 +68,15 @@ func (s *projectHandlerStub) UpdateProject(_ context.Context, projectID, userID 
 	return &models.Project{ID: projectID, Name: "updated"}, nil
 }
 
+func (s *projectHandlerStub) UpdateProjectColumnUpdates(_ context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+	return s.UpdateProject(context.Background(), projectID, userID, projectFromColumnUpdates(updates))
+}
+
+func (s *projectHandlerStub) TransferOwnership(_ context.Context, projectID, userID, _ string) error {
+	s.gotProject, s.gotUser = projectID, userID
+	return s.err
+}
+
 func (s *projectHandlerStub) CreateProjectWithPage(_ context.Context, p *models.Project) (*models.Project, error) {
 	s.sent = p
 	if s.err != nil {

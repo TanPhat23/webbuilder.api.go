@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"my-go-app/internal/authz"
 	"my-go-app/internal/repositories"
 	"my-go-app/pkg/utils"
 )
@@ -15,9 +16,11 @@ import (
 // anything else, which callers must treat as an internal error.
 func projectAccessFailure(err error) (status int, message string, ok bool) {
 	switch {
-	case errors.Is(err, repositories.ErrProjectUnauthorized):
+	case errors.Is(err, authz.ErrUnauthorized):
+		return http.StatusUnauthorized, "Unauthorized", true
+	case errors.Is(err, repositories.ErrProjectUnauthorized), errors.Is(err, authz.ErrForbidden):
 		return http.StatusForbidden, "You do not have access to this project", true
-	case errors.Is(err, repositories.ErrProjectNotFound):
+	case errors.Is(err, repositories.ErrProjectNotFound), errors.Is(err, authz.ErrNotFound):
 		return http.StatusNotFound, "Project not found", true
 	default:
 		return 0, "", false

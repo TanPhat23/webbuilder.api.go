@@ -46,9 +46,12 @@ go.work.sum
 .circleci
 
 # Docker
-Dockerfile*
+Dockerfile.grpc
 docker-compose*.yml
 .dockerignore
+
+# Repowise local index
+.repowise/
 
 # Node (if applicable)
 node_modules/

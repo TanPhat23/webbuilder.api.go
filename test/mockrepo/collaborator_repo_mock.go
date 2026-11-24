@@ -86,3 +86,17 @@ func (m *MockCollaboratorRepo) IsCollaborator(ctx context.Context, projectID, us
 	}
 	return false, nil
 }
+
+func (m *MockCollaboratorRepo) GetCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (*models.Collaborator, error) {
+	if fn := m.Get("GetCollaboratorByProjectAndUser"); fn != nil {
+		return fn.(func(context.Context, string, string) (*models.Collaborator, error))(ctx, projectID, userID)
+	}
+	return nil, nil
+}
+
+func (m *MockCollaboratorRepo) DeleteCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (bool, error) {
+	if fn := m.Get("DeleteCollaboratorByProjectAndUser"); fn != nil {
+		return fn.(func(context.Context, string, string) (bool, error))(ctx, projectID, userID)
+	}
+	return false, nil
+}

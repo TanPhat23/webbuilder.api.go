@@ -35,13 +35,13 @@ func (h *CollaboratorHandler) GetCollaboratorsByProject(c fiber.Ctx) error {
 }
 
 func (h *CollaboratorHandler) GetCollaboratorByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "collaboratorid")
+	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
 	collaboratorID := ids[0]
 
-	collaborator, err := h.collaboratorService.GetCollaboratorByID(c.RequestCtx(), collaboratorID)
+	collaborator, err := h.collaboratorService.GetCollaboratorByID(c.RequestCtx(), collaboratorID, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to retrieve collaborator")
 	}
@@ -50,7 +50,7 @@ func (h *CollaboratorHandler) GetCollaboratorByID(c fiber.Ctx) error {
 }
 
 func (h *CollaboratorHandler) UpdateCollaboratorRole(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "collaboratorid")
+	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
@@ -61,28 +61,47 @@ func (h *CollaboratorHandler) UpdateCollaboratorRole(c fiber.Ctx) error {
 		return err
 	}
 
-	if err := h.collaboratorService.UpdateCollaboratorRole(c.RequestCtx(), collaboratorID, req.Role); err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to update collaborator role")
+	if err := h.collaboratorService.UpdateCollaboratorRole(c.RequestCtx(), collaboratorID, userID, req.Role); err != nil {
+		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to update collaborator role")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"message": "Role updated successfully"})
 }
 
 func (h *CollaboratorHandler) DeleteCollaborator(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "collaboratorid")
+	userID, ids, err := utils.MustUserAndParams(c, "collaboratorid")
 	if err != nil {
 		return err
 	}
 	collaboratorID := ids[0]
 
-	if err := h.collaboratorService.DeleteCollaborator(c.RequestCtx(), collaboratorID); err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to delete collaborator")
+	if err := h.collaboratorService.DeleteCollaborator(c.RequestCtx(), collaboratorID, userID); err != nil {
+		return utils.HandleRepoError(c, err, "Collaborator not found", "Failed to delete collaborator")
+	}
+
+	return utils.SendNoContent(c)
+}
+
+func (h *CollaboratorHandler) LeaveProject(c fiber.Ctx) error {
+	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	if err != nil {
+		return err
+	}
+	projectID := ids[0]
+
+	if err := h.collaboratorService.LeaveProject(c.RequestCtx(), projectID, userID); err != nil {
+		return utils.HandleRepoError(c, err, "Collaborator membership not found", "Failed to leave project")
 	}
 
 	return utils.SendNoContent(c)
 }
 
 func (h *CollaboratorHandler) CreateCollaborator(c fiber.Ctx) error {
+	userID, err := utils.ValidateUserID(c)
+	if err != nil {
+		return err
+	}
+
 	req := new(dto.CreateCollaboratorRequest)
 	if err := c.Bind().Body(req); err != nil {
 		return err
@@ -94,9 +113,9 @@ func (h *CollaboratorHandler) CreateCollaborator(c fiber.Ctx) error {
 		Role:      req.Role,
 	}
 
-	created, err := h.collaboratorService.CreateCollaborator(c.RequestCtx(), collaborator)
+	created, err := h.collaboratorService.CreateCollaborator(c.RequestCtx(), userID, collaborator)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to create collaborator")
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to create collaborator")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, created)

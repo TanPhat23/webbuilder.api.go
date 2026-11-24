@@ -20,8 +20,8 @@ type Client struct {
 	Conn       *websocket.Conn
 	PageID     string
 	User       *domainEntity.User
-	// ReadOnly clients may read and see presence but cannot change anything.
-	ReadOnly bool
+	// readOnly clients may read and see presence but cannot change anything.
+	readOnly atomic.Bool
 	// Writer marks a short-lived helper socket (e.g. writing a component master
 	// while the editor stays open). It never replaces the editor's connection and
 	// is never chosen as the editor tab for agent calls.
@@ -63,6 +63,12 @@ func NewClient(conn *websocket.Conn, projectID string, user *domainEntity.User) 
 
 // Touch marks the client as active now. Any message from the tab counts.
 func (c *Client) Touch() { c.lastActive.Store(time.Now().UnixNano()) }
+
+// SetReadOnly atomically updates whether this client is restricted to read-only operations.
+func (c *Client) SetReadOnly(ro bool) { c.readOnly.Store(ro) }
+
+// IsReadOnly reports whether this client is restricted to read-only operations.
+func (c *Client) IsReadOnly() bool { return c.readOnly.Load() }
 
 func (c *Client) LastActiveUnixNano() int64 { return c.lastActive.Load() }
 

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 
@@ -83,8 +84,9 @@ func NewHandler(uc *domainUsecase.UseCase, rdb *redis.Client, lg logger.Logger) 
 	h.hub = wsentity.NewHub(h.ctx, &h.wg, h.sendBuf, rdb, lg)
 	if rdb != nil {
 		h.agents = newAgentBridge(hubLocator{h.hub}, agentproto.NewRedisBus(rdb), redisClaimer{rdb}, lg)
-		h.wg.Add(1)
+		h.wg.Add(2)
 		go func() { defer h.wg.Done(); h.agents.Run(h.ctx) }()
+		go func() { defer h.wg.Done(); h.listenRBACSync(rdb) }()
 	}
 	h.registerHandlers()
 	return h
@@ -162,8 +164,67 @@ func (h *Handler) authorizeWSClient(client *wsentity.Client, projectID, userID s
 		_ = client.WriteJSON(client.Factory().Error(domainErrors.CodeAccessDenied, "you do not have access to this project"))
 		return false
 	}
-	client.ReadOnly = !write
+	client.SetReadOnly(!write)
 	return true
+}
+
+// RBACSyncChannel is the Redis Pub/Sub channel used to notify realtime nodes
+// whenever a user's project role or membership changes via REST.
+const RBACSyncChannel = "rbac:access:changed"
+
+type rbacSyncEvent struct {
+	ProjectID string `json:"projectId"`
+	UserID    string `json:"userId"`
+}
+
+func (h *Handler) listenRBACSync(rdb *redis.Client) {
+	pubsub := rdb.Subscribe(h.ctx, RBACSyncChannel)
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-h.ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			var ev rbacSyncEvent
+			if err := json.Unmarshal([]byte(msg.Payload), &ev); err != nil {
+				continue
+			}
+			h.SyncUserAccess(ev.ProjectID, ev.UserID)
+		}
+	}
+}
+
+// SyncUserAccess refreshes the active WebSocket permissions for (projectID, userID),
+// disconnecting the client immediately if access was revoked or toggling ReadOnly
+// when downgraded/upgraded.
+func (h *Handler) SyncUserAccess(projectID, userID string) {
+	if h.access == nil || projectID == "" || userID == "" {
+		return
+	}
+	h.activeConnsMu.Lock()
+	client := h.activeConns[connKey(projectID, userID)]
+	h.activeConnsMu.Unlock()
+	if client == nil {
+		return
+	}
+
+	read, write, err := h.access.Access(h.ctx, projectID, userID)
+	if err != nil {
+		return
+	}
+	if !read {
+		_ = client.WriteJSON(client.Factory().Error(domainErrors.CodeAccessDenied, "your access to this project was revoked"))
+		client.CloseAsReplaced()
+		_ = h.hub.Unregister(h.ctx, client)
+		client.CloseSend()
+		return
+	}
+	client.SetReadOnly(!write)
 }
 
 func (h *Handler) replaceActiveConn(ck string, client *wsentity.Client) {
@@ -240,7 +301,7 @@ func (h *Handler) processMessage(ctx context.Context, client *wsentity.Client, m
 
 	client.Touch()
 
-	if client.ReadOnly && mutating[msg.Type] {
+	if client.IsReadOnly() && mutating[msg.Type] {
 		return domainErrors.New(domainErrors.CodeAccessDenied, "you have read-only access to this project", nil)
 	}
 

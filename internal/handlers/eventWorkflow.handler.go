@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"my-go-app/internal/authz"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
 	"my-go-app/internal/services"
@@ -13,6 +14,7 @@ import (
 type EventWorkflowHandler struct {
 	eventWorkflowService        services.EventWorkflowServiceInterface
 	elementEventWorkflowService services.ElementEventWorkflowServiceInterface
+	authorizer                  *authz.Authorizer
 }
 
 func NewEventWorkflowHandler(
@@ -23,6 +25,12 @@ func NewEventWorkflowHandler(
 		eventWorkflowService:        eventWorkflowService,
 		elementEventWorkflowService: elementEventWorkflowService,
 	}
+}
+
+// WithAuthorizer enables project-scoped RBAC checks on workflow lookup routes.
+func (h *EventWorkflowHandler) WithAuthorizer(a *authz.Authorizer) *EventWorkflowHandler {
+	h.authorizer = a
+	return h
 }
 
 func (h *EventWorkflowHandler) CreateEventWorkflow(c fiber.Ctx) error {
@@ -70,6 +78,15 @@ func (h *EventWorkflowHandler) GetEventWorkflowByID(c fiber.Ctx) error {
 	}
 	if workflow == nil {
 		return fiber.NewError(fiber.StatusNotFound, "Event workflow not found")
+	}
+	if h.authorizer != nil {
+		userID, err := utils.ValidateUserID(c)
+		if err != nil {
+			return err
+		}
+		if _, err := h.authorizer.Authorize(c.RequestCtx(), workflow.ProjectId, userID, authz.PermProjectView); err != nil {
+			return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to verify workflow access")
+		}
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, workflow)
@@ -192,6 +209,23 @@ func (h *EventWorkflowHandler) GetEventWorkflowElements(c fiber.Ctx) error {
 		return err
 	}
 	workflowID := ids[0]
+
+	if h.authorizer != nil {
+		userID, err := utils.ValidateUserID(c)
+		if err != nil {
+			return err
+		}
+		workflow, err := h.eventWorkflowService.GetEventWorkflowByID(c.RequestCtx(), workflowID)
+		if err != nil {
+			return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to verify event workflow")
+		}
+		if workflow == nil {
+			return fiber.NewError(fiber.StatusNotFound, "Event workflow not found")
+		}
+		if _, err := h.authorizer.Authorize(c.RequestCtx(), workflow.ProjectId, userID, authz.PermProjectView); err != nil {
+			return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to verify workflow access")
+		}
+	}
 
 	elements, err := h.elementEventWorkflowService.GetElementEventWorkflowsByWorkflowID(c.RequestCtx(), workflowID)
 	if err != nil {

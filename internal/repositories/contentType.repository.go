@@ -38,6 +38,41 @@ func (r *ContentTypeRepository) GetContentTypes(ctx context.Context) ([]models.C
 	return contentTypes, nil
 }
 
+// GetContentTypesByProject retrieves all content types belonging to projectID.
+func (r *ContentTypeRepository) GetContentTypesByProject(ctx context.Context, projectID string) ([]models.ContentType, error) {
+	if projectID == "" {
+		return nil, errors.New("projectID is required")
+	}
+
+	contentTypes, err := gorm.G[models.ContentType](r.db).
+		Where("\"ProjectId\" = ?", projectID).
+		Order("\"CreatedAt\" DESC").
+		Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get content types: %w", err)
+	}
+	return contentTypes, nil
+}
+
+// GetContentTypesByUser retrieves content types for all non-deleted projects userID can view.
+func (r *ContentTypeRepository) GetContentTypesByUser(ctx context.Context, userID string) ([]models.ContentType, error) {
+	if userID == "" {
+		return nil, errors.New("userID is required")
+	}
+
+	var contentTypes []models.ContentType
+	err := r.db.WithContext(ctx).
+		Model(&models.ContentType{}).
+		Joins(`JOIN "Project" ON "Project"."Id" = "ContentType"."ProjectId"`).
+		Where(`"Project"."DeletedAt" IS NULL AND ("Project"."OwnerId" = ? OR EXISTS (SELECT 1 FROM "Collaborator" WHERE "Collaborator"."ProjectId" = "Project"."Id" AND "Collaborator"."UserId" = ?))`, userID, userID).
+		Order(`"ContentType"."CreatedAt" DESC`).
+		Find(&contentTypes).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user content types: %w", err)
+	}
+	return contentTypes, nil
+}
+
 func (r *ContentTypeRepository) GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
@@ -87,8 +122,18 @@ func (r *ContentTypeRepository) CreateContentType(ctx context.Context, ct *model
 		return nil, errors.New("content type name is required")
 	}
 
-	// Check for duplicate name
-	exists, err := r.ExistsByName(ctx, ct.Name)
+	// Check for duplicate name scoped by project when ProjectId is present.
+	var exists bool
+	var err error
+	if ct.ProjectId != nil && *ct.ProjectId != "" {
+		var count int64
+		count, err = gorm.G[models.ContentType](r.db).
+			Where(`"ProjectId" = ? AND "Name" = ?`, *ct.ProjectId, ct.Name).
+			Count(ctx, "*")
+		exists = count > 0
+	} else {
+		exists, err = r.ExistsByName(ctx, ct.Name)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to check content type existence: %w", err)
 	}

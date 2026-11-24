@@ -294,6 +294,8 @@ type fkProjectRepo struct {
 	OnCreateProjectWithPage   func(ctx context.Context, project *models.Project, page *models.Page) error
 	OnGetProjectAccess        func(ctx context.Context, projectID string, userID string) (*models.ProjectAccess, error)
 	OnUpdateProject           func(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error)
+	OnUpdateProjectFields     func(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error)
+	OnTransferOwnership       func(ctx context.Context, projectID string, currentOwnerID string, newOwnerID string) error
 	OnDeleteProject           func(ctx context.Context, projectID string, userID string) error
 	OnHardDeleteProject       func(ctx context.Context, projectID string, userID string) error
 	OnRestoreProject          func(ctx context.Context, projectID string, userID string) error
@@ -379,6 +381,25 @@ func (f *fkProjectRepo) UpdateProject(ctx context.Context, projectID string, use
 		panic("fkProjectRepo: unexpected call to UpdateProject")
 	}
 	return f.OnUpdateProject(ctx, projectID, userID, updates)
+}
+
+func (f *fkProjectRepo) UpdateProjectFields(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error) {
+	f.Calls = append(f.Calls, "UpdateProjectFields")
+	if f.OnUpdateProjectFields != nil {
+		return f.OnUpdateProjectFields(ctx, projectID, userID, updates)
+	}
+	if f.OnUpdateProject != nil {
+		return f.OnUpdateProject(ctx, projectID, userID, updates)
+	}
+	panic("fkProjectRepo: unexpected call to UpdateProjectFields")
+}
+
+func (f *fkProjectRepo) TransferOwnership(ctx context.Context, projectID string, currentOwnerID string, newOwnerID string) error {
+	f.Calls = append(f.Calls, "TransferOwnership")
+	if f.OnTransferOwnership == nil {
+		panic("fkProjectRepo: unexpected call to TransferOwnership")
+	}
+	return f.OnTransferOwnership(ctx, projectID, currentOwnerID, newOwnerID)
 }
 
 func (f *fkProjectRepo) DeleteProject(ctx context.Context, projectID string, userID string) error {
@@ -559,12 +580,14 @@ func (f *fkPageRepo) Called(name string) bool {
 }
 
 type fkContentTypeRepo struct {
-	Calls                []string
-	OnGetContentTypes    func(ctx context.Context) ([]models.ContentType, error)
-	OnGetContentTypeByID func(ctx context.Context, id string) (*models.ContentType, error)
-	OnCreateContentType  func(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
-	OnUpdateContentType  func(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error)
-	OnDeleteContentType  func(ctx context.Context, id string) error
+	Calls                      []string
+	OnGetContentTypes          func(ctx context.Context) ([]models.ContentType, error)
+	OnGetContentTypesByProject func(ctx context.Context, projectID string) ([]models.ContentType, error)
+	OnGetContentTypesByUser    func(ctx context.Context, userID string) ([]models.ContentType, error)
+	OnGetContentTypeByID       func(ctx context.Context, id string) (*models.ContentType, error)
+	OnCreateContentType        func(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
+	OnUpdateContentType        func(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error)
+	OnDeleteContentType        func(ctx context.Context, id string) error
 }
 
 func (f *fkContentTypeRepo) GetContentTypes(ctx context.Context) ([]models.ContentType, error) {
@@ -573,6 +596,22 @@ func (f *fkContentTypeRepo) GetContentTypes(ctx context.Context) ([]models.Conte
 		panic("fkContentTypeRepo: unexpected call to GetContentTypes")
 	}
 	return f.OnGetContentTypes(ctx)
+}
+
+func (f *fkContentTypeRepo) GetContentTypesByProject(ctx context.Context, projectID string) ([]models.ContentType, error) {
+	f.Calls = append(f.Calls, "GetContentTypesByProject")
+	if f.OnGetContentTypesByProject == nil {
+		panic("fkContentTypeRepo: unexpected call to GetContentTypesByProject")
+	}
+	return f.OnGetContentTypesByProject(ctx, projectID)
+}
+
+func (f *fkContentTypeRepo) GetContentTypesByUser(ctx context.Context, userID string) ([]models.ContentType, error) {
+	f.Calls = append(f.Calls, "GetContentTypesByUser")
+	if f.OnGetContentTypesByUser == nil {
+		panic("fkContentTypeRepo: unexpected call to GetContentTypesByUser")
+	}
+	return f.OnGetContentTypesByUser(ctx, userID)
 }
 
 func (f *fkContentTypeRepo) GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error) {
@@ -1062,13 +1101,15 @@ func (f *fkInvitationRepo) Called(name string) bool {
 }
 
 type fkCollaboratorRepo struct {
-	Calls                       []string
-	OnCreateCollaborator        func(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
-	OnGetCollaboratorsByProject func(ctx context.Context, projectID string) ([]models.Collaborator, error)
-	OnGetCollaboratorByID       func(ctx context.Context, id string) (*models.Collaborator, error)
-	OnUpdateCollaboratorRole    func(ctx context.Context, id string, role models.CollaboratorRole) error
-	OnDeleteCollaborator        func(ctx context.Context, id string) error
-	OnIsCollaborator            func(ctx context.Context, projectID string, userID string) (bool, error)
+	Calls                               []string
+	OnCreateCollaborator                func(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
+	OnGetCollaboratorsByProject         func(ctx context.Context, projectID string) ([]models.Collaborator, error)
+	OnGetCollaboratorByID               func(ctx context.Context, id string) (*models.Collaborator, error)
+	OnUpdateCollaboratorRole            func(ctx context.Context, id string, role models.CollaboratorRole) error
+	OnDeleteCollaborator                func(ctx context.Context, id string) error
+	OnIsCollaborator                    func(ctx context.Context, projectID string, userID string) (bool, error)
+	OnGetCollaboratorByProjectAndUser   func(ctx context.Context, projectID string, userID string) (*models.Collaborator, error)
+	OnDeleteCollaboratorByProjectAndUser func(ctx context.Context, projectID string, userID string) (bool, error)
 }
 
 func (f *fkCollaboratorRepo) CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error) {
@@ -1117,6 +1158,22 @@ func (f *fkCollaboratorRepo) IsCollaborator(ctx context.Context, projectID strin
 		panic("fkCollaboratorRepo: unexpected call to IsCollaborator")
 	}
 	return f.OnIsCollaborator(ctx, projectID, userID)
+}
+
+func (f *fkCollaboratorRepo) GetCollaboratorByProjectAndUser(ctx context.Context, projectID string, userID string) (*models.Collaborator, error) {
+	f.Calls = append(f.Calls, "GetCollaboratorByProjectAndUser")
+	if f.OnGetCollaboratorByProjectAndUser == nil {
+		return nil, nil
+	}
+	return f.OnGetCollaboratorByProjectAndUser(ctx, projectID, userID)
+}
+
+func (f *fkCollaboratorRepo) DeleteCollaboratorByProjectAndUser(ctx context.Context, projectID string, userID string) (bool, error) {
+	f.Calls = append(f.Calls, "DeleteCollaboratorByProjectAndUser")
+	if f.OnDeleteCollaboratorByProjectAndUser == nil {
+		panic("fkCollaboratorRepo: unexpected call to DeleteCollaboratorByProjectAndUser")
+	}
+	return f.OnDeleteCollaboratorByProjectAndUser(ctx, projectID, userID)
 }
 
 // Called reports whether the named method was invoked at least once.

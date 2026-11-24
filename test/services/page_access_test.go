@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
@@ -36,8 +37,8 @@ func TestCreatePageAsUser(t *testing.T) {
 	}{
 		{"owner may create", models.RoleOwner, nil, nil},
 		{"editor may create", models.RoleEditor, nil, nil},
-		{"viewer is refused", models.RoleViewer, nil, repositories.ErrProjectUnauthorized},
-		{"no access is refused", "", repositories.ErrProjectNotFound, repositories.ErrProjectUnauthorized},
+		{"viewer is refused", models.RoleViewer, nil, authz.ErrForbidden},
+		{"no access is refused", "", repositories.ErrProjectNotFound, authz.ErrForbidden},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			created := false

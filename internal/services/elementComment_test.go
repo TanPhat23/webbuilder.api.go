@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
 )
@@ -23,7 +24,12 @@ func newElementCommentEnv() *elementCommentEnv {
 }
 
 func (e *elementCommentEnv) elementExists() {
-	e.er.OnGetElementByID = func(_ context.Context, id string) (*models.Element, error) { return &models.Element{Id: id}, nil }
+	e.er.OnGetElementByID = func(_ context.Context, id string) (*models.Element, error) {
+		return &models.Element{Id: id, Page: &models.Page{ProjectId: "p"}}, nil
+	}
+	e.pr.OnGetProjectAccess = func(_ context.Context, pid, uid string) (*models.ProjectAccess, error) {
+		return &models.ProjectAccess{ProjectId: pid, UserId: uid, Role: models.RoleEditor}, nil
+	}
 }
 func (e *elementCommentEnv) elementMissing() {
 	e.er.OnGetElementByID = func(context.Context, string) (*models.Element, error) { return nil, nil }
@@ -33,7 +39,7 @@ func (e *elementCommentEnv) elementErr() {
 }
 func (e *elementCommentEnv) commentOwnedBy(author string) {
 	e.cr.OnGetElementCommentByID = func(_ context.Context, id string) (*models.ElementComment, error) {
-		return &models.ElementComment{Id: id, AuthorId: author}, nil
+		return &models.ElementComment{Id: id, ElementId: "e", AuthorId: author}, nil
 	}
 }
 func (e *elementCommentEnv) projectVisible() {
@@ -201,9 +207,12 @@ func TestElementCommentUpdateDelete(t *testing.T) {
 		e.cr.OnGetElementCommentByID = func(context.Context, string) (*models.ElementComment, error) { return nil, nil }
 		_, err = e.svc.UpdateElementComment(ctx, "c", "u", upd)
 		wantErr(t, err, "comment does not exist")
+		e.elementExists()
 		e.commentOwnedBy("other")
 		_, err = e.svc.UpdateElementComment(ctx, "c", "u", upd)
-		wantErr(t, err, "unauthorized")
+		if !errors.Is(err, authz.ErrForbidden) {
+			t.Fatalf("err = %v, want authz.ErrForbidden", err)
+		}
 		for _, c := range e.cr.Calls {
 			if c == "UpdateElementComment" {
 				t.Fatal("update must not run for non-author")
@@ -230,8 +239,11 @@ func TestElementCommentUpdateDelete(t *testing.T) {
 		isBoom(t, err)
 		e.cr.OnGetElementCommentByID = func(context.Context, string) (*models.ElementComment, error) { return nil, nil }
 		wantErr(t, e.svc.DeleteElementComment(ctx, "c", "u"), "comment does not exist")
+		e.elementExists()
 		e.commentOwnedBy("other")
-		wantErr(t, e.svc.DeleteElementComment(ctx, "c", "u"), "unauthorized")
+		if err := e.svc.DeleteElementComment(ctx, "c", "u"); !errors.Is(err, authz.ErrForbidden) {
+			t.Fatalf("err = %v, want authz.ErrForbidden", err)
+		}
 		e.commentOwnedBy("u")
 		e.cr.OnDeleteElementComment = func(context.Context, string) error { return errBoom }
 		isBoom(t, e.svc.DeleteElementComment(ctx, "c", "u"))
