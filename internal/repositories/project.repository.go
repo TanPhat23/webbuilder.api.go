@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"my-go-app/internal/authz"
 	"my-go-app/internal/models"
+	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -15,7 +17,16 @@ import (
 var (
 	ErrProjectNotFound     = errors.New("project not found")
 	ErrProjectUnauthorized = errors.New("unauthorized access to project")
+	ErrSubdomainTaken      = errors.New("this subdomain is already taken")
 )
+
+func mapProjectConstraintError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && strings.Contains(pgErr.ConstraintName, "Project_Subdomain_key") {
+		return ErrSubdomainTaken
+	}
+	return nil
+}
 
 type ProjectRepository struct {
 	db *gorm.DB
@@ -90,6 +101,25 @@ func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID 
 			return nil, ErrProjectNotFound
 		}
 		return nil, fmt.Errorf("failed to get public project: %w", err)
+	}
+
+	return &project, nil
+}
+
+func (r *ProjectRepository) GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
+	cleaned, hasValue, err := models.NormalizeSubdomain(subdomain)
+	if err != nil || !hasValue {
+		return nil, ErrProjectNotFound
+	}
+
+	project, err := gorm.G[models.Project](r.db).
+		Where(`LOWER("Subdomain") = ? AND "Published" = true AND "DeletedAt" IS NULL`, cleaned).
+		First(ctx)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProjectNotFound
+		}
+		return nil, fmt.Errorf("failed to get public project by subdomain: %w", err)
 	}
 
 	return &project, nil
@@ -175,6 +205,9 @@ func (r *ProjectRepository) CreateProject(ctx context.Context, project *models.P
 	err := gorm.G[models.Project](r.db).Create(ctx, project)
 
 	if err != nil {
+		if mapped := mapProjectConstraintError(err); mapped != nil {
+			return mapped
+		}
 		return fmt.Errorf("failed to create project: %w", err)
 	}
 
@@ -218,6 +251,9 @@ func (r *ProjectRepository) UpdateProject(ctx context.Context, projectID, userID
 		Updates(updates).Error
 
 	if err != nil {
+		if mapped := mapProjectConstraintError(err); mapped != nil {
+			return nil, mapped
+		}
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 
@@ -322,6 +358,9 @@ func (r *ProjectRepository) CreateProjectWithPage(ctx context.Context, project *
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := gorm.G[models.Project](tx).Omit(clause.Associations).Create(ctx, project); err != nil {
+			if mapped := mapProjectConstraintError(err); mapped != nil {
+				return mapped
+			}
 			return fmt.Errorf("failed to create project: %w", err)
 		}
 		if err := gorm.G[models.Page](tx).Omit(clause.Associations).Create(ctx, page); err != nil {
@@ -407,6 +446,9 @@ func (r *ProjectRepository) UpdateProjectFields(ctx context.Context, projectID, 
 		Where(`"Id" = ? AND "DeletedAt" IS NULL`, projectID).
 		Updates(updates).Error
 	if err != nil {
+		if mapped := mapProjectConstraintError(err); mapped != nil {
+			return nil, mapped
+		}
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 

@@ -86,6 +86,8 @@ type UserRepositoryInterface interface {
 type ProjectRepositoryInterface interface {
 	// GetPublicProjectByID retrieves a public project by ID
 	GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error)
+	// GetPublicProjectBySubdomain retrieves a published project by its subdomain
+	GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error)
 	// GetProjectByID retrieves a project by ID with user ownership verification
 	GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error)
 	// GetProjectWithAccess retrieves a project by ID with access verification (owner or collaborator)

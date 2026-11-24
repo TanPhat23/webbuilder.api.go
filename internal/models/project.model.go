@@ -2,6 +2,19 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
+	"regexp"
+	"strings"
+)
+
+var (
+	validSubdomainRe = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$`)
+	reservedSubdomains = map[string]bool{
+		"www": true, "api": true, "app": true, "admin": true, "ws": true,
+		"mcp": true, "preview": true, "editor": true, "dashboard": true,
+		"sign-in": true, "sign-up": true, "help": true, "helppage": true,
+		"static": true, "assets": true, "cdn": true, "mail": true, "webhook": true,
+	}
 )
 
 type Project struct {
@@ -31,4 +44,20 @@ type Project struct {
 
 func (Project) TableName() string {
 	return `public."Project"`
+}
+
+// NormalizeSubdomain validates and normalizes a subdomain label. Empty input
+// returns ("", false, nil) so callers can clear an existing subdomain.
+func NormalizeSubdomain(raw string) (string, bool, error) {
+	cleaned := strings.ToLower(strings.TrimSpace(raw))
+	if cleaned == "" {
+		return "", false, nil
+	}
+	if !validSubdomainRe.MatchString(cleaned) || strings.Contains(cleaned, "--") {
+		return "", false, errors.New("subdomain must be 3-63 characters using lowercase letters, numbers, and single hyphens")
+	}
+	if reservedSubdomains[cleaned] {
+		return "", false, errors.New("this subdomain is reserved")
+	}
+	return cleaned, true, nil
 }

@@ -65,6 +65,10 @@ func (p *projectsFake) GetPublicProjectByID(_ context.Context, projectID string)
 	}
 }
 
+func (p *projectsFake) GetPublicProjectBySubdomain(_ context.Context, _ string) (*models.Project, error) {
+	return nil, repositories.ErrProjectNotFound
+}
+
 func elementAccessApp(spy *elementServiceSpy, projects *projectsFake, userID string) *fiber.App {
 	app := fiber.New()
 	h := NewElementHandler(spy, projects)

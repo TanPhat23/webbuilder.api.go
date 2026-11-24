@@ -16,6 +16,7 @@ import (
 
 var pageAllowedCols = map[string]string{
 	"name":   "Name",
+	"slug":   "Slug",
 	"type":   "Type",
 	"styles": "Styles",
 }
@@ -101,9 +102,23 @@ func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 	if pageID == "" {
 		pageID = uuid.New().String()
 	}
+	pageSlug := ""
+	if req.Type != models.PageTypeComponent {
+		if req.Slug != nil {
+			normalized, err := models.NormalizeExplicitSlug(*req.Slug)
+			if err != nil {
+				return utils.SendError(c, fiber.StatusBadRequest, err.Error(), err, userID)
+			}
+			pageSlug = normalized
+		} else {
+			pageSlug = models.SlugifyPageName(req.Name)
+		}
+	}
+
 	page := &models.Page{
 		Id:        pageID,
 		Name:      req.Name,
+		Slug:      pageSlug,
 		Type:      req.Type,
 		Styles:    req.Styles,
 		ProjectId: projectID,
@@ -119,6 +134,9 @@ func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 	}
 	if errors.Is(err, repositories.ErrPageNameTaken) {
 		return utils.SendError(c, fiber.StatusConflict, "A page with this name already exists in the project", err, userID)
+	}
+	if errors.Is(err, repositories.ErrPageSlugTaken) {
+		return utils.SendError(c, fiber.StatusConflict, "A page with this URL path already exists in the project", err, userID)
 	}
 	if err != nil {
 		return utils.HandleRepoError(c, err, "", "Failed to create page")
@@ -141,6 +159,13 @@ func (h *PageHandler) UpdatePage(c fiber.Ctx) error {
 
 	rawBody := map[string]any{}
 	utils.SetIfNotNil(rawBody, "name", req.Name)
+	if req.Slug != nil {
+		normalized, err := models.NormalizeExplicitSlug(*req.Slug)
+		if err != nil {
+			return utils.SendError(c, fiber.StatusBadRequest, err.Error(), err, userID)
+		}
+		rawBody["slug"] = normalized
+	}
 	utils.SetIfNotNil(rawBody, "type", req.Type)
 	if req.Styles != nil {
 		rawBody["styles"] = req.Styles
@@ -155,6 +180,12 @@ func (h *PageHandler) UpdatePage(c fiber.Ctx) error {
 	}
 
 	if err := h.pageService.UpdatePageFieldsForUser(c.RequestCtx(), projectID, pageID, userID, updates); err != nil {
+		if errors.Is(err, repositories.ErrPageNameTaken) {
+			return utils.SendError(c, fiber.StatusConflict, "A page with this name already exists in the project", err, userID)
+		}
+		if errors.Is(err, repositories.ErrPageSlugTaken) {
+			return utils.SendError(c, fiber.StatusConflict, "A page with this URL path already exists in the project", err, userID)
+		}
 		return utils.HandleRepoError(c, err, "Page not found", "Failed to update page")
 	}
 

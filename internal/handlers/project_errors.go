@@ -8,6 +8,7 @@ import (
 
 	"my-go-app/internal/authz"
 	"my-go-app/internal/repositories"
+	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
 )
 
@@ -22,6 +23,10 @@ func projectAccessFailure(err error) (status int, message string, ok bool) {
 		return http.StatusForbidden, "You do not have access to this project", true
 	case errors.Is(err, repositories.ErrProjectNotFound), errors.Is(err, authz.ErrNotFound):
 		return http.StatusNotFound, "Project not found", true
+	case errors.Is(err, repositories.ErrSubdomainTaken):
+		return http.StatusConflict, "This subdomain is already taken", true
+	case errors.Is(err, services.ErrInvalidSubdomain):
+		return http.StatusBadRequest, err.Error(), true
 	default:
 		return 0, "", false
 	}

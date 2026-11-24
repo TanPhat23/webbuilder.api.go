@@ -19,7 +19,22 @@ var (
 	ErrPageUnauthorized = errors.New("unauthorized access to page")
 	// ErrPageNameTaken is returned when the project already has a page with this name
 	ErrPageNameTaken = errors.New("a page with this name already exists in the project")
+	// ErrPageSlugTaken is returned when the project already has a route page with this slug
+	ErrPageSlugTaken = errors.New("a page with this URL path already exists in the project")
 )
+
+func mapPageConstraintError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		switch pgErr.ConstraintName {
+		case "Page_ProjectId_Name_key":
+			return ErrPageNameTaken
+		case "Page_ProjectId_Slug_key":
+			return ErrPageSlugTaken
+		}
+	}
+	return nil
+}
 
 type PageRepository struct {
 	db *gorm.DB
@@ -83,9 +98,8 @@ func (r *PageRepository) CreatePage(ctx context.Context, page *models.Page) erro
 	page.UpdatedAt = now
 
 	if err := gorm.G[models.Page](r.db).Create(ctx, page); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "Page_ProjectId_Name_key" {
-			return ErrPageNameTaken
+		if mapped := mapPageConstraintError(err); mapped != nil {
+			return mapped
 		}
 		return fmt.Errorf("failed to create page: %w", err)
 	}
@@ -126,6 +140,9 @@ func (r *PageRepository) UpdatePage(ctx context.Context, page *models.Page) erro
 		Updates(page)
 
 	if result.Error != nil {
+		if mapped := mapPageConstraintError(result.Error); mapped != nil {
+			return mapped
+		}
 		return fmt.Errorf("failed to update page: %w", result.Error)
 	}
 
@@ -154,6 +171,9 @@ func (r *PageRepository) UpdatePageFields(ctx context.Context, pageID string, up
 		Updates(updates)
 
 	if result.Error != nil {
+		if mapped := mapPageConstraintError(result.Error); mapped != nil {
+			return mapped
+		}
 		return fmt.Errorf("failed to update page fields: %w", result.Error)
 	}
 

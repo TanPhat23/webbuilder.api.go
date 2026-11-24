@@ -283,9 +283,10 @@ func (f *fkElementCommentRepo) Called(name string) bool {
 }
 
 type fkProjectRepo struct {
-	Calls                     []string
-	OnGetPublicProjectByID    func(ctx context.Context, projectID string) (*models.Project, error)
-	OnGetProjectByID          func(ctx context.Context, projectID string, userID string) (*models.Project, error)
+	Calls                           []string
+	OnGetPublicProjectByID          func(ctx context.Context, projectID string) (*models.Project, error)
+	OnGetPublicProjectBySubdomain   func(ctx context.Context, subdomain string) (*models.Project, error)
+	OnGetProjectByID                func(ctx context.Context, projectID string, userID string) (*models.Project, error)
 	OnGetProjectWithAccess    func(ctx context.Context, projectID string, userID string) (*models.Project, error)
 	OnGetProjectsByUserID     func(ctx context.Context, userID string) ([]models.Project, error)
 	OnGetCollaboratorProjects func(ctx context.Context, userID string) ([]models.Project, error)
@@ -309,6 +310,14 @@ func (f *fkProjectRepo) GetPublicProjectByID(ctx context.Context, projectID stri
 		panic("fkProjectRepo: unexpected call to GetPublicProjectByID")
 	}
 	return f.OnGetPublicProjectByID(ctx, projectID)
+}
+
+func (f *fkProjectRepo) GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
+	f.Calls = append(f.Calls, "GetPublicProjectBySubdomain")
+	if f.OnGetPublicProjectBySubdomain == nil {
+		panic("fkProjectRepo: unexpected call to GetPublicProjectBySubdomain")
+	}
+	return f.OnGetPublicProjectBySubdomain(ctx, subdomain)
 }
 
 func (f *fkProjectRepo) GetProjectByID(ctx context.Context, projectID string, userID string) (*models.Project, error) {

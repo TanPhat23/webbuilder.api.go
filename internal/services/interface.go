@@ -31,6 +31,7 @@ type UserServiceInterface interface {
 
 type ProjectServiceInterface interface {
 	GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error)
+	GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error)
 	GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error)
 	GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
 	GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error)

@@ -19,6 +19,11 @@ func (m *MockProjectRepo) SetGetPublicProjectByID(fn func(context.Context, strin
 	return m
 }
 
+func (m *MockProjectRepo) SetGetPublicProjectBySubdomain(fn func(context.Context, string) (*models.Project, error)) *MockProjectRepo {
+	m.Set("GetPublicProjectBySubdomain", fn)
+	return m
+}
+
 func (m *MockProjectRepo) SetGetProjectByID(fn func(context.Context, string, string) (*models.Project, error)) *MockProjectRepo {
 	m.Set("GetProjectByID", fn)
 	return m
@@ -82,6 +87,13 @@ func (m *MockProjectRepo) SetGetProjectWithLock(fn func(context.Context, string,
 func (m *MockProjectRepo) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
 	if fn := m.Get("GetPublicProjectByID"); fn != nil {
 		return fn.(func(context.Context, string) (*models.Project, error))(ctx, projectID)
+	}
+	return nil, nil
+}
+
+func (m *MockProjectRepo) GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
+	if fn := m.Get("GetPublicProjectBySubdomain"); fn != nil {
+		return fn.(func(context.Context, string) (*models.Project, error))(ctx, subdomain)
 	}
 	return nil, nil
 }

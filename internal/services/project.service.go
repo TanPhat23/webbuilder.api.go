@@ -37,12 +37,35 @@ func (s *ProjectService) SetAccessChangedHook(fn func(projectID, userID string))
 	s.onAccessChanged = fn
 }
 
+var ErrInvalidSubdomain = errors.New("invalid subdomain")
+
+func normalizeProjectSubdomainPtr(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	normalized, ok, err := models.NormalizeSubdomain(*raw)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidSubdomain, err)
+	}
+	if !ok {
+		return nil, nil
+	}
+	return &normalized, nil
+}
+
 func (s *ProjectService) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
 	return s.projectRepo.GetPublicProjectByID(ctx, projectID)
+}
+
+func (s *ProjectService) GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
+	if subdomain == "" {
+		return nil, errors.New("subdomain is required")
+	}
+	return s.projectRepo.GetPublicProjectBySubdomain(ctx, subdomain)
 }
 
 func (s *ProjectService) GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error) {
@@ -121,6 +144,11 @@ func (s *ProjectService) CreateProject(ctx context.Context, project *models.Proj
 	if project.OwnerId == "" {
 		return nil, errors.New("ownerId is required")
 	}
+	sub, err := normalizeProjectSubdomainPtr(project.Subdomain)
+	if err != nil {
+		return nil, err
+	}
+	project.Subdomain = sub
 
 	if err := s.projectRepo.CreateProject(ctx, project); err != nil {
 		return nil, err
@@ -205,6 +233,20 @@ func (s *ProjectService) UpdateProjectColumnUpdates(ctx context.Context, project
 	if _, hasSubdomain := updates["Subdomain"]; hasSubdomain {
 		if _, err := authorizer.Authorize(ctx, projectID, userID, authz.PermProjectSettings); err != nil {
 			return nil, err
+		}
+		switch v := updates["Subdomain"].(type) {
+		case nil:
+			updates["Subdomain"] = nil
+		case string:
+			sub, err := normalizeProjectSubdomainPtr(&v)
+			if err != nil {
+				return nil, err
+			}
+			if sub == nil {
+				updates["Subdomain"] = nil
+			} else {
+				updates["Subdomain"] = *sub
+			}
 		}
 	}
 	for _, field := range []string{"Name", "Description", "Styles", "Header"} {
@@ -292,6 +334,11 @@ func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *mod
 	if project == nil || project.Name == "" || project.OwnerId == "" {
 		return nil, errors.New("project name and ownerId are required")
 	}
+	sub, err := normalizeProjectSubdomainPtr(project.Subdomain)
+	if err != nil {
+		return nil, err
+	}
+	project.Subdomain = sub
 	if project.ID == "" {
 		id, err := ids.NewV7()
 		if err != nil {
@@ -306,6 +353,7 @@ func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *mod
 	page := &models.Page{
 		Id:     pageID,
 		Name:   "",
+		Slug:   "",
 		Type:   "page",
 		Styles: json.RawMessage(`{}`),
 	}

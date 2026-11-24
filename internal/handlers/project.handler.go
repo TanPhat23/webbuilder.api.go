@@ -75,6 +75,20 @@ func (h *ProjectHandler) GetPublicProjectByID(c fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusOK, project)
 }
 
+func (h *ProjectHandler) GetPublicProjectBySubdomain(c fiber.Ctx) error {
+	ids, err := utils.MustParams(c, "subdomain")
+	if err != nil {
+		return err
+	}
+
+	project, err := h.projectService.GetPublicProjectBySubdomain(c.RequestCtx(), ids[0])
+	if err != nil {
+		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve project")
+	}
+
+	return utils.SendJSON(c, fiber.StatusOK, project)
+}
+
 func (h *ProjectHandler) GetProjectPages(c fiber.Ctx) error {
 	userID, ids, err := utils.MustUserAndParams(c, "projectid")
 	if err != nil {
@@ -131,7 +145,7 @@ func (h *ProjectHandler) UpdateProject(c fiber.Ctx) error {
 		return err
 	}
 
-	columnUpdates, err := buildProjectColumnUpdates(req)
+	columnUpdates, err := buildProjectColumnUpdates(req, c.Body())
 	if err != nil {
 		return err
 	}
@@ -163,12 +177,36 @@ func (h *ProjectHandler) TransferOwnership(c fiber.Ctx) error {
 	return utils.SendSuccess(c, fiber.StatusOK, "Project ownership transferred successfully")
 }
 
-func buildProjectColumnUpdates(req *dto.UpdateProjectRequest) (map[string]any, error) {
+func hasExplicitNullField(raw []byte, field string) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return false
+	}
+	val, exists := m[field]
+	return exists && string(val) == "null"
+}
+
+func buildProjectColumnUpdates(req *dto.UpdateProjectRequest, body []byte) (map[string]any, error) {
 	rawBody := map[string]any{}
 	utils.SetIfNotNil(rawBody, "name", req.Name)
 	utils.SetIfNotNil(rawBody, "description", req.Description)
 	utils.SetIfNotNil(rawBody, "published", req.Published)
-	utils.SetIfNotNil(rawBody, "subdomain", req.Subdomain)
+	if req.Subdomain != nil {
+		normalized, ok, err := models.NormalizeSubdomain(*req.Subdomain)
+		if err != nil {
+			return nil, fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+		if ok {
+			rawBody["subdomain"] = normalized
+		} else {
+			rawBody["subdomain"] = nil
+		}
+	} else if hasExplicitNullField(body, "subdomain") {
+		rawBody["subdomain"] = nil
+	}
 	if req.Styles != nil {
 		rawBody["styles"] = req.Styles
 	}
@@ -238,12 +276,23 @@ func (h *ProjectHandler) CreateProject(c fiber.Ctx) error {
 		}
 		styles = *msg
 	}
+	var normalizedSub *string
+	if req.Subdomain != nil {
+		sub, ok, err := models.NormalizeSubdomain(*req.Subdomain)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+		if ok {
+			normalizedSub = &sub
+		}
+	}
+
 	project := &models.Project{
 		ID:          req.Id,
 		Name:        req.Name,
 		OwnerId:     userID,
 		Description: req.Description,
-		Subdomain:   req.Subdomain,
+		Subdomain:   normalizedSub,
 		Published:   req.Published,
 		Styles:      &styles,
 	}
@@ -257,7 +306,7 @@ func (h *ProjectHandler) CreateProject(c fiber.Ctx) error {
 
 	created, err := h.projectService.CreateProjectWithPage(c.RequestCtx(), project)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to create project")
+		return handleProjectError(c, err, "Failed to create project")
 	}
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }

@@ -17,6 +17,7 @@ func ProjectRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.R
 	projectHandler := handlers.NewProjectHandler(projectService)
 	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
+	publicGroup.Get("/projects/public/by-subdomain/:subdomain", projectHandler.GetPublicProjectBySubdomain)
 	publicGroup.Get("/projects/public/:projectid", projectHandler.GetPublicProjectByID)
 
 	privateGroup.Post("/projects", projectHandler.CreateProject)

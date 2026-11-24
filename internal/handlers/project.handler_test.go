@@ -47,6 +47,14 @@ func (s *projectHandlerStub) GetPublicProjectByID(_ context.Context, projectID s
 	return &models.Project{ID: projectID, Name: "Public site", Published: true}, nil
 }
 
+func (s *projectHandlerStub) GetPublicProjectBySubdomain(_ context.Context, subdomain string) (*models.Project, error) {
+	s.gotPublic = subdomain
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &models.Project{ID: "p-sub", Name: "Public site", Subdomain: &subdomain, Published: true}, nil
+}
+
 func (s *projectHandlerStub) GetProjectPages(_ context.Context, projectID, userID string) ([]models.Page, error) {
 	s.gotProject, s.gotUser = projectID, userID
 	if s.err != nil {
@@ -340,7 +348,9 @@ func TestCreateProjectRejections(t *testing.T) {
 		{"bad json", "u1", `{`, nil, 0, ""},
 		{"missing name", "u1", `{}`, nil, 0, ""},
 		{"id not a uuid", "u1", `{"id":"x","name":"a"}`, nil, 0, ""},
-		{"non alphanumeric subdomain", "u1", `{"name":"a","subdomain":"my-site"}`, nil, 0, ""},
+		{"invalid leading hyphen subdomain", "u1", `{"name":"a","subdomain":"-mysite"}`, nil, 400, ""},
+		{"reserved subdomain", "u1", `{"name":"a","subdomain":"www"}`, nil, 400, ""},
+		{"taken subdomain", "u1", `{"name":"a","subdomain":"my-site"}`, repositories.ErrSubdomainTaken, 409, "already taken"},
 		{"failure", "u1", `{"name":"a"}`, errInternal, 500, "Failed to create project"},
 	} {
 		svc := &projectHandlerStub{err: tc.err}
@@ -350,4 +360,23 @@ func TestCreateProjectRejections(t *testing.T) {
 			t.Fatalf("%s: project created for a rejected request", tc.name)
 		}
 	}
+}
+
+func TestSubdomainValidationClearAndPublicLookup(t *testing.T) {
+	svc := &projectHandlerStub{}
+	kitExpect(t, kitSend(t, projectHandlerApp("u1", svc), "PATCH", "/projects/p1", `{"subdomain":"Glaze-And-Crumb"}`), 200)
+	if svc.sent.Subdomain == nil || *svc.sent.Subdomain != "glaze-and-crumb" {
+		t.Fatalf("expected normalized hyphenated subdomain, got %v", svc.sent.Subdomain)
+	}
+
+	app := fiber.New()
+	subHandler := NewProjectHandler(&projectHandlerStub{})
+	app.Get("/projects/public/by-subdomain/:subdomain", subHandler.GetPublicProjectBySubdomain)
+	r := kitSend(t, app, "GET", "/projects/public/by-subdomain/glaze-and-crumb", "")
+	kitExpect(t, r, 200, "p-sub", "glaze-and-crumb")
+
+	notFoundHandler := NewProjectHandler(&projectHandlerStub{err: repositories.ErrProjectNotFound})
+	appNotFound := fiber.New()
+	appNotFound.Get("/projects/public/by-subdomain/:subdomain", notFoundHandler.GetPublicProjectBySubdomain)
+	expectKitStatus(t, kitSend(t, appNotFound, "GET", "/projects/public/by-subdomain/missing", ""), 404, "Project not found")
 }
