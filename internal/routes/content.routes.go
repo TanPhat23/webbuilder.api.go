@@ -9,18 +9,26 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func ContentRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface) {
+func ContentRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface, emitter ...services.ItemEventEmitter) {
+	var itemEmitter services.ItemEventEmitter
+	if len(emitter) > 0 {
+		itemEmitter = emitter[0]
+	}
 	contentTypeService := services.NewContentTypeService(repos.ContentTypeRepository).WithProjectRepo(repos.ProjectRepository)
 	contentFieldService := services.NewContentFieldService(repos.ContentFieldRepository).WithAuth(repos.ContentTypeRepository, repos.ProjectRepository)
-	contentItemService := services.NewContentItemService(repos.ContentItemRepository).WithAuth(repos.ContentTypeRepository, repos.ProjectRepository)
+	contentItemService := services.NewContentItemService(repos.ContentItemRepository).WithAuth(repos.ContentTypeRepository, repos.ProjectRepository).WithEventEmitter(itemEmitter)
 
 	contentTypeHandler := handlers.NewContentTypeHandler(contentTypeService)
 	contentFieldHandler := handlers.NewContentFieldHandler(contentFieldService)
 	contentItemHandler := handlers.NewContentItemHandler(contentItemService)
+	publicCollectionService := services.NewPublicCollectionService(repos.ContentTypeRepository, repos.ContentItemRepository).WithEventEmitter(itemEmitter)
+	publicCollectionHandler := handlers.NewPublicCollectionHandler(publicCollectionService)
 	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
 	publicGroup.Get("/public/content", contentItemHandler.GetPublicContentItems)
 	publicGroup.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicContentItemBySlug)
+	publicGroup.Get("/public/projects/:projectId/collections/:collection/items", publicCollectionHandler.ListPublicItems)
+	publicGroup.Post("/public/projects/:projectId/collections/:collection/items", publicCollectionHandler.SubmitPublicItem)
 
 	privateGroup.Get("/projects/:projectid/content-types", authorizer.RequireProjectPermission("projectid", authz.PermCMSView), contentTypeHandler.GetContentTypes)
 	privateGroup.Post("/projects/:projectid/content-types", authorizer.RequireProjectPermission("projectid", authz.PermCMSEdit), contentTypeHandler.CreateContentType)

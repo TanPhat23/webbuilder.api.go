@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -35,4 +36,25 @@ func (r *AgentTokenRepository) Revoke(ctx context.Context, userID, id string) (b
 		Where(`"Id" = ? AND "UserId" = ? AND "RevokedAt" IS NULL`, id, userID).
 		Update("RevokedAt", time.Now())
 	return res.RowsAffected > 0, res.Error
+}
+
+func (r *AgentTokenRepository) FindActiveByHash(ctx context.Context, hash string) (*models.AgentToken, error) {
+	var out models.AgentToken
+	err := r.db.WithContext(ctx).
+		Where(`"TokenHash" = ? AND "RevokedAt" IS NULL`, hash).
+		First(&out).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *AgentTokenRepository) Touch(ctx context.Context, id string, at time.Time) error {
+	return r.db.WithContext(ctx).
+		Model(&models.AgentToken{}).
+		Where(`"Id" = ?`, id).
+		Update("LastUsedAt", at).Error
 }

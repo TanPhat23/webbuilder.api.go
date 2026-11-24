@@ -74,10 +74,36 @@ func (h *ContentTypeHandler) CreateContentType(c fiber.Ctx) error {
 		projectID = &queryProjectID
 	}
 
+	publicRead := true
+	if req.PublicRead != nil {
+		publicRead = *req.PublicRead
+	}
+	publicCreate := false
+	if req.PublicCreate != nil {
+		publicCreate = *req.PublicCreate
+	}
+	defaultPublished := false
+	if req.DefaultPublished != nil {
+		defaultPublished = *req.DefaultPublished
+	}
+	rateLimit := 30
+	if req.RateLimitPerMin != nil && *req.RateLimitPerMin > 0 {
+		rateLimit = *req.RateLimitPerMin
+	}
+	slug := ""
+	if req.Slug != nil {
+		slug = *req.Slug
+	}
+
 	contentType := &models.ContentType{
-		ProjectId:   projectID,
-		Name:        req.Name,
-		Description: req.Description,
+		ProjectId:        projectID,
+		Name:             req.Name,
+		Slug:             slug,
+		Description:      req.Description,
+		PublicRead:       publicRead,
+		PublicCreate:     publicCreate,
+		DefaultPublished: defaultPublished,
+		RateLimitPerMin:  rateLimit,
 	}
 
 	created, err := h.contentTypeService.CreateContentTypeForUser(c.RequestCtx(), contentType, userID)
@@ -100,19 +126,34 @@ func (h *ContentTypeHandler) UpdateContentType(c fiber.Ctx) error {
 		return err
 	}
 
-	if req.Name == nil && req.Description == nil {
+	if req.Name == nil && req.Slug == nil && req.Description == nil && req.PublicRead == nil && req.PublicCreate == nil && req.DefaultPublished == nil && req.RateLimitPerMin == nil {
 		return utils.SendJSON(c, fiber.StatusBadRequest, fiber.Map{"error": "At least one field must be updated"})
 	}
 
-	contentType := &models.ContentType{}
+	updates := map[string]any{}
 	if req.Name != nil {
-		contentType.Name = *req.Name
+		updates["name"] = *req.Name
+	}
+	if req.Slug != nil {
+		updates["slug"] = models.SlugifyCollectionName(*req.Slug, id)
 	}
 	if req.Description != nil {
-		contentType.Description = req.Description
+		updates["description"] = req.Description
+	}
+	if req.PublicRead != nil {
+		updates["publicRead"] = *req.PublicRead
+	}
+	if req.PublicCreate != nil {
+		updates["publicCreate"] = *req.PublicCreate
+	}
+	if req.DefaultPublished != nil {
+		updates["defaultPublished"] = *req.DefaultPublished
+	}
+	if req.RateLimitPerMin != nil {
+		updates["rateLimitPerMin"] = *req.RateLimitPerMin
 	}
 
-	updated, err := h.contentTypeService.UpdateContentTypeForUser(c.RequestCtx(), id, userID, contentType)
+	updated, err := h.contentTypeService.UpdateContentTypeFieldsForUser(c.RequestCtx(), id, userID, updates)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content type not found", "Failed to update content type")
 	}

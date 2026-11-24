@@ -13,12 +13,29 @@ type ContentItemService struct {
 	contentItemRepo repositories.ContentItemRepositoryInterface
 	contentTypeRepo repositories.ContentTypeRepositoryInterface
 	projectRepo     repositories.ProjectRepositoryInterface
+	emitter         ItemEventEmitter
 }
 
 func NewContentItemService(contentItemRepo repositories.ContentItemRepositoryInterface) *ContentItemService {
 	return &ContentItemService{
 		contentItemRepo: contentItemRepo,
 	}
+}
+
+func (s *ContentItemService) WithEventEmitter(emitter ItemEventEmitter) *ContentItemService {
+	s.emitter = emitter
+	return s
+}
+
+func (s *ContentItemService) emitForItem(ctx context.Context, event string, item *models.ContentItem) {
+	if s.emitter == nil || s.contentTypeRepo == nil || item == nil {
+		return
+	}
+	ct, err := s.contentTypeRepo.GetContentTypeByID(ctx, item.ContentTypeId)
+	if err != nil || ct == nil || ct.ProjectId == nil || *ct.ProjectId == "" {
+		return
+	}
+	s.emitter.EmitItemEvent(ctx, *ct.ProjectId, ct, event, item)
 }
 
 // WithAuth configures project-scoped RBAC checks via contentTypeRepo and projectRepo.
@@ -140,6 +157,7 @@ func (s *ContentItemService) CreateContentItem(ctx context.Context, item *models
 	if err != nil {
 		return nil, err
 	}
+	s.emitForItem(ctx, models.WebhookEventItemCreated, created)
 
 	return created, nil
 }
@@ -185,6 +203,7 @@ func (s *ContentItemService) UpdateContentItem(ctx context.Context, id string, u
 	if err != nil {
 		return nil, err
 	}
+	s.emitForItem(ctx, models.WebhookEventItemUpdated, updated)
 
 	return updated, nil
 }
@@ -227,7 +246,11 @@ func (s *ContentItemService) DeleteContentItemForUser(ctx context.Context, id, u
 	if err := s.authorizeContentType(ctx, current.ContentTypeId, userID, authz.PermCMSEdit); err != nil {
 		return err
 	}
-	return s.DeleteContentItem(ctx, id)
+	if err := s.DeleteContentItem(ctx, id); err != nil {
+		return err
+	}
+	s.emitForItem(ctx, models.WebhookEventItemDeleted, current)
+	return nil
 }
 
 func (s *ContentItemService) ValidatePublicSort(sortBy, sortOrder string) (string, string, error) {

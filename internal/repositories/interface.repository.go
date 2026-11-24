@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"my-go-app/internal/models"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -159,6 +160,8 @@ type ContentTypeRepositoryInterface interface {
 	GetContentTypesByUser(ctx context.Context, userID string) ([]models.ContentType, error)
 	// GetContentTypeByID retrieves a content type by ID
 	GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error)
+	// GetContentTypeByProjectAndSlugOrID retrieves a content type by project ID and slug or ID
+	GetContentTypeByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error)
 	// CreateContentType creates a new content type
 	CreateContentType(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
 	// UpdateContentType updates a content type
@@ -359,10 +362,28 @@ type AgentTokenRepositoryInterface interface {
 	Create(ctx context.Context, t *models.AgentToken) error
 	ListActiveByUser(ctx context.Context, userID string) ([]models.AgentToken, error)
 	Revoke(ctx context.Context, userID, id string) (bool, error)
+	FindActiveByHash(ctx context.Context, hash string) (*models.AgentToken, error)
+	Touch(ctx context.Context, id string, at time.Time) error
+}
+
+// WebhookRepositoryInterface stores project webhooks and delivery logs.
+type WebhookRepositoryInterface interface {
+	Create(ctx context.Context, webhook *models.ProjectWebhook) (*models.ProjectWebhook, error)
+	ListByProject(ctx context.Context, projectID string) ([]models.ProjectWebhook, error)
+	GetByID(ctx context.Context, id string) (*models.ProjectWebhook, error)
+	Update(ctx context.Context, id string, updates map[string]any) (*models.ProjectWebhook, error)
+	Delete(ctx context.Context, id string) error
+	FindMatchingForEvent(ctx context.Context, projectID, contentTypeID, event string) ([]models.ProjectWebhook, error)
+	CreateDelivery(ctx context.Context, delivery *models.WebhookDelivery) (*models.WebhookDelivery, error)
+	GetDeliveryByID(ctx context.Context, id string) (*models.WebhookDelivery, error)
+	UpdateDelivery(ctx context.Context, id string, updates map[string]any) error
+	ListDeliveriesByWebhook(ctx context.Context, webhookID string, limit int) ([]models.WebhookDelivery, error)
+	ListPendingRetries(ctx context.Context, now time.Time, limit int) ([]models.WebhookDelivery, error)
 }
 
 type RepositoriesInterface struct {
 	AgentTokenRepository           AgentTokenRepositoryInterface
+	WebhookRepository              WebhookRepositoryInterface
 	NotificationRepository         NotificationRepositoryInterface
 	ElementRepository              ElementRepositoryInterface
 	ElementCommentRepository       ElementCommentRepositoryInterface
@@ -386,6 +407,7 @@ type RepositoriesInterface struct {
 func NewRepositories(db *gorm.DB) *RepositoriesInterface {
 	return &RepositoriesInterface{
 		AgentTokenRepository:           NewAgentTokenRepository(db),
+		WebhookRepository:              NewWebhookRepository(db),
 		ElementRepository:              NewElementRepository(db),
 		ElementCommentRepository:       NewElementCommentRepository(db),
 		UserRepository:                 NewUserRepository(db),

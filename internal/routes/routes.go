@@ -32,14 +32,25 @@ func publishAccessChange(rdb *redis.Client) func(projectID, userID string) {
 
 func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService, invitationService *services.InvitationService, redisClient *redis.Client) {
 	publicGroup := app.Group("/api/v1")
-	privateGroup := app.Group("/api/v1", middleware.AuthenticateMiddleware)
+	privateGroup := app.Group("/api/v1", middleware.NewAuthenticateMiddleware(repos.AgentTokenRepository))
 
 	onAccessChanged := publishAccessChange(redisClient)
+
+	var webhookService *services.WebhookService
+	var itemEmitter services.ItemEventEmitter
+	if repos.WebhookRepository != nil {
+		webhookService = services.NewWebhookService(repos.WebhookRepository, repos.ProjectRepository, repos.ContentTypeRepository)
+		webhookService.StartWorkers(context.Background(), 4)
+		itemEmitter = webhookService
+	}
 
 	ElementRoutes(publicGroup, privateGroup, repos, redisClient)
 	PageRoutes(publicGroup, privateGroup, repos, redisClient)
 	ProjectRoutes(publicGroup, privateGroup, repos, onAccessChanged)
-	ContentRoutes(publicGroup, privateGroup, repos)
+	ContentRoutes(publicGroup, privateGroup, repos, itemEmitter)
+	if webhookService != nil {
+		WebhookRoutes(privateGroup, repos, webhookService)
+	}
 
 	AgentTokenRoutes(privateGroup, repos)
 	SnapshotRoutes(privateGroup, repos)

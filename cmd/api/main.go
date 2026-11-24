@@ -8,6 +8,7 @@ import (
 	"my-go-app/internal/routes"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/configs"
+	"my-go-app/pkg/middleware"
 	"os"
 	"os/signal"
 	"syscall"
@@ -26,6 +27,9 @@ func main() {
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Println("Warning: Could not load .env file, using system environment variables")
+	}
+	if err := middleware.ValidateAuthEnv(); err != nil {
+		log.Fatal(err)
 	}
 	//Set Clerk API key from environment variable
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))

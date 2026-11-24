@@ -45,6 +45,7 @@ func (r *ContentTypeRepository) GetContentTypesByProject(ctx context.Context, pr
 	}
 
 	contentTypes, err := gorm.G[models.ContentType](r.db).
+		Preload("Fields", nil).
 		Where("\"ProjectId\" = ?", projectID).
 		Order("\"CreatedAt\" DESC").
 		Find(ctx)
@@ -91,6 +92,24 @@ func (r *ContentTypeRepository) GetContentTypeByID(ctx context.Context, id strin
 		return nil, fmt.Errorf("failed to get content type: %w", err)
 	}
 
+	return &contentType, nil
+}
+
+func (r *ContentTypeRepository) GetContentTypeByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error) {
+	if projectID == "" || slugOrID == "" {
+		return nil, errors.New("projectID and slugOrID are required")
+	}
+
+	contentType, err := gorm.G[models.ContentType](r.db).
+		Preload("Fields", nil).
+		Where(`"ProjectId" = ? AND ("Id" = ? OR "Slug" = ?)`, projectID, slugOrID, slugOrID).
+		First(ctx)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrContentTypeNotFound
+		}
+		return nil, fmt.Errorf("failed to get content type by project and slug/id: %w", err)
+	}
 	return &contentType, nil
 }
 
@@ -145,6 +164,28 @@ func (r *ContentTypeRepository) CreateContentType(ctx context.Context, ct *model
 	// Generate ID if not provided
 	if ct.Id == "" {
 		ct.Id = cuid.New()
+	}
+
+	// Ensure Slug is populated and unique within the project.
+	if ct.Slug == "" {
+		ct.Slug = models.SlugifyCollectionName(ct.Name, ct.Id)
+	} else {
+		ct.Slug = models.SlugifyCollectionName(ct.Slug, ct.Id)
+	}
+	if ct.ProjectId != nil && *ct.ProjectId != "" {
+		slugCount, slugErr := gorm.G[models.ContentType](r.db).
+			Where(`"ProjectId" = ? AND "Slug" = ?`, *ct.ProjectId, ct.Slug).
+			Count(ctx, "*")
+		if slugErr == nil && slugCount > 0 {
+			suffix := ct.Id
+			if len(suffix) > 6 {
+				suffix = suffix[len(suffix)-6:]
+			}
+			ct.Slug = ct.Slug + "-" + suffix
+		}
+	}
+	if ct.RateLimitPerMin <= 0 {
+		ct.RateLimitPerMin = 30
 	}
 
 	// Set timestamps

@@ -110,6 +110,7 @@ type ContentTypeServiceInterface interface {
 	CreateContentTypeForUser(ctx context.Context, contentType *models.ContentType, userID string) (*models.ContentType, error)
 	UpdateContentType(ctx context.Context, id string, contentType *models.ContentType) (*models.ContentType, error)
 	UpdateContentTypeForUser(ctx context.Context, id, userID string, contentType *models.ContentType) (*models.ContentType, error)
+	UpdateContentTypeFieldsForUser(ctx context.Context, id, userID string, updates map[string]any) (*models.ContentType, error)
 	DeleteContentType(ctx context.Context, id string) error
 	DeleteContentTypeForUser(ctx context.Context, id, userID string) error
 }

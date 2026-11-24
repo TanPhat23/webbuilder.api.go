@@ -99,6 +99,14 @@ func (s *ContentTypeService) UpdateContentType(ctx context.Context, id string, c
 }
 
 func (s *ContentTypeService) UpdateContentTypeForUser(ctx context.Context, id, userID string, contentType *models.ContentType) (*models.ContentType, error) {
+	updates := map[string]any{
+		"name":        contentType.Name,
+		"description": contentType.Description,
+	}
+	return s.UpdateContentTypeFieldsForUser(ctx, id, userID, updates)
+}
+
+func (s *ContentTypeService) UpdateContentTypeFieldsForUser(ctx context.Context, id, userID string, updates map[string]any) (*models.ContentType, error) {
 	if userID == "" {
 		return nil, authz.ErrUnauthorized
 	}
@@ -117,7 +125,7 @@ func (s *ContentTypeService) UpdateContentTypeForUser(ctx context.Context, id, u
 			return nil, err
 		}
 	}
-	return s.UpdateContentType(ctx, id, contentType)
+	return s.contentTypeRepo.UpdateContentType(ctx, id, updates)
 }
 
 func (s *ContentTypeService) DeleteContentType(ctx context.Context, id string) error {

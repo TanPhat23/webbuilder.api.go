@@ -59,6 +59,16 @@ func (s *contentTypeSvcStub) GetContentTypeByIDForUser(_ context.Context, id, _ 
 func (s *contentTypeSvcStub) CreateContentTypeForUser(_ context.Context, ct *models.ContentType, _ string) (*models.ContentType, error) {
 	return s.CreateContentType(context.Background(), ct)
 }
+func (s *contentTypeSvcStub) UpdateContentTypeFieldsForUser(_ context.Context, id, _ string, updates map[string]any) (*models.ContentType, error) {
+	ct := &models.ContentType{}
+	if name, ok := updates["name"].(string); ok {
+		ct.Name = name
+	}
+	if desc, ok := updates["description"].(*string); ok {
+		ct.Description = desc
+	}
+	return s.UpdateContentType(context.Background(), id, ct)
+}
 func (s *contentTypeSvcStub) UpdateContentTypeForUser(_ context.Context, id, _ string, ct *models.ContentType) (*models.ContentType, error) {
 	return s.UpdateContentType(context.Background(), id, ct)
 }

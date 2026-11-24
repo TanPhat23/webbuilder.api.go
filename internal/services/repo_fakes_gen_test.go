@@ -584,8 +584,9 @@ type fkContentTypeRepo struct {
 	OnGetContentTypes          func(ctx context.Context) ([]models.ContentType, error)
 	OnGetContentTypesByProject func(ctx context.Context, projectID string) ([]models.ContentType, error)
 	OnGetContentTypesByUser    func(ctx context.Context, userID string) ([]models.ContentType, error)
-	OnGetContentTypeByID       func(ctx context.Context, id string) (*models.ContentType, error)
-	OnCreateContentType        func(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
+	OnGetContentTypeByID                 func(ctx context.Context, id string) (*models.ContentType, error)
+	OnGetContentTypeByProjectAndSlugOrID func(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error)
+	OnCreateContentType                  func(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
 	OnUpdateContentType        func(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error)
 	OnDeleteContentType        func(ctx context.Context, id string) error
 }
@@ -620,6 +621,14 @@ func (f *fkContentTypeRepo) GetContentTypeByID(ctx context.Context, id string) (
 		panic("fkContentTypeRepo: unexpected call to GetContentTypeByID")
 	}
 	return f.OnGetContentTypeByID(ctx, id)
+}
+
+func (f *fkContentTypeRepo) GetContentTypeByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error) {
+	f.Calls = append(f.Calls, "GetContentTypeByProjectAndSlugOrID")
+	if f.OnGetContentTypeByProjectAndSlugOrID == nil {
+		panic("fkContentTypeRepo: unexpected call to GetContentTypeByProjectAndSlugOrID")
+	}
+	return f.OnGetContentTypeByProjectAndSlugOrID(ctx, projectID, slugOrID)
 }
 
 func (f *fkContentTypeRepo) CreateContentType(ctx context.Context, ct *models.ContentType) (*models.ContentType, error) {
