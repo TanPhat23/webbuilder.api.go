@@ -26,7 +26,7 @@ func FiberConfig() fiber.Config {
 		ReadTimeout:     15 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		IdleTimeout:     60 * time.Second,
-		BodyLimit:       4 * 1024 * 1024,
+		BodyLimit:       12 * 1024 * 1024,
 		ErrorHandler:    jsonErrorHandler,
 		StructValidator: &structValidator{validate: validator.New()},
 	}

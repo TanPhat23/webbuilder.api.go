@@ -814,7 +814,8 @@ type fkImageRepo struct {
 	Calls               []string
 	OnCreateImage       func(ctx context.Context, image models.Image) (*models.Image, error)
 	OnGetImagesByUserID func(ctx context.Context, userID string) ([]models.Image, error)
-	OnGetImageByID      func(ctx context.Context, imageID string, userID string) (*models.Image, error)
+	OnGetImageByID       func(ctx context.Context, imageID string, userID string) (*models.Image, error)
+	OnGetPublicImageByID func(ctx context.Context, imageID string) (*models.Image, error)
 	OnDeleteImage       func(ctx context.Context, imageID string, userID string) error
 	OnSoftDeleteImage   func(ctx context.Context, imageID string, userID string) error
 	OnGetAllImages      func(ctx context.Context, limit int, offset int) ([]models.Image, error)
@@ -842,6 +843,14 @@ func (f *fkImageRepo) GetImageByID(ctx context.Context, imageID string, userID s
 		panic("fkImageRepo: unexpected call to GetImageByID")
 	}
 	return f.OnGetImageByID(ctx, imageID, userID)
+}
+
+func (f *fkImageRepo) GetPublicImageByID(ctx context.Context, imageID string) (*models.Image, error) {
+	f.Calls = append(f.Calls, "GetPublicImageByID")
+	if f.OnGetPublicImageByID == nil {
+		panic("fkImageRepo: unexpected call to GetPublicImageByID")
+	}
+	return f.OnGetPublicImageByID(ctx, imageID)
 }
 
 func (f *fkImageRepo) DeleteImage(ctx context.Context, imageID string, userID string) error {

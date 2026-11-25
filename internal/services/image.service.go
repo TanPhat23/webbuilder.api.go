@@ -1,27 +1,51 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"my-go-app/internal/models"
 	"my-go-app/internal/repositories"
+	"strings"
 	"time"
 
 	"github.com/lucsky/cuid"
 )
 
+const presignedImageURLTTL = 5 * time.Minute
+
+// ImageService manages uploaded image metadata and backing object storage.
 type ImageService struct {
 	imageRepo     repositories.ImageRepositoryInterface
-	cloudinarySvc *CloudinaryService
+	storage       ObjectStorage
+	publicBaseURL string
 }
 
-func NewImageService(imageRepo repositories.ImageRepositoryInterface, cloudinarySvc *CloudinaryService) *ImageService {
+// NewImageService constructs an ImageService using PublicAPIURL() as the public base URL.
+func NewImageService(imageRepo repositories.ImageRepositoryInterface, storage ObjectStorage) *ImageService {
+	return NewImageServiceWithBaseURL(imageRepo, storage, PublicAPIURL())
+}
+
+// NewImageServiceWithBaseURL constructs an ImageService with an explicit public base URL.
+func NewImageServiceWithBaseURL(imageRepo repositories.ImageRepositoryInterface, storage ObjectStorage, publicBaseURL string) *ImageService {
 	return &ImageService{
 		imageRepo:     imageRepo,
-		cloudinarySvc: cloudinarySvc,
+		storage:       storage,
+		publicBaseURL: strings.TrimRight(strings.TrimSpace(publicBaseURL), "/"),
 	}
+}
+
+// ImageObjectKey returns the deterministic storage object key for a user image.
+func ImageObjectKey(userID, imageID string) string {
+	return "images/" + userID + "/" + imageID
+}
+
+func (s *ImageService) publicImageURL(imageID string) string {
+	return s.publicBaseURL + "/api/v1/public/images/" + imageID
 }
 
 func (s *ImageService) CreateImage(ctx context.Context, image models.Image) (*models.Image, error) {
@@ -44,26 +68,25 @@ func (s *ImageService) CreateImage(ctx context.Context, image models.Image) (*mo
 	return s.imageRepo.CreateImage(ctx, image)
 }
 
-func (s *ImageService) CreateUploadedImage(ctx context.Context, userID string, fileName string, imageName *string, file multipart.File) (*models.ImageUploadResponse, error) {
-	if userID == "" {
-		return nil, errors.New("userId is required")
-	}
-	if file == nil {
-		return nil, errors.New("image file is required")
-	}
-	if s.cloudinarySvc == nil {
-		return nil, errors.New("image upload service is not configured")
-	}
+func (s *ImageService) persistUploadedObject(
+	ctx context.Context,
+	userID string,
+	imageName *string,
+	r io.Reader,
+	size int64,
+	contentType string,
+) (*models.ImageUploadResponse, error) {
+	imageID := cuid.New()
+	key := ImageObjectKey(userID, imageID)
 
-	uploadResult, err := s.cloudinarySvc.UploadImage(ctx, file, fileName, "webbuilder/"+userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to upload image to Cloudinary: %w", err)
+	if err := s.storage.PutObject(ctx, key, r, size, contentType); err != nil {
+		return nil, fmt.Errorf("failed to upload image to object storage: %w", err)
 	}
 
 	now := time.Now()
 	image := models.Image{
-		ImageId:   cuid.New(),
-		ImageLink: uploadResult.SecureURL,
+		ImageId:   imageID,
+		ImageLink: s.publicImageURL(imageID),
 		ImageName: imageName,
 		UserId:    userID,
 		AuditFields: models.AuditFields{
@@ -74,7 +97,7 @@ func (s *ImageService) CreateUploadedImage(ctx context.Context, userID string, f
 
 	created, err := s.CreateImage(ctx, image)
 	if err != nil {
-		_ = s.cloudinarySvc.DeleteImage(ctx, uploadResult.PublicID)
+		_ = s.storage.DeleteObject(ctx, key)
 		return nil, err
 	}
 
@@ -86,6 +109,69 @@ func (s *ImageService) CreateUploadedImage(ctx context.Context, userID string, f
 	}, nil
 }
 
+func seekerSize(r io.Seeker) (int64, error) {
+	size, err := r.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := r.Seek(0, io.SeekStart); err != nil {
+		return 0, err
+	}
+	return size, nil
+}
+
+func (s *ImageService) CreateUploadedImage(ctx context.Context, userID string, _ string, imageName *string, file multipart.File) (*models.ImageUploadResponse, error) {
+	if userID == "" {
+		return nil, errors.New("userId is required")
+	}
+	if file == nil {
+		return nil, errors.New("image file is required")
+	}
+	if s.storage == nil {
+		return nil, errors.New("image upload service is not configured")
+	}
+
+	contentType, err := DetectImageContentType(file)
+	if err != nil {
+		return nil, err
+	}
+	size, err := seekerSize(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine image size: %w", err)
+	}
+
+	return s.persistUploadedObject(ctx, userID, imageName, file, size, contentType)
+}
+
+func decodeBase64Image(raw string) ([]byte, string, error) {
+	payload := strings.TrimSpace(raw)
+	if strings.HasPrefix(strings.ToLower(payload), "data:") {
+		comma := strings.IndexByte(payload, ',')
+		if comma < 0 || !strings.HasSuffix(strings.ToLower(payload[:comma]), ";base64") {
+			return nil, "", errors.New("invalid base64 image data URI")
+		}
+		payload = payload[comma+1:]
+	}
+
+	if base64.StdEncoding.DecodedLen(len(payload)) > int(maxImageUploadBytes)+3 {
+		return nil, "", errors.New("image exceeds maximum allowed size of 10MB")
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid base64 image encoding: %w", err)
+	}
+	if int64(len(decoded)) > maxImageUploadBytes {
+		return nil, "", errors.New("image exceeds maximum allowed size of 10MB")
+	}
+
+	contentType, err := DetectImageContentType(bytes.NewReader(decoded))
+	if err != nil {
+		return nil, "", err
+	}
+	return decoded, contentType, nil
+}
+
 func (s *ImageService) CreateBase64UploadedImage(ctx context.Context, userID string, imageData string, imageName *string) (*models.ImageUploadResponse, error) {
 	if userID == "" {
 		return nil, errors.New("userId is required")
@@ -93,39 +179,16 @@ func (s *ImageService) CreateBase64UploadedImage(ctx context.Context, userID str
 	if imageData == "" {
 		return nil, errors.New("image data is required")
 	}
-	if s.cloudinarySvc == nil {
+	if s.storage == nil {
 		return nil, errors.New("image upload service is not configured")
 	}
 
-	uploadResult, err := s.cloudinarySvc.UploadBase64Image(ctx, imageData, "webbuilder/"+userID)
+	decoded, contentType, err := decodeBase64Image(imageData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to upload image to Cloudinary: %w", err)
-	}
-
-	now := time.Now()
-	image := models.Image{
-		ImageId:   cuid.New(),
-		ImageLink: uploadResult.SecureURL,
-		ImageName: imageName,
-		UserId:    userID,
-		AuditFields: models.AuditFields{
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-	}
-
-	created, err := s.CreateImage(ctx, image)
-	if err != nil {
-		_ = s.cloudinarySvc.DeleteImage(ctx, uploadResult.PublicID)
 		return nil, err
 	}
 
-	return &models.ImageUploadResponse{
-		ImageId:   created.ImageId,
-		ImageLink: created.ImageLink,
-		ImageName: created.ImageName,
-		CreatedAt: created.CreatedAt,
-	}, nil
+	return s.persistUploadedObject(ctx, userID, imageName, bytes.NewReader(decoded), int64(len(decoded)), contentType)
 }
 
 func (s *ImageService) GetImagesByUserID(ctx context.Context, userID string) ([]models.Image, error) {
@@ -145,6 +208,21 @@ func (s *ImageService) GetImageByID(ctx context.Context, imageID, userID string)
 	return s.imageRepo.GetImageByID(ctx, imageID, userID)
 }
 
+// GetPublicImageURL looks up an active image record and mints a short-lived presigned GET URL.
+func (s *ImageService) GetPublicImageURL(ctx context.Context, imageID string) (string, error) {
+	if imageID == "" {
+		return "", errors.New("image id is required")
+	}
+	if s.storage == nil {
+		return "", errors.New("image storage service is not configured")
+	}
+	img, err := s.imageRepo.GetPublicImageByID(ctx, imageID)
+	if err != nil {
+		return "", err
+	}
+	return s.storage.PresignedGetURL(ctx, ImageObjectKey(img.UserId, img.ImageId), presignedImageURLTTL)
+}
+
 func (s *ImageService) DeleteImage(ctx context.Context, imageID, userID string) error {
 	if imageID == "" {
 		return errors.New("image id is required")
@@ -152,7 +230,13 @@ func (s *ImageService) DeleteImage(ctx context.Context, imageID, userID string) 
 	if userID == "" {
 		return errors.New("userId is required")
 	}
-	return s.imageRepo.DeleteImage(ctx, imageID, userID)
+	if err := s.imageRepo.DeleteImage(ctx, imageID, userID); err != nil {
+		return err
+	}
+	if s.storage != nil {
+		_ = s.storage.DeleteObject(ctx, ImageObjectKey(userID, imageID))
+	}
+	return nil
 }
 
 func (s *ImageService) SoftDeleteImage(ctx context.Context, imageID, userID string) error {

@@ -77,6 +77,7 @@ type ImageServiceInterface interface {
 	CreateBase64UploadedImage(ctx context.Context, userID string, imageData string, imageName *string) (*models.ImageUploadResponse, error)
 	GetImagesByUserID(ctx context.Context, userID string) ([]models.Image, error)
 	GetImageByID(ctx context.Context, imageID, userID string) (*models.Image, error)
+	GetPublicImageURL(ctx context.Context, imageID string) (string, error)
 	DeleteImage(ctx context.Context, imageID, userID string) error
 	SoftDeleteImage(ctx context.Context, imageID, userID string) error
 	GetAllImages(ctx context.Context, limit, offset int) ([]models.Image, error)

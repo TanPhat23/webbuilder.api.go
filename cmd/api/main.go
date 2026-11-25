@@ -62,10 +62,10 @@ func main() {
 	}
 	invitationService := services.NewInvitationService(repos.InvitationRepository, repos.CollaboratorRepository, repos.ProjectRepository, repos.UserRepository, emailService, baseURL)
 
-	// Initialize Cloudinary service
-	cloudinaryService, err := services.NewCloudinaryService()
+	// Initialize object storage (Railway Bucket / MinIO S3)
+	storageService, err := services.NewS3StorageService()
 	if err != nil {
-		log.Println("Warning: Cloudinary service not initialized:", err)
+		log.Println("Warning: Object storage service not initialized:", err)
 		log.Println("Image upload functionality will not be available")
 	}
 
@@ -102,7 +102,7 @@ func main() {
 		defer shutdownRealtime()
 	}
 
-	routes.SetupRoutes(app, repos, cloudinaryService, invitationService, redisClient)
+	routes.SetupRoutes(app, repos, storageService, invitationService, redisClient)
 
 	port := os.Getenv("PORT")
 	if port == "" {

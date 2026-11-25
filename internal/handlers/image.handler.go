@@ -6,6 +6,7 @@ import (
 	"my-go-app/internal/dto"
 	"my-go-app/internal/repositories"
 	"my-go-app/internal/services"
+	"strings"
 
 	"my-go-app/pkg/utils"
 	"time"
@@ -14,14 +15,12 @@ import (
 )
 
 type ImageHandler struct {
-	imageService      services.ImageServiceInterface
-	cloudinaryService *services.CloudinaryService
+	imageService services.ImageServiceInterface
 }
 
-func NewImageHandler(imageService services.ImageServiceInterface, cloudinaryService *services.CloudinaryService) *ImageHandler {
+func NewImageHandler(imageService services.ImageServiceInterface) *ImageHandler {
 	return &ImageHandler{
-		imageService:      imageService,
-		cloudinaryService: cloudinaryService,
+		imageService: imageService,
 	}
 }
 
@@ -122,6 +121,25 @@ func (h *ImageHandler) GetImageByID(c fiber.Ctx) error {
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, image)
+}
+
+// RedirectPublicImage issues a short-lived 302 redirect to a presigned storage URL.
+func (h *ImageHandler) RedirectPublicImage(c fiber.Ctx) error {
+	imageID := c.Params("imageid")
+	if imageID == "" || len(imageID) > 128 || strings.ContainsAny(imageID, "/\\") {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid imageid")
+	}
+
+	targetURL, err := h.imageService.GetPublicImageURL(c.RequestCtx(), imageID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrImageNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "Image not found")
+		}
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to resolve image URL", err)
+	}
+
+	c.Set("Cache-Control", "private, max-age=240")
+	return c.Redirect().Status(fiber.StatusFound).To(targetURL)
 }
 
 func (h *ImageHandler) DeleteImage(c fiber.Ctx) error {

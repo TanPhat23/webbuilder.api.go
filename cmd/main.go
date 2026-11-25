@@ -89,10 +89,10 @@ func main() {
 		}
 	}()
 
-	// Initialize Cloudinary service
-	cloudinaryService, err := services.NewCloudinaryService()
+	// Initialize object storage (Railway Bucket / MinIO S3)
+	storageService, err := services.NewS3StorageService()
 	if err != nil {
-		log.Println("Warning: Cloudinary service not initialized:", err)
+		log.Println("Warning: Object storage service not initialized:", err)
 		log.Println("Image upload functionality will not be available")
 	}
 
@@ -103,7 +103,7 @@ func main() {
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
-	routes.SetupRoutes(app, repos, cloudinaryService, invitationService, nil)
+	routes.SetupRoutes(app, repos, storageService, invitationService, nil)
 
 	// Handle graceful shutdown
 	go func() {

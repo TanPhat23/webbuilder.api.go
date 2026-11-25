@@ -63,6 +63,23 @@ func (r *ImageRepository) GetImageByID(ctx context.Context, imageID, userID stri
 	return &image, nil
 }
 
+func (r *ImageRepository) GetPublicImageByID(ctx context.Context, imageID string) (*models.Image, error) {
+	if imageID == "" {
+		return nil, errors.New("imageID is required")
+	}
+
+	image, err := gorm.G[models.Image](r.db).
+		Where(`"ImageId" = ? AND "DeletedAt" IS NULL`, imageID).
+		First(ctx)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrImageNotFound
+		}
+		return nil, fmt.Errorf("failed to get public image by ID: %w", err)
+	}
+	return &image, nil
+}
+
 func (r *ImageRepository) DeleteImage(ctx context.Context, imageID, userID string) error {
 	if imageID == "" {
 		return errors.New("imageID is required")

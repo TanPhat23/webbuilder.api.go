@@ -30,7 +30,7 @@ func publishAccessChange(rdb *redis.Client) func(projectID, userID string) {
 	}
 }
 
-func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService, invitationService *services.InvitationService, redisClient *redis.Client) {
+func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, storage services.ObjectStorage, invitationService *services.InvitationService, redisClient *redis.Client) {
 	publicGroup := app.Group("/api/v1")
 	privateGroup := app.Group("/api/v1", middleware.NewAuthenticateMiddleware(repos.AgentTokenRepository))
 
@@ -55,7 +55,7 @@ func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, clou
 
 	AgentTokenRoutes(privateGroup, repos)
 	SnapshotRoutes(privateGroup, repos)
-	ImageRoutes(privateGroup, repos, cloudinaryService)
+	ImageRoutes(publicGroup, privateGroup, repos, storage)
 	CustomElementRoutes(privateGroup, repos)
 	InvitationRoutes(privateGroup, invitationService)
 	CollaboratorRoutes(privateGroup, repos, onAccessChanged)

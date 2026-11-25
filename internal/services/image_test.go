@@ -3,17 +3,14 @@ package services
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"github.com/cloudinary/cloudinary-go/v2"
-	"github.com/cloudinary/cloudinary-go/v2/config"
+	"time"
 
 	"my-go-app/internal/models"
+	"my-go-app/internal/repositories"
 )
 
 // imageFakeFile satisfies multipart.File.
@@ -21,41 +18,60 @@ type imageFakeFile struct{ *bytes.Reader }
 
 func (imageFakeFile) Close() error { return nil }
 
-// imageCloudinary returns a CloudinaryService pointed at a local server. The
-// handler decides the response for upload vs destroy requests.
-func imageCloudinary(t *testing.T, uploadStatus int, destroyed *[]string) *CloudinaryService {
-	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/destroy"):
-			body, _ := io.ReadAll(r.Body)
-			if destroyed != nil && strings.Contains(string(body), "pub1") {
-				*destroyed = append(*destroyed, "pub1")
-			}
-			_, _ = w.Write([]byte(`{"result":"ok"}`))
-		case strings.HasSuffix(r.URL.Path, "/upload"):
-			if uploadStatus != http.StatusOK {
-				w.WriteHeader(uploadStatus)
-				_, _ = w.Write([]byte(`{"error":{"message":"nope"}}`))
-				return
-			}
-			_, _ = w.Write([]byte(`{"public_id":"pub1","secure_url":"https://cdn/x.png","url":"http://cdn/x.png"}`))
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	t.Cleanup(srv.Close)
-	cfg, err := config.NewFromParams("cloud", "key", "secret")
-	if err != nil {
-		t.Fatal(err)
+type fakeObjectStorage struct {
+	putErr       error
+	presignedErr error
+	deleteErr    error
+
+	putCalls     []fakePutCall
+	deletedKeys  []string
+	presignedKey string
+	presignedTTL time.Duration
+	presignedURL string
+}
+
+type fakePutCall struct {
+	key         string
+	contentType string
+	size        int64
+	body        []byte
+}
+
+func (f *fakeObjectStorage) PutObject(ctx context.Context, key string, r io.Reader, size int64, contentType string) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	cfg.API.UploadPrefix = srv.URL
-	cld, err := cloudinary.NewFromConfiguration(*cfg)
-	if err != nil {
-		t.Fatal(err)
+	if f.putErr != nil {
+		return f.putErr
 	}
-	return &CloudinaryService{cld: cld}
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	f.putCalls = append(f.putCalls, fakePutCall{
+		key:         key,
+		contentType: contentType,
+		size:        size,
+		body:        raw,
+	})
+	return nil
+}
+
+func (f *fakeObjectStorage) DeleteObject(_ context.Context, key string) error {
+	f.deletedKeys = append(f.deletedKeys, key)
+	return f.deleteErr
+}
+
+func (f *fakeObjectStorage) PresignedGetURL(_ context.Context, key string, ttl time.Duration) (string, error) {
+	f.presignedKey = key
+	f.presignedTTL = ttl
+	if f.presignedErr != nil {
+		return "", f.presignedErr
+	}
+	if f.presignedURL != "" {
+		return f.presignedURL, nil
+	}
+	return "https://t3.storageapi.dev/signed/" + key, nil
 }
 
 func TestImageService_CreateImage(t *testing.T) {
@@ -105,8 +121,10 @@ func TestImageService_CreateImage(t *testing.T) {
 func TestImageService_Uploads(t *testing.T) {
 	ctx := context.Background()
 	name := "pic"
+	pngRaw := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDRdata")
+	pngB64 := "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngRaw)
 	file := func() imageFakeFile {
-		return imageFakeFile{bytes.NewReader([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDRdata"))}
+		return imageFakeFile{bytes.NewReader(pngRaw)}
 	}
 
 	type variant struct {
@@ -118,7 +136,7 @@ func TestImageService_Uploads(t *testing.T) {
 			return s.CreateUploadedImage(ctx, uid, "a.png", &name, file())
 		}},
 		{"base64", func(ctx context.Context, s *ImageService, uid string) (*models.ImageUploadResponse, error) {
-			return s.CreateBase64UploadedImage(ctx, uid, "data:image/png;base64,AAAA", &name)
+			return s.CreateBase64UploadedImage(ctx, uid, pngB64, &name)
 		}},
 	}
 	for _, v := range variants {
@@ -127,13 +145,12 @@ func TestImageService_Uploads(t *testing.T) {
 				_, err := v.call(ctx, NewImageService(&fkImageRepo{}, nil), "")
 				wantErr(t, err, "userId is required")
 			})
-			t.Run("cloudinary failure wrapped, no repo call", func(t *testing.T) {
+			t.Run("storage failure wrapped, no repo call", func(t *testing.T) {
 				repo := &fkImageRepo{}
-				s := NewImageService(repo, imageCloudinary(t, http.StatusOK, nil))
-				cctx, cancel := context.WithCancel(ctx)
-				cancel()
-				_, err := v.call(cctx, s, "u")
-				wantErr(t, err, "failed to upload image to Cloudinary")
+				store := &fakeObjectStorage{putErr: errors.New("storage down")}
+				s := NewImageServiceWithBaseURL(repo, store, "https://api.example.com")
+				_, err := v.call(ctx, s, "u")
+				wantErr(t, err, "failed to upload image to object storage")
 				wantCalls(t, repo.Calls)
 			})
 			t.Run("success", func(t *testing.T) {
@@ -142,24 +159,30 @@ func TestImageService_Uploads(t *testing.T) {
 					created = i
 					return &i, nil
 				}}
-				s := NewImageService(repo, imageCloudinary(t, http.StatusOK, nil))
+				store := &fakeObjectStorage{}
+				s := NewImageServiceWithBaseURL(repo, store, "https://api.example.com/")
 				res, err := v.call(ctx, s, "u")
 				wantNoErr(t, err)
-				if res.ImageLink != "https://cdn/x.png" || res.ImageId == "" || res.ImageName != &name ||
-					created.UserId != "u" || created.ImageLink != "https://cdn/x.png" {
+				wantLink := "https://api.example.com/api/v1/public/images/" + res.ImageId
+				if res.ImageId == "" || res.ImageLink != wantLink || res.ImageName != &name ||
+					created.UserId != "u" || created.ImageLink != wantLink {
 					t.Fatalf("res=%+v created=%+v", res, created)
 				}
+				if len(store.putCalls) != 1 || store.putCalls[0].key != "images/u/"+res.ImageId ||
+					store.putCalls[0].contentType != "image/png" || store.putCalls[0].size != int64(len(pngRaw)) {
+					t.Fatalf("putCalls=%+v", store.putCalls)
+				}
 			})
-			t.Run("db failure rolls back cloudinary upload", func(t *testing.T) {
-				var destroyed []string
+			t.Run("db failure rolls back object upload", func(t *testing.T) {
 				repo := &fkImageRepo{OnCreateImage: func(context.Context, models.Image) (*models.Image, error) { return nil, errBoom }}
-				s := NewImageService(repo, imageCloudinary(t, http.StatusOK, &destroyed))
+				store := &fakeObjectStorage{}
+				s := NewImageServiceWithBaseURL(repo, store, "https://api.example.com")
 				_, err := v.call(ctx, s, "u")
 				if !errors.Is(err, errBoom) {
 					t.Fatalf("err = %v", err)
 				}
-				if len(destroyed) != 1 || destroyed[0] != "pub1" {
-					t.Fatalf("destroyed = %v", destroyed)
+				if len(store.putCalls) != 1 || len(store.deletedKeys) != 1 || store.deletedKeys[0] != store.putCalls[0].key {
+					t.Fatalf("rollback mismatch putCalls=%+v deletedKeys=%v", store.putCalls, store.deletedKeys)
 				}
 			})
 		})
@@ -173,13 +196,57 @@ func TestImageService_Uploads(t *testing.T) {
 		wantErr(t, err, "image data is required")
 	})
 
-	t.Run("nil cloudinary service returns explicit error", func(t *testing.T) {
+	t.Run("nil storage service returns explicit error", func(t *testing.T) {
 		s := NewImageService(&fkImageRepo{}, nil)
 		_, err := s.CreateUploadedImage(ctx, "u", "a.png", nil, file())
 		wantErr(t, err, "image upload service is not configured")
-		_, err = s.CreateBase64UploadedImage(ctx, "u", "data:image/png;base64,AAAA", nil)
+		_, err = s.CreateBase64UploadedImage(ctx, "u", pngB64, nil)
 		wantErr(t, err, "image upload service is not configured")
 	})
+
+	t.Run("base64 rejects svg and invalid encoding", func(t *testing.T) {
+		store := &fakeObjectStorage{}
+		s := NewImageService(&fkImageRepo{}, store)
+		svgB64 := "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte("<svg><script>alert(1)</script></svg>"))
+		_, err := s.CreateBase64UploadedImage(ctx, "u", svgB64, nil)
+		wantErr(t, err, "invalid image content type")
+		_, err = s.CreateBase64UploadedImage(ctx, "u", "data:image/png;base64,!!!", nil)
+		wantErr(t, err, "invalid base64 image encoding")
+		if len(store.putCalls) != 0 {
+			t.Fatal("invalid payload must not reach object storage")
+		}
+	})
+}
+
+func TestImageService_GetPublicImageURL(t *testing.T) {
+	ctx := context.Background()
+
+	repo := &fkImageRepo{
+		OnGetPublicImageByID: func(_ context.Context, id string) (*models.Image, error) {
+			if id == "missing" {
+				return nil, repositories.ErrImageNotFound
+			}
+			return &models.Image{ImageId: id, UserId: "u1"}, nil
+		},
+	}
+	store := &fakeObjectStorage{presignedURL: "https://t3.storageapi.dev/signed-url"}
+	s := NewImageService(repo, store)
+
+	if _, err := s.GetPublicImageURL(ctx, ""); err == nil {
+		t.Fatal("expected error for empty image id")
+	}
+	if _, err := NewImageService(repo, nil).GetPublicImageURL(ctx, "img-1"); err == nil {
+		t.Fatal("expected error when storage is nil")
+	}
+	if _, err := s.GetPublicImageURL(ctx, "missing"); !errors.Is(err, repositories.ErrImageNotFound) {
+		t.Fatalf("err = %v, want ErrImageNotFound", err)
+	}
+
+	got, err := s.GetPublicImageURL(ctx, "img-1")
+	wantNoErr(t, err)
+	if got != "https://t3.storageapi.dev/signed-url" || store.presignedKey != "images/u1/img-1" || store.presignedTTL != presignedImageURLTTL {
+		t.Fatalf("got=%q key=%q ttl=%v", got, store.presignedKey, store.presignedTTL)
+	}
 }
 
 func TestImageService_Queries(t *testing.T) {
@@ -269,4 +336,26 @@ func TestImageService_Deletes(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("DeleteImage removes object on success", func(t *testing.T) {
+		repo := &fkImageRepo{OnDeleteImage: func(context.Context, string, string) error { return nil }}
+		store := &fakeObjectStorage{}
+		s := NewImageService(repo, store)
+		wantNoErr(t, s.DeleteImage(ctx, "img1", "u1"))
+		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != "images/u1/img1" {
+			t.Fatalf("deletedKeys = %v", store.deletedKeys)
+		}
+	})
+
+	t.Run("DeleteImage does not touch storage when db delete fails", func(t *testing.T) {
+		repo := &fkImageRepo{OnDeleteImage: func(context.Context, string, string) error { return repositories.ErrImageNotFound }}
+		store := &fakeObjectStorage{}
+		s := NewImageService(repo, store)
+		if err := s.DeleteImage(ctx, "img1", "u1"); !errors.Is(err, repositories.ErrImageNotFound) {
+			t.Fatalf("err = %v", err)
+		}
+		if len(store.deletedKeys) != 0 {
+			t.Fatalf("deletedKeys = %v, want empty", store.deletedKeys)
+		}
+	})
 }

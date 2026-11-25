@@ -28,6 +28,11 @@ func (m *MockImageRepo) SetGetImageByID(fn func(context.Context, string, string)
 	return m
 }
 
+func (m *MockImageRepo) SetGetPublicImageByID(fn func(context.Context, string) (*models.Image, error)) *MockImageRepo {
+	m.Set("GetPublicImageByID", fn)
+	return m
+}
+
 func (m *MockImageRepo) SetDeleteImage(fn func(context.Context, string, string) error) *MockImageRepo {
 	m.Set("DeleteImage", fn)
 	return m
@@ -60,6 +65,13 @@ func (m *MockImageRepo) GetImagesByUserID(ctx context.Context, userID string) ([
 func (m *MockImageRepo) GetImageByID(ctx context.Context, imageID string, userID string) (*models.Image, error) {
 	if fn := m.Get("GetImageByID"); fn != nil {
 		return fn.(func(context.Context, string, string) (*models.Image, error))(ctx, imageID, userID)
+	}
+	return nil, nil
+}
+
+func (m *MockImageRepo) GetPublicImageByID(ctx context.Context, imageID string) (*models.Image, error) {
+	if fn := m.Get("GetPublicImageByID"); fn != nil {
+		return fn.(func(context.Context, string) (*models.Image, error))(ctx, imageID)
 	}
 	return nil, nil
 }

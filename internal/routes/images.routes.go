@@ -8,9 +8,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func ImageRoutes(group fiber.Router, repos *repositories.RepositoriesInterface, cloudinaryService *services.CloudinaryService) {
-	imageService := services.NewImageService(repos.ImageRepository, cloudinaryService)
-	imageHandler := handlers.NewImageHandler(imageService, cloudinaryService)
+func ImageRoutes(publicGroup, group fiber.Router, repos *repositories.RepositoriesInterface, storage services.ObjectStorage) {
+	imageService := services.NewImageService(repos.ImageRepository, storage)
+	imageHandler := handlers.NewImageHandler(imageService)
+
+	publicGroup.Get("/public/images/:imageid", imageHandler.RedirectPublicImage)
 
 	group.Post("/images", imageHandler.UploadImage)
 	group.Get("/images", imageHandler.GetUserImages)

@@ -45,7 +45,7 @@ func TestFiberConfigHardeningDefaults(t *testing.T) {
 	if cfg.ReadTimeout != 15*time.Second || cfg.WriteTimeout != 30*time.Second || cfg.IdleTimeout != 60*time.Second {
 		t.Fatalf("unexpected timeouts: read=%v write=%v idle=%v", cfg.ReadTimeout, cfg.WriteTimeout, cfg.IdleTimeout)
 	}
-	if cfg.BodyLimit != 4*1024*1024 {
+	if cfg.BodyLimit != 12*1024*1024 {
 		t.Fatalf("unexpected body limit: %d", cfg.BodyLimit)
 	}
 }

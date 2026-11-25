@@ -15,7 +15,7 @@ import (
 // so nothing is touched.
 func buildApp() *fiber.App {
 	app := fiber.New(configs.FiberConfig())
-	SetupRoutes(app, repositories.NewRepositories(nil), &services.CloudinaryService{}, &services.InvitationService{}, nil)
+	SetupRoutes(app, repositories.NewRepositories(nil), &services.S3StorageService{}, &services.InvitationService{}, nil)
 	return app
 }
 

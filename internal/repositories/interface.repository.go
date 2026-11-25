@@ -226,6 +226,8 @@ type ImageRepositoryInterface interface {
 	GetImagesByUserID(ctx context.Context, userID string) ([]models.Image, error)
 	// GetImageByID retrieves an image by ID with user verification
 	GetImageByID(ctx context.Context, imageID string, userID string) (*models.Image, error)
+	// GetPublicImageByID retrieves a non-deleted image by ID for public delivery
+	GetPublicImageByID(ctx context.Context, imageID string) (*models.Image, error)
 	// DeleteImage deletes an image with user verification
 	DeleteImage(ctx context.Context, imageID string, userID string) error
 	// SoftDeleteImage soft deletes an image with user verification

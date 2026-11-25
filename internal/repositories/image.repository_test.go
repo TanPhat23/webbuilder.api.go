@@ -107,6 +107,24 @@ func TestImageRepositoryGetImageByID(t *testing.T) {
 	}
 }
 
+func TestImageRepositoryGetPublicImageByID(t *testing.T) {
+	ctx := context.Background()
+	db, f := newFakeDB(t)
+	f.on("SELECT", imageCols, imageRow("a", "u1"))
+	got, err := (&ImageRepository{db: db}).GetPublicImageByID(ctx, "a")
+	if err != nil || got.ImageId != "a" || got.UserId != "u1" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if !f.sawQuery(`"DeletedAt" IS NULL`) || !imageHasArg(f, "a") {
+		t.Fatalf("query should filter non-deleted image by ID: %v", f.queries)
+	}
+
+	dbMiss, _ := newFakeDB(t)
+	if got, err := (&ImageRepository{db: dbMiss}).GetPublicImageByID(ctx, "missing"); got != nil || !errors.Is(err, ErrImageNotFound) {
+		t.Fatalf("missing row: got %+v, %v", got, err)
+	}
+}
+
 func TestImageRepositoryDeleteImage(t *testing.T) {
 	ctx := context.Background()
 	for _, tc := range []struct {

@@ -69,9 +69,18 @@ func (s *imageHandlerStub) DeleteImage(_ context.Context, imageID, userID string
 	return s.err
 }
 
+func (s *imageHandlerStub) GetPublicImageURL(_ context.Context, imageID string) (string, error) {
+	s.gotID = imageID
+	if s.err != nil {
+		return "", s.err
+	}
+	return "https://t3.storageapi.dev/signed/" + imageID, nil
+}
+
 func imageHandlerApp(userID string, svc *imageHandlerStub) *fiber.App {
-	h := NewImageHandler(svc, nil)
+	h := NewImageHandler(svc)
 	return newKitApp(userID, func(app *fiber.App) {
+		app.Get("/public/images/:imageid", h.RedirectPublicImage)
 		app.Post("/images", h.UploadImage)
 		app.Post("/images/base64", h.UploadBase64Image)
 		app.Get("/images", h.GetUserImages)
@@ -80,6 +89,7 @@ func imageHandlerApp(userID string, svc *imageHandlerStub) *fiber.App {
 		// Registered without the parameter to exercise the missing-id branch.
 		app.Get("/noid", h.GetImageByID)
 		app.Delete("/noid", h.DeleteImage)
+		app.Get("/public/noid", h.RedirectPublicImage)
 	})
 }
 
@@ -245,4 +255,41 @@ func TestImageReadAndDeleteHandlers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRedirectPublicImage(t *testing.T) {
+	t.Run("redirects 302 with private cache", func(t *testing.T) {
+		svc := &imageHandlerStub{}
+		app := imageHandlerApp("", svc)
+		req := httptest.NewRequest("GET", "/public/images/img-9", nil)
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != fiber.StatusFound {
+			t.Fatalf("status = %d, want 302", res.StatusCode)
+		}
+		if loc := res.Header.Get("Location"); loc != "https://t3.storageapi.dev/signed/img-9" {
+			t.Fatalf("Location = %q", loc)
+		}
+		if cc := res.Header.Get("Cache-Control"); cc != "private, max-age=240" {
+			t.Fatalf("Cache-Control = %q", cc)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		svc := &imageHandlerStub{err: repositories.ErrImageNotFound}
+		kitExpect(t, kitSend(t, imageHandlerApp("", svc), "GET", "/public/images/missing", ""), 404, "Image not found")
+	})
+
+	t.Run("missing param", func(t *testing.T) {
+		svc := &imageHandlerStub{}
+		kitExpect(t, kitSend(t, imageHandlerApp("", svc), "GET", "/public/noid", ""), 400, "invalid imageid")
+	})
+
+	t.Run("storage error", func(t *testing.T) {
+		svc := &imageHandlerStub{err: errInternal}
+		kitExpect(t, kitSend(t, imageHandlerApp("", svc), "GET", "/public/images/img-9", ""), 500, "Failed to resolve image URL")
+	})
 }
