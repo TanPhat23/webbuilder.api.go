@@ -30,6 +30,9 @@ func NewElementCommentService(
 func (s *ElementCommentService) resolveElementProjectID(ctx context.Context, elementID string) (string, error) {
 	element, err := s.elementRepo.GetByID(ctx, elementID)
 	if err != nil {
+		if errors.Is(err, repositories.ErrElementNotFound) {
+			return "", fmt.Errorf("%w: element does not exist", authz.ErrNotFound)
+		}
 		return "", fmt.Errorf("element not found: %w", err)
 	}
 	if element == nil {
@@ -137,6 +140,10 @@ func (s *ElementCommentService) ListForUser(ctx context.Context, elementID, user
 	if s.projectRepo != nil {
 		projectID, err := s.resolveElementProjectID(ctx, elementID)
 		if err != nil {
+			if errors.Is(err, authz.ErrNotFound) {
+				// Elements created over realtime may not have flushed to Postgres yet.
+				return []models.ElementComment{}, nil
+			}
 			return nil, err
 		}
 		if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermCommentView); err != nil {

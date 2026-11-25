@@ -343,3 +343,23 @@ func TestElementCommentToggleCountDeleteByElement(t *testing.T) {
 		wantCalls(t, e.cr.Calls, "DeleteByElement")
 	})
 }
+
+func TestElementCommentUnsyncedElement(t *testing.T) {
+	ctx := context.Background()
+	e := newElementCommentEnv()
+	e.er.OnGetByID = func(context.Context, string) (*models.Element, error) {
+		return nil, repositories.ErrElementNotFound
+	}
+
+	got, err := e.svc.ListForUser(ctx, "unsynced-el", "user-1", models.ElementCommentFilter{})
+	wantNoErr(t, err)
+	if got == nil || len(got) != 0 {
+		t.Fatalf("expected non-nil empty comment slice for unsynced element, got %#v", got)
+	}
+	wantCalls(t, e.cr.Calls)
+
+	_, err = e.svc.Create(ctx, &models.ElementComment{ElementId: "unsynced-el", AuthorId: "user-1", Content: "hi"})
+	if !errors.Is(err, authz.ErrNotFound) {
+		t.Fatalf("expected authz.ErrNotFound for Create on unsynced element, got %v", err)
+	}
+}
