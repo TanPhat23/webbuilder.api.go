@@ -16,6 +16,8 @@ import (
 	"my-go-app/internal/realtime/utils/logger"
 )
 
+const agentIssuedTTL = 35 * time.Second
+
 // agentTarget is a connected editor tab. *wsentity.Client implements it.
 type agentTarget interface {
 	Send(domainEntity.Message) error
@@ -47,19 +49,40 @@ func (c redisClaimer) Claim(ctx context.Context, requestID string) (bool, error)
 	return c.rdb.SetNX(ctx, "agent:claim:"+requestID, 1, 30*time.Second).Result()
 }
 
+type issuedAgentRequest struct {
+	target   agentTarget
+	issuedAt time.Time
+}
+
 // agentBridge connects the MCP relay (Redis) to editor tabs (WebSocket).
 type agentBridge struct {
 	loc    agentLocator
 	bus    agentproto.Bus
 	claim  claimer
 	logger logger.Logger
+	now    func() time.Time
 
 	mu     sync.Mutex
-	issued map[string]agentTarget // requestId -> the session it was sent to
+	issued map[string]issuedAgentRequest // requestId -> the session it was sent to + timestamp
 }
 
 func newAgentBridge(loc agentLocator, bus agentproto.Bus, claim claimer, lg logger.Logger) *agentBridge {
-	return &agentBridge{loc: loc, bus: bus, claim: claim, logger: lg, issued: map[string]agentTarget{}}
+	return &agentBridge{
+		loc:    loc,
+		bus:    bus,
+		claim:  claim,
+		logger: lg,
+		now:    time.Now,
+		issued: map[string]issuedAgentRequest{},
+	}
+}
+
+func (b *agentBridge) pruneExpiredLocked(now time.Time) {
+	for id, entry := range b.issued {
+		if now.Sub(entry.issuedAt) > agentIssuedTTL {
+			delete(b.issued, id)
+		}
+	}
 }
 
 // Run delivers requests until ctx ends. It subscribes before returning control
@@ -100,8 +123,10 @@ func (b *agentBridge) deliver(ctx context.Context, req agentproto.Request) {
 		return
 	}
 	payload, _ := json.Marshal(map[string]any{"tool": req.Tool, "args": req.Args, "pageId": req.PageID})
+	now := b.now()
 	b.mu.Lock()
-	b.issued[req.RequestID] = target
+	b.pruneExpiredLocked(now)
+	b.issued[req.RequestID] = issuedAgentRequest{target: target, issuedAt: now}
 	b.mu.Unlock()
 	msg := domainEntity.Message{
 		Type: domainEntity.TypeAgentRequest, ProjectID: req.ProjectID, PageID: req.PageID,
@@ -118,15 +143,17 @@ func (b *agentBridge) deliver(ctx context.Context, req agentproto.Request) {
 }
 
 // handleResponse accepts the tab's answer only from the session the request
-// was sent to, and only once.
+// was sent to, before expiry, and only once.
 func (b *agentBridge) handleResponse(ctx context.Context, from agentTarget, msg domainEntity.Message) error {
+	now := b.now()
 	b.mu.Lock()
-	want, ok := b.issued[msg.RequestID]
-	if ok && want == from {
+	b.pruneExpiredLocked(now)
+	entry, ok := b.issued[msg.RequestID]
+	if ok && entry.target == from {
 		delete(b.issued, msg.RequestID)
 	}
 	b.mu.Unlock()
-	if !ok || want != from {
+	if !ok || entry.target != from {
 		return domainErrors.New(domainErrors.CodeValidation, "unknown agent request", errors.New("response from a session that was not addressed"))
 	}
 	var resp agentproto.Response

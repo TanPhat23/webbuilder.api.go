@@ -361,20 +361,20 @@ func TestContentItemGetPublicNormalisesSortAndLimit(t *testing.T) {
 		wantOrder       string
 		wantLimit       int
 	}{
-		{5, "Title", "asc", `ORDER BY "Title" asc`, 5},
-		{0, "Id; DROP TABLE x", "sideways", `ORDER BY "CreatedAt" desc`, DefaultPageSize},
-		{MaxPageSize + 1, "Slug", "desc", `ORDER BY "Slug" desc`, DefaultPageSize},
-		{-3, "UpdatedAt", "asc", `ORDER BY "UpdatedAt" asc`, DefaultPageSize},
-		{MaxPageSize, "CreatedAt", "asc", `ORDER BY "CreatedAt" asc`, MaxPageSize},
+		{5, "Title", "asc", `ORDER BY public."ContentItem"."Title" asc`, 5},
+		{0, "Id; DROP TABLE x", "sideways", `ORDER BY public."ContentItem"."CreatedAt" desc`, DefaultPageSize},
+		{MaxPageSize + 1, "Slug", "desc", `ORDER BY public."ContentItem"."Slug" desc`, DefaultPageSize},
+		{-3, "UpdatedAt", "asc", `ORDER BY public."ContentItem"."UpdatedAt" asc`, DefaultPageSize},
+		{MaxPageSize, "CreatedAt", "asc", `ORDER BY public."ContentItem"."CreatedAt" asc`, MaxPageSize},
 	} {
 		db, f := newFakeDB(t)
-		f.on(contentItemSelect, contentItemCols, []driver.Value{"i1", "ct1", "a", "A", true})
+		f.on(`JOIN public."ContentType"`, contentItemCols, []driver.Value{"i1", "ct1", "a", "A", true})
 		got, err := contentItemNew(db).GetPublicContentItems(ctx, "ct1", tc.limit, tc.sortBy, tc.sortDir)
 		assertContentItemNoErr(t, err)
 		if len(got) != 1 || got[0].Id != "i1" {
 			t.Fatalf("got=%+v", got)
 		}
-		if !f.sawQuery(tc.wantOrder, `"Published" =`) {
+		if !f.sawQuery(tc.wantOrder, `public."ContentItem"."Published" =`, `public."ContentType"."PublicRead" = true`, `public."Project"."Published" = true`, `public."Project"."DeletedAt" IS NULL`) {
 			t.Fatalf("queries=%v", f.queries)
 		}
 		if !contentItemHasArg(f, int64(tc.wantLimit)) && !contentItemHasArg(f, tc.wantLimit) {

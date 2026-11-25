@@ -18,10 +18,11 @@ func (h *Handler) handleLogicMove(ctx context.Context, client *wsentity.Client, 
 	if h.uc.Logic == nil {
 		return domainErrors.New(domainErrors.CodeInternal, "logic editing is not available", nil)
 	}
-	if client.PageID == "" {
+	pageID := client.GetPageID()
+	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
-	if msg.PageID != client.PageID {
+	if msg.PageID != pageID {
 		return domainErrors.New(domainErrors.CodeValidation, "page does not match the joined page", nil)
 	}
 	var payload struct {
@@ -34,13 +35,13 @@ func (h *Handler) handleLogicMove(ctx context.Context, client *wsentity.Client, 
 	}
 	var opErr error
 	if err := h.pages.Do(ctx, logicActorKey(client.ProjectID), func() {
-		project, page, err := h.uc.Logic.Move(ctx, client.ProjectID, client.PageID, client.User.ID, payload.Kind, payload.Name, payload.To)
+		project, page, err := h.uc.Logic.Move(ctx, client.ProjectID, pageID, client.User.ID, payload.Kind, payload.Name, payload.To)
 		if err != nil {
 			opErr = err
 			return
 		}
 		out, err := client.Factory().Create(domainEntity.TypeLogicMove, domainEntity.PayloadLogicSync{
-			Project: project.Doc, Page: page.Doc, PageID: client.PageID, ProjectRevision: project.Revision, PageRevision: page.Revision,
+			Project: project.Doc, Page: page.Doc, PageID: pageID, ProjectRevision: project.Revision, PageRevision: page.Revision,
 		})
 		if err != nil {
 			opErr = domainErrors.Wrap(domainErrors.CodeInternal, err)
@@ -75,7 +76,7 @@ func (h *Handler) handleLogicUpdate(ctx context.Context, client *wsentity.Client
 	switch payload.Scope {
 	case domainEntity.LogicScopeProject:
 	case domainEntity.LogicScopePage:
-		pageID = client.PageID
+		pageID = client.GetPageID()
 		if pageID == "" {
 			return domainErrors.ErrNotJoined
 		}
@@ -123,17 +124,18 @@ func (h *Handler) sendLogicSync(ctx context.Context, client *wsentity.Client, re
 	if h.uc.Logic == nil {
 		return nil
 	}
-	if client.PageID == "" {
+	pageID := client.GetPageID()
+	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
-	project, page, err := h.uc.Logic.Get(ctx, client.ProjectID, client.PageID, client.User.ID)
+	project, page, err := h.uc.Logic.Get(ctx, client.ProjectID, pageID, client.User.ID)
 	if err != nil {
 		return err
 	}
 	// This read runs outside the logic actor, so an update may be broadcast
 	// before this reply is sent; the revisions let the client drop it then.
 	out, err := client.Factory().LogicSync(domainEntity.PayloadLogicSync{
-		Project: project.Doc, Page: page.Doc, PageID: client.PageID,
+		Project: project.Doc, Page: page.Doc, PageID: pageID,
 		ProjectRevision: project.Revision, PageRevision: page.Revision,
 	})
 	if err != nil {

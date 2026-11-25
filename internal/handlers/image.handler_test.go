@@ -107,11 +107,16 @@ func imageHandlerUpload(t *testing.T, app *fiber.App, filename, content, name st
 	return kitReply{status: res.StatusCode, body: string(raw)}
 }
 
+const (
+	testPNGBytes  = "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+	testJPEGBytes = "\xff\xd8\xff\xe0\x00\x10JFIF"
+)
+
 func TestUploadImagePassesFileAndNameToService(t *testing.T) {
 	svc := &imageHandlerStub{}
-	r := imageHandlerUpload(t, imageHandlerApp("u1", svc), "logo.png", "PNGDATA", "My Logo")
+	r := imageHandlerUpload(t, imageHandlerApp("u1", svc), "logo.png", testPNGBytes, "My Logo")
 	kitExpect(t, r, 201, "img-1", "https://cdn.example/x.png", "My Logo")
-	if svc.gotUser != "u1" || svc.gotFile != "logo.png" || svc.gotContent != "PNGDATA" {
+	if svc.gotUser != "u1" || svc.gotFile != "logo.png" || svc.gotContent != testPNGBytes {
 		t.Fatalf("service got user=%q file=%q content=%q", svc.gotUser, svc.gotFile, svc.gotContent)
 	}
 	if svc.gotName == nil || *svc.gotName != "My Logo" {
@@ -121,7 +126,7 @@ func TestUploadImagePassesFileAndNameToService(t *testing.T) {
 
 func TestUploadImageWithoutNameSendsNil(t *testing.T) {
 	svc := &imageHandlerStub{}
-	kitExpect(t, imageHandlerUpload(t, imageHandlerApp("u1", svc), "a.jpg", "x", ""), 201)
+	kitExpect(t, imageHandlerUpload(t, imageHandlerApp("u1", svc), "a.jpg", testJPEGBytes, ""), 201)
 	if svc.gotName != nil {
 		t.Fatalf("image name = %q, want nil", *svc.gotName)
 	}
@@ -130,7 +135,7 @@ func TestUploadImageWithoutNameSendsNil(t *testing.T) {
 func TestUploadImageRejections(t *testing.T) {
 	t.Run("anonymous", func(t *testing.T) {
 		svc := &imageHandlerStub{}
-		kitExpect(t, imageHandlerUpload(t, imageHandlerApp("", svc), "a.png", "x", ""), 401)
+		kitExpect(t, imageHandlerUpload(t, imageHandlerApp("", svc), "a.png", testPNGBytes, ""), 401)
 		if svc.calls != 0 {
 			t.Fatal("service called without a user")
 		}
@@ -150,9 +155,23 @@ func TestUploadImageRejections(t *testing.T) {
 			t.Fatal("service called for an invalid file")
 		}
 	})
+	t.Run("svg extension rejected", func(t *testing.T) {
+		svc := &imageHandlerStub{}
+		kitExpect(t, imageHandlerUpload(t, imageHandlerApp("u1", svc), "xss.svg", "<svg onload=alert(1)>", ""), 400, "Invalid image file", "invalid file type")
+		if svc.calls != 0 {
+			t.Fatal("service called for an svg file")
+		}
+	})
+	t.Run("magic bytes mismatch", func(t *testing.T) {
+		svc := &imageHandlerStub{}
+		kitExpect(t, imageHandlerUpload(t, imageHandlerApp("u1", svc), "fake.png", "<script>alert(1)</script>", ""), 400, "Invalid image file", "invalid image content type")
+		if svc.calls != 0 {
+			t.Fatal("service called for disguised content")
+		}
+	})
 	t.Run("service failure", func(t *testing.T) {
 		svc := &imageHandlerStub{err: errInternal}
-		kitExpect(t, imageHandlerUpload(t, imageHandlerApp("u1", svc), "a.png", "x", ""), 500, "Failed to save image metadata")
+		kitExpect(t, imageHandlerUpload(t, imageHandlerApp("u1", svc), "a.png", testPNGBytes, ""), 500, "Failed to save image metadata")
 	})
 }
 

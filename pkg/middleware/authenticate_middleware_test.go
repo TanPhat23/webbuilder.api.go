@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"context"
+	"io"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,5 +102,68 @@ func TestAuthenticateMiddleware_TestBypassAndProdGuard(t *testing.T) {
 	}
 	if resp.StatusCode != fiber.StatusOK {
 		t.Fatalf("expected 200 with X-Test-User-Id in test mode, got %d", resp.StatusCode)
+	}
+
+	// Disallowed environments and live Clerk keys must fail ValidateAuthEnv and ignore bypass
+	for _, badEnv := range []string{"", "staging", "prod", "production"} {
+		t.Setenv("ENV", badEnv)
+		if err := ValidateAuthEnv(); err == nil {
+			t.Fatalf("expected ValidateAuthEnv to reject TEST_AUTH_BYPASS when ENV=%q", badEnv)
+		}
+		respBad, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/api/v1/private", nil))
+		if err != nil || respBad.StatusCode != fiber.StatusUnauthorized {
+			t.Fatalf("expected 401 when ENV=%q, got status=%v err=%v", badEnv, respBad, err)
+		}
+	}
+
+	t.Setenv("ENV", "development")
+	t.Setenv("CLERK_SECRET_KEY", "sk_live_12345")
+	if err := ValidateAuthEnv(); err == nil {
+		t.Fatal("expected ValidateAuthEnv to reject TEST_AUTH_BYPASS with sk_live_ key")
+	}
+	reqLive := httptest.NewRequest(fiber.MethodGet, "/api/v1/private", nil)
+	reqLive.Header.Set("X-Test-User-Id", "test_user_1")
+	respLive, err := app.Test(reqLive)
+	if err != nil || respLive.StatusCode != fiber.StatusUnauthorized {
+		t.Fatalf("expected 401 with sk_live_ key, got status=%v err=%v", respLive, err)
+	}
+}
+
+func TestAuthenticateMiddleware_PublicRouteTighteningAndGenericJWTError(t *testing.T) {
+	app := fiber.New()
+	app.Use(NewAuthenticateMiddleware(nil))
+	app.All("/*", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+
+	cases := []struct {
+		method string
+		path   string
+		want   int
+	}{
+		{fiber.MethodGet, "/api/v1/public/content", fiber.StatusOK},
+		{fiber.MethodGet, "/api/v1/projects/public/p1", fiber.StatusOK},
+		{fiber.MethodGet, "/api/v1/elements/public/p1", fiber.StatusOK},
+		{fiber.MethodGet, "/api/v1/pages/public/p1", fiber.StatusOK},
+		{fiber.MethodPost, "/api/v1/public/projects/p1/collections/contact/items", fiber.StatusOK},
+		{fiber.MethodPost, "/api/v1/projects/public/p1", fiber.StatusUnauthorized},
+		{fiber.MethodPost, "/api/v1/elements/public/p1", fiber.StatusUnauthorized},
+		{fiber.MethodGet, "/api/v1/publicFoo", fiber.StatusUnauthorized},
+		{fiber.MethodGet, "/api/v1/projects/publicFoo", fiber.StatusUnauthorized},
+	}
+	for _, tc := range cases {
+		resp, err := app.Test(httptest.NewRequest(tc.method, tc.path, nil))
+		if err != nil || resp.StatusCode != tc.want {
+			t.Fatalf("%s %s: status=%v want=%d err=%v", tc.method, tc.path, resp, tc.want, err)
+		}
+	}
+
+	req := httptest.NewRequest(fiber.MethodGet, "/api/v1/private", nil)
+	req.Header.Set("Authorization", "Bearer not-a-valid-jwt")
+	resp, err := app.Test(req)
+	if err != nil || resp.StatusCode != fiber.StatusUnauthorized {
+		t.Fatalf("expected 401, got status=%v err=%v", resp, err)
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(raw), `"Unauthorized: Invalid token"`) {
+		t.Fatalf("expected generic invalid token message, got %s", string(raw))
 	}
 }

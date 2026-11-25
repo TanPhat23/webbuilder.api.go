@@ -9,7 +9,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
+
+const testCloudinaryPNG = "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDRimgdata"
 
 type cloudinaryFakeFile struct {
 	*strings.Reader
@@ -79,8 +83,8 @@ func TestCloudinary_UploadImage(t *testing.T) {
 		body = string(b)
 		w.Write([]byte(`{"public_id":"f/pic_1","secure_url":"https://s/x.png","url":"http://s/x.png","format":"png","width":10,"height":20}`))
 	})
-	f := &cloudinaryFakeFile{Reader: strings.NewReader("imgdata")}
-	res, err := svc.UploadImage(context.Background(), f, "pic.png", "f")
+	f := &cloudinaryFakeFile{Reader: strings.NewReader(testCloudinaryPNG)}
+	res, err := svc.UploadImage(context.Background(), f, "../../etc/passwd.png", "f")
 	wantNoErr(t, err)
 	want := UploadResult{PublicID: "f/pic_1", SecureURL: "https://s/x.png", URL: "http://s/x.png", Format: "png", Width: 10, Height: 20}
 	if *res != want {
@@ -89,8 +93,11 @@ func TestCloudinary_UploadImage(t *testing.T) {
 	if !strings.HasSuffix(path, "/demo/auto/upload") {
 		t.Fatalf("path = %q", path)
 	}
-	if !strings.Contains(body, "folder") || !strings.Contains(body, "pic_") {
-		t.Fatalf("body missing folder/public id: %s", body)
+	if !strings.Contains(body, "folder") || strings.Contains(body, "passwd") {
+		t.Fatalf("body unexpected (missing folder or leaked client filename): %s", body)
+	}
+	if !strings.Contains(body, testCloudinaryPNG) {
+		t.Fatalf("uploaded body missing full PNG payload after Seek(0): %q", body)
 	}
 }
 
@@ -99,7 +106,7 @@ func TestCloudinary_UploadImage_Error(t *testing.T) {
 		w.WriteHeader(500)
 		w.Write([]byte("nope"))
 	})
-	res, err := svc.UploadImage(context.Background(), &cloudinaryFakeFile{Reader: strings.NewReader("x")}, "a.png", "f")
+	res, err := svc.UploadImage(context.Background(), &cloudinaryFakeFile{Reader: strings.NewReader(testCloudinaryPNG)}, "a.png", "f")
 	if res != nil {
 		t.Fatal("expected nil result")
 	}
@@ -126,7 +133,7 @@ func TestCloudinary_UploadBase64Image_TransportError(t *testing.T) {
 	srv.Close()
 	_, err := svc.UploadBase64Image(context.Background(), "data:image/png;base64,AAAA", "folder")
 	wantErr(t, err, "failed to upload base64 image to cloudinary")
-	_, err = svc.UploadImage(context.Background(), &cloudinaryFakeFile{Reader: strings.NewReader("x")}, "a.png", "f")
+	_, err = svc.UploadImage(context.Background(), &cloudinaryFakeFile{Reader: strings.NewReader(testCloudinaryPNG)}, "a.png", "f")
 	wantErr(t, err, "failed to upload image to cloudinary")
 	err = svc.DeleteImage(context.Background(), "id")
 	wantErr(t, err, "failed to delete image from cloudinary")
@@ -151,14 +158,21 @@ func cloudinaryHeader(name string, size int64) *multipart.FileHeader {
 }
 
 func TestValidateImageFile(t *testing.T) {
-	for _, n := range []string{"a.jpg", "a.jpeg", "a.png", "a.gif", "a.webp", "a.svg", "a.bmp"} {
+	for _, n := range []string{"a.jpg", "a.jpeg", "a.png", "A.PNG", "a.gif", "a.webp", "a.bmp"} {
 		wantNoErr(t, ValidateImageFile(cloudinaryHeader(n, 100)))
 	}
 	wantNoErr(t, ValidateImageFile(cloudinaryHeader("a.png", 10*1024*1024)))
 	wantErr(t, ValidateImageFile(cloudinaryHeader("a.png", 10*1024*1024+1)), "exceeds maximum")
 	wantErr(t, ValidateImageFile(cloudinaryHeader("a.exe", 1)), "invalid file type: .exe")
+	wantErr(t, ValidateImageFile(cloudinaryHeader("a.svg", 1)), "invalid file type: .svg")
 	wantErr(t, ValidateImageFile(cloudinaryHeader("noext", 1)), "invalid file type")
-	wantErr(t, ValidateImageFile(cloudinaryHeader("A.PNG", 1)), "invalid file type: .PNG")
+}
+
+func TestValidateImageContent(t *testing.T) {
+	wantNoErr(t, ValidateImageContent(&cloudinaryFakeFile{Reader: strings.NewReader(testCloudinaryPNG)}))
+	wantNoErr(t, ValidateImageContent(&cloudinaryFakeFile{Reader: strings.NewReader("\xff\xd8\xff\xe0JFIF")}))
+	wantNoErr(t, ValidateImageContent(&cloudinaryFakeFile{Reader: strings.NewReader("GIF89a")}))
+	wantErr(t, ValidateImageContent(&cloudinaryFakeFile{Reader: strings.NewReader("<svg><script>alert(1)</script></svg>")}), "invalid image content type")
 }
 
 func TestReadFileContent(t *testing.T) {
@@ -176,14 +190,14 @@ func TestReadFileContent(t *testing.T) {
 }
 
 func TestGeneratePublicID(t *testing.T) {
-	a := generatePublicID("photo.png")
-	if !strings.HasPrefix(a, "photo_") || strings.Contains(a, ".png") {
-		t.Fatalf("id = %q", a)
+	a := generatePublicID("../../evil/photo.png")
+	if _, err := uuid.Parse(a); err != nil {
+		t.Fatalf("expected UUID public ID, got %q (%v)", a, err)
+	}
+	if strings.Contains(a, "photo") || strings.Contains(a, "evil") || strings.Contains(a, ".png") {
+		t.Fatalf("public ID must not incorporate client filename: %q", a)
 	}
 	if b := generatePublicID("photo.png"); a == b {
 		t.Fatal("ids should be unique")
-	}
-	if id := generatePublicID("noext"); !strings.HasPrefix(id, "noext_") {
-		t.Fatalf("id = %q", id)
 	}
 }

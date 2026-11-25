@@ -3,6 +3,7 @@ package configs
 import (
 	"errors"
 	"my-go-app/pkg/utils"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
@@ -22,6 +23,10 @@ func FiberConfig() fiber.Config {
 		StrictRouting:   true,
 		ServerHeader:    "Fiber",
 		AppName:         "Webbuilder v1.0.1",
+		ReadTimeout:     15 * time.Second,
+		WriteTimeout:    30 * time.Second,
+		IdleTimeout:     60 * time.Second,
+		BodyLimit:       4 * 1024 * 1024,
 		ErrorHandler:    jsonErrorHandler,
 		StructValidator: &structValidator{validate: validator.New()},
 	}

@@ -7,6 +7,12 @@ import (
 	"my-go-app/internal/realtime/domain/entity"
 )
 
+const (
+	MaxElementDepth = 32
+	MaxElementNodes = 2000
+	MaxMergeDepth   = 16
+)
+
 func ParentsEqual(p1, p2 *string) bool {
 	if p1 == nil && p2 == nil {
 		return true
@@ -24,21 +30,24 @@ func CompareParent(p *string, id string) bool {
 	return *p == id
 }
 
-// FlattenElements flattens nested Elements for database operations.
+// FlattenElements flattens nested Elements for database operations, bounded to MaxElementDepth and MaxElementNodes.
 func FlattenElements(elements []entity.Element) []entity.Element {
 	result := make([]entity.Element, 0, len(elements))
-	flatten(elements, &result)
+	flatten(elements, &result, 1)
 	return result
 }
 
-func flatten(elements []entity.Element, result *[]entity.Element) {
-	if len(elements) == 0 {
+func flatten(elements []entity.Element, result *[]entity.Element, depth int) {
+	if len(elements) == 0 || depth > MaxElementDepth || len(*result) >= MaxElementNodes {
 		return
 	}
 	for _, el := range elements {
+		if len(*result) >= MaxElementNodes {
+			return
+		}
 		*result = append(*result, el)
 		if len(el.Elements) > 0 {
-			flatten(el.Elements, result)
+			flatten(el.Elements, result, depth+1)
 		}
 	}
 }
@@ -86,17 +95,31 @@ func groupElementsByParent(elements []entity.Element, elementMap map[string]enti
 }
 
 func assembleElementForest(roots []string, elementMap map[string]entity.Element, childrenMap map[string][]string) []entity.Element {
-	var build func(id string) entity.Element
-	build = func(id string) entity.Element {
+	visiting := make(map[string]bool)
+	nodes := 0
+	var build func(id string, depth int) entity.Element
+	build = func(id string, depth int) entity.Element {
 		node := elementMap[id]
-		for _, cid := range childrenMap[id] {
-			node.Elements = append(node.Elements, build(cid))
+		nodes++
+		if depth >= MaxElementDepth || nodes >= MaxElementNodes || visiting[id] {
+			return node
 		}
+		visiting[id] = true
+		for _, cid := range childrenMap[id] {
+			if nodes >= MaxElementNodes {
+				break
+			}
+			node.Elements = append(node.Elements, build(cid, depth+1))
+		}
+		delete(visiting, id)
 		return node
 	}
 	result := make([]entity.Element, 0, len(roots))
 	for _, rid := range roots {
-		result = append(result, build(rid))
+		if nodes >= MaxElementNodes {
+			break
+		}
+		result = append(result, build(rid, 1))
 	}
 	return result
 }
@@ -126,7 +149,11 @@ func sortElementIDs(ids []string, elementMap map[string]entity.Element) {
 }
 
 func UpdateElement(root *entity.Element, updated entity.Element) bool {
-	if root == nil {
+	return updateElementAtDepth(root, updated, 1)
+}
+
+func updateElementAtDepth(root *entity.Element, updated entity.Element, depth int) bool {
+	if root == nil || depth > MaxElementDepth {
 		return false
 	}
 	if root.ID == updated.ID {
@@ -134,7 +161,7 @@ func UpdateElement(root *entity.Element, updated entity.Element) bool {
 		return true
 	}
 	for i := range root.Elements {
-		if UpdateElement(&root.Elements[i], updated) {
+		if updateElementAtDepth(&root.Elements[i], updated, depth+1) {
 			return true
 		}
 	}
@@ -142,7 +169,11 @@ func UpdateElement(root *entity.Element, updated entity.Element) bool {
 }
 
 func DeleteElement(root *entity.Element, id string) bool {
-	if root == nil {
+	return deleteElementAtDepth(root, id, 1)
+}
+
+func deleteElementAtDepth(root *entity.Element, id string, depth int) bool {
+	if root == nil || depth > MaxElementDepth {
 		return false
 	}
 	for i := 0; i < len(root.Elements); i++ {
@@ -152,7 +183,7 @@ func DeleteElement(root *entity.Element, id string) bool {
 		}
 	}
 	for i := range root.Elements {
-		if DeleteElement(&root.Elements[i], id) {
+		if deleteElementAtDepth(&root.Elements[i], id, depth+1) {
 			return true
 		}
 	}
@@ -160,7 +191,11 @@ func DeleteElement(root *entity.Element, id string) bool {
 }
 
 func SwapElements(root *entity.Element, id1, id2 string) bool {
-	if root == nil {
+	return swapElementsAtDepth(root, id1, id2, 1)
+}
+
+func swapElementsAtDepth(root *entity.Element, id1, id2 string, depth int) bool {
+	if root == nil || depth > MaxElementDepth {
 		return false
 	}
 	idx1, idx2 := findSwapIndices(root.Elements, id1, id2)
@@ -169,7 +204,7 @@ func SwapElements(root *entity.Element, id1, id2 string) bool {
 		return true
 	}
 	for i := range root.Elements {
-		if SwapElements(&root.Elements[i], id1, id2) {
+		if swapElementsAtDepth(&root.Elements[i], id1, id2, depth+1) {
 			return true
 		}
 	}
@@ -190,7 +225,11 @@ func findSwapIndices(children []entity.Element, id1, id2 string) (int, int) {
 }
 
 func CreateElement(root *entity.Element, newElement entity.Element) bool {
-	if root == nil {
+	return createElementAtDepth(root, newElement, 1)
+}
+
+func createElementAtDepth(root *entity.Element, newElement entity.Element, depth int) bool {
+	if root == nil || depth >= MaxElementDepth {
 		return false
 	}
 	if matchesParent(root.ID, newElement.ParentID) {
@@ -199,7 +238,7 @@ func CreateElement(root *entity.Element, newElement entity.Element) bool {
 		return true
 	}
 	for i := range root.Elements {
-		if CreateElement(&root.Elements[i], newElement) {
+		if createElementAtDepth(&root.Elements[i], newElement, depth+1) {
 			return true
 		}
 	}
@@ -216,11 +255,18 @@ func matchesParent(rootID string, parentID *string) bool {
 // FindByID returns a pointer to the element with the given id anywhere in the tree, or nil.
 // The pointer aliases the tree, so mutating through it edits the tree in place.
 func FindByID(elements []entity.Element, id string) *entity.Element {
+	return findByIDAtDepth(elements, id, 1)
+}
+
+func findByIDAtDepth(elements []entity.Element, id string, depth int) *entity.Element {
+	if depth > MaxElementDepth {
+		return nil
+	}
 	for i := range elements {
 		if elements[i].ID == id {
 			return &elements[i]
 		}
-		if found := FindByID(elements[i].Elements, id); found != nil {
+		if found := findByIDAtDepth(elements[i].Elements, id, depth+1); found != nil {
 			return found
 		}
 	}
@@ -228,9 +274,13 @@ func FindByID(elements []entity.Element, id string) *entity.Element {
 }
 
 // MergeMap deep-merges patch into dst and returns the result without mutating either input.
-// A nil value in patch deletes the key; nested maps are merged recursively; any other value
-// (including arrays) replaces the existing one.
+// A nil value in patch deletes the key; nested maps are merged recursively up to MaxMergeDepth;
+// any other value (including arrays) replaces the existing one.
 func MergeMap(dst, patch map[string]any) map[string]any {
+	return mergeMapDepth(dst, patch, 0)
+}
+
+func mergeMapDepth(dst, patch map[string]any, depth int) map[string]any {
 	out := make(map[string]any, len(dst)+len(patch))
 	for k, v := range dst {
 		out[k] = v
@@ -241,12 +291,16 @@ func MergeMap(dst, patch map[string]any) map[string]any {
 			continue
 		}
 		if pm, ok := v.(map[string]any); ok {
+			if depth >= MaxMergeDepth {
+				out[k] = pm
+				continue
+			}
 			if dm, ok := out[k].(map[string]any); ok {
-				out[k] = MergeMap(dm, pm)
+				out[k] = mergeMapDepth(dm, pm, depth+1)
 				continue
 			}
 			// Replacing a non-map (or missing) value: still drop nil entries inside the new map.
-			out[k] = MergeMap(nil, pm)
+			out[k] = mergeMapDepth(nil, pm, depth+1)
 			continue
 		}
 		out[k] = v

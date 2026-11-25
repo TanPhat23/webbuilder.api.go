@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"my-go-app/internal/agenttokens"
+	"my-go-app/internal/auth"
 	"my-go-app/internal/models"
 	"my-go-app/pkg/utils"
 )
@@ -39,9 +40,22 @@ func PublicMCPURL() string {
 	return "http://localhost:8090"
 }
 
-func (h *AgentTokenHandler) Create(c fiber.Ctx) error {
+func validateInteractiveUser(c fiber.Ctx) (string, bool, error) {
 	userID, err := utils.ValidateUserID(c)
 	if err != nil {
+		return "", false, err
+	}
+	if id, ok := auth.FromFiber(c); ok && id.AuthMethod == "agent_token" {
+		return "", false, c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "agent tokens cannot manage agent tokens; interactive session required",
+		})
+	}
+	return userID, true, nil
+}
+
+func (h *AgentTokenHandler) Create(c fiber.Ctx) error {
+	userID, ok, err := validateInteractiveUser(c)
+	if !ok {
 		return err
 	}
 	var body struct {
@@ -67,8 +81,8 @@ func (h *AgentTokenHandler) Create(c fiber.Ctx) error {
 }
 
 func (h *AgentTokenHandler) List(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
-	if err != nil {
+	userID, ok, err := validateInteractiveUser(c)
+	if !ok {
 		return err
 	}
 	tokens, err := h.tokens.List(c.Context(), userID)
@@ -79,8 +93,8 @@ func (h *AgentTokenHandler) List(c fiber.Ctx) error {
 }
 
 func (h *AgentTokenHandler) Revoke(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
-	if err != nil {
+	userID, ok, err := validateInteractiveUser(c)
+	if !ok {
 		return err
 	}
 	err = h.tokens.Revoke(c.Context(), userID, c.Params("id"))

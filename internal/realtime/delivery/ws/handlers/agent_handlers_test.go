@@ -181,3 +181,37 @@ func TestResponseFromANonAddressedSessionIsRejected(t *testing.T) {
 		t.Fatal("a replayed response must be rejected")
 	}
 }
+
+func TestAgentBridge_ExpiresIssuedEntriesAfterTTL(t *testing.T) {
+	bus := &agentproto.MemBus{}
+	tab := &fakeTab{}
+	now := time.Unix(1000, 0)
+	b := newAgentBridge(fakeLocator{byUser: map[string]agentTarget{"p1/u1": tab}}, bus, newMemClaimer(), logger.Default())
+	b.now = func() time.Time { return now }
+
+	b.deliver(context.Background(), agentproto.Request{
+		RequestID: "old-req", UserID: "u1", ProjectID: "p1", PageID: "pg1", Tool: "get_code", Args: json.RawMessage(`{}`),
+	})
+	if len(b.issued) != 1 {
+		t.Fatalf("expected 1 issued entry, got %d", len(b.issued))
+	}
+
+	now = now.Add(agentIssuedTTL + time.Second)
+	b.deliver(context.Background(), agentproto.Request{
+		RequestID: "new-req", UserID: "u1", ProjectID: "p1", PageID: "pg1", Tool: "get_code", Args: json.RawMessage(`{}`),
+	})
+	b.mu.Lock()
+	_, oldPresent := b.issued["old-req"]
+	_, newPresent := b.issued["new-req"]
+	b.mu.Unlock()
+	if oldPresent || !newPresent {
+		t.Fatalf("expected old-req pruned and new-req present, got old=%v new=%v", oldPresent, newPresent)
+	}
+
+	err := b.handleResponse(context.Background(), tab, domainEntity.Message{
+		Type: domainEntity.TypeAgentResponse, RequestID: "old-req", Payload: json.RawMessage(`{"ok":true}`),
+	})
+	if err == nil {
+		t.Fatal("expired request response must be rejected")
+	}
+}

@@ -66,6 +66,13 @@ func TestSearchUsers(t *testing.T) {
 			t.Fatalf("%s reached the service", path)
 		}
 	}
+	{
+		svc := &userHandlerStub{}
+		kitExpect(t, kitSend(t, userHandlerApp(svc), "GET", "/users/search?q=a", ""), 400, "at least 2 characters")
+		if svc.got != "" {
+			t.Fatal("1-char query reached the service")
+		}
+	}
 	kitExpect(t, kitSend(t, userHandlerApp(&userHandlerStub{err: errInternal}), "GET", "/users/search?q=an", ""), 500, "Failed to search users")
 }
 

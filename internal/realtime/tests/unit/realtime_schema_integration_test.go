@@ -125,6 +125,10 @@ func TestPostgresStartupDoesNotChangeSchema(t *testing.T) {
 
 func TestElementUpsertPersistsChangedOrderKey(t *testing.T) {
 	_, db := legacyRealtimeDatabase(t)
+	if err := db.Exec(`CREATE TABLE "Page" ("Id" text PRIMARY KEY, "ProjectId" text, "DeletedAt" timestamptz);
+		INSERT INTO "Page" ("Id", "ProjectId") VALUES ('page', 'project')`).Error; err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Exec(`UPDATE "Element" SET "OrderKey" = 'a0'`).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +162,7 @@ func assertCreateAndUpdateViaWS(t *testing.T, client *wsTestClient, id string) {
 
 func TestWSPageWithNullOrderKeysJoinsAndSendsElements(t *testing.T) {
 	dsn, legacy := legacyRealtimeDatabase(t)
-	if err := legacy.Exec(`CREATE TABLE "Page" ("Id" text PRIMARY KEY, "ProjectId" text);
+	if err := legacy.Exec(`CREATE TABLE "Page" ("Id" text PRIMARY KEY, "ProjectId" text, "DeletedAt" timestamptz);
 		INSERT INTO "Page" ("Id", "ProjectId") VALUES ('page', 'proj');
 		CREATE TABLE "ElementComment" ("Id" text PRIMARY KEY, "ElementId" text, "DeletedAt" timestamptz);
 		CREATE TABLE "ElementEventWorkflow" ("Id" text PRIMARY KEY, "ElementId" text)`).Error; err != nil {

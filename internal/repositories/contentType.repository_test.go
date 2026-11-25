@@ -311,3 +311,17 @@ func assertContentTypeCountsResult(t *testing.T, f *fakeDB, fields, items []map[
 		t.Errorf("queries: %v", f.queries)
 	}
 }
+
+func TestContentTypeGetByProjectAndSlugOrIDRequiresPublishedProject(t *testing.T) {
+	ctx := context.Background()
+	db, f := newFakeDB(t)
+	f.on(`JOIN public."Project"`, contentTypeCols, []driver.Value{"ct1", "Blog", nil})
+	got, err := contentTypeNew(db).GetContentTypeByProjectAndSlugOrID(ctx, "proj1", "blog")
+	assertContentTypeNoErr(t, err)
+	if got.Id != "ct1" {
+		t.Fatalf("got=%+v", got)
+	}
+	if !f.sawQuery(`JOIN public."Project"`, `public."Project"."Published" = true`, `public."Project"."DeletedAt" IS NULL`) {
+		t.Fatalf("expected published non-deleted project join, got queries=%v", f.queries)
+	}
+}

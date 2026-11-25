@@ -51,6 +51,9 @@ func (s *ImageService) CreateUploadedImage(ctx context.Context, userID string, f
 	if file == nil {
 		return nil, errors.New("image file is required")
 	}
+	if s.cloudinarySvc == nil {
+		return nil, errors.New("image upload service is not configured")
+	}
 
 	uploadResult, err := s.cloudinarySvc.UploadImage(ctx, file, fileName, "webbuilder/"+userID)
 	if err != nil {
@@ -89,6 +92,9 @@ func (s *ImageService) CreateBase64UploadedImage(ctx context.Context, userID str
 	}
 	if imageData == "" {
 		return nil, errors.New("image data is required")
+	}
+	if s.cloudinarySvc == nil {
+		return nil, errors.New("image upload service is not configured")
 	}
 
 	uploadResult, err := s.cloudinarySvc.UploadBase64Image(ctx, imageData, "webbuilder/"+userID)

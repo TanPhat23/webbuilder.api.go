@@ -24,6 +24,9 @@ func (h *UserHandler) SearchUsers(c fiber.Ctx) error {
 	if query == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "Query parameter 'q' is required")
 	}
+	if len([]rune(query)) < 2 {
+		return fiber.NewError(fiber.StatusBadRequest, "Query parameter 'q' must be at least 2 characters")
+	}
 
 	users, err := h.userService.SearchUsers(c.RequestCtx(), query)
 	if err != nil {

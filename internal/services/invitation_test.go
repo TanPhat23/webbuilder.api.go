@@ -137,6 +137,9 @@ func TestInvitationService_CreateSuccessAndMailerTolerance(t *testing.T) {
 	if saved.Email != "a@x.com" || saved.Id == "" || saved.Token == "" {
 		t.Fatalf("saved identity = %+v", saved)
 	}
+	if len(saved.Token) != 43 { // 32 bytes base64.RawURLEncoding
+		t.Fatalf("expected 43-char crypto/rand token, got len=%d (%q)", len(saved.Token), saved.Token)
+	}
 	if d := saved.ExpiresAt.Sub(before); d < 7*24*time.Hour-time.Minute || d > 7*24*time.Hour+time.Minute {
 		t.Fatalf("expiry = %v", d)
 	}

@@ -23,6 +23,7 @@ type DocumentMutateFunc func(elements []entity.Element) ([]entity.Element, error
 type ElementMutateFunc func(element *entity.Element) error
 
 type ElementRepository interface {
+	PageBelongsToProject(ctx context.Context, projectID string, pageID string) (bool, error)
 	CreateElement(ctx context.Context, projectID string, pageID string, element *entity.Element) error
 	CreateElements(ctx context.Context, projectID string, pageID string, element []entity.Element) error
 	UpdateElement(ctx context.Context, projectID string, pageID string, element *entity.Element) error

@@ -21,21 +21,62 @@ func NewElementRepository(db *gorm.DB) domainRepo.ElementRepository {
 	return &elementRepository{db: db}
 }
 
-// CreateElement persists a new element to the database, ensuring it belongs to the correct page
-func (r *elementRepository) CreateElement(ctx context.Context, projectID string, pageID string, element *domainEntity.Element) error {
-	element.PageID = pageID
-
-	if err := r.db.WithContext(ctx).Create(element).Error; err != nil {
-		return fmt.Errorf("failed to create element: %w", err)
+func verifyPageOwnership(ctx context.Context, tx *gorm.DB, projectID, pageID string) error {
+	if projectID == "" || pageID == "" {
+		return fmt.Errorf("projectID and pageID are required")
+	}
+	var exists bool
+	err := tx.WithContext(ctx).
+		Raw(`SELECT EXISTS (SELECT 1 FROM "Page" WHERE "Id" = ? AND "ProjectId" = ? AND "DeletedAt" IS NULL)`, pageID, projectID).
+		Scan(&exists).Error
+	if err != nil {
+		return fmt.Errorf("failed to verify page ownership: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("page not found in specified project")
 	}
 	return nil
 }
 
-// Create Elements from a flattened elements array
+// PageBelongsToProject checks whether pageID exists in projectID and is not soft-deleted.
+func (r *elementRepository) PageBelongsToProject(ctx context.Context, projectID, pageID string) (bool, error) {
+	if projectID == "" || pageID == "" {
+		return false, nil
+	}
+	var exists bool
+	err := r.db.WithContext(ctx).
+		Raw(`SELECT EXISTS (SELECT 1 FROM "Page" WHERE "Id" = ? AND "ProjectId" = ? AND "DeletedAt" IS NULL)`, pageID, projectID).
+		Scan(&exists).Error
+	if err != nil {
+		return false, fmt.Errorf("failed to verify page ownership: %w", err)
+	}
+	return exists, nil
+}
+
+// CreateElement persists a new element to the database, ensuring it belongs to the correct project and page
+func (r *elementRepository) CreateElement(ctx context.Context, projectID string, pageID string, element *domainEntity.Element) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := verifyPageOwnership(ctx, tx, projectID, pageID); err != nil {
+			return err
+		}
+		element.PageID = pageID
+		if err := tx.Create(element).Error; err != nil {
+			return fmt.Errorf("failed to create element: %w", err)
+		}
+		return nil
+	})
+}
+
+// CreateElements creates elements from a flattened elements array within a project-scoped transaction
 func (r *elementRepository) CreateElements(ctx context.Context, projectID string, pageId string, elements []domainEntity.Element) error {
 	tx := r.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return fmt.Errorf("failed to start transaction: %w", tx.Error)
+	}
+
+	if err := verifyPageOwnership(ctx, tx, projectID, pageId); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	if err := tx.Where(`"PageId" = ?`, pageId).Delete(&domainEntity.Element{}).Error; err != nil {
@@ -61,29 +102,40 @@ func (r *elementRepository) CreateElements(ctx context.Context, projectID string
 	return nil
 }
 
-// UpdateElement updates an existing element in the database, scoped by pageID
+// UpdateElement updates an existing element in the database, scoped by projectID and pageID
 func (r *elementRepository) UpdateElement(ctx context.Context, projectID string, pageID string, element *domainEntity.Element) error {
-	result := r.db.WithContext(ctx).
-		Model(&domainEntity.Element{}).
-		Where(`"Id" = ? AND "PageId" = ?`, element.ID, pageID).
-		Save(element)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := verifyPageOwnership(ctx, tx, projectID, pageID); err != nil {
+			return err
+		}
+		element.PageID = pageID
+		result := tx.
+			Model(&domainEntity.Element{}).
+			Where(`"Id" = ? AND "PageId" = ?`, element.ID, pageID).
+			Save(element)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to update element: %w", result.Error)
-	}
+		if result.Error != nil {
+			return fmt.Errorf("failed to update element: %w", result.Error)
+		}
 
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("element not found in specified page")
-	}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("element not found in specified page")
+		}
 
-	return nil
+		return nil
+	})
 }
 
-// UpdateElements updates multiple elements within a transaction, scoped by pageID
+// UpdateElements updates multiple elements within a transaction, scoped by projectID and pageID
 func (r *elementRepository) UpdateElements(ctx context.Context, projectID string, pageID string, elements []domainEntity.Element) error {
 	tx := r.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return fmt.Errorf("failed to start transaction: %w", tx.Error)
+	}
+
+	if err := verifyPageOwnership(ctx, tx, projectID, pageID); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	ids := make([]string, 0, len(elements))
@@ -120,11 +172,16 @@ func (r *elementRepository) UpdateElements(ctx context.Context, projectID string
 	return nil
 }
 
-// UpsertElements creates or updates multiple elements within a transaction, scoped by pageID
+// UpsertElements creates or updates multiple elements within a transaction, scoped by projectID and pageID
 func (r *elementRepository) UpsertElements(ctx context.Context, projectID string, pageID string, elements []domainEntity.Element) error {
 	tx := r.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return fmt.Errorf("failed to start transaction: %w", tx.Error)
+	}
+
+	if err := verifyPageOwnership(ctx, tx, projectID, pageID); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	for i := range elements {
@@ -132,12 +189,17 @@ func (r *elementRepository) UpsertElements(ctx context.Context, projectID string
 	}
 
 	if len(elements) > 0 {
-		if err := tx.Clauses(clause.OnConflict{
+		result := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "Id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"Name", "Type", "Content", "Href", "Src", "Styles", "Settings", "TailwindStyles", "Order", "OrderKey", "IsLocked", "ParentId", "PageId"}),
-		}).CreateInBatches(elements, len(elements)).Error; err != nil {
+			DoUpdates: clause.AssignmentColumns([]string{"Name", "Type", "Content", "Href", "Src", "Styles", "Settings", "TailwindStyles", "Order", "OrderKey", "IsLocked", "ParentId"}),
+			Where:     clause.Where{Exprs: []clause.Expression{clause.Eq{Column: clause.Column{Table: "Element", Name: "PageId"}, Value: pageID}}},
+		}).CreateInBatches(elements, len(elements))
+		if result.Error != nil || result.RowsAffected != int64(len(elements)) {
 			tx.Rollback()
-			return fmt.Errorf("failed to upsert elements: %w", err)
+			if result.Error != nil {
+				return fmt.Errorf("failed to upsert elements: %w", result.Error)
+			}
+			return fmt.Errorf("an element belongs to another page")
 		}
 	}
 
@@ -148,32 +210,39 @@ func (r *elementRepository) UpsertElements(ctx context.Context, projectID string
 	return nil
 }
 
-// DeleteElement removes an element by ID, scoped by pageID
+// DeleteElement removes an element by ID, scoped by projectID and pageID
 func (r *elementRepository) DeleteElement(ctx context.Context, projectID string, pageID string, elementID string) error {
-	result := r.db.WithContext(ctx).
-		Where(`"Id" = ? AND "PageId" = ?`, elementID, pageID).
-		Delete(&domainEntity.Element{})
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := verifyPageOwnership(ctx, tx, projectID, pageID); err != nil {
+			return err
+		}
+		result := tx.
+			Where(`"Id" = ? AND "PageId" = ?`, elementID, pageID).
+			Delete(&domainEntity.Element{})
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete element: %w", result.Error)
-	}
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete element: %w", result.Error)
+		}
 
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("element not found in specified page")
-	}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("element not found in specified page")
+		}
 
-	return nil
+		return nil
+	})
 }
 
-// GetElementByID retrieves a single element with its relations, scoped by pageID
+// GetElementByID retrieves a single element with its relations, scoped by projectID and pageID
 func (r *elementRepository) GetElementByID(ctx context.Context, projectID string, pageID string, elementID string) (*domainEntity.Element, error) {
 	var elem domainEntity.Element
 	err := r.db.WithContext(ctx).
+		Model(&domainEntity.Element{}).
+		Joins(`JOIN "Page" ON "Element"."PageId" = "Page"."Id"`).
 		Preload("Comments").
 		Preload("Comments.Author").
 		Preload("EventWorkflows").
 		Preload("EventWorkflows.Workflow").
-		Where(`"Id" = ? AND "PageId" = ?`, elementID, pageID).
+		Where(`"Page"."ProjectId" = ? AND "Page"."DeletedAt" IS NULL AND "Element"."Id" = ? AND "Element"."PageId" = ?`, projectID, elementID, pageID).
 		First(&elem).Error
 
 	if err != nil {
@@ -191,7 +260,7 @@ func (r *elementRepository) GetElementsByPageID(ctx context.Context, projectID s
 	err := r.db.WithContext(ctx).
 		Model(&domainEntity.Element{}).
 		Joins(`JOIN "Page" ON "Element"."PageId" = "Page"."Id"`).
-		Where(`"Page"."ProjectId" = ? AND "Element"."PageId" = ?`, projectID, pageID).
+		Where(`"Page"."ProjectId" = ? AND "Page"."DeletedAt" IS NULL AND "Element"."PageId" = ?`, projectID, pageID).
 		Order(`COALESCE("Element"."ParentId",'') ASC, "Element"."Order" ASC`).
 		Preload("Comments").
 		Preload("Comments.Author").
@@ -211,7 +280,7 @@ func (r *elementRepository) GetElementsByProjectID(ctx context.Context, projectI
 	err := r.db.WithContext(ctx).
 		Model(&domainEntity.Element{}).
 		Joins(`JOIN "Page" ON "Element"."PageId" = "Page"."Id"`).
-		Where(`"Page"."ProjectId" = ?`, projectID).
+		Where(`"Page"."ProjectId" = ? AND "Page"."DeletedAt" IS NULL`, projectID).
 		Order(`"Page"."Id" ASC, COALESCE("Element"."ParentId",'') ASC, "Element"."Order" ASC`).
 		Preload("Comments").
 		Preload("Comments.Author").

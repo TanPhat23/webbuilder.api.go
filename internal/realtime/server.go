@@ -4,8 +4,10 @@ package realtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -22,6 +24,17 @@ import (
 	ulogger "my-go-app/internal/realtime/utils/logger"
 )
 
+func validateRuntimeConfig(cfg *config.Config) error {
+	if cfg == nil || !cfg.DevMode {
+		return nil
+	}
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("ENV")))
+	if env == "production" || env == "prod" || env == "staging" || strings.HasPrefix(cfg.ClerkSecretKey, "sk_live_") {
+		return errors.New("DEV_MODE=true is forbidden in production/staging or with a live Clerk secret key")
+	}
+	return nil
+}
+
 // Mount connects the realtime engine's own PostgreSQL and Redis clients, starts
 // its persistence worker and registers the /ws routes on app. It returns a
 // shared Redis client and a function that stops the worker, flushes pending
@@ -34,6 +47,9 @@ func Mount(ctx context.Context, app *fiber.App) (*goredis.Client, func(), error)
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
+		return nil, nil, fmt.Errorf("realtime config: %w", err)
+	}
+	if err := validateRuntimeConfig(cfg); err != nil {
 		return nil, nil, fmt.Errorf("realtime config: %w", err)
 	}
 
@@ -62,7 +78,8 @@ func Mount(ctx context.Context, app *fiber.App) (*goredis.Client, func(), error)
 		return nil, nil, fmt.Errorf("realtime redis: %w", err)
 	}
 
-	useCases := usecase.NewUseCase(repository.NewRepository(db, rdb), lg)
+	repos := repository.NewRepository(db, rdb)
+	useCases := usecase.NewUseCase(repos, lg)
 
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	workerDone := make(chan struct{})
@@ -77,7 +94,9 @@ func Mount(ctx context.Context, app *fiber.App) (*goredis.Client, func(), error)
 	if !cfg.DevMode || os.Getenv("REALTIME_ENFORCE_ACCESS") == "true" {
 		wsHandler.RequireAccess(useCases.Logic)
 	}
-	app.Use("/ws", middleware.AuthMiddleware(cfg))
+	wsHandler.RequirePageOwnership(repos.ElementRepo)
+	wsHandler.SetAllowedOrigins(cfg.AllowedOrigins)
+	app.Use("/ws", middleware.AuthMiddlewareWithRedis(cfg, rdb))
 	wsHandler.SetupRoutes(app)
 
 	return rdb, func() {

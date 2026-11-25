@@ -1,12 +1,16 @@
 package config
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	for _, k := range []string{
 		"SERVER_PORT", "DATABASE_URL", "DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SSLMODE",
 		"REDIS_URL", "REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DB", "DEV_MODE", "CLERK_SECRET_KEY",
+		"ALLOWED_ORIGINS", "ENV",
 	} {
 		// t.Setenv registers restoration of the original value; Unsetenv then makes the key absent.
 		t.Setenv(k, "")
@@ -27,11 +31,26 @@ func TestLoadConfigDefaults(t *testing.T) {
 		Database: DatabaseConfig{
 			Host: "localhost", Port: "5432", User: "postgres", Password: "postgres", Name: "webbuilder", SSLMode: "disable",
 		},
-		Redis:   RedisConfig{Host: "localhost", Port: "6379"},
-		DevMode: false,
+		Redis:          RedisConfig{Host: "localhost", Port: "6379"},
+		DevMode:        false,
+		AllowedOrigins: []string{"http://localhost:3000", "https://webbuilderv2.vercel.app"},
 	}
-	if *cfg != want {
+	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("defaults mismatch:\n got %+v\nwant %+v", *cfg, want)
+	}
+}
+
+func TestLoadConfigProductionEmptyAllowedOriginsByDefault(t *testing.T) {
+	clearConfigEnv(t)
+	t.Chdir(t.TempDir())
+	t.Setenv("ENV", "production")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if len(cfg.AllowedOrigins) != 0 {
+		t.Fatalf("expected empty AllowedOrigins in production without ALLOWED_ORIGINS, got %v", cfg.AllowedOrigins)
 	}
 }
 
@@ -43,6 +62,7 @@ func TestLoadConfigFromEnv(t *testing.T) {
 		"DB_USER": "alice", "DB_PASSWORD": "pw", "DB_NAME": "wb", "DB_SSLMODE": "require",
 		"REDIS_URL": "redis://r:1/2", "REDIS_HOST": "rh", "REDIS_PORT": "7000", "REDIS_PASSWORD": "rpw", "REDIS_DB": "3",
 		"DEV_MODE": "true", "CLERK_SECRET_KEY": "sk_test",
+		"ALLOWED_ORIGINS": "https://app.example.com, https://admin.example.com",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -59,8 +79,9 @@ func TestLoadConfigFromEnv(t *testing.T) {
 		Redis:          RedisConfig{URL: "redis://r:1/2", Host: "rh", Port: "7000", Password: "rpw", DB: 3},
 		DevMode:        true,
 		ClerkSecretKey: "sk_test",
+		AllowedOrigins: []string{"https://app.example.com", "https://admin.example.com"},
 	}
-	if *cfg != want {
+	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("env mismatch:\n got %+v\nwant %+v", *cfg, want)
 	}
 }

@@ -364,7 +364,10 @@ func TestHandler_PlainErrorsAreReportedAsProcessError(t *testing.T) {
 	env.els.projErr = errors.New("boom")
 	c := env.dial("u1")
 	c.send("sync:project", map[string]any{}, "", "")
-	c.expectError("PROCESS_ERROR", "boom")
+	_, p := c.expectError("PROCESS_ERROR", "internal error")
+	if strings.Contains(p.Message, "boom") {
+		t.Fatalf("plain internal error leaked: %q", p.Message)
+	}
 }
 
 func TestHandler_ConnectionSurvivesAFailedMessage(t *testing.T) {
@@ -488,10 +491,11 @@ func TestHandler_WriterSocketCoexistsWithEditorConnection(t *testing.T) {
 		t.Fatalf("editor missed writer op: %+v", m)
 	}
 	env.h.activeConnsMu.Lock()
-	n := len(env.h.activeConns)
+	nUsers := len(env.h.activeConns)
+	nSockets := len(env.h.activeConns[connMapKey{projectID: handlerTestProject, userID: "u1"}])
 	env.h.activeConnsMu.Unlock()
-	if n != 1 {
-		t.Fatalf("writer socket must not be tracked, activeConns = %d", n)
+	if nUsers != 1 || nSockets != 2 {
+		t.Fatalf("both editor and writer sockets must be tracked, nUsers=%d nSockets=%d", nUsers, nSockets)
 	}
 }
 
@@ -603,4 +607,133 @@ func TestRoutes_WebSocketUpgradeIsServed(t *testing.T) {
 	if m := c.next("sync:project"); m.RequestID != "r" {
 		t.Fatalf("reply %+v", m)
 	}
+}
+
+type mutableFakeAccess struct {
+	mu          sync.Mutex
+	read, write bool
+}
+
+func (a *mutableFakeAccess) Access(context.Context, string, string) (bool, bool, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.read, a.write, nil
+}
+
+func TestHandler_SyncUserAccessRevokesEditorAndWriterSockets(t *testing.T) {
+	access := &mutableFakeAccess{read: true, write: true}
+	env := handlerTestNew(t, nil, access)
+	editor := env.dial("u1")
+	editor.join(handlerTestPage)
+	writer := env.dialQuery("u=u1&conn=writer")
+	writer.join(handlerTestPage)
+
+	access.mu.Lock()
+	access.read = false
+	access.write = false
+	access.mu.Unlock()
+
+	env.h.SyncUserAccess(handlerTestProject, "u1")
+
+	for _, c := range []*handlerConn{editor, writer} {
+		c.expectError("ACCESS_DENIED", "revoked")
+		_ = c.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		for {
+			if _, _, err := c.conn.ReadMessage(); err != nil {
+				break
+			}
+		}
+	}
+}
+
+func TestHandler_MaxConcurrentConnectionsEnforced(t *testing.T) {
+	env := handlerTestNew(t, nil, nil)
+	for i := 0; i < maxConnsPerUserProject; i++ {
+		w := env.dialQuery("u=u1&conn=writer")
+		w.send("sync:project", map[string]any{}, "", "ok")
+		w.next("sync:project")
+	}
+	extra := env.dialQuery("u=u1&conn=writer")
+	extra.expectError("ACCESS_DENIED", "too many concurrent connections")
+}
+
+func TestHandler_TicketProjectMismatchAndInvalidProjectID(t *testing.T) {
+	els := &handlerFakeElements{}
+	h := NewHandler(&domainUsecase.UseCase{Element: els}, nil, handlerTestLogger())
+	t.Cleanup(h.Shutdown)
+
+	app := fiber.New()
+	app.Use("/ws", func(c fiber.Ctx) error {
+		c.Locals("user", &domainEntity.User{ID: "u1"})
+		if tp := c.Query("tp"); tp != "" {
+			c.Locals("ticketProjectId", tp)
+		}
+		return c.Next()
+	})
+	h.SetupRoutes(app)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("cannot listen on loopback: %v", err)
+	}
+	go func() { _ = app.Listener(ln, fiber.ListenConfig{DisableStartupMessage: true}) }()
+	t.Cleanup(func() { _ = app.Shutdown() })
+
+	base := "ws://" + ln.Addr().String() + "/ws/"
+
+	// Mismatched ticket project ID must be denied.
+	conn, _, err := websocket.DefaultDialer.Dial(base+"proj-1?tp=other-proj", nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+	hc := &handlerConn{t: t, conn: conn}
+	hc.expectError("ACCESS_DENIED", "ticket is not valid for this project")
+
+	// Invalid project ID with Redis delimiter must be rejected.
+	badConn, _, err := websocket.DefaultDialer.Dial(base+"proj:1", nil)
+	if err != nil {
+		t.Fatalf("dial bad project: %v", err)
+	}
+	defer badConn.Close()
+	bhc := &handlerConn{t: t, conn: badConn}
+	bhc.expectError("VALIDATION_ERROR", "invalid project ID")
+}
+
+func TestHandler_AllowedOriginsBlocksCSWSH(t *testing.T) {
+	els := &handlerFakeElements{}
+	h := NewHandler(&domainUsecase.UseCase{Element: els}, nil, handlerTestLogger())
+	h.SetAllowedOrigins([]string{"https://allowed.example.com"})
+	t.Cleanup(h.Shutdown)
+
+	app := fiber.New()
+	app.Use("/ws", func(c fiber.Ctx) error {
+		c.Locals("user", &domainEntity.User{ID: "u1"})
+		return c.Next()
+	})
+	h.SetupRoutes(app)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("cannot listen on loopback: %v", err)
+	}
+	go func() { _ = app.Listener(ln, fiber.ListenConfig{DisableStartupMessage: true}) }()
+	t.Cleanup(func() { _ = app.Shutdown() })
+
+	wsURL := "ws://" + ln.Addr().String() + "/ws/proj-1"
+
+	// Disallowed Origin rejected at upgrade.
+	evilHeaders := http.Header{"Origin": []string{"https://evil.example.com"}}
+	if conn, resp, err := websocket.DefaultDialer.Dial(wsURL, evilHeaders); err == nil {
+		_ = conn.Close()
+		t.Fatalf("expected disallowed origin to fail handshake")
+	} else if resp != nil && resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusUpgradeRequired {
+		t.Fatalf("unexpected status for disallowed origin: %d", resp.StatusCode)
+	}
+
+	// Allowed Origin succeeds.
+	okHeaders := http.Header{"Origin": []string{"https://allowed.example.com"}}
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, okHeaders)
+	if err != nil {
+		t.Fatalf("expected allowed origin to succeed: %v", err)
+	}
+	_ = conn.Close()
 }

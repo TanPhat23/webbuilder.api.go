@@ -18,7 +18,8 @@ type Client struct {
 	lastActive atomic.Int64
 	ProjectID  string
 	Conn       *websocket.Conn
-	PageID     string
+	pageMu     sync.RWMutex
+	pageID     string
 	User       *domainEntity.User
 	// readOnly clients may read and see presence but cannot change anything.
 	readOnly atomic.Bool
@@ -164,6 +165,16 @@ func (c *Client) WriteFrame(frame []byte) error {
 	return c.Conn.WriteMessage(websocket.TextMessage, frame)
 }
 
+// WritePing sends a WebSocket ping control frame serialized under connMu. Safe for concurrent use.
+func (c *Client) WritePing() error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	if c.released || c.closing || c.Conn == nil {
+		return ErrConnReleased
+	}
+	return c.Conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait))
+}
+
 // CloseConn closes the connection unless it was already released. After a close frame
 // (see CloseAsReplaced) it leaves the connection to the close handshake. Safe for concurrent use.
 func (c *Client) CloseConn() {
@@ -221,20 +232,31 @@ func (c *Client) Release() {
 	c.released = true
 }
 
-// SetPageID sets the client's current page ID.
+// SetPageID sets the client's current page ID safely across goroutines.
 func (c *Client) SetPageID(pageID string) {
-	c.PageID = pageID
+	c.pageMu.Lock()
+	c.pageID = pageID
+	c.pageMu.Unlock()
+}
+
+// GetPageID returns the client's current page ID safely across goroutines.
+func (c *Client) GetPageID() string {
+	c.pageMu.RLock()
+	id := c.pageID
+	c.pageMu.RUnlock()
+	return id
 }
 
 // RoomID returns a composite room identifier to ensure uniqueness across projects.
 func (c *Client) RoomID() string {
+	pageID := c.GetPageID()
 	if c.ProjectID == "" {
-		return c.PageID
+		return pageID
 	}
-	if c.PageID == "" {
+	if pageID == "" {
 		return c.ProjectID
 	}
-	return c.ProjectID + ":" + c.PageID
+	return c.ProjectID + ":" + pageID
 }
 
 // Close gracefully closes the client connection and channel.
@@ -244,10 +266,11 @@ func (c *Client) Close() {
 }
 
 func (c *Client) Factory() *MessageFactory {
+	pageID := c.GetPageID()
 	if c.User != nil && c.User.ID != "" {
-		return NewMessageFactory(c.ProjectID, c.PageID, c.User.ID)
+		return NewMessageFactory(c.ProjectID, pageID, c.User.ID)
 	}
-	return NewMessageFactory(c.ProjectID, c.PageID)
+	return NewMessageFactory(c.ProjectID, pageID)
 }
 
 func (c *Client) SetPresence(p domainEntity.PayloadPresence) {

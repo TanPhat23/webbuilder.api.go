@@ -2,22 +2,30 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 
 	clerk "github.com/clerk/clerk-sdk-go/v2"
-	"github.com/clerk/clerk-sdk-go/v2/jwks"
-	"github.com/clerk/clerk-sdk-go/v2/jwt"
 	"github.com/clerk/clerk-sdk-go/v2/user"
+	"github.com/gofiber/fiber/v3"
+	"github.com/redis/go-redis/v9"
 
 	"my-go-app/internal/auth"
 	"my-go-app/internal/realtime/config"
 	"my-go-app/internal/realtime/domain/entity"
 	"my-go-app/internal/realtime/utils/logger"
-
-	"github.com/gofiber/fiber/v3"
 )
+
+const wsTicketRedisPrefix = "ws:ticket:"
+
+type wsTicketRecord struct {
+	UserID    string `json:"userId"`
+	ProjectID string `json:"projectId"`
+}
 
 type clerkUserPayload struct {
 	EmailAddresses []struct {
@@ -28,55 +36,93 @@ type clerkUserPayload struct {
 	ImageURL  string `json:"imageUrl"`
 }
 
+// AuthMiddleware configures /ws authentication without a Redis ticket store (DEV_MODE only).
+// Use AuthMiddlewareWithRedis in production to authenticate via single-use ?ticket= credentials.
 func AuthMiddleware(cfg *config.Config) fiber.Handler {
-	jwksClient, userClient := newClerkClients(cfg)
+	return AuthMiddlewareWithRedis(cfg, nil)
+}
+
+// AuthMiddlewareWithRedis authenticates /ws connections exclusively via:
+//   - DEV_MODE=true (only when ENV is not production/prod/staging and Clerk key is not sk_live_)
+//   - ?ticket=<opaque> single-use ticket consumed atomically from Redis
+func AuthMiddlewareWithRedis(cfg *config.Config, rdb *redis.Client) fiber.Handler {
+	userClient := newClerkUserClient(cfg)
 
 	return func(c fiber.Ctx) error {
-		if cfg != nil && cfg.DevMode {
+		if cfg != nil && cfg.DevMode && !isProdEnv(cfg) {
 			return authenticateDevUser(c)
 		}
 
-		token := extractSessionToken(c)
-		if token == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Unauthorized: Missing or invalid token",
-			})
+		if ticket := strings.TrimSpace(c.Query("ticket")); ticket != "" {
+			return authenticateWSTicket(c, rdb, userClient, ticket)
 		}
 
-		if jwksClient == nil || userClient == nil {
-			logger.Default().Errorf("AuthMiddleware: Clerk is not configured (missing CLERK_SECRET_KEY)")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Server misconfigured: missing clerk secret key",
-			})
-		}
-
-		ctx := c.Context()
-		subject, err := verifyClerkToken(ctx, jwksClient, token)
-		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Unauthorized: Invalid session token",
-			})
-		}
-
-		mappedUser := fetchMappedUser(ctx, userClient, subject)
-		auth.SetFiber(c, auth.Identity{
-			UserID:     mappedUser.ID,
-			Email:      mappedUser.Email,
-			AuthMethod: "clerk",
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized: Missing or invalid WebSocket ticket",
 		})
-		c.Locals("user", mappedUser)
-		c.Locals("token", token)
-		return c.Next()
 	}
 }
 
-func newClerkClients(cfg *config.Config) (*jwks.Client, *user.Client) {
+func isProdEnv(cfg *config.Config) bool {
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("ENV")))
+	if env == "production" || env == "prod" || env == "staging" {
+		return true
+	}
+	return cfg != nil && strings.HasPrefix(cfg.ClerkSecretKey, "sk_live_")
+}
+
+func authenticateWSTicket(c fiber.Ctx, rdb *redis.Client, userClient *user.Client, rawTicket string) error {
+	if rdb == nil {
+		logger.Default().Errorf("AuthMiddleware: Redis is not configured for WebSocket ticket verification")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Server misconfigured: missing ticket store",
+		})
+	}
+
+	sum := sha256.Sum256([]byte(rawTicket))
+	key := wsTicketRedisPrefix + hex.EncodeToString(sum[:])
+
+	ctx := c.Context()
+	raw, err := rdb.GetDel(ctx, key).Result()
+	if err != nil {
+		if !errors.Is(err, redis.Nil) {
+			logger.Default().Errorf("AuthMiddleware: failed to consume ws ticket: %v", err)
+		}
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized: Invalid or expired ticket",
+		})
+	}
+
+	var payload wsTicketRecord
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil || payload.UserID == "" || payload.ProjectID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized: Invalid ticket payload",
+		})
+	}
+
+	mappedUser := &entity.User{ID: payload.UserID}
+	if userClient != nil {
+		mappedUser = fetchMappedUser(ctx, userClient, payload.UserID)
+	}
+
+	auth.SetFiber(c, auth.Identity{
+		UserID:     mappedUser.ID,
+		Email:      mappedUser.Email,
+		AuthMethod: "ws_ticket",
+	})
+	c.Locals("userId", mappedUser.ID)
+	c.Locals("user", mappedUser)
+	c.Locals("ticketProjectId", payload.ProjectID)
+	return c.Next()
+}
+
+func newClerkUserClient(cfg *config.Config) *user.Client {
 	if cfg == nil || cfg.ClerkSecretKey == "" {
-		return nil, nil
+		return nil
 	}
 	clerkCfg := &clerk.ClientConfig{}
 	clerkCfg.Key = clerk.String(cfg.ClerkSecretKey)
-	return jwks.NewClient(clerkCfg), user.NewClient(clerkCfg)
+	return user.NewClient(clerkCfg)
 }
 
 func authenticateDevUser(c fiber.Ctx) error {
@@ -93,43 +139,7 @@ func authenticateDevUser(c fiber.Ctx) error {
 	}
 	c.Locals("userId", devUser.ID)
 	c.Locals("user", devUser)
-	c.Locals("token", devUserId)
 	return c.Next()
-}
-
-func extractSessionToken(c fiber.Ctx) string {
-	if authHeader := c.Get("Authorization"); authHeader != "" {
-		parts := strings.Split(authHeader, " ")
-		if len(parts) == 2 && strings.EqualFold(parts[0], "bearer") {
-			return parts[1]
-		}
-	}
-	if cookie := c.Cookies("__session"); cookie != "" {
-		return cookie
-	}
-	return c.Query("token")
-}
-
-func verifyClerkToken(ctx context.Context, jwksClient *jwks.Client, token string) (string, error) {
-	unsafeClaims, err := jwt.Decode(ctx, &jwt.DecodeParams{Token: token})
-	if err != nil {
-		logger.Default().Debugf("AuthMiddleware: jwt.Decode failed: %v", err)
-		return "", err
-	}
-	jwk, err := jwt.GetJSONWebKey(ctx, &jwt.GetJSONWebKeyParams{
-		KeyID:      unsafeClaims.KeyID,
-		JWKSClient: jwksClient,
-	})
-	if err != nil {
-		logger.Default().Debugf("AuthMiddleware: GetJSONWebKey failed: %v", err)
-		return "", err
-	}
-	claims, err := jwt.Verify(ctx, &jwt.VerifyParams{Token: token, JWK: jwk})
-	if err != nil {
-		logger.Default().Debugf("AuthMiddleware: jwt.Verify failed: %v", err)
-		return "", err
-	}
-	return claims.Subject, nil
 }
 
 func fetchMappedUser(ctx context.Context, userClient *user.Client, subject string) *entity.User {

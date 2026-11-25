@@ -47,6 +47,7 @@ func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, clou
 	ElementRoutes(publicGroup, privateGroup, repos, redisClient)
 	PageRoutes(publicGroup, privateGroup, repos, redisClient)
 	ProjectRoutes(publicGroup, privateGroup, repos, onAccessChanged)
+	ProjectWSTicketRoutes(privateGroup, repos, redisClient)
 	ContentRoutes(publicGroup, privateGroup, repos, itemEmitter)
 	if webhookService != nil {
 		WebhookRoutes(privateGroup, repos, webhookService)

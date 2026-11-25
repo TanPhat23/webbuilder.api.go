@@ -56,19 +56,22 @@ func (h *Handler) applyAndBroadcast(
 }
 
 func (h *Handler) handleElementCreate(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+	pageID := client.GetPageID()
+	if pageID == "" {
+		return domainErrors.ErrNotJoined
+	}
+
 	var payload domainEntity.PayloadElementCreate
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 
-	if client.PageID != "" {
-		payload.Element.PageID = client.PageID
-	}
+	payload.Element.PageID = pageID
 	if err := validation.ValidateElementCreate(&payload); err != nil {
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 
-	return h.applyAndBroadcast(ctx, client, msg, payload.Element.PageID,
+	return h.applyAndBroadcast(ctx, client, msg, pageID,
 		func(ctx context.Context) (int64, error) {
 			return h.uc.Element.CreateElementAt(ctx, client.ProjectID, &payload.Element, payload.Position)
 		},
@@ -79,7 +82,8 @@ func (h *Handler) handleElementCreate(ctx context.Context, client *wsentity.Clie
 }
 
 func (h *Handler) handleElementUpdate(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	if client.PageID == "" {
+	pageID := client.GetPageID()
+	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
 
@@ -94,9 +98,9 @@ func (h *Handler) handleElementUpdate(ctx context.Context, client *wsentity.Clie
 
 	properties := updateProperties(payload)
 
-	return h.applyAndBroadcast(ctx, client, msg, client.PageID,
+	return h.applyAndBroadcast(ctx, client, msg, pageID,
 		func(ctx context.Context) (int64, error) {
-			return h.uc.Element.PatchElement(ctx, client.ProjectID, client.PageID, payload.ID, properties, payload.Styles, payload.Settings)
+			return h.uc.Element.PatchElement(ctx, client.ProjectID, pageID, payload.ID, properties, payload.Styles, payload.Settings)
 		},
 		func(f *wsentity.MessageFactory) (domainEntity.Message, error) {
 			return f.UpdateElement(payload)
@@ -126,7 +130,8 @@ func updateProperties(p domainEntity.PayloadElementUpdate) map[string]any {
 }
 
 func (h *Handler) handleElementDelete(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	if client.PageID == "" {
+	pageID := client.GetPageID()
+	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
 
@@ -135,9 +140,9 @@ func (h *Handler) handleElementDelete(ctx context.Context, client *wsentity.Clie
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 
-	return h.applyAndBroadcast(ctx, client, msg, client.PageID,
+	return h.applyAndBroadcast(ctx, client, msg, pageID,
 		func(ctx context.Context) (int64, error) {
-			return h.uc.Element.RemoveElement(ctx, client.ProjectID, client.PageID, payload.ID)
+			return h.uc.Element.RemoveElement(ctx, client.ProjectID, pageID, payload.ID)
 		},
 		func(f *wsentity.MessageFactory) (domainEntity.Message, error) {
 			return f.DeleteElement(payload.ID)
@@ -146,7 +151,8 @@ func (h *Handler) handleElementDelete(ctx context.Context, client *wsentity.Clie
 }
 
 func (h *Handler) handleElementMove(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	if client.PageID == "" {
+	pageID := client.GetPageID()
+	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
 
@@ -163,9 +169,9 @@ func (h *Handler) handleElementMove(ctx context.Context, client *wsentity.Client
 	if err := validation.ValidateElementMove(&payload); err != nil {
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
-	return h.applyAndBroadcast(ctx, client, msg, client.PageID,
+	return h.applyAndBroadcast(ctx, client, msg, pageID,
 		func(ctx context.Context) (int64, error) {
-			moved, seq, err := h.uc.Element.MoveElement(ctx, client.ProjectID, client.PageID, payload.ID, parentID, payload.Order)
+			moved, seq, err := h.uc.Element.MoveElement(ctx, client.ProjectID, pageID, payload.ID, parentID, payload.Order)
 			if err == nil {
 				payload.Order = moved.Order
 				payload.OrderKey = moved.OrderKey

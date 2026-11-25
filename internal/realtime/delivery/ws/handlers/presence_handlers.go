@@ -7,14 +7,27 @@ import (
 	wsentity "my-go-app/internal/realtime/delivery/ws/entity"
 	domainEntity "my-go-app/internal/realtime/domain/entity"
 	domainErrors "my-go-app/internal/realtime/domain/errors"
+	"my-go-app/internal/realtime/utils/validation"
 )
 
 func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
 	if msg.PageID == "" {
 		return domainErrors.New(domainErrors.CodeValidation, "pageId is required to join", nil)
 	}
+	if !validation.IsValidSafeID(msg.PageID) {
+		return domainErrors.New(domainErrors.CodeValidation, "invalid pageId", nil)
+	}
+	if h.pageChecker != nil {
+		owns, err := h.pageChecker.PageBelongsToProject(ctx, client.ProjectID, msg.PageID)
+		if err != nil {
+			return domainErrors.New(domainErrors.CodeInternal, "could not verify page access", err)
+		}
+		if !owns {
+			return domainErrors.New(domainErrors.CodeAccessDenied, "page does not belong to this project", nil)
+		}
+	}
 
-	oldPage := client.PageID
+	oldPage := client.GetPageID()
 	if oldPage != "" && oldPage != msg.PageID {
 		_ = h.hub.Detach(ctx, client)
 	}
@@ -24,7 +37,8 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 		return err
 	}
 
-	elements, seq, err := h.uc.Element.SyncPageWithSeq(ctx, client.ProjectID, client.PageID)
+	pageID := client.GetPageID()
+	elements, seq, err := h.uc.Element.SyncPageWithSeq(ctx, client.ProjectID, pageID)
 	if err != nil {
 		return err
 	}
@@ -35,7 +49,7 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 	_ = client.Send(syncMsg)
 
 	if err := h.sendLogicSync(ctx, client, msg.RequestID); err != nil {
-		h.logger.Errorf("logic sync on join failed (project=%s page=%s): %v", client.ProjectID, client.PageID, err)
+		h.logger.Errorf("logic sync on join failed (project=%s page=%s): %v", client.ProjectID, pageID, err)
 	}
 
 	projElements, err := h.uc.Element.GetElementsByProjectID(ctx, client.ProjectID)
@@ -57,7 +71,7 @@ func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg d
 }
 
 func (h *Handler) handleLeave(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	if client.PageID != "" {
+	if client.GetPageID() != "" {
 		_ = h.hub.Detach(ctx, client)
 		client.SetPageID("")
 	}
@@ -80,11 +94,12 @@ func (h *Handler) handlePresence(ctx context.Context, client *wsentity.Client, m
 }
 
 func (h *Handler) handleSync(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	if client.PageID == "" {
+	pageID := client.GetPageID()
+	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
 
-	elements, seq, err := h.uc.Element.SyncPageWithSeq(ctx, client.ProjectID, client.PageID)
+	elements, seq, err := h.uc.Element.SyncPageWithSeq(ctx, client.ProjectID, pageID)
 	if err != nil {
 		return err
 	}

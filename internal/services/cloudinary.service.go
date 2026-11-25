@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
-	"time"
+	"strings"
 
 	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
+	"github.com/google/uuid"
 )
 
 type CloudinaryService struct {
@@ -48,6 +50,10 @@ func NewCloudinaryService() (*CloudinaryService, error) {
 
 // UploadImage uploads an image to Cloudinary
 func (s *CloudinaryService) UploadImage(ctx context.Context, file multipart.File, filename string, folder string) (*UploadResult, error) {
+	if err := ValidateImageContent(file); err != nil {
+		return nil, err
+	}
+
 	uploadParams := uploader.UploadParams{
 		PublicID:     generatePublicID(filename),
 		Folder:       folder,
@@ -104,7 +110,15 @@ func (s *CloudinaryService) UploadBase64Image(ctx context.Context, base64Data st
 	}, nil
 }
 
-// ValidateImageFile checks if the file is a valid image
+var allowedImageContentTypes = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/gif":  true,
+	"image/webp": true,
+	"image/bmp":  true,
+}
+
+// ValidateImageFile checks if the file metadata describes a valid image.
 func ValidateImageFile(header *multipart.FileHeader) error {
 	// Check file size (max 10MB)
 	maxSize := int64(10 * 1024 * 1024)
@@ -112,22 +126,42 @@ func ValidateImageFile(header *multipart.FileHeader) error {
 		return fmt.Errorf("file size exceeds maximum allowed size of 10MB")
 	}
 
-	// Check file extension
-	ext := filepath.Ext(header.Filename)
+	// Check file extension (normalized to lowercase; SVG excluded to prevent stored XSS)
+	ext := strings.ToLower(filepath.Ext(header.Filename))
 	validExtensions := map[string]bool{
 		".jpg":  true,
 		".jpeg": true,
 		".png":  true,
 		".gif":  true,
 		".webp": true,
-		".svg":  true,
 		".bmp":  true,
 	}
 
 	if !validExtensions[ext] {
-		return fmt.Errorf("invalid file type: %s. Allowed types: jpg, jpeg, png, gif, webp, svg, bmp", ext)
+		return fmt.Errorf("invalid file type: %s. Allowed types: jpg, jpeg, png, gif, webp, bmp", ext)
 	}
 
+	return nil
+}
+
+// ValidateImageContent inspects the file's magic bytes with http.DetectContentType
+// and resets the read pointer to the start before uploading.
+func ValidateImageContent(file multipart.File) error {
+	if file == nil {
+		return fmt.Errorf("image file is required")
+	}
+	buf := make([]byte, 512)
+	n, err := file.Read(buf)
+	if err != nil && err != io.EOF {
+		return fmt.Errorf("failed to read image content: %w", err)
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to reset image reader: %w", err)
+	}
+	contentType := http.DetectContentType(buf[:n])
+	if !allowedImageContentTypes[contentType] {
+		return fmt.Errorf("invalid image content type: %s", contentType)
+	}
 	return nil
 }
 
@@ -137,10 +171,7 @@ func ReadFileContent(file multipart.File) ([]byte, error) {
 	return io.ReadAll(file)
 }
 
-// generatePublicID generates a unique public ID for the image
-func generatePublicID(filename string) string {
-	ext := filepath.Ext(filename)
-	nameWithoutExt := filename[:len(filename)-len(ext)]
-	timestamp := time.Now().UnixNano()
-	return fmt.Sprintf("%s_%d", nameWithoutExt, timestamp)
+// generatePublicID generates a unique server-controlled public ID for the image.
+func generatePublicID(_ string) string {
+	return uuid.NewString()
 }

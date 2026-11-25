@@ -4,11 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"my-go-app/internal/models"
 
 	"gorm.io/gorm"
 )
+
+func escapeLikePattern(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
 
 var ErrUserNotFound = errors.New("user not found")
 
@@ -65,8 +70,9 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 		return nil, errors.New("username is required")
 	}
 
+	escaped := escapeLikePattern(username)
 	user, err := gorm.G[models.User](r.db).
-		Where(`"FirstName" ILIKE ? OR "LastName" ILIKE ?`, "%"+username+"%", "%"+username+"%").
+		Where(`"FirstName" ILIKE ? ESCAPE '\' OR "LastName" ILIKE ? ESCAPE '\'`, "%"+escaped+"%", "%"+escaped+"%").
 		First(ctx)
 
 	if err != nil {
@@ -80,15 +86,17 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 }
 
 func (r *UserRepository) SearchUsers(ctx context.Context, query string) ([]models.User, error) {
-	if query == "" {
+	trimmed := strings.TrimSpace(query)
+	if len([]rune(trimmed)) < 2 {
 		return []models.User{}, nil
 	}
 
+	escaped := escapeLikePattern(trimmed)
 	users, err := gorm.G[models.User](r.db).
 		Select(`"Id", "Email", "FirstName", "LastName", "ImageUrl", "CreatedAt", "UpdatedAt"`).
 		Where(
-			`"Email" ILIKE ? OR "FirstName" ILIKE ? OR "LastName" ILIKE ? OR "Id" ILIKE ?`,
-			query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%",
+			`"Email" ILIKE ? ESCAPE '\' OR "FirstName" ILIKE ? ESCAPE '\' OR "LastName" ILIKE ? ESCAPE '\' OR "Id" ILIKE ? ESCAPE '\'`,
+			escaped+"%", "%"+escaped+"%", "%"+escaped+"%", "%"+escaped+"%",
 		).
 		Limit(20).
 		Find(ctx)

@@ -100,10 +100,13 @@ func (r *ContentTypeRepository) GetContentTypeByProjectAndSlugOrID(ctx context.C
 		return nil, errors.New("projectID and slugOrID are required")
 	}
 
-	contentType, err := gorm.G[models.ContentType](r.db).
-		Preload("Fields", nil).
-		Where(`"ProjectId" = ? AND ("Id" = ? OR "Slug" = ?)`, projectID, slugOrID, slugOrID).
-		First(ctx)
+	var contentType models.ContentType
+	err := r.db.WithContext(ctx).
+		Model(&models.ContentType{}).
+		Preload("Fields").
+		Joins(`JOIN public."Project" ON public."Project"."Id" = public."ContentType"."ProjectId"`).
+		Where(`public."ContentType"."ProjectId" = ? AND (public."ContentType"."Id" = ? OR public."ContentType"."Slug" = ?) AND public."Project"."Published" = true AND public."Project"."DeletedAt" IS NULL`, projectID, slugOrID, slugOrID).
+		First(&contentType).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrContentTypeNotFound

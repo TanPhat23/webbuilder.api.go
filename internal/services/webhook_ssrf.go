@@ -47,14 +47,31 @@ func ValidateWebhookURL(rawURL string, allowLocal bool) error {
 	return nil
 }
 
+var blockedWebhookPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("fc00::/7"),
+	netip.MustParsePrefix("fe80::/10"),
+}
+
 func isBlockedAddr(addr netip.Addr) bool {
 	a := addr.Unmap()
-	return a.IsLoopback() ||
+	if a.IsLoopback() ||
 		a.IsPrivate() ||
 		a.IsLinkLocalUnicast() ||
 		a.IsLinkLocalMulticast() ||
 		a.IsMulticast() ||
-		a.IsUnspecified()
+		a.IsUnspecified() {
+		return true
+	}
+	for _, prefix := range blockedWebhookPrefixes {
+		if prefix.Contains(a) {
+			return true
+		}
+	}
+	return false
 }
 
 func newWebhookHTTPClient(allowLocal bool, timeout time.Duration) *http.Client {
@@ -91,5 +108,8 @@ func newWebhookHTTPClient(allowLocal bool, timeout time.Duration) *http.Client {
 	return &http.Client{
 		Transport: transport,
 		Timeout:   timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 }

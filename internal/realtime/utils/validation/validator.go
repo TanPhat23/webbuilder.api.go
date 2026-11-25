@@ -3,6 +3,7 @@ package validation
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -10,7 +11,16 @@ import (
 	domainEntity "my-go-app/internal/realtime/domain/entity"
 )
 
-var validate *validator.Validate
+const (
+	MaxElementTreeDepth = 32
+	MaxElementTreeNodes = 2000
+	MaxMapDepth         = 16
+)
+
+var (
+	validate  *validator.Validate
+	safeIDRe  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+)
 
 func init() {
 	validate = validator.New()
@@ -22,6 +32,12 @@ func init() {
 		}
 		return name
 	})
+}
+
+// IsValidSafeID reports whether id is a safe identifier (1..128 chars of [A-Za-z0-9_-])
+// with no Redis key delimiters, spaces, or path separators.
+func IsValidSafeID(id string) bool {
+	return safeIDRe.MatchString(id)
 }
 
 func ValidatePresence(p *domainEntity.PayloadPresence) error {
@@ -49,6 +65,12 @@ func ValidateElementUpdate(p *domainEntity.PayloadElementUpdate) error {
 	}
 	if err := validate.Var(p.ID, "required,uuid"); err != nil {
 		return fmt.Errorf("invalid element id: %w", err)
+	}
+	if mapExceedsDepth(p.Styles, MaxMapDepth) {
+		return fmt.Errorf("styles exceed maximum nesting depth of %d", MaxMapDepth)
+	}
+	if mapExceedsDepth(p.Settings, MaxMapDepth) {
+		return fmt.Errorf("settings exceed maximum nesting depth of %d", MaxMapDepth)
 	}
 	return nil
 }
@@ -120,6 +142,19 @@ func ValidateElementForAdd(e *domainEntity.Element) error {
 	if e.PageID == "" {
 		return fmt.Errorf("pageId is required")
 	}
+	if !IsValidSafeID(e.PageID) {
+		return fmt.Errorf("invalid pageId")
+	}
+	nodes := 0
+	if err := validateElementTreeBounds(e, 1, &nodes); err != nil {
+		return err
+	}
+	if mapExceedsDepth(e.Styles, MaxMapDepth) {
+		return fmt.Errorf("styles exceed maximum nesting depth of %d", MaxMapDepth)
+	}
+	if mapExceedsDepth(e.Settings, MaxMapDepth) {
+		return fmt.Errorf("settings exceed maximum nesting depth of %d", MaxMapDepth)
+	}
 	var savedParent *string
 	if e.ParentID != nil {
 		// Treat an empty string or the special 'root' identifier as 'no parent'
@@ -142,6 +177,43 @@ func ValidateElementForAdd(e *domainEntity.Element) error {
 		e.ParentID = savedParent
 	}
 	return nil
+}
+
+func validateElementTreeBounds(e *domainEntity.Element, depth int, nodes *int) error {
+	if depth > MaxElementTreeDepth {
+		return fmt.Errorf("element tree exceeds maximum depth of %d", MaxElementTreeDepth)
+	}
+	*nodes++
+	if *nodes > MaxElementTreeNodes {
+		return fmt.Errorf("element tree exceeds maximum node count of %d", MaxElementTreeNodes)
+	}
+	for i := range e.Elements {
+		if err := validateElementTreeBounds(&e.Elements[i], depth+1, nodes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func mapExceedsDepth(m map[string]any, maxDepth int) bool {
+	if len(m) == 0 {
+		return false
+	}
+	return checkMapDepth(m, 1, maxDepth)
+}
+
+func checkMapDepth(m map[string]any, depth, maxDepth int) bool {
+	if depth > maxDepth {
+		return true
+	}
+	for _, v := range m {
+		if sub, ok := v.(map[string]any); ok {
+			if checkMapDepth(sub, depth+1, maxDepth) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func ValidateElementForUpdate(e *domainEntity.Element) error {

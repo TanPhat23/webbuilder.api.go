@@ -13,5 +13,18 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 		return fiber.ErrUpgradeRequired
 	})
 
-	app.Get("/ws/:project", websocket.New(h.HandleWebSocket))
+	wsCfg := websocket.Config{
+		AllowEmptyOrigin: true,
+	}
+	if h.originsConfigured {
+		if len(h.allowedOrigins) > 0 {
+			wsCfg.Origins = h.allowedOrigins
+		} else {
+			// gofiber/contrib/v3/websocket treats an empty Origins slice as "*".
+			// Use an unmatchable sentinel when origins were configured to empty (e.g. ENV=production without ALLOWED_ORIGINS).
+			wsCfg.Origins = []string{"https://no-allowed-origins.invalid"}
+		}
+	}
+
+	app.Get("/ws/:project", websocket.New(h.HandleWebSocket, wsCfg))
 }

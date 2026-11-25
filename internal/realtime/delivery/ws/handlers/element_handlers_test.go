@@ -98,7 +98,7 @@ func TestElementCreate_RequiresPageWhenNotJoined(t *testing.T) {
 	env := handlerTestNew(t, nil, nil)
 	c := env.dial("u1")
 	c.sendPage("element:create", "", map[string]any{"element": map[string]any{"type": "text"}}, "", "")
-	c.expectError("VALIDATION_ERROR", "pageId is required")
+	c.expectError("PROCESS_ERROR", "not joined")
 	if len(env.els.created) != 0 {
 		t.Fatal("use case must not be called")
 	}
@@ -108,7 +108,7 @@ func TestElementCreate_UseCaseErrorGoesToSenderOnlyAndConsumesNoSeq(t *testing.T
 	env, a, b := elementHandlersPair(t)
 	env.els.opErr = errors.New("db write failed")
 	a.send("element:create", map[string]any{"element": map[string]any{"type": "text"}}, "op-bad", "")
-	m, p := a.expectError("PROCESS_ERROR", "db write failed")
+	m, p := a.expectError("PROCESS_ERROR", "internal error")
 	if m.ClientOpID != "op-bad" || p.ClientOpID != "op-bad" {
 		t.Fatalf("clientOpId not echoed: %+v %+v", m, p)
 	}
@@ -181,7 +181,7 @@ func TestElementUpdate_Errors(t *testing.T) {
 
 	env.els.opErr = errors.New("conflict")
 	c.send("element:update", map[string]any{"id": handlerTestElemA}, "op", "")
-	c.expectError("PROCESS_ERROR", "conflict")
+	c.expectError("PROCESS_ERROR", "internal error")
 }
 
 func TestUpdateProperties(t *testing.T) {
@@ -225,7 +225,7 @@ func TestElementDelete(t *testing.T) {
 
 	env.els.opErr = errors.New("nope")
 	a.send("element:delete", map[string]any{"id": handlerTestElemB}, "op-e", "")
-	a.expectError("PROCESS_ERROR", "nope")
+	a.expectError("PROCESS_ERROR", "internal error")
 }
 
 func TestElementDelete_RequiresJoin(t *testing.T) {
@@ -300,7 +300,7 @@ func TestElementMove_Errors(t *testing.T) {
 
 	env.els.opErr = errors.New("cycle")
 	c.send("element:move", map[string]any{"id": handlerTestElemA, "order": 1}, "op", "")
-	c.expectError("PROCESS_ERROR", "cycle")
+	c.expectError("PROCESS_ERROR", "internal error")
 }
 
 func TestElementOps_SequenceNumbersAreContiguousAcrossOpTypes(t *testing.T) {

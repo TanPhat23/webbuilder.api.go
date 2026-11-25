@@ -227,6 +227,29 @@ func TestElementCommentUpdateDelete(t *testing.T) {
 		if got.Content != "x" {
 			t.Fatalf("got %+v", got)
 		}
+
+		// Viewer updating own comment's resolved status must be rejected (requires PermCommentResolve)
+		e.pr.OnGetProjectAccess = func(_ context.Context, pid, uid string) (*models.ProjectAccess, error) {
+			return &models.ProjectAccess{ProjectId: pid, UserId: uid, Role: models.RoleViewer}, nil
+		}
+		for _, resolvedKey := range []string{"resolved", "Resolved"} {
+			_, err := e.svc.UpdateElementComment(ctx, "c", "u", map[string]any{resolvedKey: true})
+			if !errors.Is(err, authz.ErrForbidden) {
+				t.Fatalf("viewer updating %q: err = %v, want authz.ErrForbidden", resolvedKey, err)
+			}
+		}
+		// Editor updating resolved succeeds
+		e.pr.OnGetProjectAccess = func(_ context.Context, pid, uid string) (*models.ProjectAccess, error) {
+			return &models.ProjectAccess{ProjectId: pid, UserId: uid, Role: models.RoleEditor}, nil
+		}
+		e.cr.OnUpdateElementComment = func(_ context.Context, id string, u map[string]any) (*models.ElementComment, error) {
+			return &models.ElementComment{Id: id, Resolved: true}, nil
+		}
+		resolvedComment, err := e.svc.UpdateElementComment(ctx, "c", "u", map[string]any{"resolved": true})
+		wantNoErr(t, err)
+		if !resolvedComment.Resolved {
+			t.Fatal("expected resolved comment")
+		}
 	})
 
 	t.Run("Delete", func(t *testing.T) {

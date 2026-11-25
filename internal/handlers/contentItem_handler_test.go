@@ -142,9 +142,9 @@ func TestContentItemHandlerStatuses(t *testing.T) {
 
 func TestContentItemCreateSplitsFieldValuesAndForcesParent(t *testing.T) {
 	svc := &contentItemSvcStub{}
-	body := `{"slug":"hello","title":"Hello","contentTypeId":"spoofed","fieldValues":[{"fieldId":"f1","value":"v"}]}`
+	body := `{"id":"spoofed-id","slug":"hello","title":"Hello","published":true,"contentTypeId":"spoofed","fieldValues":[{"fieldId":"f1","value":"v"}]}`
 	kitExpect(t, kitSend(t, contentItemKit(svc), "POST", "/types/real/items", body), 201)
-	if svc.created.ContentTypeId != "real" || svc.created.Slug != "hello" {
+	if svc.created.ContentTypeId != "real" || svc.created.Slug != "hello" || !svc.created.Published {
 		t.Fatalf("created %+v", svc.created)
 	}
 	if svc.created.FieldValues != nil {
@@ -240,6 +240,15 @@ func TestPublicContentItemBySlug(t *testing.T) {
 	})
 	t.Run("draft is hidden", func(t *testing.T) {
 		kitExpect(t, kitSend(t, contentItemKit(&contentItemSvcStub{bySlug: draft}), "GET", "/public/blog/s", ""), 404, "Content item not found")
+	})
+	t.Run("non-public content type is hidden", func(t *testing.T) {
+		nonPublic := &models.ContentItem{
+			Id:          "i3",
+			Slug:        "s",
+			Published:   true,
+			ContentType: &models.ContentType{Id: "blog", PublicRead: false},
+		}
+		kitExpect(t, kitSend(t, contentItemKit(&contentItemSvcStub{bySlug: nonPublic}), "GET", "/public/blog/s", ""), 404, "Content item not found")
 	})
 	t.Run("missing", func(t *testing.T) {
 		kitExpect(t, kitSend(t, contentItemKit(&contentItemSvcStub{err: gorm.ErrRecordNotFound}), "GET", "/public/blog/s", ""), 404, "Content item not found")

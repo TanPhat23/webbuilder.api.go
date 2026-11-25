@@ -65,6 +65,38 @@ func (r *ElementCommentRepository) GetElementCommentByID(ctx context.Context, id
 	return &comment, nil
 }
 
+const defaultElementCommentOrder = `"CreatedAt" DESC`
+
+var elementCommentOrderMap = map[string]map[string]string{
+	"CreatedAt": {
+		"ASC":  `"CreatedAt" ASC`,
+		"DESC": `"CreatedAt" DESC`,
+	},
+	"UpdatedAt": {
+		"ASC":  `"UpdatedAt" ASC`,
+		"DESC": `"UpdatedAt" DESC`,
+	},
+	"Resolved": {
+		"ASC":  `"Resolved" ASC`,
+		"DESC": `"Resolved" DESC`,
+	},
+}
+
+func resolveElementCommentOrder(sortBy, sortOrder string) string {
+	dirs, ok := elementCommentOrderMap[sortBy]
+	if !ok {
+		return defaultElementCommentOrder
+	}
+	dir := "ASC"
+	if sortOrder == "DESC" {
+		dir = "DESC"
+	}
+	if staticOrder, ok := dirs[dir]; ok {
+		return staticOrder
+	}
+	return defaultElementCommentOrder
+}
+
 // GetElementComments retrieves comments for an element with filtering and pagination
 func (r *ElementCommentRepository) GetElementComments(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error) {
 	if elementID == "" {
@@ -85,16 +117,8 @@ func (r *ElementCommentRepository) GetElementComments(ctx context.Context, eleme
 			query = query.Where("\"Resolved\" = ?", *filter.Resolved)
 		}
 
-		// Sorting
-		if filter.SortBy != "" {
-			order := "ASC"
-			if filter.SortOrder == "DESC" {
-				order = "DESC"
-			}
-			query = query.Order(fmt.Sprintf("\"%s\" %s", filter.SortBy, order))
-		} else {
-			query = query.Order("\"CreatedAt\" DESC")
-		}
+		// Sorting (allowlisted to static SQL order strings)
+		query = query.Order(resolveElementCommentOrder(filter.SortBy, filter.SortOrder))
 
 		// Pagination
 		if filter.Limit > 0 {
@@ -105,7 +129,7 @@ func (r *ElementCommentRepository) GetElementComments(ctx context.Context, eleme
 			query = query.Offset(filter.Offset)
 		}
 	} else {
-		query = query.Order("\"CreatedAt\" DESC")
+		query = query.Order(defaultElementCommentOrder)
 	}
 
 	comments, err := query.Find(ctx)

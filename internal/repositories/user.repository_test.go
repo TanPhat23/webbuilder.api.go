@@ -97,8 +97,27 @@ func TestUserRepositorySearchUsers(t *testing.T) {
 			t.Fatalf("email prefix and substring binds expected: %v", f.args)
 		}
 		q := f.lastQuery()
-		if !strings.Contains(q, "LIMIT") || strings.Contains(q, "Logic") {
+		if !strings.Contains(q, "LIMIT") || !strings.Contains(q, "ESCAPE") || strings.Contains(q, "Logic") {
 			t.Fatalf("unexpected query %s", q)
+		}
+	})
+	t.Run("rejects short queries without touching db", func(t *testing.T) {
+		for _, short := range []string{"", " ", "a", " x "} {
+			db, f := newFakeDB(t)
+			got, err := (&UserRepository{db: db}).SearchUsers(ctx, short)
+			if err != nil || len(got) != 0 || f.queryCount() != 0 {
+				t.Fatalf("short=%q: got=%v err=%v queries=%d", short, got, err, f.queryCount())
+			}
+		}
+	})
+	t.Run("escapes LIKE wildcards", func(t *testing.T) {
+		db, f := newFakeDB(t)
+		_, err := (&UserRepository{db: db}).SearchUsers(ctx, `a%_b\c`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !userHasArg(f, `a\%\_b\\c%`) || !userHasArg(f, `%a\%\_b\\c%`) {
+			t.Fatalf("expected escaped LIKE patterns, got args=%v", f.args)
 		}
 	})
 	t.Run("database error", func(t *testing.T) {

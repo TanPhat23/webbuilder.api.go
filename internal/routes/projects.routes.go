@@ -7,6 +7,7 @@ import (
 	"my-go-app/internal/services"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/redis/go-redis/v9"
 )
 
 func ProjectRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface, onAccessChanged ...func(projectID, userID string)) {
@@ -28,4 +29,10 @@ func ProjectRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.R
 	privateGroup.Post("/projects/:projectid/transfer-ownership", authorizer.RequireProjectPermission("projectid", authz.PermProjectTransfer), projectHandler.TransferOwnership)
 	privateGroup.Delete("/projects/:projectid", authorizer.RequireProjectPermission("projectid", authz.PermProjectDelete), projectHandler.DeleteProject)
 	privateGroup.Patch("/projects/:projectid", authorizer.RequireProjectPermission("projectid", authz.PermProjectView), projectHandler.UpdateProject)
+}
+
+func ProjectWSTicketRoutes(privateGroup fiber.Router, repos *repositories.RepositoriesInterface, redisClient *redis.Client) {
+	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
+	wsTicketHandler := handlers.NewWSTicketHandler(redisClient)
+	privateGroup.Post("/projects/:projectid/ws-ticket", authorizer.RequireProjectPermission("projectid", authz.PermProjectView), wsTicketHandler.MintWSTicket)
 }

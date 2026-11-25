@@ -114,6 +114,29 @@ func (s *ContentItemService) GetContentItemBySlug(ctx context.Context, contentTy
 		return nil, errors.New("slug is required")
 	}
 
+	if s.contentTypeRepo != nil && s.projectRepo != nil {
+		ct, err := s.contentTypeRepo.GetContentTypeByID(ctx, contentTypeID)
+		if err != nil {
+			if errors.Is(err, repositories.ErrContentTypeNotFound) {
+				return nil, repositories.ErrContentItemNotFound
+			}
+			return nil, err
+		}
+		if ct == nil || !ct.PublicRead || ct.ProjectId == nil || *ct.ProjectId == "" {
+			return nil, repositories.ErrContentItemNotFound
+		}
+		proj, err := s.projectRepo.GetPublicProjectByID(ctx, *ct.ProjectId)
+		if err != nil {
+			if errors.Is(err, repositories.ErrProjectNotFound) {
+				return nil, repositories.ErrContentItemNotFound
+			}
+			return nil, err
+		}
+		if proj == nil || !proj.Published || (proj.AuditFields != nil && proj.DeletedAt != nil) {
+			return nil, repositories.ErrContentItemNotFound
+		}
+	}
+
 	return s.contentItemRepo.GetContentItemBySlug(ctx, contentTypeID, slug)
 }
 

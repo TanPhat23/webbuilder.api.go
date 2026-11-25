@@ -129,6 +129,12 @@ func TestWebhook_SSRFValidation(t *testing.T) {
 		"http://localhost/hook",
 		"http://169.254.169.254/latest/meta-data",
 		"http://10.0.0.1/hook",
+		"http://100.64.0.1/hook",
+		"http://0.0.0.0/hook",
+		"http://198.18.0.1/hook",
+		"http://[64:ff9b::1]/hook",
+		"http://[fc00::1]/hook",
+		"http://[fe80::1]/hook",
 		"http://[::1]/hook",
 		"http://[::ffff:127.0.0.1]/hook",
 		"file:///etc/passwd",
@@ -143,6 +149,72 @@ func TestWebhook_SSRFValidation(t *testing.T) {
 	}
 	if err := ValidateWebhookURL("https://hooks.example.com/wb", false); err != nil {
 		t.Fatalf("expected public https URL allowed, got %v", err)
+	}
+}
+
+func TestWebhook_NoRedirectsAndEnvAndFullQueue(t *testing.T) {
+	// 1. HTTP redirects must not be followed
+	targetCalled := false
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	repo := newMemWebhookRepo()
+	_, _ = repo.Create(context.Background(), &models.ProjectWebhook{
+		Id: "wh_r", ProjectId: "p1", Url: redirector.URL, Secret: "sec",
+		Events: models.StringSlice{models.WebhookEventItemCreated}, Enabled: true,
+	})
+	_, _ = repo.CreateDelivery(context.Background(), &models.WebhookDelivery{
+		Id: "del_r", WebhookId: "wh_r", ProjectId: "p1", Event: models.WebhookEventItemCreated,
+		Payload: []byte(`{}`), Status: models.WebhookDeliveryStatusPending,
+	})
+	svc := NewWebhookServiceWithOptions(repo, nil, nil, true, 2*time.Second)
+	_ = svc.DeliverByID(context.Background(), "del_r")
+	if targetCalled {
+		t.Fatal("webhook HTTP client must not follow redirects")
+	}
+	delAfter, _ := repo.GetDeliveryByID(context.Background(), "del_r")
+	if delAfter.HttpStatus == nil || *delAfter.HttpStatus != http.StatusFound || delAfter.Status != models.WebhookDeliveryStatusFailed {
+		t.Fatalf("expected failed 302 delivery, got %+v", delAfter)
+	}
+
+	// 2. ALLOW_LOCAL_WEBHOOKS=true is refused in production
+	t.Setenv("ALLOW_LOCAL_WEBHOOKS", "true")
+	for _, env := range []string{"production", "prod"} {
+		t.Setenv("ENV", env)
+		if err := ValidateWebhookEnv(); err == nil {
+			t.Fatalf("expected ValidateWebhookEnv error for ENV=%s", env)
+		}
+		prodSvc := NewWebhookService(repo, nil, nil)
+		if prodSvc.allowLocal {
+			t.Fatalf("expected NewWebhookService to disable allowLocal in ENV=%s", env)
+		}
+	}
+
+	// 3. Full queue schedules NextRetryAt for DB retry poller without blocking or spawning goroutines
+	svcQ := NewWebhookServiceWithOptions(repo, nil, nil, true, time.Second)
+	for i := 0; i < cap(svcQ.queue); i++ {
+		svcQ.queue <- "filled"
+	}
+	ct := &models.ContentType{Id: "ct1", Slug: "posts", Name: "Posts"}
+	item := &models.ContentItem{Id: "it1", ContentTypeId: "ct1", Slug: "s", Title: "T"}
+	svcQ.EmitItemEvent(context.Background(), "p1", ct, models.WebhookEventItemCreated, item)
+	deliveries, _ := repo.ListDeliveriesByWebhook(context.Background(), "wh_r", 10)
+	foundScheduled := false
+	for _, d := range deliveries {
+		if d.Id != "del_r" && d.Status == models.WebhookDeliveryStatusPending && d.NextRetryAt != nil {
+			foundScheduled = true
+		}
+	}
+	if !foundScheduled {
+		t.Fatalf("expected full-queue delivery to be scheduled with NextRetryAt, got %+v", deliveries)
 	}
 }
 

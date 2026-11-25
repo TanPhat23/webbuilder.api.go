@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"log"
 	"my-go-app/internal/authz"
 	"my-go-app/internal/dto"
 	"my-go-app/internal/models"
@@ -83,7 +82,6 @@ func (h *InvitationHandler) GetPendingInvitationsByProject(c fiber.Ctx) error {
 		return utils.HandleRepoError(c, err, "", "Failed to retrieve pending invitations")
 	}
 
-	log.Printf("Pending invitations for project %s: %v\n", projectID, invitations)
 	return utils.SendJSON(c, fiber.StatusOK, invitations)
 }
 

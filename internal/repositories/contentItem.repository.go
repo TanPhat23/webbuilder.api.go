@@ -216,6 +216,25 @@ func (r *ContentItemRepository) DeleteContentItem(ctx context.Context, id string
 	return nil
 }
 
+var publicContentItemOrders = map[string]map[string]string{
+	"CreatedAt": {
+		"asc":  `public."ContentItem"."CreatedAt" asc`,
+		"desc": `public."ContentItem"."CreatedAt" desc`,
+	},
+	"UpdatedAt": {
+		"asc":  `public."ContentItem"."UpdatedAt" asc`,
+		"desc": `public."ContentItem"."UpdatedAt" desc`,
+	},
+	"Title": {
+		"asc":  `public."ContentItem"."Title" asc`,
+		"desc": `public."ContentItem"."Title" desc`,
+	},
+	"Slug": {
+		"asc":  `public."ContentItem"."Slug" asc`,
+		"desc": `public."ContentItem"."Slug" desc`,
+	},
+}
+
 func (r *ContentItemRepository) GetPublicContentItems(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error) {
 	if contentTypeID == "" {
 		return nil, errors.New("contentTypeID is required")
@@ -231,25 +250,23 @@ func (r *ContentItemRepository) GetPublicContentItems(ctx context.Context, conte
 		sortOrder = "desc"
 	}
 
-	// Validate sort by field
-	validSortFields := map[string]bool{
-		"CreatedAt": true,
-		"UpdatedAt": true,
-		"Title":     true,
-		"Slug":      true,
+	// Validate sort by field using static order expressions
+	orderDirs, ok := publicContentItemOrders[sortBy]
+	if !ok {
+		orderDirs = publicContentItemOrders["CreatedAt"]
 	}
+	orderExpr := orderDirs[sortOrder]
 
-	if !validSortFields[sortBy] {
-		sortBy = "CreatedAt"
-	}
-
-	contentItems, err := gorm.G[models.ContentItem](r.db).
-		Where("\"ContentTypeId\" = ? AND \"Published\" = ?", contentTypeID, true).
-		Preload("FieldValues.Field", nil).
-		Preload("ContentType", nil).
-		Order(fmt.Sprintf("\"%s\" %s", sortBy, sortOrder)).
+	var contentItems []models.ContentItem
+	err := r.db.WithContext(ctx).
+		Model(&models.ContentItem{}).
+		Joins(`JOIN public."ContentType" ON public."ContentType"."Id" = public."ContentItem"."ContentTypeId" JOIN public."Project" ON public."Project"."Id" = public."ContentType"."ProjectId"`).
+		Where(`public."ContentItem"."ContentTypeId" = ? AND public."ContentItem"."Published" = ? AND public."ContentType"."PublicRead" = true AND public."Project"."Published" = true AND public."Project"."DeletedAt" IS NULL`, contentTypeID, true).
+		Preload("FieldValues.Field").
+		Preload("ContentType").
+		Order(orderExpr).
 		Limit(limit).
-		Find(ctx)
+		Find(&contentItems).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public content items: %w", err)

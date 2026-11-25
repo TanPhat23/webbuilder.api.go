@@ -63,7 +63,7 @@ func TestJoin_PageSyncErrorIsReported(t *testing.T) {
 	env.els.syncErr = errors.New("cache miss storm")
 	c := env.dial("u1")
 	c.sendPage("join", handlerTestPage, map[string]any{}, "j", "")
-	m, _ := c.expectError("PROCESS_ERROR", "cache miss storm")
+	m, _ := c.expectError("PROCESS_ERROR", "internal error")
 	if m.ClientOpID != "j" {
 		t.Fatalf("clientOpId = %q", m.ClientOpID)
 	}
@@ -74,7 +74,31 @@ func TestJoin_ProjectSyncFailureIsReported(t *testing.T) {
 	env.els.projErr = errors.New("project read failed")
 	c := env.dial("u1")
 	c.sendPage("join", handlerTestPage, map[string]any{}, "j", "")
-	c.expectError("PROCESS_ERROR", "project read failed")
+	c.expectError("PROCESS_ERROR", "internal error")
+}
+
+type fakePageChecker struct {
+	owns bool
+	err  error
+}
+
+func (f fakePageChecker) PageBelongsToProject(context.Context, string, string) (bool, error) {
+	return f.owns, f.err
+}
+
+func TestJoin_RejectsInvalidPageIDAndCrossProjectPage(t *testing.T) {
+	env := handlerTestNew(t, nil, nil)
+	env.h.RequirePageOwnership(fakePageChecker{owns: false})
+
+	c := env.dial("u1")
+	c.sendPage("join", "page:bad", map[string]any{}, "j1", "")
+	c.expectError("VALIDATION_ERROR", "invalid pageId")
+
+	c.sendPage("join", "foreign-page", map[string]any{}, "j2", "")
+	c.expectError("ACCESS_DENIED", "page does not belong to this project")
+	if len(env.els.synced) != 0 {
+		t.Fatal("rejected join must not sync")
+	}
 }
 
 func TestJoin_SecondUserSeesBothParticipants(t *testing.T) {
@@ -154,8 +178,8 @@ func TestLeave_ClearsPageSoLaterRequestsNeedAJoin(t *testing.T) {
 	if err := env.h.handleLeave(context.Background(), client, domainEntity.Message{}); err != nil {
 		t.Fatal(err)
 	}
-	if client.PageID != "" {
-		t.Fatalf("PageID = %q after leave", client.PageID)
+	if client.GetPageID() != "" {
+		t.Fatalf("PageID = %q after leave", client.GetPageID())
 	}
 	if err := env.h.handleSync(context.Background(), client, domainEntity.Message{}); !errors.Is(err, domainErrors.ErrNotJoined) {
 		t.Fatalf("sync after leave: %v", err)
@@ -238,7 +262,7 @@ func TestSync_ErrorsAndRequiresJoin(t *testing.T) {
 	env.els.syncErr = errors.New("sync failed")
 	env.els.mu.Unlock()
 	c.send("sync:page", map[string]any{}, "", "")
-	c.expectError("PROCESS_ERROR", "sync failed")
+	c.expectError("PROCESS_ERROR", "internal error")
 }
 
 func TestSyncProject_ReturnsAllProjectElementsWithoutJoining(t *testing.T) {
@@ -262,5 +286,5 @@ func TestSyncProject_ErrorIsPropagated(t *testing.T) {
 	env.els.projErr = errors.New("scan failed")
 	c := env.dial("u1")
 	c.send("sync:project", map[string]any{}, "", "")
-	c.expectError("PROCESS_ERROR", "scan failed")
+	c.expectError("PROCESS_ERROR", "internal error")
 }

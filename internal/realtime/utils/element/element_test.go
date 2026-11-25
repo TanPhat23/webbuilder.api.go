@@ -209,3 +209,45 @@ func TestApplyPropertiesErrors(t *testing.T) {
 		t.Fatal("expected unsupported key error")
 	}
 }
+
+func TestMergeMap_CapsDepthAtMaxMergeDepth(t *testing.T) {
+	makeDeep := func(depth int, leafKey string, leafVal any) map[string]any {
+		cur := map[string]any{leafKey: leafVal}
+		for i := depth; i >= 1; i-- {
+			cur = map[string]any{"n": cur}
+		}
+		return cur
+	}
+	dst := makeDeep(MaxMergeDepth+2, "keep", 1)
+	patch := makeDeep(MaxMergeDepth+2, "added", 2)
+	merged := MergeMap(dst, patch)
+
+	// Walk down MaxMergeDepth levels to verify recursion stopped at MaxMergeDepth.
+	cur := merged
+	for i := 0; i < MaxMergeDepth; i++ {
+		cur = cur["n"].(map[string]any)
+	}
+	sub := cur["n"].(map[string]any)
+	if _, hasKeep := sub["keep"]; hasKeep {
+		t.Fatalf("expected merge recursion to stop at depth %d", MaxMergeDepth)
+	}
+}
+
+func TestFlattenElements_CapsDepthAndNodeCount(t *testing.T) {
+	deep := entity.Element{ID: "leaf"}
+	for i := 0; i < MaxElementDepth+5; i++ {
+		deep = entity.Element{ID: "n", Elements: []entity.Element{deep}}
+	}
+	flat := FlattenElements([]entity.Element{deep})
+	if len(flat) != MaxElementDepth {
+		t.Fatalf("expected FlattenElements to cap at %d depth, got %d", MaxElementDepth, len(flat))
+	}
+
+	wide := make([]entity.Element, MaxElementNodes+50)
+	for i := range wide {
+		wide[i] = entity.Element{ID: "x"}
+	}
+	if got := len(FlattenElements(wide)); got != MaxElementNodes {
+		t.Fatalf("expected FlattenElements to cap at %d nodes, got %d", MaxElementNodes, got)
+	}
+}

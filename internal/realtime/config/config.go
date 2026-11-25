@@ -3,9 +3,12 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
+
+const defaultDevAllowedOrigins = "http://localhost:3000,https://webbuilderv2.vercel.app"
 
 // Config holds all configuration for the application
 type Config struct {
@@ -14,6 +17,7 @@ type Config struct {
 	Redis          RedisConfig
 	DevMode        bool
 	ClerkSecretKey string
+	AllowedOrigins []string
 }
 
 // DatabaseConfig holds PostgreSQL configuration
@@ -61,7 +65,30 @@ func LoadConfig() (*Config, error) {
 		},
 		DevMode:        getEnvAsBool("DEV_MODE", false),
 		ClerkSecretKey: getEnv("CLERK_SECRET_KEY", ""),
+		AllowedOrigins: loadAllowedOrigins(),
 	}, nil
+}
+
+func loadAllowedOrigins() []string {
+	raw, ok := os.LookupEnv("ALLOWED_ORIGINS")
+	if ok {
+		return parseOrigins(raw)
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("ENV")), "production") {
+		return nil
+	}
+	return parseOrigins(defaultDevAllowedOrigins)
+}
+
+func parseOrigins(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func getEnv(key, fallback string) string {

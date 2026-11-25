@@ -191,8 +191,10 @@ func TestElementCommentGetElementComments(t *testing.T) {
 		{&models.ElementCommentFilter{}, []string{`ORDER BY "CreatedAt" DESC`}, []string{"LIMIT", "OFFSET"}, nil, nil},
 		{&models.ElementCommentFilter{AuthorId: "u9", Resolved: &resolved, SortBy: "UpdatedAt", Limit: 5, Offset: 10},
 			[]string{`"AuthorId" =`, `"Resolved" =`, `ORDER BY "UpdatedAt" ASC`, "LIMIT", "OFFSET"}, nil, []int{5, 10}, []any{"u9", true}},
-		{&models.ElementCommentFilter{SortBy: "Content", SortOrder: "DESC"}, []string{`ORDER BY "Content" DESC`}, nil, nil, nil},
-		{&models.ElementCommentFilter{SortBy: "Content", SortOrder: "desc"}, []string{`ORDER BY "Content" ASC`}, nil, nil, nil},
+		{&models.ElementCommentFilter{SortBy: "Resolved", SortOrder: "DESC"}, []string{`ORDER BY "Resolved" DESC`}, nil, nil, nil},
+		{&models.ElementCommentFilter{SortBy: "Resolved", SortOrder: "desc"}, []string{`ORDER BY "Resolved" ASC`}, nil, nil, nil},
+		{&models.ElementCommentFilter{SortBy: `Id"; DROP TABLE "ElementComment";--`, SortOrder: "ASC"}, []string{`ORDER BY "CreatedAt" DESC`}, []string{"DROP TABLE"}, nil, nil},
+		{&models.ElementCommentFilter{SortBy: "Content", SortOrder: "ASC"}, []string{`ORDER BY "CreatedAt" DESC`}, []string{`"Content"`}, nil, nil},
 	} {
 		db, f := newFakeDB(t)
 		f.on(elementCommentSelect, elementCommentCols, []driver.Value{"c1", "hi", "u1", "e1", false})

@@ -30,13 +30,46 @@ type AgentTokenLookup interface {
 	Touch(ctx context.Context, id string, at time.Time) error
 }
 
-// ValidateAuthEnv refuses to start when TEST_AUTH_BYPASS is enabled in production.
+// ValidateAuthEnv refuses to start when TEST_AUTH_BYPASS is enabled outside
+// the explicit local/test allowlist or when a live Clerk key is configured.
 func ValidateAuthEnv() error {
-	if strings.EqualFold(os.Getenv("TEST_AUTH_BYPASS"), "true") &&
-		strings.EqualFold(os.Getenv("ENV"), "production") {
-		return errors.New("TEST_AUTH_BYPASS cannot be enabled when ENV=production")
+	if !strings.EqualFold(os.Getenv("TEST_AUTH_BYPASS"), "true") {
+		return nil
 	}
-	return nil
+	if strings.HasPrefix(strings.TrimSpace(os.Getenv("CLERK_SECRET_KEY")), "sk_live_") {
+		return errors.New("TEST_AUTH_BYPASS cannot be enabled with a live CLERK_SECRET_KEY")
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ENV"))) {
+	case "test", "local", "development":
+		return nil
+	default:
+		return errors.New("TEST_AUTH_BYPASS is only allowed when ENV is test, local, or development")
+	}
+}
+
+func isTestBypassAllowed() bool {
+	return ValidateAuthEnv() == nil && strings.EqualFold(os.Getenv("TEST_AUTH_BYPASS"), "true")
+}
+
+func isPublicRoute(c fiber.Ctx) bool {
+	method := c.Method()
+	path := c.Path()
+	if method == fiber.MethodGet || method == fiber.MethodHead {
+		if strings.HasPrefix(path, "/api/v1/pages/public/") ||
+			strings.HasPrefix(path, "/api/v1/projects/public/") ||
+			strings.HasPrefix(path, "/api/v1/elements/public/") ||
+			strings.HasPrefix(path, "/api/v1/public/") {
+			return true
+		}
+	}
+	if method == fiber.MethodPost && strings.HasPrefix(path, "/api/v1/public/projects/") {
+		rest := strings.TrimPrefix(path, "/api/v1/public/projects/")
+		parts := strings.Split(rest, "/")
+		if len(parts) == 4 && parts[0] != "" && parts[1] == "collections" && parts[2] != "" && parts[3] == "items" {
+			return true
+		}
+	}
+	return false
 }
 
 func hashAgentSecret(secret string) string {
@@ -57,17 +90,12 @@ func AuthenticateMiddleware(c fiber.Ctx) error {
 
 func NewAuthenticateMiddleware(tokenLookup AgentTokenLookup) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		// The public page routes permit only reads. The trailing slash keeps
-		// the project ID slot on private page routes distinct from this prefix.
-		publicPageRead := (c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead) &&
-			strings.HasPrefix(c.Path(), "/api/v1/pages/public/")
-		if publicPageRead || strings.HasPrefix(c.Path(), "/api/v1/projects/public") || strings.HasPrefix(c.Path(), "/api/v1/public") || strings.HasPrefix(c.Path(), "/api/v1/elements/public") {
+		if isPublicRoute(c) {
 			return c.Next()
 		}
 
 		// Guarded test bypass for isolated local test stack only.
-		if strings.EqualFold(os.Getenv("TEST_AUTH_BYPASS"), "true") &&
-			!strings.EqualFold(os.Getenv("ENV"), "production") {
+		if isTestBypassAllowed() {
 			if testUserID := strings.TrimSpace(c.Get("X-Test-User-Id")); testUserID != "" {
 				attachIdentity(c, auth.Identity{
 					UserID:     testUserID,
@@ -86,7 +114,7 @@ func NewAuthenticateMiddleware(tokenLookup AgentTokenLookup) fiber.Handler {
 		}
 		sessionToken := strings.TrimPrefix(authHeader, "Bearer ")
 		if sessionToken == "" || sessionToken == authHeader {
-			log.Printf("Authorization header present but token missing or malformed: %s", authHeader)
+			log.Println("Authorization header present but token missing or malformed")
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Unauthorized: Token missing or malformed",
 			})
@@ -128,7 +156,7 @@ func NewAuthenticateMiddleware(tokenLookup AgentTokenLookup) fiber.Handler {
 		if err != nil {
 			log.Printf("JWT verification failed: %v", err)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Unauthorized: " + err.Error(),
+				"error": "Unauthorized: Invalid token",
 			})
 		}
 

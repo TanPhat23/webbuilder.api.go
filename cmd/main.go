@@ -4,9 +4,11 @@ import (
 	"context"
 	"log"
 	"my-go-app/internal/database"
+	"my-go-app/internal/grpcserver"
 	"my-go-app/internal/routes"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/configs"
+	"my-go-app/pkg/middleware"
 	"my-go-app/proto"
 	"net"
 	"os"
@@ -19,8 +21,6 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/joho/godotenv"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -29,6 +29,18 @@ func main() {
 	if err != nil {
 		log.Println("Warning: Could not load .env file, using system environment variables")
 	}
+	if err := middleware.ValidateAuthEnv(); err != nil {
+		log.Fatal(err)
+	}
+	grpcCfg, err := grpcserver.LoadConfigFromEnv("8081")
+	if err != nil {
+		log.Fatal("Invalid gRPC configuration:", err)
+	}
+	grpcSrv, err := grpcserver.NewServer(grpcCfg)
+	if err != nil {
+		log.Fatal("Failed to initialize gRPC server:", err)
+	}
+
 	//Set Clerk API key from environment variable
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
@@ -57,23 +69,22 @@ func main() {
 
 	// Start gRPC server
 	go func() {
-		lis, err := net.Listen("tcp", ":8081")
+		addr := grpcCfg.Address()
+		lis, err := net.Listen("tcp", addr)
 		if err != nil {
 			log.Fatal("Failed to listen on gRPC port:", err)
 		}
-		s := grpc.NewServer()
-		proto.RegisterElementServiceServer(s, elementService)
-		reflection.Register(s)
-		log.Println("gRPC server listening on :8081")
+		proto.RegisterElementServiceServer(grpcSrv, elementService)
+		log.Println("gRPC server listening on " + addr)
 
 		// Goroutine to handle shutdown
 		go func() {
 			<-ctx.Done()
 			log.Println("Shutting down gRPC server...")
-			s.GracefulStop()
+			grpcSrv.GracefulStop()
 		}()
 
-		if err := s.Serve(lis); err != nil {
+		if err := grpcSrv.Serve(lis); err != nil {
 			log.Fatal("Failed to serve gRPC:", err)
 		}
 	}()

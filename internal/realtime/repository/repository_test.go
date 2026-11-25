@@ -235,6 +235,7 @@ func TestGormRepositoriesAndLogicRepository(t *testing.T) {
 
 func assertElementRepoCRUD(t *testing.T, ctx context.Context, s *scriptDB, repos *domainRepo.Repository) {
 	t.Helper()
+	s.on(`FROM "Page"`, []string{"exists"}, []driver.Value{true})
 	el := &domainEntity.Element{ID: "el-1", Type: "Text", PageID: "pg-1"}
 	assertDocRepoNoErr(t, repos.ElementRepo.CreateElement(ctx, "proj-1", "pg-1", el))
 	assertDocRepoNoErr(t, repos.ElementRepo.CreateElements(ctx, "proj-1", "pg-1", []domainEntity.Element{*el}))
@@ -253,10 +254,25 @@ func assertElementRepoCRUD(t *testing.T, ctx context.Context, s *scriptDB, repos
 	if list, err := repos.ElementRepo.GetElementsByProjectID(ctx, "proj-1"); err != nil || len(list) == 0 {
 		t.Fatalf("GetElementsByProjectID list=%v err=%v", list, err)
 	}
+
+	// Cross-project page ownership rejection
+	s2db, s2 := newScriptGorm(t)
+	scopedRepo := NewElementRepository(s2db)
+	s2.on(`FROM "Page"`, []string{"exists"}, []driver.Value{false})
+	if err := scopedRepo.CreateElement(ctx, "wrong-proj", "pg-1", el); err == nil {
+		t.Fatal("CreateElement must fail when page does not belong to project")
+	}
+	if err := scopedRepo.DeleteElement(ctx, "wrong-proj", "pg-1", "el-1"); err == nil {
+		t.Fatal("DeleteElement must fail when page does not belong to project")
+	}
+	if ok, err := scopedRepo.PageBelongsToProject(ctx, "wrong-proj", "pg-1"); err != nil || ok {
+		t.Fatalf("PageBelongsToProject got ok=%v err=%v", ok, err)
+	}
 }
 
 func assertSnapshotAndWorkflowRepos(t *testing.T, ctx context.Context, s *scriptDB, repos *domainRepo.Repository) {
 	t.Helper()
+	s.on(`FROM "Page"`, []string{"exists"}, []driver.Value{true})
 	el := domainEntity.Element{ID: "el-1", Type: "Text", PageID: "pg-1"}
 	assertDocRepoNoErr(t, repos.SnapshotRepo.SaveSnapshot(ctx, "proj-1", "pg-1", "snap", domainEntity.SnapshotTypes.Version, []domainEntity.Element{el}))
 	s.on(`FROM "Snapshot"`, []string{"Id", "Name"}, []driver.Value{"s1", "snap"})
@@ -264,6 +280,17 @@ func assertSnapshotAndWorkflowRepos(t *testing.T, ctx context.Context, s *script
 		t.Fatalf("GetSnapshot snap=%v err=%v", snap, err)
 	}
 	assertDocRepoNoErr(t, repos.SnapshotRepo.DeleteSnapshot(ctx, "pg-1", "proj-1", domainEntity.SnapshotTypes.Version))
+
+	// Cross-project snapshot rejection
+	s2db, s2 := newScriptGorm(t)
+	scopedSnap := NewSnapshotRepository(s2db)
+	s2.on(`FROM "Page"`, []string{"exists"}, []driver.Value{false})
+	if err := scopedSnap.SaveSnapshot(ctx, "wrong-proj", "pg-1", "snap", domainEntity.SnapshotTypes.Version, []domainEntity.Element{el}); err == nil {
+		t.Fatal("SaveSnapshot must fail when page does not belong to project")
+	}
+	if err := scopedSnap.DeleteSnapshot(ctx, "pg-1", "wrong-proj", domainEntity.SnapshotTypes.Version); err == nil {
+		t.Fatal("DeleteSnapshot must fail when page does not belong to project")
+	}
 
 	wf := &domainEntity.EventWorkflow{ID: "wf-1", Name: "Click"}
 	assertDocRepoNoErr(t, repos.WorkflowRepo.CreateWorkflow(ctx, "proj-1", wf))

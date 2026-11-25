@@ -51,13 +51,38 @@ type ItemEventEmitter interface {
 	EmitItemEvent(ctx context.Context, projectID string, ct *models.ContentType, event string, item *models.ContentItem)
 }
 
+const (
+	maxPublicCollectionOffset  = 10000
+	maxRateLimitBuckets        = 50000
+	maxPublicFieldLen          = 16 * 1024
+	maxPublicRichTextFieldLen  = 100 * 1024
+	rateLimitPruneInterval     = 1024
+)
+
 type slidingWindowLimiter struct {
 	mu      sync.Mutex
 	buckets map[string][]time.Time
+	ops     uint64
 }
 
 func newSlidingWindowLimiter() *slidingWindowLimiter {
 	return &slidingWindowLimiter{buckets: make(map[string][]time.Time)}
+}
+
+func (l *slidingWindowLimiter) evictExpiredLocked(cutoff time.Time) {
+	for k, hits := range l.buckets {
+		kept := hits[:0]
+		for _, ts := range hits {
+			if ts.After(cutoff) {
+				kept = append(kept, ts)
+			}
+		}
+		if len(kept) == 0 {
+			delete(l.buckets, k)
+		} else {
+			l.buckets[k] = kept
+		}
+	}
 }
 
 func (l *slidingWindowLimiter) Allow(key string, limit int, window time.Duration, now time.Time) bool {
@@ -68,6 +93,11 @@ func (l *slidingWindowLimiter) Allow(key string, limit int, window time.Duration
 	defer l.mu.Unlock()
 
 	cutoff := now.Add(-window)
+	l.ops++
+	if l.ops%rateLimitPruneInterval == 0 {
+		l.evictExpiredLocked(cutoff)
+	}
+
 	hits := l.buckets[key]
 	kept := hits[:0]
 	for _, ts := range hits {
@@ -79,6 +109,22 @@ func (l *slidingWindowLimiter) Allow(key string, limit int, window time.Duration
 		l.buckets[key] = kept
 		return false
 	}
+	if len(kept) == 0 {
+		delete(l.buckets, key)
+	}
+
+	if _, exists := l.buckets[key]; !exists && len(l.buckets) >= maxRateLimitBuckets {
+		l.evictExpiredLocked(cutoff)
+		if len(l.buckets) >= maxRateLimitBuckets {
+			for k := range l.buckets {
+				delete(l.buckets, k)
+				if len(l.buckets) < maxRateLimitBuckets {
+					break
+				}
+			}
+		}
+	}
+
 	l.buckets[key] = append(kept, now)
 	return true
 }
@@ -124,6 +170,9 @@ func (s *PublicCollectionService) ListPublicItems(ctx context.Context, projectID
 	}
 	if offset < 0 {
 		offset = 0
+	}
+	if offset > maxPublicCollectionOffset {
+		offset = maxPublicCollectionOffset
 	}
 
 	items, err := s.contentItemRepo.GetPublicContentItems(ctx, ct.Id, limit+offset, sortBy, sortOrder)
@@ -245,7 +294,16 @@ func ValidateSubmissionFields(fields []models.ContentField, input map[string]any
 			}
 			continue
 		}
-		if errMsg := validateFieldType(strings.ToLower(strings.TrimSpace(f.Type)), strVal); errMsg != "" {
+		fieldType := strings.ToLower(strings.TrimSpace(f.Type))
+		maxLen := maxPublicFieldLen
+		if fieldType == "richtext" {
+			maxLen = maxPublicRichTextFieldLen
+		}
+		if len(strVal) > maxLen {
+			errs[f.Name] = fmt.Sprintf("must be at most %d bytes", maxLen)
+			continue
+		}
+		if errMsg := validateFieldType(fieldType, strVal); errMsg != "" {
 			errs[f.Name] = errMsg
 			continue
 		}

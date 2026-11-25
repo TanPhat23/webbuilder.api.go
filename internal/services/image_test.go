@@ -105,7 +105,9 @@ func TestImageService_CreateImage(t *testing.T) {
 func TestImageService_Uploads(t *testing.T) {
 	ctx := context.Background()
 	name := "pic"
-	file := func() imageFakeFile { return imageFakeFile{bytes.NewReader([]byte("data"))} }
+	file := func() imageFakeFile {
+		return imageFakeFile{bytes.NewReader([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDRdata"))}
+	}
 
 	type variant struct {
 		name string
@@ -169,6 +171,14 @@ func TestImageService_Uploads(t *testing.T) {
 		wantErr(t, err, "image file is required")
 		_, err = s.CreateBase64UploadedImage(ctx, "u", "", nil)
 		wantErr(t, err, "image data is required")
+	})
+
+	t.Run("nil cloudinary service returns explicit error", func(t *testing.T) {
+		s := NewImageService(&fkImageRepo{}, nil)
+		_, err := s.CreateUploadedImage(ctx, "u", "a.png", nil, file())
+		wantErr(t, err, "image upload service is not configured")
+		_, err = s.CreateBase64UploadedImage(ctx, "u", "data:image/png;base64,AAAA", nil)
+		wantErr(t, err, "image upload service is not configured")
 	})
 }
 

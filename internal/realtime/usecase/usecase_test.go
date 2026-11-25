@@ -26,6 +26,9 @@ type fakeElementRepo struct {
 	getByProjectErr error
 }
 
+func (f *fakeElementRepo) PageBelongsToProject(context.Context, string, string) (bool, error) {
+	return true, nil
+}
 func (f *fakeElementRepo) CreateElement(context.Context, string, string, *domainEntity.Element) error {
 	return nil
 }

@@ -184,7 +184,7 @@ func (r *Room) clientWriter(c *Client, send <-chan []byte) {
 
 			if err := c.WriteFrame(frame); err != nil {
 				if r.logger != nil {
-					r.logger.Errorf("websocket write error (page=%s): %v", c.PageID, err)
+					r.logger.Errorf("websocket write error (page=%s): %v", c.GetPageID(), err)
 				}
 				c.CloseConn()
 				return

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"my-go-app/internal/models"
+	"my-go-app/internal/repositories"
 )
 
 func TestContentItemReads(t *testing.T) {
@@ -188,4 +189,67 @@ func TestContentItemDeleteAndSort(t *testing.T) {
 			t.Fatal(by, ord)
 		}
 	}
+}
+
+func TestContentItemGetBySlugPublicIsolation(t *testing.T) {
+	ctx := context.Background()
+	projID := "p1"
+
+	t.Run("rejects non-public content type", func(t *testing.T) {
+		ciRepo := &fkContentItemRepo{}
+		ctRepo := &fkContentTypeRepo{
+			OnGetContentTypeByID: func(context.Context, string) (*models.ContentType, error) {
+				return &models.ContentType{Id: "ct1", ProjectId: &projID, PublicRead: false}, nil
+			},
+		}
+		projRepo := &fkProjectRepo{}
+		s := NewContentItemService(ciRepo).WithAuth(ctRepo, projRepo)
+		_, err := s.GetContentItemBySlug(ctx, "ct1", "hello")
+		if !errors.Is(err, repositories.ErrContentItemNotFound) {
+			t.Fatalf("expected ErrContentItemNotFound, got %v", err)
+		}
+	})
+
+	t.Run("rejects unpublished or deleted project", func(t *testing.T) {
+		ciRepo := &fkContentItemRepo{}
+		ctRepo := &fkContentTypeRepo{
+			OnGetContentTypeByID: func(context.Context, string) (*models.ContentType, error) {
+				return &models.ContentType{Id: "ct1", ProjectId: &projID, PublicRead: true}, nil
+			},
+		}
+		projRepo := &fkProjectRepo{
+			OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) {
+				return nil, repositories.ErrProjectNotFound
+			},
+		}
+		s := NewContentItemService(ciRepo).WithAuth(ctRepo, projRepo)
+		_, err := s.GetContentItemBySlug(ctx, "ct1", "hello")
+		if !errors.Is(err, repositories.ErrContentItemNotFound) {
+			t.Fatalf("expected ErrContentItemNotFound, got %v", err)
+		}
+	})
+
+	t.Run("allows public content type on published project", func(t *testing.T) {
+		ciRepo := &fkContentItemRepo{
+			OnGetContentItemBySlug: func(_ context.Context, ct, sl string) (*models.ContentItem, error) {
+				return &models.ContentItem{Id: "i1", ContentTypeId: ct, Slug: sl, Published: true}, nil
+			},
+		}
+		ctRepo := &fkContentTypeRepo{
+			OnGetContentTypeByID: func(context.Context, string) (*models.ContentType, error) {
+				return &models.ContentType{Id: "ct1", ProjectId: &projID, PublicRead: true}, nil
+			},
+		}
+		projRepo := &fkProjectRepo{
+			OnGetPublicProjectByID: func(context.Context, string) (*models.Project, error) {
+				return &models.Project{ID: projID, Published: true}, nil
+			},
+		}
+		s := NewContentItemService(ciRepo).WithAuth(ctRepo, projRepo)
+		got, err := s.GetContentItemBySlug(ctx, "ct1", "hello")
+		wantNoErr(t, err)
+		if got.Id != "i1" {
+			t.Fatalf("got=%+v", got)
+		}
+	})
 }

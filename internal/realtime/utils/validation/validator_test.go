@@ -96,3 +96,35 @@ func TestValidateElementForAddAndUpdate(t *testing.T) {
 		t.Fatalf("unexpected valid update error: %v", err)
 	}
 }
+
+func TestValidateSafeIDAndBounds(t *testing.T) {
+	for _, okID := range []string{"proj1", "p1", "11111111-1111-1111-1111-111111111111", "a_b-c"} {
+		if !IsValidSafeID(okID) {
+			t.Fatalf("expected %q to be valid", okID)
+		}
+	}
+	for _, badID := range []string{"", "a:b", "a/b", "a b", "../x"} {
+		if IsValidSafeID(badID) {
+			t.Fatalf("expected %q to be invalid", badID)
+		}
+	}
+
+	// Element depth > MaxElementTreeDepth must fail.
+	deep := domainEntity.Element{Type: "Text", PageID: "page-1"}
+	for i := 1; i < MaxElementTreeDepth+1; i++ {
+		deep = domainEntity.Element{Type: "Frame", PageID: "page-1", Elements: []domainEntity.Element{deep}}
+	}
+	if err := ValidateElementForAdd(&deep); err == nil {
+		t.Fatal("expected depth limit error")
+	}
+
+	// Node count > MaxElementTreeNodes must fail.
+	children := make([]domainEntity.Element, MaxElementTreeNodes)
+	for i := range children {
+		children[i] = domainEntity.Element{Type: "Text", PageID: "page-1"}
+	}
+	wide := domainEntity.Element{Type: "Frame", PageID: "page-1", Elements: children}
+	if err := ValidateElementForAdd(&wide); err == nil {
+		t.Fatal("expected node count limit error")
+	}
+}

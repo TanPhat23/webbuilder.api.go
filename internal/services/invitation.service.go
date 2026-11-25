@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,6 +15,14 @@ import (
 
 	"github.com/lucsky/cuid"
 )
+
+func generateInvitationToken() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
 
 type InvitationService struct {
 	invitationRepo   repositories.InvitationRepositoryInterface
@@ -88,12 +98,17 @@ func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, ema
 		}
 	}
 
+	token, err := generateInvitationToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate invitation token: %w", err)
+	}
+
 	invitation := &models.Invitation{
 		Id:        cuid.New(),
 		Email:     email,
 		ProjectId: projectID,
 		Role:      role,
-		Token:     cuid.New(),
+		Token:     token,
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		CreatedAt: time.Now(),
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"my-go-app/internal/auth"
 	"my-go-app/internal/models"
 )
 
@@ -66,4 +67,28 @@ func TestAgentTokenInternalErrorsAreGeneric(t *testing.T) {
 	fail := &agenttokenListFailStub{listErr: errInternal, revokeErr: errors.New("db down 10.0.0.5")}
 	kitExpect(t, kitSend(t, agenttokenKit("u1", fail), "GET", "/agent-tokens", ""), 500, "could not list tokens")
 	kitExpect(t, kitSend(t, agenttokenKit("u1", fail), "DELETE", "/agent-tokens/t1", ""), 500, "could not revoke token")
+}
+
+func TestAgentTokenHandlerRejectsAgentTokenSession(t *testing.T) {
+	stub := &tokenManagerStub{}
+	h := NewAgentTokenHandler(stub, "https://mcp.example.test")
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		auth.SetFiber(c, auth.Identity{UserID: "u1", AuthMethod: "agent_token"})
+		return c.Next()
+	})
+	app.Post("/agent-tokens", h.Create)
+	app.Get("/agent-tokens", h.List)
+	app.Delete("/agent-tokens/:id", h.Revoke)
+
+	for _, tc := range [][2]string{{"POST", "/agent-tokens"}, {"GET", "/agent-tokens"}, {"DELETE", "/agent-tokens/t1"}} {
+		body := ""
+		if tc[0] == "POST" {
+			body = `{"name":"nested"}`
+		}
+		kitExpect(t, kitSend(t, app, tc[0], tc[1], body), 403, "interactive session required")
+	}
+	if len(stub.created) != 0 || stub.revoked != "" {
+		t.Fatalf("service must not be invoked with agent_token auth: created=%v revoked=%q", stub.created, stub.revoked)
+	}
 }

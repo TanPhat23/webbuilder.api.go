@@ -10,6 +10,10 @@ import (
 
 func TestPersistPageReconcilesElementsAndScopesIDs(t *testing.T) {
 	_, db := legacyRealtimeDatabase(t)
+	if err := db.Exec(`CREATE TABLE "Page" ("Id" text PRIMARY KEY, "ProjectId" text, "DeletedAt" timestamptz);
+		INSERT INTO "Page" ("Id", "ProjectId") VALUES ('page', 'proj')`).Error; err != nil {
+		t.Fatal(err)
+	}
 	repo := repository.NewElementRepository(db)
 	ctx := context.Background()
 	parent := "parent"

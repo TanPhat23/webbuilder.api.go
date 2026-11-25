@@ -11,13 +11,18 @@ import (
 	"my-go-app/pkg/middleware"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/helmet"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
 	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"github.com/joho/godotenv"
 )
@@ -29,6 +34,12 @@ func main() {
 		log.Println("Warning: Could not load .env file, using system environment variables")
 	}
 	if err := middleware.ValidateAuthEnv(); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := configs.AllowedOrigins(); err != nil {
+		log.Fatal(err)
+	}
+	if err := services.ValidateWebhookEnv(); err != nil {
 		log.Fatal(err)
 	}
 	//Set Clerk API key from environment variable
@@ -61,8 +72,17 @@ func main() {
 	configs.SetupLogging()
 
 	app := fiber.New(configs.FiberConfig())
+	app.Use(recover.New())
 	app.Use(requestid.New())
+	app.Use(helmet.New())
 	app.Use(cors.New(configs.CorsConfig()))
+	app.Use(limiter.New(limiter.Config{
+		Max:        300,
+		Expiration: time.Minute,
+		Next: func(c fiber.Ctx) bool {
+			return strings.HasPrefix(c.Path(), "/ws")
+		},
+	}))
 	app.Use(logger.New(configs.LoggerConfig()))
 	app.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed, // Fast compression for better performance

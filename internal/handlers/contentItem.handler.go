@@ -63,16 +63,24 @@ func (h *ContentItemHandler) CreateContentItem(c fiber.Ctx) error {
 	}
 	contentTypeID := ids[0]
 
-	contentItem := new(models.ContentItem)
-	if err := c.Bind().Body(contentItem); err != nil {
+	req := new(dto.CreateContentItemRequest)
+	if err := c.Bind().Body(req); err != nil {
 		return err
 	}
 
-	fieldValues := contentItem.FieldValues
-	contentItem.FieldValues = nil
-	contentItem.ContentTypeId = contentTypeID
+	published := false
+	if req.Published != nil {
+		published = *req.Published
+	}
 
-	created, err := h.contentItemService.CreateContentItemForUser(c.RequestCtx(), contentItem, fieldValues, userID)
+	contentItem := &models.ContentItem{
+		ContentTypeId: contentTypeID,
+		Slug:          req.Slug,
+		Title:         req.Title,
+		Published:     published,
+	}
+
+	created, err := h.contentItemService.CreateContentItemForUser(c.RequestCtx(), contentItem, req.FieldValues, userID)
 	if err != nil {
 		return utils.HandleRepoError(c, err, "Content type not found", "Failed to create content item")
 	}
@@ -168,6 +176,9 @@ func (h *ContentItemHandler) GetPublicContentItemBySlug(c fiber.Ctx) error {
 	}
 
 	if !contentItem.Published {
+		return fiber.NewError(fiber.StatusNotFound, "Content item not found")
+	}
+	if contentItem.ContentType != nil && !contentItem.ContentType.PublicRead {
 		return fiber.NewError(fiber.StatusNotFound, "Content item not found")
 	}
 

@@ -208,11 +208,24 @@ func (s *ElementCommentService) UpdateElementComment(ctx context.Context, id str
 		if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, perm); err != nil {
 			return nil, err
 		}
+		if hasResolvedUpdate(updates) {
+			if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermCommentResolve); err != nil {
+				return nil, err
+			}
+		}
 	} else if comment.AuthorId != userID {
 		return nil, fmt.Errorf("%w: user is not the comment author", authz.ErrForbidden)
 	}
 
 	return s.elementCommentRepo.UpdateElementComment(ctx, id, updates)
+}
+
+func hasResolvedUpdate(updates map[string]any) bool {
+	if _, ok := updates["resolved"]; ok {
+		return true
+	}
+	_, ok := updates["Resolved"]
+	return ok
 }
 
 func (s *ElementCommentService) DeleteElementComment(ctx context.Context, id string, userID string) error {

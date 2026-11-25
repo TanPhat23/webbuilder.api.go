@@ -60,7 +60,7 @@ func main() {
 	defer h.Shutdown()
 	app := fiber.New()
 	app.Use("/ws", func(c fiber.Ctx) error {
-		id := c.Query("token")
+		id := c.Query("ticket")
 		if id == "" {
 			return fiber.ErrUnauthorized
 		}

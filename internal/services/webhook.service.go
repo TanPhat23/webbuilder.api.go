@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -62,12 +63,27 @@ type WebhookService struct {
 	now             func() time.Time
 }
 
+// ValidateWebhookEnv refuses ALLOW_LOCAL_WEBHOOKS=true in production environments.
+func ValidateWebhookEnv() error {
+	if strings.EqualFold(os.Getenv("ALLOW_LOCAL_WEBHOOKS"), "true") {
+		env := strings.ToLower(strings.TrimSpace(os.Getenv("ENV")))
+		if env == "production" || env == "prod" {
+			return errors.New("ALLOW_LOCAL_WEBHOOKS cannot be enabled when ENV is production")
+		}
+	}
+	return nil
+}
+
 func NewWebhookService(
 	webhookRepo repositories.WebhookRepositoryInterface,
 	projectRepo repositories.ProjectRepositoryInterface,
 	contentTypeRepo repositories.ContentTypeRepositoryInterface,
 ) *WebhookService {
 	allowLocal := strings.EqualFold(os.Getenv("ALLOW_LOCAL_WEBHOOKS"), "true")
+	if err := ValidateWebhookEnv(); err != nil {
+		log.Printf("WARNING: %v; disabling local webhooks", err)
+		allowLocal = false
+	}
 	return NewWebhookServiceWithOptions(webhookRepo, projectRepo, contentTypeRepo, allowLocal, 10*time.Second)
 }
 
@@ -365,9 +381,11 @@ func (s *WebhookService) EmitItemEvent(ctx context.Context, projectID string, ct
 		select {
 		case s.queue <- created.Id:
 		default:
-			go func(id string) {
-				_ = s.DeliverByID(context.Background(), id)
-			}(created.Id)
+			// Queue is full; leave pending in DB for the retry poller instead of spawning unbounded goroutines.
+			next := s.now()
+			_ = s.webhookRepo.UpdateDelivery(ctx, created.Id, map[string]any{
+				"NextRetryAt": next,
+			})
 		}
 	}
 }

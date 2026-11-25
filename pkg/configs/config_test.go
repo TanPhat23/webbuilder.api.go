@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -12,9 +13,10 @@ import (
 )
 
 func TestCorsConfigUsesEnvOverridesAndDefaults(t *testing.T) {
+	t.Setenv("ENV", "development")
 	t.Setenv("ALLOWED_ORIGINS", "")
 	def := CorsConfig()
-	if !def.AllowCredentials || len(def.AllowOrigins) != 3 {
+	if !def.AllowCredentials || len(def.AllowOrigins) != 2 {
 		t.Fatalf("unexpected default cors config: %+v", def)
 	}
 
@@ -22,6 +24,29 @@ func TestCorsConfigUsesEnvOverridesAndDefaults(t *testing.T) {
 	custom := CorsConfig()
 	if len(custom.AllowOrigins) != 2 || custom.AllowOrigins[0] != "https://a.example.com" || custom.AllowOrigins[1] != "https://b.example.com" {
 		t.Fatalf("unexpected trimmed cors origins: %+v", custom.AllowOrigins)
+	}
+
+	for _, env := range []string{"production", "prod"} {
+		t.Setenv("ENV", env)
+		t.Setenv("ALLOWED_ORIGINS", "")
+		if _, err := AllowedOrigins(); err == nil {
+			t.Fatalf("expected AllowedOrigins error in %s with empty ALLOWED_ORIGINS", env)
+		}
+		t.Setenv("ALLOWED_ORIGINS", "https://app.example.com")
+		origins, err := AllowedOrigins()
+		if err != nil || len(origins) != 1 || origins[0] != "https://app.example.com" {
+			t.Fatalf("unexpected AllowedOrigins in %s: origins=%v err=%v", env, origins, err)
+		}
+	}
+}
+
+func TestFiberConfigHardeningDefaults(t *testing.T) {
+	cfg := FiberConfig()
+	if cfg.ReadTimeout != 15*time.Second || cfg.WriteTimeout != 30*time.Second || cfg.IdleTimeout != 60*time.Second {
+		t.Fatalf("unexpected timeouts: read=%v write=%v idle=%v", cfg.ReadTimeout, cfg.WriteTimeout, cfg.IdleTimeout)
+	}
+	if cfg.BodyLimit != 4*1024*1024 {
+		t.Fatalf("unexpected body limit: %d", cfg.BodyLimit)
 	}
 }
 

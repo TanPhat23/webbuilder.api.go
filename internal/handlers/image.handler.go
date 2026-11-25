@@ -46,6 +46,10 @@ func (h *ImageHandler) UploadImage(c fiber.Ctx) error {
 	}
 	defer file.Close()
 
+	if err := services.ValidateImageContent(file); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Invalid image file", err)
+	}
+
 	var imageNamePtr *string
 	if imageName := c.FormValue("imageName"); imageName != "" {
 		imageNamePtr = &imageName
