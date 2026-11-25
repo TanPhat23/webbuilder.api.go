@@ -118,8 +118,39 @@ func (s *PageService) Create(ctx context.Context, page *models.Page) (*models.Pa
 	return s.insertPage(ctx, page)
 }
 
+var ErrInvalidPageSlug = errors.New("dynamic :param or * segments are only allowed on dynamic pages")
+
+func (s *PageService) checkRouteCollision(ctx context.Context, projectID, excludePageID, pageType, slug string) error {
+	if pageType == models.PageTypeComponent {
+		return nil
+	}
+	if pageType != models.PageTypeDynamic && models.HasDynamicSegments(slug) {
+		return ErrInvalidPageSlug
+	}
+	if !models.HasDynamicSegments(slug) {
+		return nil
+	}
+	canonical := models.CanonicalRoutePattern(slug)
+	pages, err := s.pageRepo.ListByProject(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	for _, existing := range pages {
+		if existing.Id == excludePageID || existing.Type == models.PageTypeComponent {
+			continue
+		}
+		if models.CanonicalRoutePattern(existing.Slug) == canonical {
+			return repositories.ErrPageSlugTaken
+		}
+	}
+	return nil
+}
+
 // insertPage stores a page whose project the caller has already verified.
 func (s *PageService) insertPage(ctx context.Context, page *models.Page) (*models.Page, error) {
+	if err := s.checkRouteCollision(ctx, page.ProjectId, "", page.Type, page.Slug); err != nil {
+		return nil, err
+	}
 	if err := s.pageRepo.Create(ctx, page); err != nil {
 		return nil, err
 	}
@@ -167,7 +198,19 @@ func (s *PageService) UpdateFieldsForUser(ctx context.Context, projectID, pageID
 	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermPageEdit); err != nil {
 		return err
 	}
-	if _, err := s.pageRepo.GetByID(ctx, pageID, projectID); err != nil {
+	existing, err := s.pageRepo.GetByID(ctx, pageID, projectID)
+	if err != nil {
+		return err
+	}
+	effectiveType := existing.Type
+	if nextType, ok := updates["Type"].(string); ok && nextType != "" {
+		effectiveType = nextType
+	}
+	effectiveSlug := existing.Slug
+	if nextSlug, ok := updates["Slug"].(string); ok {
+		effectiveSlug = nextSlug
+	}
+	if err := s.checkRouteCollision(ctx, projectID, pageID, effectiveType, effectiveSlug); err != nil {
 		return err
 	}
 	return s.pageRepo.UpdateFields(ctx, pageID, updates)

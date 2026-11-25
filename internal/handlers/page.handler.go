@@ -15,10 +15,11 @@ import (
 )
 
 var pageAllowedCols = map[string]string{
-	"name":   "Name",
-	"slug":   "Slug",
-	"type":   "Type",
-	"styles": "Styles",
+	"name":          "Name",
+	"slug":          "Slug",
+	"type":          "Type",
+	"styles":        "Styles",
+	"contentTypeId": "ContentTypeId",
 }
 
 type PageHandler struct {
@@ -105,7 +106,7 @@ func (h *PageHandler) Create(c fiber.Ctx) error {
 	pageSlug := ""
 	if req.Type != models.PageTypeComponent {
 		if req.Slug != nil {
-			normalized, err := models.NormalizeExplicitSlug(*req.Slug)
+			normalized, err := models.NormalizeExplicitSlugForType(*req.Slug, req.Type)
 			if err != nil {
 				return utils.SendError(c, fiber.StatusBadRequest, err.Error(), err, userID)
 			}
@@ -115,13 +116,20 @@ func (h *PageHandler) Create(c fiber.Ctx) error {
 		}
 	}
 
+	var contentTypeID *string
+	if req.ContentTypeId != nil && *req.ContentTypeId != "" {
+		v := *req.ContentTypeId
+		contentTypeID = &v
+	}
+
 	page := &models.Page{
-		Id:        pageID,
-		Name:      req.Name,
-		Slug:      pageSlug,
-		Type:      req.Type,
-		Styles:    req.Styles,
-		ProjectId: projectID,
+		Id:            pageID,
+		Name:          req.Name,
+		Slug:          pageSlug,
+		Type:          req.Type,
+		ContentTypeId: contentTypeID,
+		Styles:        req.Styles,
+		ProjectId:     projectID,
 		AuditFields: models.AuditFields{
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -134,6 +142,9 @@ func (h *PageHandler) Create(c fiber.Ctx) error {
 	}
 	if errors.Is(err, repositories.ErrPageNameTaken) {
 		return utils.SendError(c, fiber.StatusConflict, "A page with this name already exists in the project", err, userID)
+	}
+	if errors.Is(err, services.ErrInvalidPageSlug) {
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error(), err, userID)
 	}
 	if errors.Is(err, repositories.ErrPageSlugTaken) {
 		return utils.SendError(c, fiber.StatusConflict, "A page with this URL path already exists in the project", err, userID)
@@ -160,13 +171,24 @@ func (h *PageHandler) Update(c fiber.Ctx) error {
 	rawBody := map[string]any{}
 	utils.SetIfNotNil(rawBody, "name", req.Name)
 	if req.Slug != nil {
-		normalized, err := models.NormalizeExplicitSlug(*req.Slug)
+		slugType := models.PageTypeDynamic
+		if req.Type != nil {
+			slugType = *req.Type
+		}
+		normalized, err := models.NormalizeExplicitSlugForType(*req.Slug, slugType)
 		if err != nil {
 			return utils.SendError(c, fiber.StatusBadRequest, err.Error(), err, userID)
 		}
 		rawBody["slug"] = normalized
 	}
 	utils.SetIfNotNil(rawBody, "type", req.Type)
+	if req.ContentTypeId != nil {
+		if *req.ContentTypeId == "" {
+			rawBody["contentTypeId"] = nil
+		} else {
+			rawBody["contentTypeId"] = *req.ContentTypeId
+		}
+	}
 	if req.Styles != nil {
 		rawBody["styles"] = req.Styles
 	}
