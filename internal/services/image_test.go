@@ -80,38 +80,38 @@ func TestImageService_CreateImage(t *testing.T) {
 	t.Run("validation", func(t *testing.T) {
 		repo := &fkImageRepo{}
 		s := NewImageService(repo, nil)
-		_, err := s.CreateImage(ctx, models.Image{ImageLink: "l"})
+		_, err := s.Create(ctx, models.Image{ImageLink: "l"})
 		wantErr(t, err, "userId is required")
-		_, err = s.CreateImage(ctx, models.Image{UserId: "u"})
+		_, err = s.Create(ctx, models.Image{UserId: "u"})
 		wantErr(t, err, "image link is required")
 		wantCalls(t, repo.Calls)
 	})
 	t.Run("fills id and timestamps", func(t *testing.T) {
-		repo := &fkImageRepo{OnCreateImage: func(_ context.Context, i models.Image) (*models.Image, error) {
+		repo := &fkImageRepo{OnCreate: func(_ context.Context, i models.Image) (*models.Image, error) {
 			return &i, nil
 		}}
-		got, err := NewImageService(repo, nil).CreateImage(ctx, models.Image{UserId: "u", ImageLink: "l"})
+		got, err := NewImageService(repo, nil).Create(ctx, models.Image{UserId: "u", ImageLink: "l"})
 		wantNoErr(t, err)
 		if got.ImageId == "" || got.CreatedAt.IsZero() || !got.UpdatedAt.Equal(got.CreatedAt) {
 			t.Fatalf("got = %+v", got)
 		}
 	})
 	t.Run("keeps provided id and timestamps", func(t *testing.T) {
-		repo := &fkImageRepo{OnCreateImage: func(_ context.Context, i models.Image) (*models.Image, error) {
+		repo := &fkImageRepo{OnCreate: func(_ context.Context, i models.Image) (*models.Image, error) {
 			return &i, nil
 		}}
 		in := models.Image{ImageId: "keep", UserId: "u", ImageLink: "l"}
 		in.CreatedAt = in.CreatedAt.AddDate(2000, 0, 0)
 		in.UpdatedAt = in.CreatedAt.AddDate(0, 1, 0)
-		got, err := NewImageService(repo, nil).CreateImage(ctx, in)
+		got, err := NewImageService(repo, nil).Create(ctx, in)
 		wantNoErr(t, err)
 		if got.ImageId != "keep" || !got.CreatedAt.Equal(in.CreatedAt) || !got.UpdatedAt.Equal(in.UpdatedAt) {
 			t.Fatalf("got = %+v", got)
 		}
 	})
 	t.Run("repo error", func(t *testing.T) {
-		repo := &fkImageRepo{OnCreateImage: func(context.Context, models.Image) (*models.Image, error) { return nil, errBoom }}
-		_, err := NewImageService(repo, nil).CreateImage(ctx, models.Image{UserId: "u", ImageLink: "l"})
+		repo := &fkImageRepo{OnCreate: func(context.Context, models.Image) (*models.Image, error) { return nil, errBoom }}
+		_, err := NewImageService(repo, nil).Create(ctx, models.Image{UserId: "u", ImageLink: "l"})
 		if !errors.Is(err, errBoom) {
 			t.Fatalf("err = %v", err)
 		}
@@ -133,10 +133,10 @@ func TestImageService_Uploads(t *testing.T) {
 	}
 	variants := []variant{
 		{"file", func(ctx context.Context, s *ImageService, uid string) (*models.ImageUploadResponse, error) {
-			return s.CreateUploadedImage(ctx, uid, "a.png", &name, file())
+			return s.Upload(ctx, uid, &name, file())
 		}},
 		{"base64", func(ctx context.Context, s *ImageService, uid string) (*models.ImageUploadResponse, error) {
-			return s.CreateBase64UploadedImage(ctx, uid, pngB64, &name)
+			return s.UploadBase64(ctx, uid, pngB64, &name)
 		}},
 	}
 	for _, v := range variants {
@@ -155,7 +155,7 @@ func TestImageService_Uploads(t *testing.T) {
 			})
 			t.Run("success", func(t *testing.T) {
 				var created models.Image
-				repo := &fkImageRepo{OnCreateImage: func(_ context.Context, i models.Image) (*models.Image, error) {
+				repo := &fkImageRepo{OnCreate: func(_ context.Context, i models.Image) (*models.Image, error) {
 					created = i
 					return &i, nil
 				}}
@@ -174,7 +174,7 @@ func TestImageService_Uploads(t *testing.T) {
 				}
 			})
 			t.Run("db failure rolls back object upload", func(t *testing.T) {
-				repo := &fkImageRepo{OnCreateImage: func(context.Context, models.Image) (*models.Image, error) { return nil, errBoom }}
+				repo := &fkImageRepo{OnCreate: func(context.Context, models.Image) (*models.Image, error) { return nil, errBoom }}
 				store := &fakeObjectStorage{}
 				s := NewImageServiceWithBaseURL(repo, store, "https://api.example.com")
 				_, err := v.call(ctx, s, "u")
@@ -190,17 +190,17 @@ func TestImageService_Uploads(t *testing.T) {
 
 	t.Run("file nil and data empty", func(t *testing.T) {
 		s := NewImageService(&fkImageRepo{}, nil)
-		_, err := s.CreateUploadedImage(ctx, "u", "a.png", nil, nil)
+		_, err := s.Upload(ctx, "u", nil, nil)
 		wantErr(t, err, "image file is required")
-		_, err = s.CreateBase64UploadedImage(ctx, "u", "", nil)
+		_, err = s.UploadBase64(ctx, "u", "", nil)
 		wantErr(t, err, "image data is required")
 	})
 
 	t.Run("nil storage service returns explicit error", func(t *testing.T) {
 		s := NewImageService(&fkImageRepo{}, nil)
-		_, err := s.CreateUploadedImage(ctx, "u", "a.png", nil, file())
+		_, err := s.Upload(ctx, "u", nil, file())
 		wantErr(t, err, "image upload service is not configured")
-		_, err = s.CreateBase64UploadedImage(ctx, "u", pngB64, nil)
+		_, err = s.UploadBase64(ctx, "u", pngB64, nil)
 		wantErr(t, err, "image upload service is not configured")
 	})
 
@@ -208,9 +208,9 @@ func TestImageService_Uploads(t *testing.T) {
 		store := &fakeObjectStorage{}
 		s := NewImageService(&fkImageRepo{}, store)
 		svgB64 := "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte("<svg><script>alert(1)</script></svg>"))
-		_, err := s.CreateBase64UploadedImage(ctx, "u", svgB64, nil)
+		_, err := s.UploadBase64(ctx, "u", svgB64, nil)
 		wantErr(t, err, "invalid image content type")
-		_, err = s.CreateBase64UploadedImage(ctx, "u", "data:image/png;base64,!!!", nil)
+		_, err = s.UploadBase64(ctx, "u", "data:image/png;base64,!!!", nil)
 		wantErr(t, err, "invalid base64 image encoding")
 		if len(store.putCalls) != 0 {
 			t.Fatal("invalid payload must not reach object storage")
@@ -222,7 +222,7 @@ func TestImageService_GetPublicImageURL(t *testing.T) {
 	ctx := context.Background()
 
 	repo := &fkImageRepo{
-		OnGetPublicImageByID: func(_ context.Context, id string) (*models.Image, error) {
+		OnGetPublicByID: func(_ context.Context, id string) (*models.Image, error) {
 			if id == "missing" {
 				return nil, repositories.ErrImageNotFound
 			}
@@ -232,17 +232,17 @@ func TestImageService_GetPublicImageURL(t *testing.T) {
 	store := &fakeObjectStorage{presignedURL: "https://t3.storageapi.dev/signed-url"}
 	s := NewImageService(repo, store)
 
-	if _, err := s.GetPublicImageURL(ctx, ""); err == nil {
+	if _, err := s.PublicURL(ctx, ""); err == nil {
 		t.Fatal("expected error for empty image id")
 	}
-	if _, err := NewImageService(repo, nil).GetPublicImageURL(ctx, "img-1"); err == nil {
+	if _, err := NewImageService(repo, nil).PublicURL(ctx, "img-1"); err == nil {
 		t.Fatal("expected error when storage is nil")
 	}
-	if _, err := s.GetPublicImageURL(ctx, "missing"); !errors.Is(err, repositories.ErrImageNotFound) {
+	if _, err := s.PublicURL(ctx, "missing"); !errors.Is(err, repositories.ErrImageNotFound) {
 		t.Fatalf("err = %v, want ErrImageNotFound", err)
 	}
 
-	got, err := s.GetPublicImageURL(ctx, "img-1")
+	got, err := s.PublicURL(ctx, "img-1")
 	wantNoErr(t, err)
 	if got != "https://t3.storageapi.dev/signed-url" || store.presignedKey != "images/u1/img-1" || store.presignedTTL != presignedImageURLTTL {
 		t.Fatalf("got=%q key=%q ttl=%v", got, store.presignedKey, store.presignedTTL)
@@ -252,55 +252,55 @@ func TestImageService_GetPublicImageURL(t *testing.T) {
 func TestImageService_Queries(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("GetImagesByUserID", func(t *testing.T) {
+	t.Run("ListByUser", func(t *testing.T) {
 		repo := &fkImageRepo{}
 		s := NewImageService(repo, nil)
-		_, err := s.GetImagesByUserID(ctx, "")
+		_, err := s.ListByUser(ctx, "")
 		wantErr(t, err, "userId is required")
-		repo.OnGetImagesByUserID = func(_ context.Context, u string) ([]models.Image, error) {
+		repo.OnListByUser = func(_ context.Context, u string) ([]models.Image, error) {
 			return []models.Image{{UserId: u}}, nil
 		}
-		res, err := s.GetImagesByUserID(ctx, "u")
+		res, err := s.ListByUser(ctx, "u")
 		wantNoErr(t, err)
 		if len(res) != 1 || res[0].UserId != "u" {
 			t.Fatalf("res = %+v", res)
 		}
-		repo.OnGetImagesByUserID = func(context.Context, string) ([]models.Image, error) { return nil, errBoom }
-		if _, err := s.GetImagesByUserID(ctx, "u"); !errors.Is(err, errBoom) {
+		repo.OnListByUser = func(context.Context, string) ([]models.Image, error) { return nil, errBoom }
+		if _, err := s.ListByUser(ctx, "u"); !errors.Is(err, errBoom) {
 			t.Fatalf("err = %v", err)
 		}
 	})
-	t.Run("GetImageByID", func(t *testing.T) {
+	t.Run("GetByID", func(t *testing.T) {
 		repo := &fkImageRepo{}
 		s := NewImageService(repo, nil)
-		_, err := s.GetImageByID(ctx, "", "u")
+		_, err := s.GetByID(ctx, "", "u")
 		wantErr(t, err, "image id is required")
-		_, err = s.GetImageByID(ctx, "i", "")
+		_, err = s.GetByID(ctx, "i", "")
 		wantErr(t, err, "userId is required")
-		repo.OnGetImageByID = func(_ context.Context, i, u string) (*models.Image, error) {
+		repo.OnGetByID = func(_ context.Context, i, u string) (*models.Image, error) {
 			return &models.Image{ImageId: i, UserId: u}, nil
 		}
-		img, err := s.GetImageByID(ctx, "i", "u")
+		img, err := s.GetByID(ctx, "i", "u")
 		wantNoErr(t, err)
 		if img.ImageId != "i" || img.UserId != "u" {
 			t.Fatalf("img = %+v", img)
 		}
 	})
-	t.Run("GetAllImages", func(t *testing.T) {
+	t.Run("ListAll", func(t *testing.T) {
 		repo := &fkImageRepo{}
 		s := NewImageService(repo, nil)
-		_, err := s.GetAllImages(ctx, -1, 0)
+		_, err := s.ListAll(ctx, -1, 0)
 		wantErr(t, err, "limit cannot be negative")
-		_, err = s.GetAllImages(ctx, 0, -1)
+		_, err = s.ListAll(ctx, 0, -1)
 		wantErr(t, err, "offset cannot be negative")
 		wantCalls(t, repo.Calls)
-		repo.OnGetAllImages = func(_ context.Context, l, o int) ([]models.Image, error) {
+		repo.OnListAll = func(_ context.Context, l, o int) ([]models.Image, error) {
 			if l != 5 || o != 10 {
 				t.Errorf("l=%d o=%d", l, o)
 			}
 			return nil, nil
 		}
-		_, err = s.GetAllImages(ctx, 5, 10)
+		_, err = s.ListAll(ctx, 5, 10)
 		wantNoErr(t, err)
 	})
 }
@@ -312,13 +312,13 @@ func TestImageService_Deletes(t *testing.T) {
 		call func(s *ImageService, i, u string) error
 		hook func(r *fkImageRepo, err error)
 	}{
-		{"DeleteImage", func(s *ImageService, i, u string) error { return s.DeleteImage(ctx, i, u) },
+		{"Delete", func(s *ImageService, i, u string) error { return s.Delete(ctx, i, u) },
 			func(r *fkImageRepo, err error) {
-				r.OnDeleteImage = func(context.Context, string, string) error { return err }
+				r.OnDelete = func(context.Context, string, string) error { return err }
 			}},
-		{"SoftDeleteImage", func(s *ImageService, i, u string) error { return s.SoftDeleteImage(ctx, i, u) },
+		{"SoftDelete", func(s *ImageService, i, u string) error { return s.SoftDelete(ctx, i, u) },
 			func(r *fkImageRepo, err error) {
-				r.OnSoftDeleteImage = func(context.Context, string, string) error { return err }
+				r.OnSoftDelete = func(context.Context, string, string) error { return err }
 			}},
 	}
 	for _, o := range ops {
@@ -337,21 +337,21 @@ func TestImageService_Deletes(t *testing.T) {
 		})
 	}
 
-	t.Run("DeleteImage removes object on success", func(t *testing.T) {
-		repo := &fkImageRepo{OnDeleteImage: func(context.Context, string, string) error { return nil }}
+	t.Run("Delete removes object on success", func(t *testing.T) {
+		repo := &fkImageRepo{OnDelete: func(context.Context, string, string) error { return nil }}
 		store := &fakeObjectStorage{}
 		s := NewImageService(repo, store)
-		wantNoErr(t, s.DeleteImage(ctx, "img1", "u1"))
+		wantNoErr(t, s.Delete(ctx, "img1", "u1"))
 		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != "images/u1/img1" {
 			t.Fatalf("deletedKeys = %v", store.deletedKeys)
 		}
 	})
 
-	t.Run("DeleteImage does not touch storage when db delete fails", func(t *testing.T) {
-		repo := &fkImageRepo{OnDeleteImage: func(context.Context, string, string) error { return repositories.ErrImageNotFound }}
+	t.Run("Delete does not touch storage when db delete fails", func(t *testing.T) {
+		repo := &fkImageRepo{OnDelete: func(context.Context, string, string) error { return repositories.ErrImageNotFound }}
 		store := &fakeObjectStorage{}
 		s := NewImageService(repo, store)
-		if err := s.DeleteImage(ctx, "img1", "u1"); !errors.Is(err, repositories.ErrImageNotFound) {
+		if err := s.Delete(ctx, "img1", "u1"); !errors.Is(err, repositories.ErrImageNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 		if len(store.deletedKeys) != 0 {

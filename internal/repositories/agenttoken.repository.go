@@ -38,7 +38,7 @@ func (r *AgentTokenRepository) Revoke(ctx context.Context, userID, id string) (b
 	return res.RowsAffected > 0, res.Error
 }
 
-func (r *AgentTokenRepository) FindActiveByHash(ctx context.Context, hash string) (*models.AgentToken, error) {
+func (r *AgentTokenRepository) GetActiveByHash(ctx context.Context, hash string) (*models.AgentToken, error) {
 	var out models.AgentToken
 	err := r.db.WithContext(ctx).
 		Where(`"TokenHash" = ? AND "RevokedAt" IS NULL`, hash).

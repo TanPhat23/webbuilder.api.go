@@ -23,20 +23,20 @@ func componentPageTestApp(t *testing.T) (*fiber.App, string, *gorm.DB) {
 	if err := db.Exec(`INSERT INTO "Project" ("Id", "Name", "OwnerId", "Published", "CreatedAt", "UpdatedAt") VALUES (?, 'Site', ?, true, NOW(), NOW())`, projectID, owner).Error; err != nil {
 		t.Fatal(err)
 	}
-	app := fiber.New(configs.FiberConfig())
+	app := fiber.New(configs.Fiber())
 	api := app.Group("/api/v1")
 	editor := app.Group("/api/v1", func(c fiber.Ctx) error {
 		c.Locals("userId", owner)
 		return c.Next()
 	})
-	repos := &repositories.RepositoriesInterface{
+	repos := &repositories.Repositories{
 		PageRepository:    repositories.NewPageRepository(db),
 		ProjectRepository: repositories.NewProjectRepository(db),
 		ElementRepository: repositories.NewElementRepository(db),
 	}
-	PageRoutes(api, editor, repos, nil)
-	ProjectRoutes(api, editor, repos)
-	ElementRoutes(api, editor, repos, nil)
+	RegisterPages(api, editor, repos, nil)
+	RegisterProjects(api, editor, repos)
+	RegisterElements(api, editor, repos, nil)
 	return app, projectID, db
 }
 

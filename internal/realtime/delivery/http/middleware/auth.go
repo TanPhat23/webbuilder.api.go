@@ -36,16 +36,16 @@ type clerkUserPayload struct {
 	ImageURL  string `json:"imageUrl"`
 }
 
-// AuthMiddleware configures /ws authentication without a Redis ticket store (DEV_MODE only).
-// Use AuthMiddlewareWithRedis in production to authenticate via single-use ?ticket= credentials.
-func AuthMiddleware(cfg *config.Config) fiber.Handler {
-	return AuthMiddlewareWithRedis(cfg, nil)
+// Auth configures /ws authentication without a Redis ticket store (DEV_MODE only).
+// Use AuthWithRedis in production to authenticate via single-use ?ticket= credentials.
+func Auth(cfg *config.Config) fiber.Handler {
+	return AuthWithRedis(cfg, nil)
 }
 
-// AuthMiddlewareWithRedis authenticates /ws connections exclusively via:
+// AuthWithRedis authenticates /ws connections exclusively via:
 //   - DEV_MODE=true (only when ENV is not production/prod/staging and Clerk key is not sk_live_)
 //   - ?ticket=<opaque> single-use ticket consumed atomically from Redis
-func AuthMiddlewareWithRedis(cfg *config.Config, rdb *redis.Client) fiber.Handler {
+func AuthWithRedis(cfg *config.Config, rdb *redis.Client) fiber.Handler {
 	userClient := newClerkUserClient(cfg)
 
 	return func(c fiber.Ctx) error {
@@ -57,10 +57,18 @@ func AuthMiddlewareWithRedis(cfg *config.Config, rdb *redis.Client) fiber.Handle
 			return authenticateWSTicket(c, rdb, userClient, ticket)
 		}
 
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized: Missing or invalid WebSocket ticket",
-		})
+		return writeAuthError(c, fiber.StatusUnauthorized, "Unauthorized: Missing or invalid WebSocket ticket")
 	}
+}
+
+func writeAuthError(c fiber.Ctx, status int, message string) error {
+	return c.Status(status).JSON(fiber.Map{"error": message})
+}
+
+func attachAuthenticatedUser(c fiber.Ctx, u *entity.User) error {
+	c.Locals("userId", u.ID)
+	c.Locals("user", u)
+	return c.Next()
 }
 
 func isProdEnv(cfg *config.Config) bool {
@@ -73,10 +81,8 @@ func isProdEnv(cfg *config.Config) bool {
 
 func authenticateWSTicket(c fiber.Ctx, rdb *redis.Client, userClient *user.Client, rawTicket string) error {
 	if rdb == nil {
-		logger.Default().Errorf("AuthMiddleware: Redis is not configured for WebSocket ticket verification")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Server misconfigured: missing ticket store",
-		})
+		logger.Default().Errorf("Auth: Redis is not configured for WebSocket ticket verification")
+		return writeAuthError(c, fiber.StatusInternalServerError, "Server misconfigured: missing ticket store")
 	}
 
 	sum := sha256.Sum256([]byte(rawTicket))
@@ -86,18 +92,14 @@ func authenticateWSTicket(c fiber.Ctx, rdb *redis.Client, userClient *user.Clien
 	raw, err := rdb.GetDel(ctx, key).Result()
 	if err != nil {
 		if !errors.Is(err, redis.Nil) {
-			logger.Default().Errorf("AuthMiddleware: failed to consume ws ticket: %v", err)
+			logger.Default().Errorf("Auth: failed to consume ws ticket: %v", err)
 		}
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized: Invalid or expired ticket",
-		})
+		return writeAuthError(c, fiber.StatusUnauthorized, "Unauthorized: Invalid or expired ticket")
 	}
 
 	var payload wsTicketRecord
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil || payload.UserID == "" || payload.ProjectID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized: Invalid ticket payload",
-		})
+		return writeAuthError(c, fiber.StatusUnauthorized, "Unauthorized: Invalid ticket payload")
 	}
 
 	mappedUser := &entity.User{ID: payload.UserID}
@@ -110,10 +112,8 @@ func authenticateWSTicket(c fiber.Ctx, rdb *redis.Client, userClient *user.Clien
 		Email:      mappedUser.Email,
 		AuthMethod: "ws_ticket",
 	})
-	c.Locals("userId", mappedUser.ID)
-	c.Locals("user", mappedUser)
 	c.Locals("ticketProjectId", payload.ProjectID)
-	return c.Next()
+	return attachAuthenticatedUser(c, mappedUser)
 }
 
 func newClerkUserClient(cfg *config.Config) *user.Client {
@@ -131,22 +131,20 @@ func authenticateDevUser(c fiber.Ctx) error {
 	if devUserId == "" {
 		devUserId = "dev-user-id"
 	}
-	logger.Default().Debugf("AuthMiddleware: DevMode active, using UserID: %s", devUserId)
+	logger.Default().Debugf("Auth: DevMode active, using UserID: %s", devUserId)
 
 	devUser := &entity.User{
 		ID:    devUserId,
 		Email: "dev@example.com",
 	}
-	c.Locals("userId", devUser.ID)
-	c.Locals("user", devUser)
-	return c.Next()
+	return attachAuthenticatedUser(c, devUser)
 }
 
 func fetchMappedUser(ctx context.Context, userClient *user.Client, subject string) *entity.User {
 	mapped := &entity.User{ID: subject}
 	usr, err := userClient.Get(ctx, subject)
 	if err != nil {
-		logger.Default().Debugf("AuthMiddleware: failed to fetch user from Clerk: %v", err)
+		logger.Default().Debugf("Auth: failed to fetch user from Clerk: %v", err)
 		return mapped
 	}
 	payload, ok := decodeClerkUserPayload(usr)

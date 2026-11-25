@@ -12,12 +12,12 @@ import (
 
 func TestGetUserByID_Success(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByID(func(ctx context.Context, id string) (*models.User, error) {
+	mock.SetGetByID(func(ctx context.Context, id string) (*models.User, error) {
 		return &models.User{Id: id, Email: "test@example.com"}, nil
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByID(context.Background(), "123")
+	user, err := service.GetByID(context.Background(), "123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -30,7 +30,7 @@ func TestGetUserByID_EmptyID(t *testing.T) {
 	mock := test.NewMockUserRepo()
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByID(context.Background(), "")
+	user, err := service.GetByID(context.Background(), "")
 	if err == nil {
 		t.Errorf("expected error for empty ID")
 	}
@@ -44,12 +44,12 @@ func TestGetUserByID_EmptyID(t *testing.T) {
 
 func TestGetUserByID_UserNotFound(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByID(func(ctx context.Context, id string) (*models.User, error) {
+	mock.SetGetByID(func(ctx context.Context, id string) (*models.User, error) {
 		return nil, nil
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByID(context.Background(), "123")
+	user, err := service.GetByID(context.Background(), "123")
 	if err == nil {
 		t.Errorf("expected error for user not found")
 	}
@@ -63,12 +63,12 @@ func TestGetUserByID_UserNotFound(t *testing.T) {
 
 func TestGetUserByID_RepoError(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByID(func(ctx context.Context, id string) (*models.User, error) {
+	mock.SetGetByID(func(ctx context.Context, id string) (*models.User, error) {
 		return nil, errors.New("repo error")
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByID(context.Background(), "123")
+	user, err := service.GetByID(context.Background(), "123")
 	if err == nil {
 		t.Errorf("expected repo error")
 	}
@@ -82,12 +82,12 @@ func TestGetUserByID_RepoError(t *testing.T) {
 
 func TestGetUserByEmail_Success(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByEmail(func(ctx context.Context, email string) (*models.User, error) {
+	mock.SetGetByEmail(func(ctx context.Context, email string) (*models.User, error) {
 		return &models.User{Id: "123", Email: email}, nil
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByEmail(context.Background(), "test@example.com")
+	user, err := service.GetByEmail(context.Background(), "test@example.com")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -100,7 +100,7 @@ func TestGetUserByEmail_EmptyEmail(t *testing.T) {
 	mock := test.NewMockUserRepo()
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByEmail(context.Background(), "")
+	user, err := service.GetByEmail(context.Background(), "")
 	if err == nil {
 		t.Errorf("expected error for empty email")
 	}
@@ -114,12 +114,12 @@ func TestGetUserByEmail_EmptyEmail(t *testing.T) {
 
 func TestGetUserByEmail_UserNotFound(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByEmail(func(ctx context.Context, email string) (*models.User, error) {
+	mock.SetGetByEmail(func(ctx context.Context, email string) (*models.User, error) {
 		return nil, nil
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByEmail(context.Background(), "test@example.com")
+	user, err := service.GetByEmail(context.Background(), "test@example.com")
 	if err == nil {
 		t.Errorf("expected error for user not found")
 	}
@@ -133,12 +133,12 @@ func TestGetUserByEmail_UserNotFound(t *testing.T) {
 
 func TestGetUserByEmail_RepoError(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByEmail(func(ctx context.Context, email string) (*models.User, error) {
+	mock.SetGetByEmail(func(ctx context.Context, email string) (*models.User, error) {
 		return nil, errors.New("repo error")
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByEmail(context.Background(), "test@example.com")
+	user, err := service.GetByEmail(context.Background(), "test@example.com")
 	if err == nil {
 		t.Errorf("expected repo error")
 	}
@@ -152,12 +152,12 @@ func TestGetUserByEmail_RepoError(t *testing.T) {
 
 func TestGetUserByUsername_Success(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByUsername(func(ctx context.Context, username string) (*models.User, error) {
+	mock.SetGetByUsername(func(ctx context.Context, username string) (*models.User, error) {
 		return &models.User{Id: "123", Email: "test@example.com"}, nil
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByUsername(context.Background(), "testuser")
+	user, err := service.GetByUsername(context.Background(), "testuser")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -170,7 +170,7 @@ func TestGetUserByUsername_EmptyUsername(t *testing.T) {
 	mock := test.NewMockUserRepo()
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByUsername(context.Background(), "")
+	user, err := service.GetByUsername(context.Background(), "")
 	if err == nil {
 		t.Errorf("expected error for empty username")
 	}
@@ -184,12 +184,12 @@ func TestGetUserByUsername_EmptyUsername(t *testing.T) {
 
 func TestGetUserByUsername_UserNotFound(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByUsername(func(ctx context.Context, username string) (*models.User, error) {
+	mock.SetGetByUsername(func(ctx context.Context, username string) (*models.User, error) {
 		return nil, nil
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByUsername(context.Background(), "testuser")
+	user, err := service.GetByUsername(context.Background(), "testuser")
 	if err == nil {
 		t.Errorf("expected error for user not found")
 	}
@@ -203,12 +203,12 @@ func TestGetUserByUsername_UserNotFound(t *testing.T) {
 
 func TestGetUserByUsername_RepoError(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetGetUserByUsername(func(ctx context.Context, username string) (*models.User, error) {
+	mock.SetGetByUsername(func(ctx context.Context, username string) (*models.User, error) {
 		return nil, errors.New("repo error")
 	})
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByUsername(context.Background(), "testuser")
+	user, err := service.GetByUsername(context.Background(), "testuser")
 	if err == nil {
 		t.Errorf("expected repo error")
 	}
@@ -224,7 +224,7 @@ func TestGetUserByID_WhitespaceID(t *testing.T) {
 	mock := test.NewMockUserRepo()
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByID(context.Background(), "   ")
+	user, err := service.GetByID(context.Background(), "   ")
 	if err == nil {
 		t.Errorf("expected error for whitespace-only ID")
 	}
@@ -240,7 +240,7 @@ func TestGetUserByEmail_WhitespaceEmail(t *testing.T) {
 	mock := test.NewMockUserRepo()
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByEmail(context.Background(), "   \t\n  ")
+	user, err := service.GetByEmail(context.Background(), "   \t\n  ")
 	if err == nil {
 		t.Errorf("expected error for whitespace-only email")
 	}
@@ -256,7 +256,7 @@ func TestGetUserByUsername_WhitespaceUsername(t *testing.T) {
 	mock := test.NewMockUserRepo()
 	service := services.NewUserService(mock)
 
-	user, err := service.GetUserByUsername(context.Background(), "  \n  ")
+	user, err := service.GetByUsername(context.Background(), "  \n  ")
 	if err == nil {
 		t.Errorf("expected error for whitespace-only username")
 	}
@@ -274,12 +274,12 @@ func TestSearchUsers_Success(t *testing.T) {
 		{Id: "2", Email: "jane@example.com"},
 	}
 	mock := test.NewMockUserRepo()
-	mock.SetSearchUsers(func(ctx context.Context, query string) ([]models.User, error) {
+	mock.SetSearch(func(ctx context.Context, query string) ([]models.User, error) {
 		return users, nil
 	})
 	service := services.NewUserService(mock)
 
-	result, err := service.SearchUsers(context.Background(), "john")
+	result, err := service.Search(context.Background(), "john")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -292,7 +292,7 @@ func TestSearchUsers_EmptyQuery(t *testing.T) {
 	mock := test.NewMockUserRepo()
 	service := services.NewUserService(mock)
 
-	result, err := service.SearchUsers(context.Background(), "")
+	result, err := service.Search(context.Background(), "")
 	if err == nil {
 		t.Errorf("expected error for empty query")
 	}
@@ -308,7 +308,7 @@ func TestSearchUsers_WhitespaceQuery(t *testing.T) {
 	mock := test.NewMockUserRepo()
 	service := services.NewUserService(mock)
 
-	result, err := service.SearchUsers(context.Background(), "   \t  ")
+	result, err := service.Search(context.Background(), "   \t  ")
 	if err == nil {
 		t.Errorf("expected error for whitespace-only query")
 	}
@@ -322,12 +322,12 @@ func TestSearchUsers_WhitespaceQuery(t *testing.T) {
 
 func TestSearchUsers_RepositoryError(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetSearchUsers(func(ctx context.Context, query string) ([]models.User, error) {
+	mock.SetSearch(func(ctx context.Context, query string) ([]models.User, error) {
 		return nil, errors.New("repo error")
 	})
 	service := services.NewUserService(mock)
 
-	result, err := service.SearchUsers(context.Background(), "john")
+	result, err := service.Search(context.Background(), "john")
 	if err == nil {
 		t.Errorf("expected repo error")
 	}
@@ -341,12 +341,12 @@ func TestSearchUsers_RepositoryError(t *testing.T) {
 
 func TestSearchUsers_EmptyResult(t *testing.T) {
 	mock := test.NewMockUserRepo()
-	mock.SetSearchUsers(func(ctx context.Context, query string) ([]models.User, error) {
+	mock.SetSearch(func(ctx context.Context, query string) ([]models.User, error) {
 		return []models.User{}, nil
 	})
 	service := services.NewUserService(mock)
 
-	result, err := service.SearchUsers(context.Background(), "nonexistent")
+	result, err := service.Search(context.Background(), "nonexistent")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}

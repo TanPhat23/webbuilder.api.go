@@ -32,7 +32,7 @@ func NewCustomElementRepository(db *gorm.DB) CustomElementRepositoryInterface {
 	}
 }
 
-func (r *CustomElementRepository) GetCustomElements(ctx context.Context, userID string, isPublic *bool) ([]models.CustomElement, error) {
+func (r *CustomElementRepository) List(ctx context.Context, userID string, isPublic *bool) ([]models.CustomElement, error) {
 	if userID == "" {
 		return nil, errors.New("userID is required")
 	}
@@ -50,7 +50,7 @@ func (r *CustomElementRepository) GetCustomElements(ctx context.Context, userID 
 	return customElements, nil
 }
 
-func (r *CustomElementRepository) GetCustomElementByID(ctx context.Context, id string, userID string) (*models.CustomElement, error) {
+func (r *CustomElementRepository) GetByID(ctx context.Context, id string, userID string) (*models.CustomElement, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -72,7 +72,7 @@ func (r *CustomElementRepository) GetCustomElementByID(ctx context.Context, id s
 	return &customElement, nil
 }
 
-func (r *CustomElementRepository) CreateCustomElement(ctx context.Context, customElement *models.CustomElement) (*models.CustomElement, error) {
+func (r *CustomElementRepository) Create(ctx context.Context, customElement *models.CustomElement) (*models.CustomElement, error) {
 	if customElement == nil {
 		return nil, errors.New("customElement is required")
 	}
@@ -93,7 +93,7 @@ func (r *CustomElementRepository) CreateCustomElement(ctx context.Context, custo
 	return customElement, nil
 }
 
-func (r *CustomElementRepository) UpdateCustomElement(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error) {
+func (r *CustomElementRepository) Update(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -140,7 +140,7 @@ func (r *CustomElementRepository) UpdateCustomElement(ctx context.Context, id st
 	return &customElement, nil
 }
 
-func (r *CustomElementRepository) DeleteCustomElement(ctx context.Context, id string, userID string) error {
+func (r *CustomElementRepository) Delete(ctx context.Context, id string, userID string) error {
 	if id == "" {
 		return errors.New("id is required")
 	}
@@ -163,7 +163,7 @@ func (r *CustomElementRepository) DeleteCustomElement(ctx context.Context, id st
 	return nil
 }
 
-func (r *CustomElementRepository) GetPublicCustomElements(ctx context.Context, category *string, limit int, offset int) ([]models.CustomElement, error) {
+func (r *CustomElementRepository) ListPublic(ctx context.Context, category *string, limit int, offset int) ([]models.CustomElement, error) {
 	if limit <= 0 {
 		limit = DefaultPageSize
 	}
@@ -191,7 +191,7 @@ func (r *CustomElementRepository) GetPublicCustomElements(ctx context.Context, c
 	return customElements, nil
 }
 
-func (r *CustomElementRepository) DuplicateCustomElement(ctx context.Context, id string, userID string, newName string) (*models.CustomElement, error) {
+func (r *CustomElementRepository) Duplicate(ctx context.Context, id string, userID string, newName string) (*models.CustomElement, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}

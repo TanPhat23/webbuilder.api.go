@@ -26,7 +26,7 @@ func NewContentTypeRepository(db *gorm.DB) ContentTypeRepositoryInterface {
 	return &ContentTypeRepository{db: db}
 }
 
-func (r *ContentTypeRepository) GetContentTypes(ctx context.Context) ([]models.ContentType, error) {
+func (r *ContentTypeRepository) List(ctx context.Context) ([]models.ContentType, error) {
 	contentTypes, err := gorm.G[models.ContentType](r.db).
 		Order("\"CreatedAt\" DESC").
 		Find(ctx)
@@ -38,8 +38,8 @@ func (r *ContentTypeRepository) GetContentTypes(ctx context.Context) ([]models.C
 	return contentTypes, nil
 }
 
-// GetContentTypesByProject retrieves all content types belonging to projectID.
-func (r *ContentTypeRepository) GetContentTypesByProject(ctx context.Context, projectID string) ([]models.ContentType, error) {
+// ListByProject retrieves all content types belonging to projectID.
+func (r *ContentTypeRepository) ListByProject(ctx context.Context, projectID string) ([]models.ContentType, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -55,8 +55,8 @@ func (r *ContentTypeRepository) GetContentTypesByProject(ctx context.Context, pr
 	return contentTypes, nil
 }
 
-// GetContentTypesByUser retrieves content types for all non-deleted projects userID can view.
-func (r *ContentTypeRepository) GetContentTypesByUser(ctx context.Context, userID string) ([]models.ContentType, error) {
+// ListByUser retrieves content types for all non-deleted projects userID can view.
+func (r *ContentTypeRepository) ListByUser(ctx context.Context, userID string) ([]models.ContentType, error) {
 	if userID == "" {
 		return nil, errors.New("userID is required")
 	}
@@ -74,7 +74,7 @@ func (r *ContentTypeRepository) GetContentTypesByUser(ctx context.Context, userI
 	return contentTypes, nil
 }
 
-func (r *ContentTypeRepository) GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error) {
+func (r *ContentTypeRepository) GetByID(ctx context.Context, id string) (*models.ContentType, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -95,7 +95,7 @@ func (r *ContentTypeRepository) GetContentTypeByID(ctx context.Context, id strin
 	return &contentType, nil
 }
 
-func (r *ContentTypeRepository) GetContentTypeByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error) {
+func (r *ContentTypeRepository) GetByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error) {
 	if projectID == "" || slugOrID == "" {
 		return nil, errors.New("projectID and slugOrID are required")
 	}
@@ -116,7 +116,7 @@ func (r *ContentTypeRepository) GetContentTypeByProjectAndSlugOrID(ctx context.C
 	return &contentType, nil
 }
 
-func (r *ContentTypeRepository) GetContentTypeByName(ctx context.Context, name string) (*models.ContentType, error) {
+func (r *ContentTypeRepository) GetByName(ctx context.Context, name string) (*models.ContentType, error) {
 	if name == "" {
 		return nil, errors.New("name is required")
 	}
@@ -135,7 +135,7 @@ func (r *ContentTypeRepository) GetContentTypeByName(ctx context.Context, name s
 	return &contentType, nil
 }
 
-func (r *ContentTypeRepository) CreateContentType(ctx context.Context, ct *models.ContentType) (*models.ContentType, error) {
+func (r *ContentTypeRepository) Create(ctx context.Context, ct *models.ContentType) (*models.ContentType, error) {
 	if ct == nil {
 		return nil, errors.New("content type cannot be nil")
 	}
@@ -205,7 +205,7 @@ func (r *ContentTypeRepository) CreateContentType(ctx context.Context, ct *model
 	return ct, nil
 }
 
-func (r *ContentTypeRepository) UpdateContentType(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error) {
+func (r *ContentTypeRepository) Update(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -269,7 +269,7 @@ func (r *ContentTypeRepository) UpdateContentType(ctx context.Context, id string
 	return &contentType, nil
 }
 
-func (r *ContentTypeRepository) DeleteContentType(ctx context.Context, id string) error {
+func (r *ContentTypeRepository) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("id is required")
 	}
@@ -321,7 +321,7 @@ func (r *ContentTypeRepository) ExistsByID(ctx context.Context, id string) (bool
 	return count > 0, nil
 }
 
-func (r *ContentTypeRepository) GetContentTypesWithFieldCount(ctx context.Context) ([]map[string]any, error) {
+func (r *ContentTypeRepository) ListWithFieldCount(ctx context.Context) ([]map[string]any, error) {
 	var results []map[string]any
 
 	err := r.db.WithContext(ctx).
@@ -339,7 +339,7 @@ func (r *ContentTypeRepository) GetContentTypesWithFieldCount(ctx context.Contex
 	return results, nil
 }
 
-func (r *ContentTypeRepository) GetContentTypesWithItemCount(ctx context.Context) ([]map[string]any, error) {
+func (r *ContentTypeRepository) ListWithItemCount(ctx context.Context) ([]map[string]any, error) {
 	var results []map[string]any
 
 	err := r.db.WithContext(ctx).

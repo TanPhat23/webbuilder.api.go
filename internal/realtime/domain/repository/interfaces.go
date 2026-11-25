@@ -31,12 +31,12 @@ type ElementRepository interface {
 	UpsertElements(ctx context.Context, projectID string, pageID string, elements []entity.Element) error
 	DeleteElement(ctx context.Context, projectID string, pageID string, elementID string) error
 	GetElementByID(ctx context.Context, projectID string, pageID string, elementID string) (*entity.Element, error)
-	GetElementsByPageID(ctx context.Context, projectID string, pageID string) ([]entity.Element, error)
-	GetElementsByProjectID(ctx context.Context, projectID string) ([]entity.Element, error)
+	ListElementsByPage(ctx context.Context, projectID string, pageID string) ([]entity.Element, error)
+	ListElementsByProject(ctx context.Context, projectID string) ([]entity.Element, error)
 }
 
 type SnapshotRepository interface {
-	SaveSnapshot(ctx context.Context, pageID, projectID, name string, snapshotType entity.SnapshotType, elements []entity.Element) error
+	CreateSnapshot(ctx context.Context, pageID, projectID, name string, snapshotType entity.SnapshotType, elements []entity.Element) error
 	GetSnapshot(ctx context.Context, pageID, projecID string, snapshotType entity.SnapshotType) (*entity.Snapshot, error)
 	DeleteSnapshot(ctx context.Context, pageID, projectID string, snapshotType entity.SnapshotType) error
 }
@@ -71,7 +71,7 @@ type WorkflowRepository interface {
 	UpdateWorkflow(ctx context.Context, projectID string, workflow *entity.EventWorkflow) error
 	DeleteWorkflow(ctx context.Context, projectID string, workflowID string) error
 	GetWorkflowByID(ctx context.Context, projectID string, workflowID string) (*entity.EventWorkflow, error)
-	GetWorkflowsByProjectID(ctx context.Context, projectID string) ([]entity.EventWorkflow, error)
+	ListWorkflowsByProject(ctx context.Context, projectID string) ([]entity.EventWorkflow, error)
 }
 
 type ProjectRepository interface {
@@ -86,8 +86,8 @@ type ElementWorkflowRepository interface {
 	UpdateElementWorkflow(ctx context.Context, projectID string, workflow *entity.ElementEventWorkflow) error
 	DeleteElementWorkflow(ctx context.Context, projectID string, elementID string) error
 	GetElementWorkflowByElementID(ctx context.Context, projectID string, elementID string) (*entity.ElementEventWorkflow, error)
-	GetElementWorkflowsByProjectID(ctx context.Context, projectID string) ([]entity.ElementEventWorkflow, error)
-	GetElementWorkflowsByPageID(ctx context.Context, projectID string, pageID string) ([]entity.ElementEventWorkflow, error)
+	ListElementWorkflowsByProject(ctx context.Context, projectID string) ([]entity.ElementEventWorkflow, error)
+	ListElementWorkflowsByPage(ctx context.Context, projectID string, pageID string) ([]entity.ElementEventWorkflow, error)
 }
 
 // LogicRepository stores the project's and pages' logic documents.

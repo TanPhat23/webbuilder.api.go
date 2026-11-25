@@ -22,9 +22,9 @@ func TestLoadConfigDefaults(t *testing.T) {
 	clearConfigEnv(t)
 	t.Chdir(t.TempDir()) // no .env file to pick up
 
-	cfg, err := LoadConfig()
+	cfg, err := Load()
 	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	want := Config{
 		ServerPort: "8080",
@@ -45,9 +45,9 @@ func TestLoadConfigProductionEmptyAllowedOriginsByDefault(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("ENV", "production")
 
-	cfg, err := LoadConfig()
+	cfg, err := Load()
 	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if len(cfg.AllowedOrigins) != 0 {
 		t.Fatalf("expected empty AllowedOrigins in production without ALLOWED_ORIGINS, got %v", cfg.AllowedOrigins)
@@ -67,9 +67,9 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	for k, v := range env {
 		t.Setenv(k, v)
 	}
-	cfg, err := LoadConfig()
+	cfg, err := Load()
 	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	want := Config{
 		ServerPort: "9000",
@@ -96,8 +96,8 @@ func TestGetEnv(t *testing.T) {
 		{"COV_UNSET", "fb", "fb"},
 	}
 	for _, tt := range tests {
-		if got := getEnv(tt.key, tt.fallback); got != tt.want {
-			t.Errorf("getEnv(%q)=%q want %q", tt.key, got, tt.want)
+		if got := envOrDefault(tt.key, tt.fallback); got != tt.want {
+			t.Errorf("envOrDefault(%q)=%q want %q", tt.key, got, tt.want)
 		}
 	}
 }
@@ -120,7 +120,7 @@ func TestGetEnvAsInt(t *testing.T) {
 			if tt.set {
 				t.Setenv(tt.key, tt.val)
 			}
-			if got := getEnvAsInt(tt.key, 5); got != tt.want {
+			if got := envIntOrDefault(tt.key, 5); got != tt.want {
 				t.Fatalf("got %d want %d", got, tt.want)
 			}
 		})
@@ -146,7 +146,7 @@ func TestGetEnvAsBool(t *testing.T) {
 			if tt.set {
 				t.Setenv(tt.key, tt.val)
 			}
-			if got := getEnvAsBool(tt.key, tt.fallback); got != tt.want {
+			if got := envBoolOrDefault(tt.key, tt.fallback); got != tt.want {
 				t.Fatalf("got %v want %v", got, tt.want)
 			}
 		})

@@ -9,7 +9,7 @@ import (
 
 // NewRepository creates a new instance of domain Repository struct that contains all sub-repositories.
 // It requires both a GORM DB connection for persistent storage and a Redis client for caching/real-time document state.
-func NewRepository(db *gorm.DB, rdb *redis.Client) *domainRepo.Repository {
+func New(db *gorm.DB, rdb *redis.Client) *domainRepo.Repository {
 	return &domainRepo.Repository{
 		LogicRepo:           NewLogicRepository(db),
 		ElementRepo:         NewElementRepository(db),

@@ -14,11 +14,11 @@ import (
 func logicActorKey(projectID string) string { return projectID + ":logic" }
 
 // A move sends both documents together so clients never see a half-move.
-func (h *Handler) handleLogicMove(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+func (h *Handler) moveLogic(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
 	if h.uc.Logic == nil {
 		return domainErrors.New(domainErrors.CodeInternal, "logic editing is not available", nil)
 	}
-	pageID := client.GetPageID()
+	pageID := client.PageID()
 	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
@@ -34,13 +34,13 @@ func (h *Handler) handleLogicMove(ctx context.Context, client *wsentity.Client, 
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 	var opErr error
-	if err := h.pages.Do(ctx, logicActorKey(client.ProjectID), func() {
+	if err := h.pages.Run(ctx, logicActorKey(client.ProjectID), func() {
 		project, page, err := h.uc.Logic.Move(ctx, client.ProjectID, pageID, client.User.ID, payload.Kind, payload.Name, payload.To)
 		if err != nil {
 			opErr = err
 			return
 		}
-		out, err := client.Factory().Create(domainEntity.TypeLogicMove, domainEntity.PayloadLogicSync{
+		out, err := client.NewMessageFactory().NewMessage(domainEntity.TypeLogicMove, domainEntity.PayloadLogicSync{
 			Project: project.Doc, Page: page.Doc, PageID: pageID, ProjectRevision: project.Revision, PageRevision: page.Revision,
 		})
 		if err != nil {
@@ -55,12 +55,12 @@ func (h *Handler) handleLogicMove(ctx context.Context, client *wsentity.Client, 
 	return opErr
 }
 
-// handleLogicUpdate applies a patch to the project's or the current page's logic.
+// updateLogic applies a patch to the project's or the current page's logic.
 // The database transaction checks permission, validates the whole project
 // (names must be unique across scopes) and persists. Only after it commits is the
 // full resulting document broadcast, including to the sender as its ack. A rejected
 // patch changes nothing and is reported only to the sender.
-func (h *Handler) handleLogicUpdate(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+func (h *Handler) updateLogic(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
 	if h.uc.Logic == nil {
 		return domainErrors.New(domainErrors.CodeInternal, "logic editing is not available", nil)
 	}
@@ -76,7 +76,7 @@ func (h *Handler) handleLogicUpdate(ctx context.Context, client *wsentity.Client
 	switch payload.Scope {
 	case domainEntity.LogicScopeProject:
 	case domainEntity.LogicScopePage:
-		pageID = client.GetPageID()
+		pageID = client.PageID()
 		if pageID == "" {
 			return domainErrors.ErrNotJoined
 		}
@@ -88,7 +88,7 @@ func (h *Handler) handleLogicUpdate(ctx context.Context, client *wsentity.Client
 	}
 
 	var opErr error
-	if err := h.pages.Do(ctx, logicActorKey(client.ProjectID), func() {
+	if err := h.pages.Run(ctx, logicActorKey(client.ProjectID), func() {
 		doc, err := h.uc.Logic.Update(ctx, client.ProjectID, pageID, client.User.ID, payload.Patch, payload.NullPaths)
 		if err != nil {
 			opErr = err
@@ -96,7 +96,7 @@ func (h *Handler) handleLogicUpdate(ctx context.Context, client *wsentity.Client
 		}
 		changed := domainEntity.PayloadLogicChanged{Scope: payload.Scope, PageID: pageID, Logic: doc.Doc, Revision: doc.Revision}
 		factory := wsentity.NewMessageFactory(client.ProjectID, pageID, client.User.ID)
-		out, err := factory.LogicChanged(changed)
+		out, err := factory.NewLogicChangedMessage(changed)
 		if err != nil {
 			h.logger.Errorf("failed to build logic broadcast (project=%s page=%s): %v", client.ProjectID, pageID, err)
 			opErr = domainErrors.Wrap(domainErrors.CodeInternal, err)
@@ -115,8 +115,8 @@ func (h *Handler) handleLogicUpdate(ctx context.Context, client *wsentity.Client
 	return opErr
 }
 
-// handleLogicSync replies to the requester with the current logic documents.
-func (h *Handler) handleLogicSync(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+// syncLogic replies to the requester with the current logic documents.
+func (h *Handler) syncLogic(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
 	return h.sendLogicSync(ctx, client, msg.RequestID)
 }
 
@@ -124,7 +124,7 @@ func (h *Handler) sendLogicSync(ctx context.Context, client *wsentity.Client, re
 	if h.uc.Logic == nil {
 		return nil
 	}
-	pageID := client.GetPageID()
+	pageID := client.PageID()
 	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
@@ -134,7 +134,7 @@ func (h *Handler) sendLogicSync(ctx context.Context, client *wsentity.Client, re
 	}
 	// This read runs outside the logic actor, so an update may be broadcast
 	// before this reply is sent; the revisions let the client drop it then.
-	out, err := client.Factory().LogicSync(domainEntity.PayloadLogicSync{
+	out, err := client.NewMessageFactory().NewLogicSyncMessage(domainEntity.PayloadLogicSync{
 		Project: project.Doc, Page: page.Doc, PageID: pageID,
 		ProjectRevision: project.Revision, PageRevision: page.Revision,
 	})

@@ -53,22 +53,22 @@ func normalizeProjectSubdomainPtr(raw *string) (*string, error) {
 	return &normalized, nil
 }
 
-func (s *ProjectService) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
+func (s *ProjectService) GetPublicByID(ctx context.Context, projectID string) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	return s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	return s.projectRepo.GetPublicByID(ctx, projectID)
 }
 
-func (s *ProjectService) GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
+func (s *ProjectService) GetPublicBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
 	if subdomain == "" {
 		return nil, errors.New("subdomain is required")
 	}
-	return s.projectRepo.GetPublicProjectBySubdomain(ctx, subdomain)
+	return s.projectRepo.GetPublicBySubdomain(ctx, subdomain)
 }
 
-func (s *ProjectService) GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error) {
+func (s *ProjectService) GetByID(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -76,7 +76,7 @@ func (s *ProjectService) GetProjectByID(ctx context.Context, projectID, userID s
 		return nil, errors.New("userId is required")
 	}
 
-	project, err := s.projectRepo.GetProjectByID(ctx, projectID, userID)
+	project, err := s.projectRepo.GetByID(ctx, projectID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (s *ProjectService) GetProjectByID(ctx context.Context, projectID, userID s
 	return project, nil
 }
 
-func (s *ProjectService) GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
+func (s *ProjectService) GetWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -95,7 +95,7 @@ func (s *ProjectService) GetProjectWithAccess(ctx context.Context, projectID, us
 		return nil, errors.New("userId is required")
 	}
 
-	project, err := s.projectRepo.GetProjectWithAccess(ctx, projectID, userID)
+	project, err := s.projectRepo.GetWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -106,23 +106,23 @@ func (s *ProjectService) GetProjectWithAccess(ctx context.Context, projectID, us
 	return project, nil
 }
 
-func (s *ProjectService) GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error) {
+func (s *ProjectService) ListByUser(ctx context.Context, userID string) ([]models.Project, error) {
 	if userID == "" {
 		return nil, errors.New("userId is required")
 	}
 
-	return s.projectRepo.GetProjectsByUserID(ctx, userID)
+	return s.projectRepo.ListByUser(ctx, userID)
 }
 
-func (s *ProjectService) GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error) {
+func (s *ProjectService) ListByCollaborator(ctx context.Context, userID string) ([]models.Project, error) {
 	if userID == "" {
 		return nil, errors.New("userId is required")
 	}
 
-	return s.projectRepo.GetCollaboratorProjects(ctx, userID)
+	return s.projectRepo.ListByCollaborator(ctx, userID)
 }
 
-func (s *ProjectService) GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
+func (s *ProjectService) ListPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -131,10 +131,10 @@ func (s *ProjectService) GetProjectPages(ctx context.Context, projectID, userID 
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
 
-	return s.projectRepo.GetProjectPages(ctx, projectID, userID)
+	return s.projectRepo.ListPages(ctx, projectID, userID)
 }
 
-func (s *ProjectService) CreateProject(ctx context.Context, project *models.Project) (*models.Project, error) {
+func (s *ProjectService) Create(ctx context.Context, project *models.Project) (*models.Project, error) {
 	if project == nil {
 		return nil, errors.New("project cannot be nil")
 	}
@@ -150,7 +150,7 @@ func (s *ProjectService) CreateProject(ctx context.Context, project *models.Proj
 	}
 	project.Subdomain = sub
 
-	if err := s.projectRepo.CreateProject(ctx, project); err != nil {
+	if err := s.projectRepo.Create(ctx, project); err != nil {
 		return nil, err
 	}
 	return project, nil
@@ -163,7 +163,7 @@ func (s *ProjectService) requireProjectAccess(ctx context.Context, projectID, us
 	if userID == "" {
 		return nil, errors.New("userId is required")
 	}
-	existing, err := s.GetProjectWithAccess(ctx, projectID, userID)
+	existing, err := s.GetWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func mergeProjectUpdateFields(existing, project *models.Project) map[string]any 
 	}
 }
 
-func (s *ProjectService) UpdateProject(ctx context.Context, projectID, userID string, project *models.Project) (*models.Project, error) {
+func (s *ProjectService) Update(ctx context.Context, projectID, userID string, project *models.Project) (*models.Project, error) {
 	if project == nil {
 		return nil, errors.New("project cannot be nil")
 	}
@@ -207,13 +207,13 @@ func (s *ProjectService) UpdateProject(ctx context.Context, projectID, userID st
 	if err != nil {
 		return nil, err
 	}
-	return s.projectRepo.UpdateProject(ctx, projectID, userID, mergeProjectUpdateFields(existing, project))
+	return s.projectRepo.Update(ctx, projectID, userID, mergeProjectUpdateFields(existing, project))
 }
 
-// UpdateProjectColumnUpdates enforces per-field RBAC permissions before updating:
+// UpdateFieldsForUser enforces per-field RBAC permissions before updating:
 // Published requires project:publish (owner), Subdomain requires project:settings (owner),
 // and Name/Description/Styles/Header require project:edit (owner or editor).
-func (s *ProjectService) UpdateProjectColumnUpdates(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+func (s *ProjectService) UpdateFieldsForUser(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -258,7 +258,7 @@ func (s *ProjectService) UpdateProjectColumnUpdates(ctx context.Context, project
 		}
 	}
 
-	return s.projectRepo.UpdateProjectFields(ctx, projectID, userID, updates)
+	return s.projectRepo.UpdateFields(ctx, projectID, userID, updates)
 }
 
 // TransferOwnership moves Project.OwnerId to newOwnerID when authorized with project:transfer.
@@ -285,25 +285,25 @@ func (s *ProjectService) TransferOwnership(ctx context.Context, projectID, curre
 	return nil
 }
 
-func (s *ProjectService) DeleteProject(ctx context.Context, projectID, userID string) error {
+func (s *ProjectService) Delete(ctx context.Context, projectID, userID string) error {
 	if _, err := s.requireProjectAccess(ctx, projectID, userID); err != nil {
 		return err
 	}
-	return s.projectRepo.DeleteProject(ctx, projectID, userID)
+	return s.projectRepo.Delete(ctx, projectID, userID)
 }
 
-func (s *ProjectService) HardDeleteProject(ctx context.Context, projectID, userID string) error {
+func (s *ProjectService) HardDelete(ctx context.Context, projectID, userID string) error {
 	if _, err := s.requireProjectAccess(ctx, projectID, userID); err != nil {
 		return err
 	}
-	return s.projectRepo.HardDeleteProject(ctx, projectID, userID)
+	return s.projectRepo.HardDelete(ctx, projectID, userID)
 }
 
-func (s *ProjectService) RestoreProject(ctx context.Context, projectID, userID string) error {
+func (s *ProjectService) Restore(ctx context.Context, projectID, userID string) error {
 	if _, err := s.requireProjectAccess(ctx, projectID, userID); err != nil {
 		return err
 	}
-	return s.projectRepo.RestoreProject(ctx, projectID, userID)
+	return s.projectRepo.Restore(ctx, projectID, userID)
 }
 
 func (s *ProjectService) ExistsForUser(ctx context.Context, projectID, userID string) (bool, error) {
@@ -317,7 +317,7 @@ func (s *ProjectService) ExistsForUser(ctx context.Context, projectID, userID st
 	return s.projectRepo.ExistsForUser(ctx, projectID, userID)
 }
 
-func (s *ProjectService) GetProjectWithLock(ctx context.Context, projectID, userID string) (*models.Project, error) {
+func (s *ProjectService) GetWithLock(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -325,12 +325,12 @@ func (s *ProjectService) GetProjectWithLock(ctx context.Context, projectID, user
 		return nil, errors.New("userId is required")
 	}
 
-	return s.projectRepo.GetProjectWithLock(ctx, projectID, userID)
+	return s.projectRepo.GetWithLock(ctx, projectID, userID)
 }
 
-// CreateProjectWithPage creates a project and its mandatory first page in
+// CreateWithPage creates a project and its mandatory first page in
 // one transaction, so a project never exists without a page.
-func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *models.Project) (*models.Project, error) {
+func (s *ProjectService) CreateWithPage(ctx context.Context, project *models.Project) (*models.Project, error) {
 	if project == nil || project.Name == "" || project.OwnerId == "" {
 		return nil, errors.New("project name and ownerId are required")
 	}
@@ -357,12 +357,12 @@ func (s *ProjectService) CreateProjectWithPage(ctx context.Context, project *mod
 		Type:   "page",
 		Styles: json.RawMessage(`{}`),
 	}
-	if err := s.projectRepo.CreateProjectWithPage(ctx, project, page); err != nil {
+	if err := s.projectRepo.CreateWithPage(ctx, project, page); err != nil {
 		return nil, err
 	}
 	return project, nil
 }
 
-func (s *ProjectService) GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
-	return s.projectRepo.GetProjectAccess(ctx, projectID, userID)
+func (s *ProjectService) GetAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+	return s.projectRepo.GetAccess(ctx, projectID, userID)
 }

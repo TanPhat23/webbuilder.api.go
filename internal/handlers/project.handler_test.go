@@ -23,7 +23,7 @@ type projectHandlerStub struct {
 	sent                *models.Project
 }
 
-func (s *projectHandlerStub) GetProjectsByUserID(_ context.Context, userID string) ([]models.Project, error) {
+func (s *projectHandlerStub) ListByUser(_ context.Context, userID string) ([]models.Project, error) {
 	s.gotUser = userID
 	if s.err != nil {
 		return nil, s.err
@@ -31,7 +31,7 @@ func (s *projectHandlerStub) GetProjectsByUserID(_ context.Context, userID strin
 	return []models.Project{{ID: "p1", Name: "Site", OwnerId: userID}}, nil
 }
 
-func (s *projectHandlerStub) GetProjectWithAccess(_ context.Context, projectID, userID string) (*models.Project, error) {
+func (s *projectHandlerStub) GetWithAccess(_ context.Context, projectID, userID string) (*models.Project, error) {
 	s.gotProject, s.gotUser = projectID, userID
 	if s.err != nil {
 		return nil, s.err
@@ -39,7 +39,7 @@ func (s *projectHandlerStub) GetProjectWithAccess(_ context.Context, projectID, 
 	return &models.Project{ID: projectID, Name: "Site"}, nil
 }
 
-func (s *projectHandlerStub) GetPublicProjectByID(_ context.Context, projectID string) (*models.Project, error) {
+func (s *projectHandlerStub) GetPublicByID(_ context.Context, projectID string) (*models.Project, error) {
 	s.gotPublic = projectID
 	if s.err != nil {
 		return nil, s.err
@@ -47,7 +47,7 @@ func (s *projectHandlerStub) GetPublicProjectByID(_ context.Context, projectID s
 	return &models.Project{ID: projectID, Name: "Public site", Published: true}, nil
 }
 
-func (s *projectHandlerStub) GetPublicProjectBySubdomain(_ context.Context, subdomain string) (*models.Project, error) {
+func (s *projectHandlerStub) GetPublicBySubdomain(_ context.Context, subdomain string) (*models.Project, error) {
 	s.gotPublic = subdomain
 	if s.err != nil {
 		return nil, s.err
@@ -55,7 +55,7 @@ func (s *projectHandlerStub) GetPublicProjectBySubdomain(_ context.Context, subd
 	return &models.Project{ID: "p-sub", Name: "Public site", Subdomain: &subdomain, Published: true}, nil
 }
 
-func (s *projectHandlerStub) GetProjectPages(_ context.Context, projectID, userID string) ([]models.Page, error) {
+func (s *projectHandlerStub) ListPages(_ context.Context, projectID, userID string) ([]models.Page, error) {
 	s.gotProject, s.gotUser = projectID, userID
 	if s.err != nil {
 		return nil, s.err
@@ -63,12 +63,12 @@ func (s *projectHandlerStub) GetProjectPages(_ context.Context, projectID, userI
 	return []models.Page{{Id: "pg1", Name: "Home"}}, nil
 }
 
-func (s *projectHandlerStub) DeleteProject(_ context.Context, projectID, userID string) error {
+func (s *projectHandlerStub) Delete(_ context.Context, projectID, userID string) error {
 	s.gotProject, s.gotUser = projectID, userID
 	return s.err
 }
 
-func (s *projectHandlerStub) UpdateProject(_ context.Context, projectID, userID string, p *models.Project) (*models.Project, error) {
+func (s *projectHandlerStub) Update(_ context.Context, projectID, userID string, p *models.Project) (*models.Project, error) {
 	s.gotProject, s.gotUser, s.sent = projectID, userID, p
 	if s.err != nil {
 		return nil, s.err
@@ -76,8 +76,8 @@ func (s *projectHandlerStub) UpdateProject(_ context.Context, projectID, userID 
 	return &models.Project{ID: projectID, Name: "updated"}, nil
 }
 
-func (s *projectHandlerStub) UpdateProjectColumnUpdates(_ context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
-	return s.UpdateProject(context.Background(), projectID, userID, projectFromColumnUpdates(updates))
+func (s *projectHandlerStub) UpdateFieldsForUser(_ context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+	return s.Update(context.Background(), projectID, userID, projectFromColumnUpdates(updates))
 }
 
 func (s *projectHandlerStub) TransferOwnership(_ context.Context, projectID, userID, _ string) error {
@@ -85,7 +85,7 @@ func (s *projectHandlerStub) TransferOwnership(_ context.Context, projectID, use
 	return s.err
 }
 
-func (s *projectHandlerStub) CreateProjectWithPage(_ context.Context, p *models.Project) (*models.Project, error) {
+func (s *projectHandlerStub) CreateWithPage(_ context.Context, p *models.Project) (*models.Project, error) {
 	s.sent = p
 	if s.err != nil {
 		return nil, s.err
@@ -97,7 +97,7 @@ func (s *projectHandlerStub) CreateProjectWithPage(_ context.Context, p *models.
 	return &created, nil
 }
 
-func (s *projectHandlerStub) GetProjectAccess(_ context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+func (s *projectHandlerStub) GetAccess(_ context.Context, projectID, userID string) (*models.ProjectAccess, error) {
 	s.gotProject, s.gotUser = projectID, userID
 	if s.err != nil {
 		return nil, s.err
@@ -108,21 +108,20 @@ func (s *projectHandlerStub) GetProjectAccess(_ context.Context, projectID, user
 func projectHandlerApp(user string, svc *projectHandlerStub) *fiber.App {
 	h := NewProjectHandler(svc)
 	return newKitApp(user, func(app *fiber.App) {
-		app.Get("/projects", h.GetProjectsByUser)
-		app.Get("/my-projects", h.GetProjectByUserID)
-		app.Post("/projects", h.CreateProject)
-		app.Get("/public/projects/:projectid", h.GetPublicProjectByID)
-		app.Get("/projects/:projectid/pages", h.GetProjectPages)
-		app.Get("/projects/:projectid/access", h.GetProjectAccess)
-		app.Get("/projects/:projectid", h.GetProjectByID)
-		app.Patch("/projects/:projectid", h.UpdateProject)
-		app.Delete("/projects/:projectid", h.DeleteProject)
-		app.Get("/noid", h.GetProjectByID)
-		app.Get("/noid/public", h.GetPublicProjectByID)
-		app.Get("/noid/pages", h.GetProjectPages)
-		app.Get("/noid/access", h.GetProjectAccess)
-		app.Patch("/noid", h.UpdateProject)
-		app.Delete("/noid", h.DeleteProject)
+		app.Get("/projects", h.ListByUser)
+		app.Post("/projects", h.Create)
+		app.Get("/public/projects/:projectid", h.GetPublicByID)
+		app.Get("/projects/:projectid/pages", h.ListPages)
+		app.Get("/projects/:projectid/access", h.GetAccess)
+		app.Get("/projects/:projectid", h.GetByID)
+		app.Patch("/projects/:projectid", h.Update)
+		app.Delete("/projects/:projectid", h.Delete)
+		app.Get("/noid", h.GetByID)
+		app.Get("/noid/public", h.GetPublicByID)
+		app.Get("/noid/pages", h.ListPages)
+		app.Get("/noid/access", h.GetAccess)
+		app.Patch("/noid", h.Update)
+		app.Delete("/noid", h.Delete)
 	})
 }
 
@@ -136,16 +135,13 @@ func expectKitStatus(t *testing.T, r kitReply, want int, expect string) {
 }
 
 func TestProjectListHandlers(t *testing.T) {
-	for _, path := range []string{"/projects", "/my-projects"} {
-		svc := &projectHandlerStub{}
-		kitExpect(t, kitSend(t, projectHandlerApp("u1", svc), "GET", path, ""), 200, "Site", "u1")
-		if svc.gotUser != "u1" {
-			t.Fatalf("user = %q", svc.gotUser)
-		}
-		kitExpect(t, kitSend(t, projectHandlerApp("", &projectHandlerStub{}), "GET", path, ""), 401)
+	svc := &projectHandlerStub{}
+	kitExpect(t, kitSend(t, projectHandlerApp("u1", svc), "GET", "/projects", ""), 200, "Site", "u1")
+	if svc.gotUser != "u1" {
+		t.Fatalf("user = %q", svc.gotUser)
 	}
+	kitExpect(t, kitSend(t, projectHandlerApp("", &projectHandlerStub{}), "GET", "/projects", ""), 401)
 	kitExpect(t, kitSend(t, projectHandlerApp("u1", &projectHandlerStub{err: errInternal}), "GET", "/projects", ""), 500, "Failed to retrieve projects")
-	kitExpect(t, kitSend(t, projectHandlerApp("u1", &projectHandlerStub{err: errInternal}), "GET", "/my-projects", ""), 500, "Failed to retrieve projects by user ID")
 }
 
 func TestProjectReadHandlerStatuses(t *testing.T) {
@@ -371,12 +367,12 @@ func TestSubdomainValidationClearAndPublicLookup(t *testing.T) {
 
 	app := fiber.New()
 	subHandler := NewProjectHandler(&projectHandlerStub{})
-	app.Get("/projects/public/by-subdomain/:subdomain", subHandler.GetPublicProjectBySubdomain)
+	app.Get("/projects/public/by-subdomain/:subdomain", subHandler.GetPublicBySubdomain)
 	r := kitSend(t, app, "GET", "/projects/public/by-subdomain/glaze-and-crumb", "")
 	kitExpect(t, r, 200, "p-sub", "glaze-and-crumb")
 
 	notFoundHandler := NewProjectHandler(&projectHandlerStub{err: repositories.ErrProjectNotFound})
 	appNotFound := fiber.New()
-	appNotFound.Get("/projects/public/by-subdomain/:subdomain", notFoundHandler.GetPublicProjectBySubdomain)
+	appNotFound.Get("/projects/public/by-subdomain/:subdomain", notFoundHandler.GetPublicBySubdomain)
 	expectKitStatus(t, kitSend(t, appNotFound, "GET", "/projects/public/by-subdomain/missing", ""), 404, "Project not found")
 }

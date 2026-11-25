@@ -30,40 +30,40 @@ type customElementSvcStub struct {
 	dupArgs     []string
 }
 
-func (s *customElementSvcStub) GetCustomElements(_ context.Context, userID string, isPublic *bool) ([]models.CustomElement, error) {
+func (s *customElementSvcStub) List(_ context.Context, userID string, isPublic *bool) ([]models.CustomElement, error) {
 	s.listUser, s.listPublic = userID, isPublic
 	return []models.CustomElement{{Id: "e1", UserId: userID}}, s.err
 }
-func (s *customElementSvcStub) GetPublicCustomElements(_ context.Context, category *string, limit, offset int) ([]models.CustomElement, error) {
+func (s *customElementSvcStub) ListPublic(_ context.Context, category *string, limit, offset int) ([]models.CustomElement, error) {
 	s.pubCategory, s.pubLimit, s.pubOffset = category, limit, offset
 	return []models.CustomElement{}, s.err
 }
-func (s *customElementSvcStub) GetCustomElementByID(_ context.Context, id, userID string) (*models.CustomElement, error) {
+func (s *customElementSvcStub) GetByID(_ context.Context, id, userID string) (*models.CustomElement, error) {
 	s.getArgs = []string{id, userID}
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.CustomElement{Id: id, UserId: userID}, nil
 }
-func (s *customElementSvcStub) CreateCustomElement(_ context.Context, e *models.CustomElement) (*models.CustomElement, error) {
+func (s *customElementSvcStub) Create(_ context.Context, e *models.CustomElement) (*models.CustomElement, error) {
 	s.created = e
 	if s.err != nil {
 		return nil, s.err
 	}
 	return e, nil
 }
-func (s *customElementSvcStub) UpdateCustomElement(_ context.Context, id, userID string, updates map[string]any) (*models.CustomElement, error) {
+func (s *customElementSvcStub) Update(_ context.Context, id, userID string, updates map[string]any) (*models.CustomElement, error) {
 	s.updateArgs, s.updates = []string{id, userID}, updates
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.CustomElement{Id: id, UserId: userID}, nil
 }
-func (s *customElementSvcStub) DeleteCustomElement(_ context.Context, id, userID string) error {
+func (s *customElementSvcStub) Delete(_ context.Context, id, userID string) error {
 	s.deleteArgs = []string{id, userID}
 	return s.err
 }
-func (s *customElementSvcStub) DuplicateCustomElement(_ context.Context, id, userID, newName string) (*models.CustomElement, error) {
+func (s *customElementSvcStub) Duplicate(_ context.Context, id, userID, newName string) (*models.CustomElement, error) {
 	s.dupArgs = []string{id, userID, newName}
 	if s.err != nil {
 		return nil, s.err
@@ -74,13 +74,13 @@ func (s *customElementSvcStub) DuplicateCustomElement(_ context.Context, id, use
 func customElementKit(user string, svc *customElementSvcStub) *fiber.App {
 	h := NewCustomElementHandler(svc)
 	return newKitApp(user, func(app *fiber.App) {
-		app.Get("/custom-elements", h.GetCustomElements)
-		app.Post("/custom-elements", h.CreateCustomElement)
-		app.Get("/custom-elements/public", h.GetPublicCustomElements)
-		app.Get("/custom-elements/:id", h.GetCustomElementByID)
-		app.Patch("/custom-elements/:id", h.UpdateCustomElement)
-		app.Delete("/custom-elements/:id", h.DeleteCustomElement)
-		app.Post("/custom-elements/:id/duplicate", h.DuplicateCustomElement)
+		app.Get("/custom-elements", h.List)
+		app.Post("/custom-elements", h.Create)
+		app.Get("/custom-elements/public", h.ListPublic)
+		app.Get("/custom-elements/:id", h.GetByID)
+		app.Patch("/custom-elements/:id", h.Update)
+		app.Delete("/custom-elements/:id", h.Delete)
+		app.Post("/custom-elements/:id/duplicate", h.Duplicate)
 	})
 }
 

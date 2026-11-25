@@ -10,347 +10,347 @@ import (
 
 // ElementRepositoryInterface defines methods for element operations
 type ElementRepositoryInterface interface {
-	// GetElements retrieves elements for a project, optionally filtered by pageID
-	GetElements(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error)
-	// ReplaceElements replaces all elements for a project
-	ReplaceElements(ctx context.Context, projectID string, elements []models.EditorElement) error
-	// GetElementByID retrieves a single element by ID with all relations
-	GetElementByID(ctx context.Context, elementID string) (*models.Element, error)
-	// GetElementsByPageID retrieves all elements for a specific page
-	GetElementsByPageID(ctx context.Context, pageID string) ([]models.Element, error)
-	// GetElementsByPageIds retrieves the elements of the given pages as a tree.
+	// List retrieves elements for a project, optionally filtered by pageID
+	List(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error)
+	// Replace replaces all elements for a project
+	Replace(ctx context.Context, projectID string, elements []models.EditorElement) error
+	// GetByID retrieves a single element by ID with all relations
+	GetByID(ctx context.Context, elementID string) (*models.Element, error)
+	// ListByPage retrieves all elements for a specific page
+	ListByPage(ctx context.Context, pageID string) ([]models.Element, error)
+	// ListByPageIDs retrieves the elements of the given pages as a tree.
 	// Only pages that belong to projectID are read, so callers cannot reach another project's pages by ID.
-	GetElementsByPageIds(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error)
-	// GetChildElements retrieves child elements of a parent element
-	GetChildElements(ctx context.Context, parentID string) ([]models.Element, error)
-	// GetRootElements retrieves elements without a parent (root level)
-	GetRootElements(ctx context.Context, projectID string) ([]models.Element, error)
-	// CreateElement creates a single element
-	CreateElement(ctx context.Context, element *models.Element) error
-	// UpdateElement updates a single element
-	UpdateElement(ctx context.Context, element *models.Element) error
+	ListByPageIDs(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error)
+	// ListChildren retrieves child elements of a parent element
+	ListChildren(ctx context.Context, parentID string) ([]models.Element, error)
+	// ListRoots retrieves elements without a parent (root level)
+	ListRoots(ctx context.Context, projectID string) ([]models.Element, error)
+	// Create creates a single element
+	Create(ctx context.Context, element *models.Element) error
+	// Update updates a single element
+	Update(ctx context.Context, element *models.Element) error
 	// UpdateEventWorkflows updates the event workflows for an element
 	UpdateEventWorkflows(ctx context.Context, elementID string, workflows []byte) error
-	// DeleteElementByID deletes a single element by ID
-	DeleteElementByID(ctx context.Context, elementID string) error
-	// DeleteElementsByPageID deletes all elements in a page
-	DeleteElementsByPageID(ctx context.Context, pageID string) error
-	// DeleteElementsByProjectID deletes all elements in a project
-	DeleteElementsByProjectID(ctx context.Context, projectID string) error
-	// CountElementsByProjectID counts elements in a project
-	CountElementsByProjectID(ctx context.Context, projectID string) (int64, error)
-	// GetElementWithRelations retrieves element with all relations loaded
-	GetElementWithRelations(ctx context.Context, elementID string) (*models.Element, error)
-	// GetElementsByIDs retrieves multiple elements by IDs
-	GetElementsByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error)
+	// Delete deletes a single element by ID
+	Delete(ctx context.Context, elementID string) error
+	// DeleteByPage deletes all elements in a page
+	DeleteByPage(ctx context.Context, pageID string) error
+	// DeleteByProject deletes all elements in a project
+	DeleteByProject(ctx context.Context, projectID string) error
+	// CountByProject counts elements in a project
+	CountByProject(ctx context.Context, projectID string) (int64, error)
+	// GetWithRelations retrieves element with all relations loaded
+	GetWithRelations(ctx context.Context, elementID string) (*models.Element, error)
+	// ListByIDs retrieves multiple elements by IDs
+	ListByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error)
 }
 
 // ElementCommentRepositoryInterface defines methods for element comment operations
 type ElementCommentRepositoryInterface interface {
-	// CreateElementComment creates a new element comment
-	CreateElementComment(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error)
-	// GetElementCommentByID retrieves a single element comment by ID
-	GetElementCommentByID(ctx context.Context, id string) (*models.ElementComment, error)
-	// GetElementComments retrieves comments for an element with filtering and pagination
-	GetElementComments(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error)
-	// UpdateElementComment updates an existing element comment
-	UpdateElementComment(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error)
-	// DeleteElementComment soft deletes an element comment
-	DeleteElementComment(ctx context.Context, id string) error
-	// GetElementCommentsByAuthorID retrieves all comments by a specific author
-	GetElementCommentsByAuthorID(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error)
-	// CountElementComments counts comments for an element
-	CountElementComments(ctx context.Context, elementID string) (int64, error)
-	// ToggleResolvedStatus toggles the resolved status of a comment
-	ToggleResolvedStatus(ctx context.Context, id string) (*models.ElementComment, error)
-	// DeleteElementCommentsByElementID deletes all comments for an element (cascade delete)
-	DeleteElementCommentsByElementID(ctx context.Context, elementID string) error
-	// GetElementCommentsByProjectID retrieves all comments for elements in a project
-	GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error)
-	// CountElementCommentsByProjectID counts all comments for elements in a project
-	CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error)
+	// Create creates a new element comment
+	Create(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error)
+	// GetByID retrieves a single element comment by ID
+	GetByID(ctx context.Context, id string) (*models.ElementComment, error)
+	// List retrieves comments for an element with filtering and pagination
+	List(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error)
+	// Update updates an existing element comment
+	Update(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error)
+	// Delete soft deletes an element comment
+	Delete(ctx context.Context, id string) error
+	// ListByAuthor retrieves all comments by a specific author
+	ListByAuthor(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error)
+	// Count counts comments for an element
+	Count(ctx context.Context, elementID string) (int64, error)
+	// ToggleResolved toggles the resolved status of a comment
+	ToggleResolved(ctx context.Context, id string) (*models.ElementComment, error)
+	// DeleteByElement deletes all comments for an element (cascade delete)
+	DeleteByElement(ctx context.Context, elementID string) error
+	// ListByProject retrieves all comments for elements in a project
+	ListByProject(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error)
+	// CountByProject counts all comments for elements in a project
+	CountByProject(ctx context.Context, projectID string) (int64, error)
 }
 
 // ProjectRepositoryInterface defines methods for project operations
 type UserRepositoryInterface interface {
-	// GetUserByID retrieves a user by ID
-	GetUserByID(ctx context.Context, userID string) (*models.User, error)
-	// GetUserByEmail retrieves a user by email
-	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
-	// GetUserByUsername retrieves a user by username
-	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
-	// SearchUsers searches users by email or username
-	SearchUsers(ctx context.Context, query string) ([]models.User, error)
+	// GetByID retrieves a user by ID
+	GetByID(ctx context.Context, userID string) (*models.User, error)
+	// GetByEmail retrieves a user by email
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	// GetByUsername retrieves a user by username
+	GetByUsername(ctx context.Context, username string) (*models.User, error)
+	// Search searches users by email or username
+	Search(ctx context.Context, query string) ([]models.User, error)
 }
 
 type ProjectRepositoryInterface interface {
-	// GetPublicProjectByID retrieves a public project by ID
-	GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error)
-	// GetPublicProjectBySubdomain retrieves a published project by its subdomain
-	GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error)
-	// GetProjectByID retrieves a project by ID with user ownership verification
-	GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error)
-	// GetProjectWithAccess retrieves a project by ID with access verification (owner or collaborator)
-	GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
-	// GetProjectsByUserID retrieves all projects for a specific user
-	GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error)
-	// GetCollaboratorProjects retrieves all projects where the user is a collaborator
-	GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error)
-	// GetProjectPages retrieves all pages for a project with ownership verification
-	GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error)
-	// CreateProject creates a new project
-	CreateProject(ctx context.Context, project *models.Project) error
-	// CreateProjectWithPage creates a project and its first page in one transaction
-	CreateProjectWithPage(ctx context.Context, project *models.Project, page *models.Page) error
-	// GetProjectAccess returns the user's role on a non-deleted project, or ErrProjectNotFound
-	GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error)
-	// UpdateProject updates a project with ownership verification
-	UpdateProject(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error)
-	// UpdateProjectFields updates pre-authorized project fields for owners or editors
-	UpdateProjectFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error)
+	// GetPublicByID retrieves a public project by ID
+	GetPublicByID(ctx context.Context, projectID string) (*models.Project, error)
+	// GetPublicBySubdomain retrieves a published project by its subdomain
+	GetPublicBySubdomain(ctx context.Context, subdomain string) (*models.Project, error)
+	// GetByID retrieves a project by ID with user ownership verification
+	GetByID(ctx context.Context, projectID, userID string) (*models.Project, error)
+	// GetWithAccess retrieves a project by ID with access verification (owner or collaborator)
+	GetWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
+	// ListByUser retrieves all projects for a specific user
+	ListByUser(ctx context.Context, userID string) ([]models.Project, error)
+	// ListByCollaborator retrieves all projects where the user is a collaborator
+	ListByCollaborator(ctx context.Context, userID string) ([]models.Project, error)
+	// ListPages retrieves all pages for a project with ownership verification
+	ListPages(ctx context.Context, projectID, userID string) ([]models.Page, error)
+	// Create creates a new project
+	Create(ctx context.Context, project *models.Project) error
+	// CreateWithPage creates a project and its first page in one transaction
+	CreateWithPage(ctx context.Context, project *models.Project, page *models.Page) error
+	// GetAccess returns the user's role on a non-deleted project, or ErrProjectNotFound
+	GetAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error)
+	// Update updates a project with ownership verification
+	Update(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error)
+	// UpdateFields updates pre-authorized project fields for owners or editors
+	UpdateFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error)
 	// TransferOwnership moves project ownership from currentOwnerID to newOwnerID
 	TransferOwnership(ctx context.Context, projectID, currentOwnerID, newOwnerID string) error
-	// DeleteProject soft deletes a project with ownership verification
-	DeleteProject(ctx context.Context, projectID, userID string) error
-	// HardDeleteProject permanently deletes a project
-	HardDeleteProject(ctx context.Context, projectID, userID string) error
-	// RestoreProject restores a soft-deleted project
-	RestoreProject(ctx context.Context, projectID, userID string) error
+	// Delete soft deletes a project with ownership verification
+	Delete(ctx context.Context, projectID, userID string) error
+	// HardDelete permanently deletes a project
+	HardDelete(ctx context.Context, projectID, userID string) error
+	// Restore restores a soft-deleted project
+	Restore(ctx context.Context, projectID, userID string) error
 	// ExistsForUser checks if a project exists for a specific user
 	ExistsForUser(ctx context.Context, projectID, userID string) (bool, error)
-	// GetProjectWithLock retrieves a project with a pessimistic lock for updates
-	GetProjectWithLock(ctx context.Context, projectID, userID string) (*models.Project, error)
+	// GetWithLock retrieves a project with a pessimistic lock for updates
+	GetWithLock(ctx context.Context, projectID, userID string) (*models.Project, error)
 }
 
 // SnapshotRepositoryInterface defines methods for snapshot operations
 type SnapshotRepositoryInterface interface {
-	// SaveSnapshot saves a snapshot for a project
-	SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error
-	// GetSnapshotsByProjectID retrieves snapshots for a project
-	GetSnapshotsByProjectID(ctx context.Context, projectID string) ([]models.Snapshot, error)
-	// GetSnapshotByID retrieves a snapshot by ID
-	GetSnapshotByID(ctx context.Context, snapshotID string) (*models.Snapshot, error)
-	// DeleteSnapshot deletes a snapshot
-	DeleteSnapshot(ctx context.Context, snapshotID string) error
+	// Save saves a snapshot for a project
+	Save(ctx context.Context, projectID string, snapshot *models.Snapshot) error
+	// ListByProject retrieves snapshots for a project
+	ListByProject(ctx context.Context, projectID string) ([]models.Snapshot, error)
+	// GetByID retrieves a snapshot by ID
+	GetByID(ctx context.Context, snapshotID string) (*models.Snapshot, error)
+	// Delete deletes a snapshot
+	Delete(ctx context.Context, snapshotID string) error
 }
 
 // PageRepositoryInterface defines methods for page operations
 type PageRepositoryInterface interface {
-	// GetPagesByProjectID retrieves pages by project ID
-	GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error)
-	// GetPageByID retrieves a page by ID and project ID
-	GetPageByID(ctx context.Context, pageID, projectID string) (*models.Page, error)
-	// CreatePage creates a new page
-	CreatePage(ctx context.Context, page *models.Page) error
-	// UpdatePage updates a page
-	UpdatePage(ctx context.Context, page *models.Page) error
-	// UpdatePageFields updates specific fields of a page
-	UpdatePageFields(ctx context.Context, pageID string, updates map[string]any) error
-	// DeletePage deletes a page by ID
-	DeletePage(ctx context.Context, pageID string) error
-	// DeletePageByProjectID deletes a page by ID with project and user verification
-	DeletePageByProjectID(ctx context.Context, pageID, projectID, userID string) error
+	// ListByProject retrieves pages by project ID
+	ListByProject(ctx context.Context, projectID string) ([]models.Page, error)
+	// GetByID retrieves a page by ID and project ID
+	GetByID(ctx context.Context, pageID, projectID string) (*models.Page, error)
+	// Create creates a new page
+	Create(ctx context.Context, page *models.Page) error
+	// Update updates a page
+	Update(ctx context.Context, page *models.Page) error
+	// UpdateFields updates specific fields of a page
+	UpdateFields(ctx context.Context, pageID string, updates map[string]any) error
+	// Delete deletes a page by ID
+	Delete(ctx context.Context, pageID string) error
+	// DeleteForUser deletes a page by ID with project and user verification
+	DeleteForUser(ctx context.Context, pageID, projectID, userID string) error
 }
 
 // ContentTypeRepositoryInterface defines methods for content type operations
 type ContentTypeRepositoryInterface interface {
-	// GetContentTypes retrieves all content types
-	GetContentTypes(ctx context.Context) ([]models.ContentType, error)
-	// GetContentTypesByProject retrieves content types scoped to a project
-	GetContentTypesByProject(ctx context.Context, projectID string) ([]models.ContentType, error)
-	// GetContentTypesByUser retrieves content types for projects accessible by userID
-	GetContentTypesByUser(ctx context.Context, userID string) ([]models.ContentType, error)
-	// GetContentTypeByID retrieves a content type by ID
-	GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error)
-	// GetContentTypeByProjectAndSlugOrID retrieves a content type by project ID and slug or ID
-	GetContentTypeByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error)
-	// CreateContentType creates a new content type
-	CreateContentType(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
-	// UpdateContentType updates a content type
-	UpdateContentType(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error)
-	// DeleteContentType deletes a content type
-	DeleteContentType(ctx context.Context, id string) error
+	// List retrieves all content types
+	List(ctx context.Context) ([]models.ContentType, error)
+	// ListByProject retrieves content types scoped to a project
+	ListByProject(ctx context.Context, projectID string) ([]models.ContentType, error)
+	// ListByUser retrieves content types for projects accessible by userID
+	ListByUser(ctx context.Context, userID string) ([]models.ContentType, error)
+	// GetByID retrieves a content type by ID
+	GetByID(ctx context.Context, id string) (*models.ContentType, error)
+	// GetByProjectAndSlugOrID retrieves a content type by project ID and slug or ID
+	GetByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error)
+	// Create creates a new content type
+	Create(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
+	// Update updates a content type
+	Update(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error)
+	// Delete deletes a content type
+	Delete(ctx context.Context, id string) error
 }
 
 // ContentFieldRepositoryInterface defines methods for content field operations
 type ContentFieldRepositoryInterface interface {
-	// GetContentFieldsByContentType retrieves content fields by content type ID
-	GetContentFieldsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error)
-	// GetContentFieldByID retrieves a content field by ID
-	GetContentFieldByID(ctx context.Context, id string) (*models.ContentField, error)
-	// CreateContentField creates a new content field
-	CreateContentField(ctx context.Context, cf *models.ContentField) (*models.ContentField, error)
-	// UpdateContentField updates a content field
-	UpdateContentField(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error)
-	// DeleteContentField deletes a content field
-	DeleteContentField(ctx context.Context, id string) error
+	// ListByContentType retrieves content fields by content type ID
+	ListByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error)
+	// GetByID retrieves a content field by ID
+	GetByID(ctx context.Context, id string) (*models.ContentField, error)
+	// Create creates a new content field
+	Create(ctx context.Context, cf *models.ContentField) (*models.ContentField, error)
+	// Update updates a content field
+	Update(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error)
+	// Delete deletes a content field
+	Delete(ctx context.Context, id string) error
 }
 
 // ContentItemRepositoryInterface defines methods for content item operations
 type ContentItemRepositoryInterface interface {
-	// GetContentItemsByContentType retrieves content items by content type ID
-	GetContentItemsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error)
-	// GetContentItemByID retrieves a content item by ID
-	GetContentItemByID(ctx context.Context, id string) (*models.ContentItem, error)
-	// GetContentItemBySlug retrieves a content item by slug and content type ID
-	GetContentItemBySlug(ctx context.Context, contentTypeID, slug string) (*models.ContentItem, error)
-	// GetPublicContentItems retrieves public content items with pagination and sorting
-	GetPublicContentItems(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error)
-	// CreateContentItem creates a new content item with field values
-	CreateContentItem(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
-	// UpdateContentItem updates a content item and its field values
-	UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
-	// DeleteContentItem deletes a content item
-	DeleteContentItem(ctx context.Context, id string) error
+	// ListByContentType retrieves content items by content type ID
+	ListByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error)
+	// GetByID retrieves a content item by ID
+	GetByID(ctx context.Context, id string) (*models.ContentItem, error)
+	// GetBySlug retrieves a content item by slug and content type ID
+	GetBySlug(ctx context.Context, contentTypeID, slug string) (*models.ContentItem, error)
+	// ListPublic retrieves public content items with pagination and sorting
+	ListPublic(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error)
+	// Create creates a new content item with field values
+	Create(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
+	// Update updates a content item and its field values
+	Update(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
+	// Delete deletes a content item
+	Delete(ctx context.Context, id string) error
 }
 
 // ContentFieldValueRepositoryInterface defines methods for content field value operations
 type ContentFieldValueRepositoryInterface interface {
-	// GetContentFieldValuesByContentItem retrieves content field values by content item ID
-	GetContentFieldValuesByContentItem(ctx context.Context, contentItemID string) ([]models.ContentFieldValue, error)
-	// GetContentFieldValueByID retrieves a content field value by ID
-	GetContentFieldValueByID(ctx context.Context, id string) (*models.ContentFieldValue, error)
-	// CreateContentFieldValue creates a new content field value
-	CreateContentFieldValue(ctx context.Context, cfv *models.ContentFieldValue) (*models.ContentFieldValue, error)
-	// UpdateContentFieldValue updates a content field value
-	UpdateContentFieldValue(ctx context.Context, id string, value *string) (*models.ContentFieldValue, error)
-	// DeleteContentFieldValue deletes a content field value
-	DeleteContentFieldValue(ctx context.Context, id string) error
+	// ListByContentItem retrieves content field values by content item ID
+	ListByContentItem(ctx context.Context, contentItemID string) ([]models.ContentFieldValue, error)
+	// GetByID retrieves a content field value by ID
+	GetByID(ctx context.Context, id string) (*models.ContentFieldValue, error)
+	// Create creates a new content field value
+	Create(ctx context.Context, cfv *models.ContentFieldValue) (*models.ContentFieldValue, error)
+	// Update updates a content field value
+	Update(ctx context.Context, id string, value *string) (*models.ContentFieldValue, error)
+	// Delete deletes a content field value
+	Delete(ctx context.Context, id string) error
 }
 
 // ImageRepositoryInterface defines methods for image operations
 type ImageRepositoryInterface interface {
-	// CreateImage creates a new image
-	CreateImage(ctx context.Context, image models.Image) (*models.Image, error)
-	// GetImagesByUserID retrieves images by user ID
-	GetImagesByUserID(ctx context.Context, userID string) ([]models.Image, error)
-	// GetImageByID retrieves an image by ID with user verification
-	GetImageByID(ctx context.Context, imageID string, userID string) (*models.Image, error)
-	// GetPublicImageByID retrieves a non-deleted image by ID for public delivery
-	GetPublicImageByID(ctx context.Context, imageID string) (*models.Image, error)
-	// DeleteImage deletes an image with user verification
-	DeleteImage(ctx context.Context, imageID string, userID string) error
-	// SoftDeleteImage soft deletes an image with user verification
-	SoftDeleteImage(ctx context.Context, imageID string, userID string) error
-	// GetAllImages retrieves all images with pagination
-	GetAllImages(ctx context.Context, limit int, offset int) ([]models.Image, error)
+	// Create creates a new image
+	Create(ctx context.Context, image models.Image) (*models.Image, error)
+	// ListByUser retrieves images by user ID
+	ListByUser(ctx context.Context, userID string) ([]models.Image, error)
+	// GetByID retrieves an image by ID with user verification
+	GetByID(ctx context.Context, imageID string, userID string) (*models.Image, error)
+	// GetPublicByID retrieves a non-deleted image by ID for public delivery
+	GetPublicByID(ctx context.Context, imageID string) (*models.Image, error)
+	// Delete deletes an image with user verification
+	Delete(ctx context.Context, imageID string, userID string) error
+	// SoftDelete soft deletes an image with user verification
+	SoftDelete(ctx context.Context, imageID string, userID string) error
+	// ListAll retrieves all images with pagination
+	ListAll(ctx context.Context, limit int, offset int) ([]models.Image, error)
 }
 
 type CustomElementRepositoryInterface interface {
-	GetCustomElements(ctx context.Context, userID string, isPublic *bool) ([]models.CustomElement, error)
-	GetCustomElementByID(ctx context.Context, id string, userID string) (*models.CustomElement, error)
-	CreateCustomElement(ctx context.Context, customElement *models.CustomElement) (*models.CustomElement, error)
-	UpdateCustomElement(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error)
-	DeleteCustomElement(ctx context.Context, id string, userID string) error
-	GetPublicCustomElements(ctx context.Context, category *string, limit int, offset int) ([]models.CustomElement, error)
-	DuplicateCustomElement(ctx context.Context, id string, userID string, newName string) (*models.CustomElement, error)
+	List(ctx context.Context, userID string, isPublic *bool) ([]models.CustomElement, error)
+	GetByID(ctx context.Context, id string, userID string) (*models.CustomElement, error)
+	Create(ctx context.Context, customElement *models.CustomElement) (*models.CustomElement, error)
+	Update(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error)
+	Delete(ctx context.Context, id string, userID string) error
+	ListPublic(ctx context.Context, category *string, limit int, offset int) ([]models.CustomElement, error)
+	Duplicate(ctx context.Context, id string, userID string, newName string) (*models.CustomElement, error)
 }
 
 type CustomElementTypeRepositoryInterface interface {
-	GetCustomElementTypes(ctx context.Context) ([]models.CustomElementType, error)
-	GetCustomElementTypeByID(ctx context.Context, id string) (*models.CustomElementType, error)
-	GetCustomElementTypeByName(ctx context.Context, name string) (*models.CustomElementType, error)
-	CreateCustomElementType(ctx context.Context, customElementType *models.CustomElementType) (*models.CustomElementType, error)
-	UpdateCustomElementType(ctx context.Context, id string, updates map[string]any) (*models.CustomElementType, error)
-	DeleteCustomElementType(ctx context.Context, id string) error
+	List(ctx context.Context) ([]models.CustomElementType, error)
+	GetByID(ctx context.Context, id string) (*models.CustomElementType, error)
+	GetByName(ctx context.Context, name string) (*models.CustomElementType, error)
+	Create(ctx context.Context, customElementType *models.CustomElementType) (*models.CustomElementType, error)
+	Update(ctx context.Context, id string, updates map[string]any) (*models.CustomElementType, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type InvitationRepositoryInterface interface {
-	// CreateInvitation creates a new invitation
-	CreateInvitation(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error)
-	// GetInvitationsByProject retrieves invitations by project ID
-	GetInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
-	// GetInvitationByID retrieves an invitation by ID
-	GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error)
-	// GetInvitationByToken retrieves an invitation by token
-	GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error)
-	// AcceptInvitation accepts an invitation and creates a collaborator
-	AcceptInvitation(ctx context.Context, token string, userID string) error
-	// DeleteInvitation deletes an invitation
-	DeleteInvitation(ctx context.Context, id string) error
-	// UpdateInvitationStatus updates the status of an invitation
-	UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error
-	// CancelInvitation cancels an invitation
-	CancelInvitation(ctx context.Context, id string) error
-	// GetPendingInvitationsByProject gets all pending invitations for a project
-	GetPendingInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
+	// Create creates a new invitation
+	Create(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error)
+	// ListByProject retrieves invitations by project ID
+	ListByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
+	// GetByID retrieves an invitation by ID
+	GetByID(ctx context.Context, id string) (*models.Invitation, error)
+	// GetByToken retrieves an invitation by token
+	GetByToken(ctx context.Context, token string) (*models.Invitation, error)
+	// Accept accepts an invitation and creates a collaborator
+	Accept(ctx context.Context, token string, userID string) error
+	// Delete deletes an invitation
+	Delete(ctx context.Context, id string) error
+	// UpdateStatus updates the status of an invitation
+	UpdateStatus(ctx context.Context, id string, status models.InvitationStatus) error
+	// Cancel cancels an invitation
+	Cancel(ctx context.Context, id string) error
+	// ListPendingByProject gets all pending invitations for a project
+	ListPendingByProject(ctx context.Context, projectID string) ([]models.Invitation, error)
 }
 
 type CollaboratorRepositoryInterface interface {
-	// CreateCollaborator creates a new collaborator
-	CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
-	// GetCollaboratorsByProject retrieves collaborators by project ID
-	GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error)
-	// GetCollaboratorByID retrieves a collaborator by ID
-	GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error)
-	// UpdateCollaboratorRole updates a collaborator's role
-	UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error
-	// DeleteCollaborator deletes a collaborator
-	DeleteCollaborator(ctx context.Context, id string) error
+	// Create creates a new collaborator
+	Create(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
+	// ListByProject retrieves collaborators by project ID
+	ListByProject(ctx context.Context, projectID string) ([]models.Collaborator, error)
+	// GetByID retrieves a collaborator by ID
+	GetByID(ctx context.Context, id string) (*models.Collaborator, error)
+	// UpdateRole updates a collaborator's role
+	UpdateRole(ctx context.Context, id string, role models.CollaboratorRole) error
+	// Delete deletes a collaborator
+	Delete(ctx context.Context, id string) error
 	// IsCollaborator checks if a user is a collaborator on a project
 	IsCollaborator(ctx context.Context, projectID, userID string) (bool, error)
-	// GetCollaboratorByProjectAndUser returns the collaborator record for (projectID, userID) if any
-	GetCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (*models.Collaborator, error)
-	// DeleteCollaboratorByProjectAndUser removes a user's collaborator membership on a project
-	DeleteCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (bool, error)
+	// GetByProjectAndUser returns the collaborator record for (projectID, userID) if any
+	GetByProjectAndUser(ctx context.Context, projectID, userID string) (*models.Collaborator, error)
+	// DeleteByProjectAndUser removes a user's collaborator membership on a project
+	DeleteByProjectAndUser(ctx context.Context, projectID, userID string) (bool, error)
 }
 
 type EventWorkflowRepositoryInterface interface {
-	// CreateEventWorkflow creates a new event workflow
-	CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
-	// GetEventWorkflowByID retrieves an event workflow by ID
-	GetEventWorkflowByID(ctx context.Context, id string) (*models.EventWorkflow, error)
-	// GetEventWorkflowsByProjectID retrieves all event workflows for a project
-	GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	// GetEventWorkflowsByProjectIDWithElements retrieves all event workflows for a project with element details
-	GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	// GetEnabledEventWorkflowsByProjectID retrieves all enabled event workflows for a project
-	GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	// GetEventWorkflowsByName retrieves event workflows by name in a project
-	GetEventWorkflowsByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error)
-	// UpdateEventWorkflow updates an event workflow
-	UpdateEventWorkflow(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
-	// UpdateEventWorkflowEnabled updates the enabled status of an event workflow
-	UpdateEventWorkflowEnabled(ctx context.Context, id string, enabled bool) error
-	// DeleteEventWorkflow deletes an event workflow
-	DeleteEventWorkflow(ctx context.Context, id string) error
-	// DeleteEventWorkflowsByProjectID deletes all event workflows for a project
-	DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error
-	// CountEventWorkflowsByProjectID counts event workflows in a project
-	CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error)
-	// CheckIfWorkflowNameExists checks if a workflow name already exists in a project
-	CheckIfWorkflowNameExists(ctx context.Context, projectID, name string, excludeID string) (bool, error)
-	// GetEventWorkflowsWithFilters retrieves event workflows with optional filters
-	GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
+	// Create creates a new event workflow
+	Create(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
+	// GetByID retrieves an event workflow by ID
+	GetByID(ctx context.Context, id string) (*models.EventWorkflow, error)
+	// ListByProject retrieves all event workflows for a project
+	ListByProject(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	// ListByProjectWithElements retrieves all event workflows for a project with element details
+	ListByProjectWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	// ListEnabledByProject retrieves all enabled event workflows for a project
+	ListEnabledByProject(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	// ListByName retrieves event workflows by name in a project
+	ListByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error)
+	// Update updates an event workflow
+	Update(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
+	// SetEnabled updates the enabled status of an event workflow
+	SetEnabled(ctx context.Context, id string, enabled bool) error
+	// Delete deletes an event workflow
+	Delete(ctx context.Context, id string) error
+	// DeleteByProject deletes all event workflows for a project
+	DeleteByProject(ctx context.Context, projectID string) error
+	// CountByProject counts event workflows in a project
+	CountByProject(ctx context.Context, projectID string) (int64, error)
+	// ExistsByName checks if a workflow name already exists in a project
+	ExistsByName(ctx context.Context, projectID, name string, excludeID string) (bool, error)
+	// ListWithFilters retrieves event workflows with optional filters
+	ListWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
 }
 
 type ElementEventWorkflowRepositoryInterface interface {
-	// CreateElementEventWorkflow creates a new element event workflow association
-	CreateElementEventWorkflow(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
-	// GetElementEventWorkflowByID retrieves an element event workflow by ID
-	GetElementEventWorkflowByID(ctx context.Context, id string) (*models.ElementEventWorkflow, error)
-	// GetAllElementEventWorkflows retrieves all element event workflows
-	GetAllElementEventWorkflows(ctx context.Context) ([]models.ElementEventWorkflow, error)
-	// GetElementEventWorkflowsByElementID retrieves all event workflows for a specific element
-	GetElementEventWorkflowsByElementID(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error)
-	// GetElementEventWorkflowsByWorkflowID retrieves all elements linked to a specific workflow
-	GetElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error)
-	// GetElementEventWorkflowsByEventName retrieves all workflows for a specific event type
-	GetElementEventWorkflowsByEventName(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error)
-	// GetElementEventWorkflowsByFilters retrieves element event workflows with optional filters
-	GetElementEventWorkflowsByFilters(ctx context.Context, elementID, workflowID, eventName string) ([]models.ElementEventWorkflow, error)
-	// UpdateElementEventWorkflow updates an element event workflow
-	UpdateElementEventWorkflow(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
-	// DeleteElementEventWorkflow deletes an element event workflow
-	DeleteElementEventWorkflow(ctx context.Context, id string) error
-	// DeleteElementEventWorkflowsByElementID deletes all event workflows for a specific element
-	DeleteElementEventWorkflowsByElementID(ctx context.Context, elementID string) error
-	// DeleteElementEventWorkflowsByWorkflowID deletes all element associations for a specific workflow
-	DeleteElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) error
-	// GetElementEventWorkflowsByPageID retrieves all element event workflows for elements belonging to a specific page
-	GetElementEventWorkflowsByPageID(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error)
-	// CheckIfWorkflowLinkedToElement checks if a workflow is already linked to an element with a specific event
-	CheckIfWorkflowLinkedToElement(ctx context.Context, elementID, workflowID, eventName string) (bool, error)
+	// Create creates a new element event workflow association
+	Create(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
+	// GetByID retrieves an element event workflow by ID
+	GetByID(ctx context.Context, id string) (*models.ElementEventWorkflow, error)
+	// ListAll retrieves all element event workflows
+	ListAll(ctx context.Context) ([]models.ElementEventWorkflow, error)
+	// ListByElement retrieves all event workflows for a specific element
+	ListByElement(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error)
+	// ListByWorkflow retrieves all elements linked to a specific workflow
+	ListByWorkflow(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error)
+	// ListByEvent retrieves all workflows for a specific event type
+	ListByEvent(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error)
+	// ListByFilters retrieves element event workflows with optional filters
+	ListByFilters(ctx context.Context, elementID, workflowID, eventName string) ([]models.ElementEventWorkflow, error)
+	// Update updates an element event workflow
+	Update(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
+	// Delete deletes an element event workflow
+	Delete(ctx context.Context, id string) error
+	// DeleteByElement deletes all event workflows for a specific element
+	DeleteByElement(ctx context.Context, elementID string) error
+	// DeleteByWorkflow deletes all element associations for a specific workflow
+	DeleteByWorkflow(ctx context.Context, workflowID string) error
+	// ListByPage retrieves all element event workflows for elements belonging to a specific page
+	ListByPage(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error)
+	// IsLinked checks if a workflow is already linked to an element with a specific event
+	IsLinked(ctx context.Context, elementID, workflowID, eventName string) (bool, error)
 }
 
 // NotificationRepositoryInterface defines methods for a user's notifications.
@@ -366,7 +366,7 @@ type AgentTokenRepositoryInterface interface {
 	Create(ctx context.Context, t *models.AgentToken) error
 	ListActiveByUser(ctx context.Context, userID string) ([]models.AgentToken, error)
 	Revoke(ctx context.Context, userID, id string) (bool, error)
-	FindActiveByHash(ctx context.Context, hash string) (*models.AgentToken, error)
+	GetActiveByHash(ctx context.Context, hash string) (*models.AgentToken, error)
 	Touch(ctx context.Context, id string, at time.Time) error
 }
 
@@ -377,7 +377,7 @@ type WebhookRepositoryInterface interface {
 	GetByID(ctx context.Context, id string) (*models.ProjectWebhook, error)
 	Update(ctx context.Context, id string, updates map[string]any) (*models.ProjectWebhook, error)
 	Delete(ctx context.Context, id string) error
-	FindMatchingForEvent(ctx context.Context, projectID, contentTypeID, event string) ([]models.ProjectWebhook, error)
+	ListMatchingForEvent(ctx context.Context, projectID, contentTypeID, event string) ([]models.ProjectWebhook, error)
 	CreateDelivery(ctx context.Context, delivery *models.WebhookDelivery) (*models.WebhookDelivery, error)
 	GetDeliveryByID(ctx context.Context, id string) (*models.WebhookDelivery, error)
 	UpdateDelivery(ctx context.Context, id string, updates map[string]any) error
@@ -385,7 +385,7 @@ type WebhookRepositoryInterface interface {
 	ListPendingRetries(ctx context.Context, now time.Time, limit int) ([]models.WebhookDelivery, error)
 }
 
-type RepositoriesInterface struct {
+type Repositories struct {
 	AgentTokenRepository           AgentTokenRepositoryInterface
 	WebhookRepository              WebhookRepositoryInterface
 	NotificationRepository         NotificationRepositoryInterface
@@ -408,8 +408,8 @@ type RepositoriesInterface struct {
 	ElementEventWorkflowRepository ElementEventWorkflowRepositoryInterface
 }
 
-func NewRepositories(db *gorm.DB) *RepositoriesInterface {
-	return &RepositoriesInterface{
+func NewRepositories(db *gorm.DB) *Repositories {
+	return &Repositories{
 		AgentTokenRepository:           NewAgentTokenRepository(db),
 		WebhookRepository:              NewWebhookRepository(db),
 		ElementRepository:              NewElementRepository(db),

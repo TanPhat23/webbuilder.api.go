@@ -22,8 +22,8 @@ func NewSnapshotRepository(db *gorm.DB) domainRepo.SnapshotRepository {
 	return &snapshotRepository{db: db}
 }
 
-// SaveSnapshot persists a new snapshot to the database, verifying page ownership inside the transaction.
-func (r *snapshotRepository) SaveSnapshot(ctx context.Context, projectID, pageID, name string, snapshotType entity.SnapshotType, elements []entity.Element) error {
+// CreateSnapshot persists a new snapshot to the database, verifying page ownership inside the transaction.
+func (r *snapshotRepository) CreateSnapshot(ctx context.Context, projectID, pageID, name string, snapshotType entity.SnapshotType, elements []entity.Element) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := verifyPageOwnership(ctx, tx, projectID, pageID); err != nil {
 			return err

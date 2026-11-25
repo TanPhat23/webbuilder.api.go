@@ -145,8 +145,8 @@ func ConvertElementsToProto(elements []models.Element) []*proto.Element {
 	return protoElements
 }
 
-// ConvertProtoElementsToModel converts a slice of protobuf Element messages to Go Element models
-func ConvertProtoElementsToModel(protoElements []*proto.Element) []models.Element {
+// ConvertProtoToElements converts a slice of protobuf Element messages to Go Element models
+func ConvertProtoToElements(protoElements []*proto.Element) []models.Element {
 	if len(protoElements) == 0 {
 		return nil
 	}
@@ -160,8 +160,8 @@ func ConvertProtoElementsToModel(protoElements []*proto.Element) []models.Elemen
 	return elements
 }
 
-// ConvertEventWorkflowsToString converts ElementEventWorkflow slice to string pointer for protobuf
-func ConvertEventWorkflowsToString(eventWorkflows []models.ElementEventWorkflow) *string {
+// MarshalEventWorkflows converts ElementEventWorkflow slice to string pointer for protobuf
+func MarshalEventWorkflows(eventWorkflows []models.ElementEventWorkflow) *string {
 	if len(eventWorkflows) == 0 {
 		return nil
 	}
@@ -173,8 +173,8 @@ func ConvertEventWorkflowsToString(eventWorkflows []models.ElementEventWorkflow)
 	return &str
 }
 
-// ConvertStringToEventWorkflows converts string pointer from protobuf to ElementEventWorkflow slice
-func ConvertStringToEventWorkflows(workflowsStr *string) []models.ElementEventWorkflow {
+// UnmarshalEventWorkflows converts string pointer from protobuf to ElementEventWorkflow slice
+func UnmarshalEventWorkflows(workflowsStr *string) []models.ElementEventWorkflow {
 	if workflowsStr == nil || *workflowsStr == "" {
 		return []models.ElementEventWorkflow{}
 	}

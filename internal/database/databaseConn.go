@@ -6,6 +6,6 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewRepositories(db *gorm.DB) *repositories.RepositoriesInterface {
+func NewRepositories(db *gorm.DB) *repositories.Repositories {
 	return repositories.NewRepositories(db)
 }

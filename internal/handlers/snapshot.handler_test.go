@@ -25,33 +25,33 @@ type snapshotHandlerService struct {
 	gotID               string
 }
 
-func (s *snapshotHandlerService) SaveSnapshot(_ context.Context, projectID string, snap *models.Snapshot) error {
+func (s *snapshotHandlerService) Save(_ context.Context, projectID string, snap *models.Snapshot) error {
 	s.savedProject, s.saved = projectID, snap
 	return s.saveErr
 }
-func (s *snapshotHandlerService) SaveSnapshotWithAccess(_ context.Context, projectID, userID string, snap *models.Snapshot) error {
+func (s *snapshotHandlerService) SaveForUser(_ context.Context, projectID, userID string, snap *models.Snapshot) error {
 	s.gotUser = userID
-	return s.SaveSnapshot(context.Background(), projectID, snap)
+	return s.Save(context.Background(), projectID, snap)
 }
-func (s *snapshotHandlerService) GetSnapshotsByProjectID(_ context.Context, projectID, userID string) ([]models.Snapshot, error) {
+func (s *snapshotHandlerService) ListByProject(_ context.Context, projectID, userID string) ([]models.Snapshot, error) {
 	s.gotProject, s.gotUser = projectID, userID
 	if s.err != nil {
 		return nil, s.err
 	}
 	return []models.Snapshot{{Id: "s1", ProjectId: projectID, Name: "v1"}}, nil
 }
-func (s *snapshotHandlerService) GetSnapshotByID(_ context.Context, id string) (*models.Snapshot, error) {
+func (s *snapshotHandlerService) GetByID(_ context.Context, id string) (*models.Snapshot, error) {
 	s.gotID = id
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.Snapshot{Id: id, Name: "v1"}, nil
 }
-func (s *snapshotHandlerService) GetSnapshotByIDWithAccess(_ context.Context, projectID, id, userID string) (*models.Snapshot, error) {
+func (s *snapshotHandlerService) GetByIDForUser(_ context.Context, projectID, id, userID string) (*models.Snapshot, error) {
 	s.gotProject, s.gotUser = projectID, userID
-	return s.GetSnapshotByID(context.Background(), id)
+	return s.GetByID(context.Background(), id)
 }
-func (s *snapshotHandlerService) DeleteSnapshotWithAccess(_ context.Context, id, projectID, userID string) error {
+func (s *snapshotHandlerService) DeleteForUser(_ context.Context, id, projectID, userID string) error {
 	s.gotID, s.gotProject, s.gotUser = id, projectID, userID
 	return s.err
 }
@@ -64,7 +64,7 @@ type snapshotHandlerElements struct {
 	calls    int
 }
 
-func (r *snapshotHandlerElements) ReplaceElements(_ context.Context, projectID string, els []models.EditorElement) error {
+func (r *snapshotHandlerElements) Replace(_ context.Context, projectID string, els []models.EditorElement) error {
 	r.calls++
 	r.project, r.replaced = projectID, els
 	return r.err
@@ -73,14 +73,14 @@ func (r *snapshotHandlerElements) ReplaceElements(_ context.Context, projectID s
 func snapshotHandlerApp(user string, svc *snapshotHandlerService, els *snapshotHandlerElements) *fiber.App {
 	h := NewSnapshotHandler(svc, els)
 	return newKitApp(user, func(app *fiber.App) {
-		app.Post("/projects/:projectid/snapshots", h.SaveSnapshot)
-		app.Get("/projects/:projectid/snapshots", h.GetSnapshots)
-		app.Get("/projects/:projectid/snapshots/:snapshotid", h.GetSnapshotByID)
-		app.Delete("/projects/:projectid/snapshots/:snapshotid", h.DeleteSnapshot)
-		app.Post("/noproject", h.SaveSnapshot)
-		app.Get("/noproject", h.GetSnapshots)
-		app.Get("/nosnapshot/:projectid", h.GetSnapshotByID)
-		app.Delete("/nosnapshot/:projectid", h.DeleteSnapshot)
+		app.Post("/projects/:projectid/snapshots", h.Save)
+		app.Get("/projects/:projectid/snapshots", h.ListByProject)
+		app.Get("/projects/:projectid/snapshots/:snapshotid", h.GetByID)
+		app.Delete("/projects/:projectid/snapshots/:snapshotid", h.Delete)
+		app.Post("/noproject", h.Save)
+		app.Get("/noproject", h.ListByProject)
+		app.Get("/nosnapshot/:projectid", h.GetByID)
+		app.Delete("/nosnapshot/:projectid", h.Delete)
 	})
 }
 
@@ -120,7 +120,7 @@ func TestSaveSnapshotGeneratesIDWithoutValidator(t *testing.T) {
 		c.Locals("userId", "u1")
 		return c.Next()
 	})
-	app.Post("/projects/:projectid/snapshots", NewSnapshotHandler(svc, els).SaveSnapshot)
+	app.Post("/projects/:projectid/snapshots", NewSnapshotHandler(svc, els).Save)
 	kitExpect(t, kitSend(t, app, "POST", "/projects/p1/snapshots", `{"name":"n","elements":[{"id":"e1","type":"Text"}]}`), 201)
 	if _, err := uuid.Parse(svc.saved.Id); err != nil {
 		t.Fatalf("generated id %q is not a uuid", svc.saved.Id)

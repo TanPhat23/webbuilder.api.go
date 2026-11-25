@@ -124,8 +124,8 @@ func (e *ElementWithChildren) GetType() string {
 	return e.Element.Type
 }
 
-// GetChildrenFromEditorElement extracts children from an EditorElement
-func GetChildrenFromEditorElement(element models.EditorElement) []any {
+// EditorElementChildren extracts children from an EditorElement
+func EditorElementChildren(element models.EditorElement) []any {
 	if element == nil {
 		return nil
 	}

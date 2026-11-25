@@ -18,7 +18,7 @@ func TestAuthMiddlewareIgnoresClientChosenIdentity(t *testing.T) {
 	t.Setenv("DEV_USER_ID", "configured-dev-user")
 	whoami := func(cfg *config.Config) *fiber.App {
 		app := fiber.New()
-		app.Use(middleware.AuthMiddleware(cfg))
+		app.Use(middleware.Auth(cfg))
 		app.Get("/", func(c fiber.Ctx) error {
 			user, _ := c.Locals("user").(*entity.User)
 			if user == nil {

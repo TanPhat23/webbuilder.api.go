@@ -45,7 +45,7 @@ func main() {
 	}
 	defer rdb.Close()
 	lg := logger.Default()
-	uc := usecase.NewUseCase(repository.NewRepository(db, rdb), lg)
+	uc := usecase.New(repository.New(db, rdb), lg)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); uc.Persist.Start(ctx) }()
@@ -67,7 +67,7 @@ func main() {
 		c.Locals("user", &entity.User{ID: id, Email: id + "@test.invalid"})
 		return c.Next()
 	})
-	h.SetupRoutes(app)
+	h.RegisterRoutes(app)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		log.Fatal(err)

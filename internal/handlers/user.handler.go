@@ -19,7 +19,7 @@ func NewUserHandler(userService services.UserServiceInterface) *UserHandler {
 	}
 }
 
-func (h *UserHandler) SearchUsers(c fiber.Ctx) error {
+func (h *UserHandler) Search(c fiber.Ctx) error {
 	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "Query parameter 'q' is required")
@@ -28,38 +28,38 @@ func (h *UserHandler) SearchUsers(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Query parameter 'q' must be at least 2 characters")
 	}
 
-	users, err := h.userService.SearchUsers(c.RequestCtx(), query)
+	users, err := h.userService.Search(c.RequestCtx(), query)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to search users")
+		return utils.RespondError(c, err, "", "Failed to search users")
 	}
 
 	log.Printf("Found %d users matching query '%s'\n", len(users), query)
 	return utils.SendJSON(c, fiber.StatusOK, users)
 }
 
-func (h *UserHandler) GetUserByEmail(c fiber.Ctx) error {
-	email, err := utils.ValidateRequiredParam(c, "email")
+func (h *UserHandler) GetByEmail(c fiber.Ctx) error {
+	email, err := utils.RequireParam(c, "email")
 	if err != nil {
 		return err
 	}
 
-	user, err := h.userService.GetUserByEmail(c.RequestCtx(), email)
+	user, err := h.userService.GetByEmail(c.RequestCtx(), email)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user")
+		return utils.RespondError(c, err, "User not found", "Failed to retrieve user")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, user)
 }
 
-func (h *UserHandler) GetUserByUsername(c fiber.Ctx) error {
-	username, err := utils.ValidateRequiredParam(c, "username")
+func (h *UserHandler) GetByUsername(c fiber.Ctx) error {
+	username, err := utils.RequireParam(c, "username")
 	if err != nil {
 		return err
 	}
 
-	user, err := h.userService.GetUserByUsername(c.RequestCtx(), username)
+	user, err := h.userService.GetByUsername(c.RequestCtx(), username)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user")
+		return utils.RespondError(c, err, "User not found", "Failed to retrieve user")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, user)

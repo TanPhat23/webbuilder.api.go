@@ -16,7 +16,7 @@ import (
 type elementEventWorkflowSvcStub struct {
 	services.ElementEventWorkflowServiceInterface
 	err error
-	// nilOnGet makes GetElementEventWorkflowByID answer (nil, nil).
+	// nilOnGet makes GetByID answer (nil, nil).
 	nilOnGet bool
 
 	created    *models.ElementEventWorkflow
@@ -29,7 +29,7 @@ type elementEventWorkflowSvcStub struct {
 	delFlow    string
 }
 
-func (s *elementEventWorkflowSvcStub) CreateElementEventWorkflow(_ context.Context, e *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowSvcStub) Create(_ context.Context, e *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
 	s.created = e
 	if s.err != nil {
 		return nil, s.err
@@ -37,7 +37,7 @@ func (s *elementEventWorkflowSvcStub) CreateElementEventWorkflow(_ context.Conte
 	e.Id = "eew-new"
 	return e, nil
 }
-func (s *elementEventWorkflowSvcStub) GetElementEventWorkflowByID(_ context.Context, id string) (*models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowSvcStub) GetByID(_ context.Context, id string) (*models.ElementEventWorkflow, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -53,35 +53,35 @@ func (s *elementEventWorkflowSvcStub) list(call string) ([]models.ElementEventWo
 	}
 	return []models.ElementEventWorkflow{{Id: "l1"}, {Id: "l2"}}, nil
 }
-func (s *elementEventWorkflowSvcStub) GetElementEventWorkflowsByPageID(_ context.Context, p string) ([]models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowSvcStub) ListByPage(_ context.Context, p string) ([]models.ElementEventWorkflow, error) {
 	s.byPage = strings.Clone(p)
 	return s.list("page")
 }
-func (s *elementEventWorkflowSvcStub) GetElementEventWorkflowsByElementID(_ context.Context, id string) ([]models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowSvcStub) ListByElement(_ context.Context, id string) ([]models.ElementEventWorkflow, error) {
 	return s.list("element:" + strings.Clone(id))
 }
-func (s *elementEventWorkflowSvcStub) GetElementEventWorkflowsByWorkflowID(_ context.Context, id string) ([]models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowSvcStub) ListByWorkflow(_ context.Context, id string) ([]models.ElementEventWorkflow, error) {
 	return s.list("workflow:" + strings.Clone(id))
 }
-func (s *elementEventWorkflowSvcStub) GetElementEventWorkflowsByFilters(_ context.Context, e, w, n string) ([]models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowSvcStub) ListByFilters(_ context.Context, e, w, n string) ([]models.ElementEventWorkflow, error) {
 	return s.list(strings.Clone("filters:" + e + "|" + w + "|" + n))
 }
-func (s *elementEventWorkflowSvcStub) GetAllElementEventWorkflows(context.Context) ([]models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowSvcStub) ListAll(context.Context) ([]models.ElementEventWorkflow, error) {
 	return s.list("all")
 }
-func (s *elementEventWorkflowSvcStub) UpdateElementEventWorkflow(_ context.Context, id string, e *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowSvcStub) Update(_ context.Context, id string, e *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
 	s.updatedID, s.updated = strings.Clone(id), e
 	return e, nil
 }
-func (s *elementEventWorkflowSvcStub) DeleteElementEventWorkflow(_ context.Context, id string) error {
+func (s *elementEventWorkflowSvcStub) Delete(_ context.Context, id string) error {
 	s.deletedID = strings.Clone(id)
 	return nil
 }
-func (s *elementEventWorkflowSvcStub) DeleteElementEventWorkflowsByElementID(_ context.Context, id string) error {
+func (s *elementEventWorkflowSvcStub) DeleteByElement(_ context.Context, id string) error {
 	s.delElement = strings.Clone(id)
 	return s.err
 }
-func (s *elementEventWorkflowSvcStub) DeleteElementEventWorkflowsByWorkflowID(_ context.Context, id string) error {
+func (s *elementEventWorkflowSvcStub) DeleteByWorkflow(_ context.Context, id string) error {
 	s.delFlow = strings.Clone(id)
 	return s.err
 }
@@ -93,10 +93,10 @@ type elementEventWorkflowFailingStub struct {
 	updateErr, deleteErr error
 }
 
-func (s *elementEventWorkflowFailingStub) UpdateElementEventWorkflow(context.Context, string, *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+func (s *elementEventWorkflowFailingStub) Update(context.Context, string, *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
 	return nil, s.updateErr
 }
-func (s *elementEventWorkflowFailingStub) DeleteElementEventWorkflow(context.Context, string) error {
+func (s *elementEventWorkflowFailingStub) Delete(context.Context, string) error {
 	return s.deleteErr
 }
 
@@ -105,7 +105,7 @@ type elementEventWorkflowPageStub struct {
 	err error
 }
 
-func (s *elementEventWorkflowPageStub) GetPageByID(_ context.Context, id string) (*models.Page, error) {
+func (s *elementEventWorkflowPageStub) GetByID(_ context.Context, id string) (*models.Page, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -119,7 +119,7 @@ type elementEventWorkflowProjectStub struct {
 	gotUser    string
 }
 
-func (s *elementEventWorkflowProjectStub) GetProjectWithAccess(_ context.Context, projectID, userID string) (*models.Project, error) {
+func (s *elementEventWorkflowProjectStub) GetWithAccess(_ context.Context, projectID, userID string) (*models.Project, error) {
 	s.gotProject, s.gotUser = strings.Clone(projectID), strings.Clone(userID)
 	if s.err != nil {
 		return nil, s.err
@@ -130,20 +130,20 @@ func (s *elementEventWorkflowProjectStub) GetProjectWithAccess(_ context.Context
 func elementEventWorkflowKit(userID string, svc services.ElementEventWorkflowServiceInterface, pages services.PageServiceInterface, projects services.ProjectServiceInterface) *fiber.App {
 	h := NewElementEventWorkflowHandler(svc, projects, pages)
 	return newKitApp(userID, func(app *fiber.App) {
-		app.Post("/eew", h.CreateElementEventWorkflow)
-		app.Get("/eew", h.GetElementEventWorkflows)
-		app.Get("/eew/page/:pageId", h.GetElementEventWorkflowsByPageId)
-		app.Delete("/eew/element/:elementId", h.DeleteElementEventWorkflowsByElement)
-		app.Delete("/eew/workflow/:workflowId", h.DeleteElementEventWorkflowsByWorkflow)
-		app.Get("/eew/:id", h.GetElementEventWorkflowByID)
-		app.Patch("/eew/:id", h.UpdateElementEventWorkflow)
-		app.Delete("/eew/:id", h.DeleteElementEventWorkflow)
-		app.Get("/noparam/get", h.GetElementEventWorkflowByID)
-		app.Get("/noparam/page", h.GetElementEventWorkflowsByPageId)
-		app.Patch("/noparam/update", h.UpdateElementEventWorkflow)
-		app.Delete("/noparam/delete", h.DeleteElementEventWorkflow)
-		app.Delete("/noparam/element", h.DeleteElementEventWorkflowsByElement)
-		app.Delete("/noparam/workflow", h.DeleteElementEventWorkflowsByWorkflow)
+		app.Post("/eew", h.Create)
+		app.Get("/eew", h.List)
+		app.Get("/eew/page/:pageId", h.ListByPage)
+		app.Delete("/eew/element/:elementId", h.DeleteByElement)
+		app.Delete("/eew/workflow/:workflowId", h.DeleteByWorkflow)
+		app.Get("/eew/:id", h.GetByID)
+		app.Patch("/eew/:id", h.Update)
+		app.Delete("/eew/:id", h.Delete)
+		app.Get("/noparam/get", h.GetByID)
+		app.Get("/noparam/page", h.ListByPage)
+		app.Patch("/noparam/update", h.Update)
+		app.Delete("/noparam/delete", h.Delete)
+		app.Delete("/noparam/element", h.DeleteByElement)
+		app.Delete("/noparam/workflow", h.DeleteByWorkflow)
 	})
 }
 

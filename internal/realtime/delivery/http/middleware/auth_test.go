@@ -23,7 +23,7 @@ func TestRealtimeAuthMiddlewareDevModeAndErrors(t *testing.T) {
 	t.Setenv("ENV", "")
 	t.Setenv("DEV_USER_ID", "dev-42")
 	devApp := fiber.New()
-	devApp.Use(AuthMiddleware(&config.Config{DevMode: true}))
+	devApp.Use(Auth(&config.Config{DevMode: true}))
 	devApp.Get("/ws", func(c fiber.Ctx) error {
 		return c.SendString(c.Locals("userId").(string))
 	})
@@ -35,7 +35,7 @@ func TestRealtimeAuthMiddlewareDevModeAndErrors(t *testing.T) {
 	// DevMode must not bypass auth in production.
 	t.Setenv("ENV", "production")
 	prodDevApp := fiber.New()
-	prodDevApp.Use(AuthMiddleware(&config.Config{DevMode: true}))
+	prodDevApp.Use(Auth(&config.Config{DevMode: true}))
 	prodDevApp.Get("/ws", func(c fiber.Ctx) error { return c.SendStatus(200) })
 	prodDevRes, err := prodDevApp.Test(httptest.NewRequest("GET", "/ws", nil))
 	if err != nil || prodDevRes.StatusCode != 401 {
@@ -44,7 +44,7 @@ func TestRealtimeAuthMiddlewareDevModeAndErrors(t *testing.T) {
 	t.Setenv("ENV", "")
 
 	unconfigured := fiber.New()
-	unconfigured.Use(AuthMiddleware(&config.Config{DevMode: false}))
+	unconfigured.Use(Auth(&config.Config{DevMode: false}))
 	unconfigured.Get("/ws", func(c fiber.Ctx) error { return c.SendStatus(200) })
 
 	noTokRes, err := unconfigured.Test(httptest.NewRequest("GET", "/ws", nil))
@@ -65,7 +65,7 @@ func TestRealtimeAuthMiddlewareDevModeAndErrors(t *testing.T) {
 	}
 
 	configured := fiber.New()
-	configured.Use(AuthMiddleware(&config.Config{ClerkSecretKey: "sk_test_dummy"}))
+	configured.Use(Auth(&config.Config{ClerkSecretKey: "sk_test_dummy"}))
 	configured.Get("/ws", func(c fiber.Ctx) error { return c.SendStatus(200) })
 
 	// Cookies and ?token= query parameters must be rejected in non-dev mode.
@@ -96,7 +96,7 @@ func TestRealtimeAuthMiddlewareSingleUseTicketAndReplayRejection(t *testing.T) {
 	}
 
 	app := fiber.New()
-	app.Use(AuthMiddlewareWithRedis(&config.Config{DevMode: false}, rdb))
+	app.Use(AuthWithRedis(&config.Config{DevMode: false}, rdb))
 	app.Get("/ws/:project", func(c fiber.Ctx) error {
 		u, _ := c.Locals("user").(*entity.User)
 		tp, _ := c.Locals("ticketProjectId").(string)

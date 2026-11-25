@@ -20,17 +20,17 @@ type contentTypeSvcStub struct {
 	deleted string
 }
 
-func (s *contentTypeSvcStub) GetContentTypes(context.Context) ([]models.ContentType, error) {
+func (s *contentTypeSvcStub) List(context.Context) ([]models.ContentType, error) {
 	return []models.ContentType{{Id: "ct1", Name: "Blog"}}, s.err
 }
-func (s *contentTypeSvcStub) GetContentTypeByID(_ context.Context, id string) (*models.ContentType, error) {
+func (s *contentTypeSvcStub) GetByID(_ context.Context, id string) (*models.ContentType, error) {
 	s.gotID = id
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.ContentType{Id: id, Name: "Blog"}, nil
 }
-func (s *contentTypeSvcStub) CreateContentType(_ context.Context, ct *models.ContentType) (*models.ContentType, error) {
+func (s *contentTypeSvcStub) Create(_ context.Context, ct *models.ContentType) (*models.ContentType, error) {
 	s.gotType = ct
 	if s.err != nil {
 		return nil, s.err
@@ -38,28 +38,28 @@ func (s *contentTypeSvcStub) CreateContentType(_ context.Context, ct *models.Con
 	ct.Id = "new-id"
 	return ct, nil
 }
-func (s *contentTypeSvcStub) UpdateContentType(_ context.Context, id string, ct *models.ContentType) (*models.ContentType, error) {
+func (s *contentTypeSvcStub) Update(_ context.Context, id string, ct *models.ContentType) (*models.ContentType, error) {
 	s.gotID, s.gotType = id, ct
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.ContentType{Id: id, Name: ct.Name, Description: ct.Description}, nil
 }
-func (s *contentTypeSvcStub) DeleteContentType(_ context.Context, id string) error {
+func (s *contentTypeSvcStub) Delete(_ context.Context, id string) error {
 	s.deleted = id
 	return s.err
 }
 
-func (s *contentTypeSvcStub) GetContentTypesForUser(_ context.Context, _, _ string) ([]models.ContentType, error) {
-	return s.GetContentTypes(context.Background())
+func (s *contentTypeSvcStub) ListForUser(_ context.Context, _, _ string) ([]models.ContentType, error) {
+	return s.List(context.Background())
 }
-func (s *contentTypeSvcStub) GetContentTypeByIDForUser(_ context.Context, id, _ string) (*models.ContentType, error) {
-	return s.GetContentTypeByID(context.Background(), id)
+func (s *contentTypeSvcStub) GetByIDForUser(_ context.Context, id, _ string) (*models.ContentType, error) {
+	return s.GetByID(context.Background(), id)
 }
-func (s *contentTypeSvcStub) CreateContentTypeForUser(_ context.Context, ct *models.ContentType, _ string) (*models.ContentType, error) {
-	return s.CreateContentType(context.Background(), ct)
+func (s *contentTypeSvcStub) CreateForUser(_ context.Context, ct *models.ContentType, _ string) (*models.ContentType, error) {
+	return s.Create(context.Background(), ct)
 }
-func (s *contentTypeSvcStub) UpdateContentTypeFieldsForUser(_ context.Context, id, _ string, updates map[string]any) (*models.ContentType, error) {
+func (s *contentTypeSvcStub) PatchForUser(_ context.Context, id, _ string, updates map[string]any) (*models.ContentType, error) {
 	ct := &models.ContentType{}
 	if name, ok := updates["name"].(string); ok {
 		ct.Name = name
@@ -67,23 +67,23 @@ func (s *contentTypeSvcStub) UpdateContentTypeFieldsForUser(_ context.Context, i
 	if desc, ok := updates["description"].(*string); ok {
 		ct.Description = desc
 	}
-	return s.UpdateContentType(context.Background(), id, ct)
+	return s.Update(context.Background(), id, ct)
 }
-func (s *contentTypeSvcStub) UpdateContentTypeForUser(_ context.Context, id, _ string, ct *models.ContentType) (*models.ContentType, error) {
-	return s.UpdateContentType(context.Background(), id, ct)
+func (s *contentTypeSvcStub) UpdateForUser(_ context.Context, id, _ string, ct *models.ContentType) (*models.ContentType, error) {
+	return s.Update(context.Background(), id, ct)
 }
-func (s *contentTypeSvcStub) DeleteContentTypeForUser(_ context.Context, id, _ string) error {
-	return s.DeleteContentType(context.Background(), id)
+func (s *contentTypeSvcStub) DeleteForUser(_ context.Context, id, _ string) error {
+	return s.Delete(context.Background(), id)
 }
 
 func contentTypeKit(svc *contentTypeSvcStub) *fiber.App {
 	h := NewContentTypeHandler(svc)
 	return newKitApp("u1", func(app *fiber.App) {
-		app.Get("/content-types", h.GetContentTypes)
-		app.Post("/content-types", h.CreateContentType)
-		app.Get("/content-types/:id", h.GetContentTypeByID)
-		app.Patch("/content-types/:id", h.UpdateContentType)
-		app.Delete("/content-types/:id", h.DeleteContentType)
+		app.Get("/content-types", h.List)
+		app.Post("/content-types", h.Create)
+		app.Get("/content-types/:id", h.GetByID)
+		app.Patch("/content-types/:id", h.Update)
+		app.Delete("/content-types/:id", h.Delete)
 	})
 }
 

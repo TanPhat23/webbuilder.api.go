@@ -28,7 +28,7 @@ func TestMintWSTicket_StoresSHA256AndReturns201(t *testing.T) {
 		return c.Next()
 	})
 	h := NewWSTicketHandler(rdb)
-	app.Post("/api/v1/projects/:projectid/ws-ticket", h.MintWSTicket)
+	app.Post("/api/v1/projects/:projectid/ws-ticket", h.Mint)
 
 	res, err := app.Test(httptest.NewRequest("POST", "/api/v1/projects/proj-1/ws-ticket", nil))
 	if err != nil {
@@ -77,7 +77,7 @@ func TestMintWSTicket_Returns503WithoutRedis(t *testing.T) {
 		return c.Next()
 	})
 	h := NewWSTicketHandler(nil)
-	app.Post("/api/v1/projects/:projectid/ws-ticket", h.MintWSTicket)
+	app.Post("/api/v1/projects/:projectid/ws-ticket", h.Mint)
 
 	res, err := app.Test(httptest.NewRequest("POST", "/api/v1/projects/proj-1/ws-ticket", nil))
 	if err != nil {
@@ -99,7 +99,7 @@ func TestMintWSTicket_RejectsInvalidProjectID(t *testing.T) {
 		return c.Next()
 	})
 	h := NewWSTicketHandler(rdb)
-	app.Post("/api/v1/projects/:projectid/ws-ticket", h.MintWSTicket)
+	app.Post("/api/v1/projects/:projectid/ws-ticket", h.Mint)
 
 	res, err := app.Test(httptest.NewRequest("POST", "/api/v1/projects/bad:id/ws-ticket", nil))
 	if err != nil {

@@ -13,13 +13,13 @@ import (
 func TestPublicCollection_OffsetCap(t *testing.T) {
 	projID := "p1"
 	ctRepo := &fkContentTypeRepo{
-		OnGetContentTypeByProjectAndSlugOrID: func(context.Context, string, string) (*models.ContentType, error) {
+		OnGetByProjectAndSlugOrID: func(context.Context, string, string) (*models.ContentType, error) {
 			return &models.ContentType{Id: "ct1", ProjectId: &projID, PublicRead: true}, nil
 		},
 	}
 	var gotLimit int
 	itemRepo := &fkContentItemRepo{
-		OnGetPublicContentItems: func(_ context.Context, _ string, limit int, _, _ string) ([]models.ContentItem, error) {
+		OnListPublic: func(_ context.Context, _ string, limit int, _, _ string) ([]models.ContentItem, error) {
 			gotLimit = limit
 			return []models.ContentItem{}, nil
 		},

@@ -19,10 +19,10 @@ func NewNotificationHandler(repo repositories.NotificationRepositoryInterface) *
 	return &NotificationHandler{repo: repo}
 }
 
-// GetNotifications lists the caller's latest notifications with stats.
+// List lists the caller's latest notifications with stats.
 // Query: filter (all|unread|<type>), search, limit (max 50).
-func (h *NotificationHandler) GetNotifications(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+func (h *NotificationHandler) List(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -42,10 +42,10 @@ type setNotificationReadRequest struct {
 	Read *bool `json:"read"`
 }
 
-// SetNotificationRead marks one of the caller's notifications read (default)
+// SetRead marks one of the caller's notifications read (default)
 // or unread.
-func (h *NotificationHandler) SetNotificationRead(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+func (h *NotificationHandler) SetRead(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (h *NotificationHandler) SetNotificationRead(c fiber.Ctx) error {
 
 // MarkAllRead marks every unread notification of the caller as read.
 func (h *NotificationHandler) MarkAllRead(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ type profileUpdateRequest struct {
 
 // CreateProfileUpdate records a "Profile Updated" notification for the caller.
 func (h *NotificationHandler) CreateProfileUpdate(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}

@@ -38,8 +38,8 @@ func newMemLogic() *memLogic {
 	return &memLogic{
 		read:     map[string]bool{"editor": true, "editor2": true, "viewer": true},
 		write:    map[string]bool{"editor": true, "editor2": true},
-		project:  logic.Empty(),
-		pages:    map[string]logic.Document{"page": logic.Empty(), "page2": logic.Empty()},
+		project:  logic.NewEmptyDocument(),
+		pages:    map[string]logic.Document{"page": logic.NewEmptyDocument(), "page2": logic.NewEmptyDocument()},
 		pageRevs: map[string]int64{},
 	}
 }
@@ -138,7 +138,7 @@ func startLogicServer(t *testing.T, mem domainUsecase.LogicUseCase) string {
 		Logic:            mem,
 	}
 	h := handlers.NewHandler(uc, nil, &mockLogger{})
-	h.RequireAccess(mem)
+	h.SetAccessChecker(mem)
 	t.Cleanup(h.Shutdown)
 
 	app := fiber.New()
@@ -146,7 +146,7 @@ func startLogicServer(t *testing.T, mem domainUsecase.LogicUseCase) string {
 		c.Locals("user", &entity.User{ID: c.Query("u"), Email: c.Query("u") + "@example.com"})
 		return c.Next()
 	})
-	h.SetupRoutes(app)
+	h.RegisterRoutes(app)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("cannot listen on loopback: %v", err)

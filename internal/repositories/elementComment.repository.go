@@ -20,8 +20,8 @@ func NewElementCommentRepository(db *gorm.DB) ElementCommentRepositoryInterface 
 	}
 }
 
-// CreateElementComment creates a new element comment
-func (r *ElementCommentRepository) CreateElementComment(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error) {
+// Create creates a new element comment
+func (r *ElementCommentRepository) Create(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error) {
 	if comment == nil {
 		return nil, errors.New("comment cannot be nil")
 	}
@@ -40,11 +40,11 @@ func (r *ElementCommentRepository) CreateElementComment(ctx context.Context, com
 	}
 
 	// Fetch the created comment with relations
-	return r.GetElementCommentByID(ctx, comment.Id)
+	return r.GetByID(ctx, comment.Id)
 }
 
-// GetElementCommentByID retrieves a single element comment by ID
-func (r *ElementCommentRepository) GetElementCommentByID(ctx context.Context, id string) (*models.ElementComment, error) {
+// GetByID retrieves a single element comment by ID
+func (r *ElementCommentRepository) GetByID(ctx context.Context, id string) (*models.ElementComment, error) {
 	if id == "" {
 		return nil, errors.New("comment id is required")
 	}
@@ -97,8 +97,8 @@ func resolveElementCommentOrder(sortBy, sortOrder string) string {
 	return defaultElementCommentOrder
 }
 
-// GetElementComments retrieves comments for an element with filtering and pagination
-func (r *ElementCommentRepository) GetElementComments(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error) {
+// List retrieves comments for an element with filtering and pagination
+func (r *ElementCommentRepository) List(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error) {
 	if elementID == "" {
 		return nil, errors.New("elementId is required")
 	}
@@ -140,8 +140,8 @@ func (r *ElementCommentRepository) GetElementComments(ctx context.Context, eleme
 	return comments, nil
 }
 
-// UpdateElementComment updates an existing element comment
-func (r *ElementCommentRepository) UpdateElementComment(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error) {
+// Update updates an existing element comment
+func (r *ElementCommentRepository) Update(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error) {
 	if id == "" {
 		return nil, errors.New("comment id is required")
 	}
@@ -151,7 +151,7 @@ func (r *ElementCommentRepository) UpdateElementComment(ctx context.Context, id 
 	}
 
 	// Verify comment exists
-	comment, err := r.GetElementCommentByID(ctx, id)
+	comment, err := r.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -166,17 +166,17 @@ func (r *ElementCommentRepository) UpdateElementComment(ctx context.Context, id 
 	}
 
 	// Fetch updated comment with relations
-	return r.GetElementCommentByID(ctx, id)
+	return r.GetByID(ctx, id)
 }
 
-// DeleteElementComment soft deletes an element comment
-func (r *ElementCommentRepository) DeleteElementComment(ctx context.Context, id string) error {
+// Delete soft deletes an element comment
+func (r *ElementCommentRepository) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("comment id is required")
 	}
 
 	// Verify comment exists
-	_, err := r.GetElementCommentByID(ctx, id)
+	_, err := r.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -190,8 +190,8 @@ func (r *ElementCommentRepository) DeleteElementComment(ctx context.Context, id 
 	return nil
 }
 
-// GetElementCommentsByAuthorID retrieves all comments by a specific author
-func (r *ElementCommentRepository) GetElementCommentsByAuthorID(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error) {
+// ListByAuthor retrieves all comments by a specific author
+func (r *ElementCommentRepository) ListByAuthor(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error) {
 	if authorID == "" {
 		return nil, errors.New("authorId is required")
 	}
@@ -218,8 +218,8 @@ func (r *ElementCommentRepository) GetElementCommentsByAuthorID(ctx context.Cont
 	return comments, nil
 }
 
-// CountElementComments counts comments for an element
-func (r *ElementCommentRepository) CountElementComments(ctx context.Context, elementID string) (int64, error) {
+// Count counts comments for an element
+func (r *ElementCommentRepository) Count(ctx context.Context, elementID string) (int64, error) {
 	if elementID == "" {
 		return 0, errors.New("elementId is required")
 	}
@@ -234,13 +234,13 @@ func (r *ElementCommentRepository) CountElementComments(ctx context.Context, ele
 	return count, nil
 }
 
-// ToggleResolvedStatus toggles the resolved status of a comment
-func (r *ElementCommentRepository) ToggleResolvedStatus(ctx context.Context, id string) (*models.ElementComment, error) {
+// ToggleResolved toggles the resolved status of a comment
+func (r *ElementCommentRepository) ToggleResolved(ctx context.Context, id string) (*models.ElementComment, error) {
 	if id == "" {
 		return nil, errors.New("comment id is required")
 	}
 
-	comment, err := r.GetElementCommentByID(ctx, id)
+	comment, err := r.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -253,11 +253,11 @@ func (r *ElementCommentRepository) ToggleResolvedStatus(ctx context.Context, id 
 		return nil, fmt.Errorf("failed to toggle resolved status: %w", err)
 	}
 
-	return r.GetElementCommentByID(ctx, id)
+	return r.GetByID(ctx, id)
 }
 
-// DeleteElementCommentsByElementID deletes all comments for an element (cascade delete)
-func (r *ElementCommentRepository) DeleteElementCommentsByElementID(ctx context.Context, elementID string) error {
+// DeleteByElement deletes all comments for an element (cascade delete)
+func (r *ElementCommentRepository) DeleteByElement(ctx context.Context, elementID string) error {
 	if elementID == "" {
 		return errors.New("elementId is required")
 	}
@@ -271,8 +271,8 @@ func (r *ElementCommentRepository) DeleteElementCommentsByElementID(ctx context.
 	return nil
 }
 
-// GetElementCommentsByProjectID retrieves all comments for elements in a project
-func (r *ElementCommentRepository) GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error) {
+// ListByProject retrieves all comments for elements in a project
+func (r *ElementCommentRepository) ListByProject(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -301,8 +301,8 @@ func (r *ElementCommentRepository) GetElementCommentsByProjectID(ctx context.Con
 	return comments, nil
 }
 
-// CountElementCommentsByProjectID counts all comments for elements in a project
-func (r *ElementCommentRepository) CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error) {
+// CountByProject counts all comments for elements in a project
+func (r *ElementCommentRepository) CountByProject(ctx context.Context, projectID string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectId is required")
 	}

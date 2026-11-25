@@ -32,7 +32,7 @@ func (s *CollaboratorService) SetAccessChangedHook(fn func(projectID, userID str
 	s.onAccessChanged = fn
 }
 
-func (s *CollaboratorService) CreateCollaborator(ctx context.Context, callerUserID string, collaborator *models.Collaborator) (*models.Collaborator, error) {
+func (s *CollaboratorService) Create(ctx context.Context, callerUserID string, collaborator *models.Collaborator) (*models.Collaborator, error) {
 	if callerUserID == "" {
 		return nil, authz.ErrUnauthorized
 	}
@@ -58,7 +58,7 @@ func (s *CollaboratorService) CreateCollaborator(ctx context.Context, callerUser
 	if collaborator.UserId == callerUserID {
 		return nil, errors.New("project owner is already a member of this project")
 	}
-	existing, err := s.collaboratorRepo.GetCollaboratorByProjectAndUser(ctx, collaborator.ProjectId, collaborator.UserId)
+	existing, err := s.collaboratorRepo.GetByProjectAndUser(ctx, collaborator.ProjectId, collaborator.UserId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing collaborator: %w", err)
 	}
@@ -66,7 +66,7 @@ func (s *CollaboratorService) CreateCollaborator(ctx context.Context, callerUser
 		return nil, errors.New("user is already a collaborator on this project")
 	}
 
-	created, err := s.collaboratorRepo.CreateCollaborator(ctx, collaborator)
+	created, err := s.collaboratorRepo.Create(ctx, collaborator)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (s *CollaboratorService) CreateCollaborator(ctx context.Context, callerUser
 	return created, nil
 }
 
-func (s *CollaboratorService) GetCollaboratorsByProject(ctx context.Context, projectID, userID string) ([]models.Collaborator, error) {
+func (s *CollaboratorService) ListByProject(ctx context.Context, projectID, userID string) ([]models.Collaborator, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -88,10 +88,10 @@ func (s *CollaboratorService) GetCollaboratorsByProject(ctx context.Context, pro
 		return nil, err
 	}
 
-	return s.collaboratorRepo.GetCollaboratorsByProject(ctx, projectID)
+	return s.collaboratorRepo.ListByProject(ctx, projectID)
 }
 
-func (s *CollaboratorService) GetCollaboratorByID(ctx context.Context, id, callerUserID string) (*models.Collaborator, error) {
+func (s *CollaboratorService) GetByID(ctx context.Context, id, callerUserID string) (*models.Collaborator, error) {
 	if id == "" {
 		return nil, errors.New("collaborator id is required")
 	}
@@ -99,7 +99,7 @@ func (s *CollaboratorService) GetCollaboratorByID(ctx context.Context, id, calle
 		return nil, authz.ErrUnauthorized
 	}
 
-	collaborator, err := s.collaboratorRepo.GetCollaboratorByID(ctx, id)
+	collaborator, err := s.collaboratorRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (s *CollaboratorService) GetCollaboratorByID(ctx context.Context, id, calle
 	return collaborator, nil
 }
 
-func (s *CollaboratorService) UpdateCollaboratorRole(ctx context.Context, id, callerUserID string, role models.CollaboratorRole) error {
+func (s *CollaboratorService) UpdateRole(ctx context.Context, id, callerUserID string, role models.CollaboratorRole) error {
 	if id == "" {
 		return errors.New("collaborator id is required")
 	}
@@ -123,7 +123,7 @@ func (s *CollaboratorService) UpdateCollaboratorRole(ctx context.Context, id, ca
 		return fmt.Errorf("%w: role %q cannot be assigned to a collaborator", authz.ErrForbidden, role)
 	}
 
-	collaborator, err := s.collaboratorRepo.GetCollaboratorByID(ctx, id)
+	collaborator, err := s.collaboratorRepo.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve collaborator: %w", err)
 	}
@@ -141,7 +141,7 @@ func (s *CollaboratorService) UpdateCollaboratorRole(ctx context.Context, id, ca
 		return err
 	}
 
-	if err := s.collaboratorRepo.UpdateCollaboratorRole(ctx, id, role); err != nil {
+	if err := s.collaboratorRepo.UpdateRole(ctx, id, role); err != nil {
 		return err
 	}
 	if s.onAccessChanged != nil {
@@ -150,7 +150,7 @@ func (s *CollaboratorService) UpdateCollaboratorRole(ctx context.Context, id, ca
 	return nil
 }
 
-func (s *CollaboratorService) DeleteCollaborator(ctx context.Context, id, callerUserID string) error {
+func (s *CollaboratorService) Delete(ctx context.Context, id, callerUserID string) error {
 	if id == "" {
 		return errors.New("collaborator id is required")
 	}
@@ -158,7 +158,7 @@ func (s *CollaboratorService) DeleteCollaborator(ctx context.Context, id, caller
 		return authz.ErrUnauthorized
 	}
 
-	collaborator, err := s.collaboratorRepo.GetCollaboratorByID(ctx, id)
+	collaborator, err := s.collaboratorRepo.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve collaborator: %w", err)
 	}
@@ -172,7 +172,7 @@ func (s *CollaboratorService) DeleteCollaborator(ctx context.Context, id, caller
 		}
 	}
 
-	if err := s.collaboratorRepo.DeleteCollaborator(ctx, id); err != nil {
+	if err := s.collaboratorRepo.Delete(ctx, id); err != nil {
 		return err
 	}
 	if s.onAccessChanged != nil {
@@ -197,7 +197,7 @@ func (s *CollaboratorService) LeaveProject(ctx context.Context, projectID, userI
 		return fmt.Errorf("%w: project owner must transfer ownership before leaving", authz.ErrForbidden)
 	}
 
-	removed, err := s.collaboratorRepo.DeleteCollaboratorByProjectAndUser(ctx, projectID, userID)
+	removed, err := s.collaboratorRepo.DeleteByProjectAndUser(ctx, projectID, userID)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (s *CollaboratorService) IsCollaborator(ctx context.Context, userID, projec
 	return s.collaboratorRepo.IsCollaborator(ctx, projectID, userID)
 }
 
-func (s *CollaboratorService) CheckOwnership(ctx context.Context, projectID, userID string) error {
+func (s *CollaboratorService) RequireOwnership(ctx context.Context, projectID, userID string) error {
 	if projectID == "" {
 		return errors.New("projectId is required")
 	}

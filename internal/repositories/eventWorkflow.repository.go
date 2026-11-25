@@ -17,8 +17,8 @@ func NewEventWorkflowRepository(db *gorm.DB) EventWorkflowRepositoryInterface {
 	return &EventWorkflowRepository{db: db}
 }
 
-// CreateEventWorkflow creates a new event workflow
-func (r *EventWorkflowRepository) CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
+// Create creates a new event workflow
+func (r *EventWorkflowRepository) Create(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
 	if workflow.Id == "" {
 		workflow.Id = cuid.New()
 	}
@@ -28,8 +28,8 @@ func (r *EventWorkflowRepository) CreateEventWorkflow(ctx context.Context, workf
 	return workflow, nil
 }
 
-// GetEventWorkflowByID retrieves an event workflow by ID
-func (r *EventWorkflowRepository) GetEventWorkflowByID(ctx context.Context, id string) (*models.EventWorkflow, error) {
+// GetByID retrieves an event workflow by ID
+func (r *EventWorkflowRepository) GetByID(ctx context.Context, id string) (*models.EventWorkflow, error) {
 
 	workflow, err := gorm.G[models.EventWorkflow](r.db).
 		Preload("Project", nil).
@@ -45,8 +45,8 @@ func (r *EventWorkflowRepository) GetEventWorkflowByID(ctx context.Context, id s
 	return &workflow, nil
 }
 
-// GetEventWorkflowsByProjectID retrieves all event workflows for a project
-func (r *EventWorkflowRepository) GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+// ListByProject retrieves all event workflows for a project
+func (r *EventWorkflowRepository) ListByProject(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
 
 	workflows, err := gorm.G[models.EventWorkflow](r.db).
 		Preload("ElementEventWorkflows", nil).
@@ -58,8 +58,8 @@ func (r *EventWorkflowRepository) GetEventWorkflowsByProjectID(ctx context.Conte
 	return workflows, nil
 }
 
-// GetEventWorkflowsByProjectIDWithElements retrieves all event workflows for a project with element details
-func (r *EventWorkflowRepository) GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+// ListByProjectWithElements retrieves all event workflows for a project with element details
+func (r *EventWorkflowRepository) ListByProjectWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
 
 	workflows, err := gorm.G[models.EventWorkflow](r.db).
 		Preload("ElementEventWorkflows", nil).
@@ -72,8 +72,8 @@ func (r *EventWorkflowRepository) GetEventWorkflowsByProjectIDWithElements(ctx c
 	return workflows, nil
 }
 
-// GetEnabledEventWorkflowsByProjectID retrieves all enabled event workflows for a project
-func (r *EventWorkflowRepository) GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+// ListEnabledByProject retrieves all enabled event workflows for a project
+func (r *EventWorkflowRepository) ListEnabledByProject(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
 
 	workflows, err := gorm.G[models.EventWorkflow](r.db).
 		Preload("ElementEventWorkflows", nil).
@@ -85,8 +85,8 @@ func (r *EventWorkflowRepository) GetEnabledEventWorkflowsByProjectID(ctx contex
 	return workflows, nil
 }
 
-// GetEventWorkflowsByName retrieves event workflows by name in a project
-func (r *EventWorkflowRepository) GetEventWorkflowsByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error) {
+// ListByName retrieves event workflows by name in a project
+func (r *EventWorkflowRepository) ListByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error) {
 
 	workflows, err := gorm.G[models.EventWorkflow](r.db).
 		Preload("ElementEventWorkflows", nil).
@@ -98,8 +98,8 @@ func (r *EventWorkflowRepository) GetEventWorkflowsByName(ctx context.Context, p
 	return workflows, nil
 }
 
-// UpdateEventWorkflow updates an event workflow
-func (r *EventWorkflowRepository) UpdateEventWorkflow(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
+// Update updates an event workflow
+func (r *EventWorkflowRepository) Update(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
 	updates := map[string]interface{}{
 		"Name":        workflow.Name,
 		"Description": workflow.Description,
@@ -120,33 +120,33 @@ func (r *EventWorkflowRepository) UpdateEventWorkflow(ctx context.Context, id st
 	}
 
 	// Fetch the updated record
-	return r.GetEventWorkflowByID(ctx, id)
+	return r.GetByID(ctx, id)
 }
 
-// UpdateEventWorkflowEnabled updates the enabled status of an event workflow
-func (r *EventWorkflowRepository) UpdateEventWorkflowEnabled(ctx context.Context, id string, enabled bool) error {
+// SetEnabled updates the enabled status of an event workflow
+func (r *EventWorkflowRepository) SetEnabled(ctx context.Context, id string, enabled bool) error {
 	_, err := gorm.G[models.EventWorkflow](r.db).
 		Where(`"Id" = ?`, id).
 		Update(ctx, "Enabled", enabled)
 	return err
 }
 
-// DeleteEventWorkflow deletes an event workflow
-func (r *EventWorkflowRepository) DeleteEventWorkflow(ctx context.Context, id string) error {
+// Delete deletes an event workflow
+func (r *EventWorkflowRepository) Delete(ctx context.Context, id string) error {
 	_, err := gorm.G[models.EventWorkflow](r.db).Where(`"Id" = ?`, id).
 		Delete(ctx)
 	return err
 }
 
-// DeleteEventWorkflowsByProjectID deletes all event workflows for a project
-func (r *EventWorkflowRepository) DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error {
+// DeleteByProject deletes all event workflows for a project
+func (r *EventWorkflowRepository) DeleteByProject(ctx context.Context, projectID string) error {
 	_, err := gorm.G[models.EventWorkflow](r.db).Where(`"ProjectId" = ?`, projectID).
 		Delete(ctx)
 	return err
 }
 
-// CountEventWorkflowsByProjectID counts event workflows in a project
-func (r *EventWorkflowRepository) CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error) {
+// CountByProject counts event workflows in a project
+func (r *EventWorkflowRepository) CountByProject(ctx context.Context, projectID string) (int64, error) {
 
 	count, err := gorm.G[models.EventWorkflow](r.db).
 		Where(`"ProjectId" = ?`, projectID).
@@ -154,8 +154,8 @@ func (r *EventWorkflowRepository) CountEventWorkflowsByProjectID(ctx context.Con
 	return count, err
 }
 
-// CheckIfWorkflowNameExists checks if a workflow name already exists in a project
-func (r *EventWorkflowRepository) CheckIfWorkflowNameExists(ctx context.Context, projectID, name string, excludeID string) (bool, error) {
+// ExistsByName checks if a workflow name already exists in a project
+func (r *EventWorkflowRepository) ExistsByName(ctx context.Context, projectID, name string, excludeID string) (bool, error) {
 
 	query := gorm.G[models.EventWorkflow](r.db).
 		Where(`"ProjectId" = ? AND "Name" = ?`, projectID, name)
@@ -168,8 +168,8 @@ func (r *EventWorkflowRepository) CheckIfWorkflowNameExists(ctx context.Context,
 	return count > 0, err
 }
 
-// GetEventWorkflowsWithFilters retrieves event workflows with optional filters
-func (r *EventWorkflowRepository) GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
+// ListWithFilters retrieves event workflows with optional filters
+func (r *EventWorkflowRepository) ListWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
 
 	query := gorm.G[models.EventWorkflow](r.db).Where("1 = 1")
 

@@ -17,7 +17,7 @@ type userHandlerStub struct {
 	got string
 }
 
-func (s *userHandlerStub) SearchUsers(_ context.Context, q string) ([]models.User, error) {
+func (s *userHandlerStub) Search(_ context.Context, q string) ([]models.User, error) {
 	s.got = q
 	if s.err != nil {
 		return nil, s.err
@@ -25,7 +25,7 @@ func (s *userHandlerStub) SearchUsers(_ context.Context, q string) ([]models.Use
 	return []models.User{{Id: "u1", Email: "ann@example.com"}, {Id: "u2", Email: "andy@example.com"}}, nil
 }
 
-func (s *userHandlerStub) GetUserByEmail(_ context.Context, email string) (*models.User, error) {
+func (s *userHandlerStub) GetByEmail(_ context.Context, email string) (*models.User, error) {
 	s.got = email
 	if s.err != nil {
 		return nil, s.err
@@ -33,7 +33,7 @@ func (s *userHandlerStub) GetUserByEmail(_ context.Context, email string) (*mode
 	return &models.User{Id: "u1", Email: email}, nil
 }
 
-func (s *userHandlerStub) GetUserByUsername(_ context.Context, username string) (*models.User, error) {
+func (s *userHandlerStub) GetByUsername(_ context.Context, username string) (*models.User, error) {
 	s.got = username
 	if s.err != nil {
 		return nil, s.err
@@ -44,11 +44,11 @@ func (s *userHandlerStub) GetUserByUsername(_ context.Context, username string) 
 func userHandlerApp(svc *userHandlerStub) *fiber.App {
 	h := NewUserHandler(svc)
 	return newKitApp("", func(app *fiber.App) {
-		app.Get("/users/search", h.SearchUsers)
-		app.Get("/users/email/:email", h.GetUserByEmail)
-		app.Get("/users/username/:username", h.GetUserByUsername)
-		app.Get("/noemail", h.GetUserByEmail)
-		app.Get("/nousername", h.GetUserByUsername)
+		app.Get("/users/search", h.Search)
+		app.Get("/users/email/:email", h.GetByEmail)
+		app.Get("/users/username/:username", h.GetByUsername)
+		app.Get("/noemail", h.GetByEmail)
+		app.Get("/nousername", h.GetByUsername)
 	})
 }
 

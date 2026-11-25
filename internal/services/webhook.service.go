@@ -176,7 +176,7 @@ func (s *WebhookService) CreateForUser(ctx context.Context, projectID, userID st
 
 	var contentTypeID *string
 	if req.ContentTypeId != nil && strings.TrimSpace(*req.ContentTypeId) != "" && s.contentTypeRepo != nil {
-		ct, err := s.contentTypeRepo.GetContentTypeByProjectAndSlugOrID(ctx, projectID, strings.TrimSpace(*req.ContentTypeId))
+		ct, err := s.contentTypeRepo.GetByProjectAndSlugOrID(ctx, projectID, strings.TrimSpace(*req.ContentTypeId))
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +247,7 @@ func (s *WebhookService) UpdateForUser(ctx context.Context, projectID, webhookID
 		if trimmed == "" {
 			updates["ContentTypeId"] = nil
 		} else if s.contentTypeRepo != nil {
-			ct, err := s.contentTypeRepo.GetContentTypeByProjectAndSlugOrID(ctx, projectID, trimmed)
+			ct, err := s.contentTypeRepo.GetByProjectAndSlugOrID(ctx, projectID, trimmed)
 			if err != nil {
 				return nil, err
 			}
@@ -342,7 +342,7 @@ func (s *WebhookService) EmitItemEvent(ctx context.Context, projectID string, ct
 	if s.webhookRepo == nil || ct == nil || item == nil || projectID == "" {
 		return
 	}
-	webhooks, err := s.webhookRepo.FindMatchingForEvent(ctx, projectID, ct.Id, event)
+	webhooks, err := s.webhookRepo.ListMatchingForEvent(ctx, projectID, ct.Id, event)
 	if err != nil || len(webhooks) == 0 {
 		return
 	}

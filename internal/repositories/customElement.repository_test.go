@@ -73,41 +73,41 @@ func TestCustomElementNameConflictDetection(t *testing.T) {
 func TestCustomElementValidationErrors(t *testing.T) {
 	ctx := context.Background()
 	cases := map[string]func(*CustomElementRepository) error{
-		"userID is required": func(r *CustomElementRepository) error { _, err := r.GetCustomElements(ctx, "", nil); return err },
-		"id is required":     func(r *CustomElementRepository) error { _, err := r.GetCustomElementByID(ctx, "", "u"); return err },
+		"userID is required": func(r *CustomElementRepository) error { _, err := r.List(ctx, "", nil); return err },
+		"id is required":     func(r *CustomElementRepository) error { _, err := r.GetByID(ctx, "", "u"); return err },
 		"userID is required (get)": func(r *CustomElementRepository) error {
-			_, err := r.GetCustomElementByID(ctx, "e", "")
+			_, err := r.GetByID(ctx, "e", "")
 			return err
 		},
-		"customElement is required": func(r *CustomElementRepository) error { _, err := r.CreateCustomElement(ctx, nil); return err },
+		"customElement is required": func(r *CustomElementRepository) error { _, err := r.Create(ctx, nil); return err },
 		"userId is required": func(r *CustomElementRepository) error {
-			_, err := r.CreateCustomElement(ctx, &models.CustomElement{Name: "n"})
+			_, err := r.Create(ctx, &models.CustomElement{Name: "n"})
 			return err
 		},
 		"name is required": func(r *CustomElementRepository) error {
-			_, err := r.CreateCustomElement(ctx, &models.CustomElement{UserId: "u"})
+			_, err := r.Create(ctx, &models.CustomElement{UserId: "u"})
 			return err
 		},
 		"id is required (update)": func(r *CustomElementRepository) error {
-			_, err := r.UpdateCustomElement(ctx, "", "u", nil)
+			_, err := r.Update(ctx, "", "u", nil)
 			return err
 		},
 		"userID is required (update)": func(r *CustomElementRepository) error {
-			_, err := r.UpdateCustomElement(ctx, "e", "", nil)
+			_, err := r.Update(ctx, "e", "", nil)
 			return err
 		},
-		"id is required (delete)":     func(r *CustomElementRepository) error { return r.DeleteCustomElement(ctx, "", "u") },
-		"userID is required (delete)": func(r *CustomElementRepository) error { return r.DeleteCustomElement(ctx, "e", "") },
+		"id is required (delete)":     func(r *CustomElementRepository) error { return r.Delete(ctx, "", "u") },
+		"userID is required (delete)": func(r *CustomElementRepository) error { return r.Delete(ctx, "e", "") },
 		"id is required (duplicate)": func(r *CustomElementRepository) error {
-			_, err := r.DuplicateCustomElement(ctx, "", "u", "n")
+			_, err := r.Duplicate(ctx, "", "u", "n")
 			return err
 		},
 		"userID is required (duplicate)": func(r *CustomElementRepository) error {
-			_, err := r.DuplicateCustomElement(ctx, "e", "", "n")
+			_, err := r.Duplicate(ctx, "e", "", "n")
 			return err
 		},
 		"newName is required": func(r *CustomElementRepository) error {
-			_, err := r.DuplicateCustomElement(ctx, "e", "u", "")
+			_, err := r.Duplicate(ctx, "e", "u", "")
 			return err
 		},
 	}
@@ -127,7 +127,7 @@ func TestCustomElementGetCustomElements(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on(customElementSelect, customElementCols, []driver.Value{"e1", "u1", "Card", nil, true, "1.0.0", nil, nil})
-	got, err := customElementNew(db).GetCustomElements(ctx, "u1", nil)
+	got, err := customElementNew(db).List(ctx, "u1", nil)
 	assertCustomElementNoErr(t, err)
 	if len(got) != 1 || got[0].Name != "Card" || !got[0].IsPublic {
 		t.Fatalf("got %+v", got)
@@ -138,7 +138,7 @@ func TestCustomElementGetCustomElements(t *testing.T) {
 
 	dbPub, fPub := newFakeDB(t)
 	pub := false
-	_, err = customElementNew(dbPub).GetCustomElements(ctx, "u1", &pub)
+	_, err = customElementNew(dbPub).List(ctx, "u1", &pub)
 	assertCustomElementNoErr(t, err)
 	if !fPub.sawQuery(`"IsPublic" =`) || !customElementHasArg(fPub, false) {
 		t.Errorf("filter missing: %q %v", fPub.queries[0], fPub.args[0])
@@ -146,7 +146,7 @@ func TestCustomElementGetCustomElements(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("SELECT", errCustomElementBoom)
-	_, err = customElementNew(dbErr).GetCustomElements(ctx, "u1", nil)
+	_, err = customElementNew(dbErr).List(ctx, "u1", nil)
 	assertCustomElementErrIs(t, err, errCustomElementBoom)
 }
 
@@ -154,19 +154,19 @@ func TestCustomElementGetByID(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on(customElementSelect, customElementCols, []driver.Value{"e1", "other", "Card", nil, true, "1.0.0", nil, nil})
-	got, err := customElementNew(db).GetCustomElementByID(ctx, "e1", "u1")
+	got, err := customElementNew(db).GetByID(ctx, "e1", "u1")
 	assertCustomElementNoErr(t, err)
 	if got.Id != "e1" || !f.sawQuery(`"UserId" = $2 OR "IsPublic" = $3`) {
 		t.Fatalf("got=%+v queries=%v", got, f.queries)
 	}
 
 	empty, _ := newFakeDB(t)
-	_, err = customElementNew(empty).GetCustomElementByID(ctx, "e1", "u1")
+	_, err = customElementNew(empty).GetByID(ctx, "e1", "u1")
 	assertCustomElementErrIs(t, err, ErrCustomElementNotFound)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errCustomElementBoom)
-	_, err = customElementNew(bad).GetCustomElementByID(ctx, "e1", "u1")
+	_, err = customElementNew(bad).GetByID(ctx, "e1", "u1")
 	assertCustomElementErrIs(t, err, errCustomElementBoom)
 }
 
@@ -177,7 +177,7 @@ func TestCustomElementCreate(t *testing.T) {
 	}
 	db, f := newFakeDB(t)
 	f.onExec("INSERT INTO", 1)
-	got, err := customElementNew(db).CreateCustomElement(ctx, in())
+	got, err := customElementNew(db).Create(ctx, in())
 	assertCustomElementNoErr(t, err)
 	if got.Id != "e1" || !f.sawQuery("INSERT INTO", "CustomElement") {
 		t.Fatalf("got %+v", got)
@@ -185,12 +185,12 @@ func TestCustomElementCreate(t *testing.T) {
 
 	dup, fd := newFakeDB(t)
 	fd.onErr("INSERT INTO", customElementNameConflict())
-	_, err = customElementNew(dup).CreateCustomElement(ctx, in())
+	_, err = customElementNew(dup).Create(ctx, in())
 	assertCustomElementErrIs(t, err, ErrCustomElementAlreadyExists)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("INSERT INTO", errCustomElementBoom)
-	_, err = customElementNew(bad).CreateCustomElement(ctx, in())
+	_, err = customElementNew(bad).Create(ctx, in())
 	assertCustomElementErrIs(t, err, errCustomElementBoom)
 	if errors.Is(err, ErrCustomElementAlreadyExists) {
 		t.Errorf("unexpected conflict: %v", err)
@@ -203,7 +203,7 @@ func TestCustomElementUpdateSuccess(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on(customElementSelect, customElementCols, row)
 	f.onExec("UPDATE", 1)
-	got, err := customElementNew(db).UpdateCustomElement(ctx, "e1", "u1", map[string]any{"Name": "Renamed"})
+	got, err := customElementNew(db).Update(ctx, "e1", "u1", map[string]any{"Name": "Renamed"})
 	assertCustomElementNoErr(t, err)
 	if got.Name != "Renamed" || !f.sawQuery("UPDATE", "CustomElement", `"UserId" =`) {
 		t.Fatalf("got=%+v queries=%v", got, f.queries)
@@ -219,14 +219,24 @@ func TestCustomElementUpdateErrors(t *testing.T) {
 	}{
 		{func(*fakeDB) {}, ErrCustomElementUnauthorized},
 		{func(f *fakeDB) { f.onErr("SELECT", errCustomElementBoom) }, errCustomElementBoom},
-		{func(f *fakeDB) { f.on(customElementSelect, customElementCols, row); f.onErr("UPDATE", customElementNameConflict()) }, ErrCustomElementAlreadyExists},
-		{func(f *fakeDB) { f.on(customElementSelect, customElementCols, row); f.onErr("UPDATE", errCustomElementBoom) }, errCustomElementBoom},
+		{func(f *fakeDB) {
+			f.on(customElementSelect, customElementCols, row)
+			f.onErr("UPDATE", customElementNameConflict())
+		}, ErrCustomElementAlreadyExists},
+		{func(f *fakeDB) {
+			f.on(customElementSelect, customElementCols, row)
+			f.onErr("UPDATE", errCustomElementBoom)
+		}, errCustomElementBoom},
 		{func(f *fakeDB) { f.on(customElementSelect, customElementCols, row); f.onExec("UPDATE", 0) }, ErrCustomElementUnauthorized},
-		{func(f *fakeDB) { f.on(customElementSelect, customElementCols, row).once(); f.onExec("UPDATE", 1); f.onErr(customElementSelect, errCustomElementBoom) }, errCustomElementBoom},
+		{func(f *fakeDB) {
+			f.on(customElementSelect, customElementCols, row).once()
+			f.onExec("UPDATE", 1)
+			f.onErr(customElementSelect, errCustomElementBoom)
+		}, errCustomElementBoom},
 	} {
 		db, f := newFakeDB(t)
 		tc.setup(f)
-		_, err := customElementNew(db).UpdateCustomElement(ctx, "e1", "u1", map[string]any{"Name": "x"})
+		_, err := customElementNew(db).Update(ctx, "e1", "u1", map[string]any{"Name": "x"})
 		assertCustomElementErrIs(t, err, tc.want)
 	}
 }
@@ -235,17 +245,17 @@ func TestCustomElementDelete(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onExec("DELETE FROM", 1)
-	assertCustomElementNoErr(t, customElementNew(db).DeleteCustomElement(ctx, "e1", "u1"))
+	assertCustomElementNoErr(t, customElementNew(db).Delete(ctx, "e1", "u1"))
 	if !f.sawQuery("DELETE FROM", "CustomElement", `"UserId" =`) {
 		t.Errorf("delete must be scoped to owner: %q", f.lastQuery())
 	}
 
 	db2, _ := newFakeDB(t)
-	assertCustomElementErrIs(t, customElementNew(db2).DeleteCustomElement(ctx, "e1", "u1"), ErrCustomElementUnauthorized)
+	assertCustomElementErrIs(t, customElementNew(db2).Delete(ctx, "e1", "u1"), ErrCustomElementUnauthorized)
 
 	db3, f3 := newFakeDB(t)
 	f3.onErr("DELETE FROM", errCustomElementBoom)
-	assertCustomElementErrIs(t, customElementNew(db3).DeleteCustomElement(ctx, "e1", "u1"), errCustomElementBoom)
+	assertCustomElementErrIs(t, customElementNew(db3).Delete(ctx, "e1", "u1"), errCustomElementBoom)
 }
 
 func TestCustomElementGetPublic(t *testing.T) {
@@ -263,13 +273,13 @@ func TestCustomElementGetPublic(t *testing.T) {
 	} {
 		db, f := newFakeDB(t)
 		f.on(customElementSelect, customElementCols, []driver.Value{"e1", "u1", "Card", "layout", true, "1.0.0", nil, nil})
-		got, err := customElementNew(db).GetPublicCustomElements(ctx, tc.category, tc.limit, 40)
+		got, err := customElementNew(db).ListPublic(ctx, tc.category, tc.limit, 40)
 		assertCustomElementNoErr(t, err)
 		assertPublicCustomElementsPage(t, f, got, tc.wantFilter, tc.wantLimit)
 	}
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errCustomElementBoom)
-	_, err := customElementNew(bad).GetPublicCustomElements(ctx, nil, 1, 0)
+	_, err := customElementNew(bad).ListPublic(ctx, nil, 1, 0)
 	assertCustomElementErrIs(t, err, errCustomElementBoom)
 }
 
@@ -291,23 +301,23 @@ func TestCustomElementDuplicate(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on(customElementSelect, customElementCols, []driver.Value{"e1", "owner", "Card", "layout", true, "2.1.0", "desc", "a,b"})
 	f.onExec("INSERT INTO", 1)
-	got, err := customElementNew(db).DuplicateCustomElement(ctx, "e1", "u1", "Card copy")
+	got, err := customElementNew(db).Duplicate(ctx, "e1", "u1", "Card copy")
 	assertCustomElementNoErr(t, err)
 	assertDuplicatedCustomElement(t, f, got)
 
 	dbMiss, _ := newFakeDB(t)
-	_, err = customElementNew(dbMiss).DuplicateCustomElement(ctx, "e1", "u1", "x")
+	_, err = customElementNew(dbMiss).Duplicate(ctx, "e1", "u1", "x")
 	assertCustomElementErrIs(t, err, ErrCustomElementNotFound)
 
 	dbSel, fSel := newFakeDB(t)
 	fSel.onErr("SELECT", errCustomElementBoom)
-	_, err = customElementNew(dbSel).DuplicateCustomElement(ctx, "e1", "u1", "x")
+	_, err = customElementNew(dbSel).Duplicate(ctx, "e1", "u1", "x")
 	assertCustomElementErrIs(t, err, errCustomElementBoom)
 
 	dbIns, fIns := newFakeDB(t)
 	fIns.on(customElementSelect, customElementCols, []driver.Value{"e1", "owner", "Card", nil, true, "1.0.0", nil, nil})
 	fIns.onErr("INSERT INTO", errCustomElementBoom)
-	_, err = customElementNew(dbIns).DuplicateCustomElement(ctx, "e1", "u1", "x")
+	_, err = customElementNew(dbIns).Duplicate(ctx, "e1", "u1", "x")
 	assertCustomElementErrIs(t, err, errCustomElementBoom)
 }
 

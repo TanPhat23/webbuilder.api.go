@@ -78,7 +78,7 @@ func Apply(ctx context.Context, db *sql.DB) (Plan, error) {
 		if err := tx.QueryRowContext(ctx, `SELECT "Logic" FROM "`+table+`" WHERE "Id"=$1`, id).Scan(&raw); err != nil {
 			return Plan{}, err
 		}
-		doc := logic.Empty()
+		doc := logic.NewEmptyDocument()
 		if len(raw) > 0 && string(raw) != "null" {
 			if err := json.Unmarshal(raw, &doc); err != nil {
 				return Plan{}, err

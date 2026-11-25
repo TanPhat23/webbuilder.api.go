@@ -87,7 +87,7 @@ func (r *WebhookRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *WebhookRepository) FindMatchingForEvent(ctx context.Context, projectID, contentTypeID, event string) ([]models.ProjectWebhook, error) {
+func (r *WebhookRepository) ListMatchingForEvent(ctx context.Context, projectID, contentTypeID, event string) ([]models.ProjectWebhook, error) {
 	var all []models.ProjectWebhook
 	err := r.db.WithContext(ctx).
 		Where(`"ProjectId" = ? AND "Enabled" = true AND ("ContentTypeId" IS NULL OR "ContentTypeId" = ?)`, projectID, contentTypeID).

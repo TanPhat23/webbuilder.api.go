@@ -7,11 +7,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func NotificationRoutes(group fiber.Router, repos *repositories.RepositoriesInterface) {
+func RegisterNotifications(group fiber.Router, repos *repositories.Repositories) {
 	notificationHandler := handlers.NewNotificationHandler(repos.NotificationRepository)
 
-	group.Get("/notifications", notificationHandler.GetNotifications)
+	group.Get("/notifications", notificationHandler.List)
 	group.Post("/notifications/read-all", notificationHandler.MarkAllRead)
 	group.Post("/notifications/profile-update", notificationHandler.CreateProfileUpdate)
-	group.Patch("/notifications/:id", notificationHandler.SetNotificationRead)
+	group.Patch("/notifications/:id", notificationHandler.SetRead)
 }

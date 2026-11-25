@@ -46,7 +46,7 @@ func main() {
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
 	// Initialize database connection
-	db, err := database.InitDB()
+	db, err := database.Connect()
 	if err != nil {
 		log.Fatal("Failed to initialize database connection pool:", err)
 	}
@@ -69,13 +69,13 @@ func main() {
 		log.Println("Image upload functionality will not be available")
 	}
 
-	configs.SetupLogging()
+	configs.InitLogging()
 
-	app := fiber.New(configs.FiberConfig())
+	app := fiber.New(configs.Fiber())
 	app.Use(recover.New())
 	app.Use(requestid.New())
 	app.Use(helmet.New())
-	app.Use(cors.New(configs.CorsConfig()))
+	app.Use(cors.New(configs.CORS()))
 	app.Use(limiter.New(limiter.Config{
 		Max:        300,
 		Expiration: time.Minute,
@@ -83,7 +83,7 @@ func main() {
 			return strings.HasPrefix(c.Path(), "/ws")
 		},
 	}))
-	app.Use(logger.New(configs.LoggerConfig()))
+	app.Use(logger.New(configs.Logger()))
 	app.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
@@ -102,7 +102,7 @@ func main() {
 		defer shutdownRealtime()
 	}
 
-	routes.SetupRoutes(app, repos, storageService, invitationService, redisClient)
+	routes.Register(app, repos, storageService, invitationService, redisClient)
 
 	port := os.Getenv("PORT")
 	if port == "" {

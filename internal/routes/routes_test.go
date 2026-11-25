@@ -14,8 +14,8 @@ import (
 // buildApp registers every route against empty dependencies; no handler is invoked,
 // so nothing is touched.
 func buildApp() *fiber.App {
-	app := fiber.New(configs.FiberConfig())
-	SetupRoutes(app, repositories.NewRepositories(nil), &services.S3StorageService{}, &services.InvitationService{}, nil)
+	app := fiber.New(configs.Fiber())
+	Register(app, repositories.NewRepositories(nil), &services.S3StorageService{}, &services.InvitationService{}, nil)
 	return app
 }
 

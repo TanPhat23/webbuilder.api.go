@@ -142,10 +142,10 @@ type memElementRepo struct {
 	elements []entity.Element
 }
 
-func (r *memElementRepo) GetElementsByPageID(ctx context.Context, projectID, pageID string) ([]entity.Element, error) {
+func (r *memElementRepo) ListElementsByPage(ctx context.Context, projectID, pageID string) ([]entity.Element, error) {
 	return r.elements, nil
 }
 
-func (r *memElementRepo) GetElementsByProjectID(ctx context.Context, projectID string) ([]entity.Element, error) {
+func (r *memElementRepo) ListElementsByProject(ctx context.Context, projectID string) ([]entity.Element, error) {
 	return r.elements, nil
 }

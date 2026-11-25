@@ -12,95 +12,95 @@ import (
 )
 
 type fkElementRepo struct {
-	Calls                       []string
-	OnGetElements               func(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error)
-	OnReplaceElements           func(ctx context.Context, projectID string, elements []models.EditorElement) error
-	OnGetElementByID            func(ctx context.Context, elementID string) (*models.Element, error)
-	OnGetElementsByPageID       func(ctx context.Context, pageID string) ([]models.Element, error)
-	OnGetElementsByPageIds      func(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error)
-	OnGetChildElements          func(ctx context.Context, parentID string) ([]models.Element, error)
-	OnGetRootElements           func(ctx context.Context, projectID string) ([]models.Element, error)
-	OnCreateElement             func(ctx context.Context, element *models.Element) error
-	OnUpdateElement             func(ctx context.Context, element *models.Element) error
-	OnUpdateEventWorkflows      func(ctx context.Context, elementID string, workflows []byte) error
-	OnDeleteElementByID         func(ctx context.Context, elementID string) error
-	OnDeleteElementsByPageID    func(ctx context.Context, pageID string) error
-	OnDeleteElementsByProjectID func(ctx context.Context, projectID string) error
-	OnCountElementsByProjectID  func(ctx context.Context, projectID string) (int64, error)
-	OnGetElementWithRelations   func(ctx context.Context, elementID string) (*models.Element, error)
-	OnGetElementsByIDs          func(ctx context.Context, elementIDs []string) ([]models.Element, error)
+	Calls                  []string
+	OnList                 func(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error)
+	OnReplace              func(ctx context.Context, projectID string, elements []models.EditorElement) error
+	OnGetByID              func(ctx context.Context, elementID string) (*models.Element, error)
+	OnListByPage           func(ctx context.Context, pageID string) ([]models.Element, error)
+	OnListByPageIDs        func(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error)
+	OnListChildren         func(ctx context.Context, parentID string) ([]models.Element, error)
+	OnListRoots            func(ctx context.Context, projectID string) ([]models.Element, error)
+	OnCreate               func(ctx context.Context, element *models.Element) error
+	OnUpdate               func(ctx context.Context, element *models.Element) error
+	OnUpdateEventWorkflows func(ctx context.Context, elementID string, workflows []byte) error
+	OnDelete               func(ctx context.Context, elementID string) error
+	OnDeleteByPage         func(ctx context.Context, pageID string) error
+	OnDeleteByProject      func(ctx context.Context, projectID string) error
+	OnCountByProject       func(ctx context.Context, projectID string) (int64, error)
+	OnGetWithRelations     func(ctx context.Context, elementID string) (*models.Element, error)
+	OnListByIDs            func(ctx context.Context, elementIDs []string) ([]models.Element, error)
 }
 
-func (f *fkElementRepo) GetElements(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error) {
-	f.Calls = append(f.Calls, "GetElements")
-	if f.OnGetElements == nil {
-		panic("fkElementRepo: unexpected call to GetElements")
+func (f *fkElementRepo) List(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error) {
+	f.Calls = append(f.Calls, "List")
+	if f.OnList == nil {
+		panic("fkElementRepo: unexpected call to List")
 	}
-	return f.OnGetElements(ctx, projectID, pageID...)
+	return f.OnList(ctx, projectID, pageID...)
 }
 
-func (f *fkElementRepo) ReplaceElements(ctx context.Context, projectID string, elements []models.EditorElement) error {
-	f.Calls = append(f.Calls, "ReplaceElements")
-	if f.OnReplaceElements == nil {
-		panic("fkElementRepo: unexpected call to ReplaceElements")
+func (f *fkElementRepo) Replace(ctx context.Context, projectID string, elements []models.EditorElement) error {
+	f.Calls = append(f.Calls, "Replace")
+	if f.OnReplace == nil {
+		panic("fkElementRepo: unexpected call to Replace")
 	}
-	return f.OnReplaceElements(ctx, projectID, elements)
+	return f.OnReplace(ctx, projectID, elements)
 }
 
-func (f *fkElementRepo) GetElementByID(ctx context.Context, elementID string) (*models.Element, error) {
-	f.Calls = append(f.Calls, "GetElementByID")
-	if f.OnGetElementByID == nil {
-		panic("fkElementRepo: unexpected call to GetElementByID")
+func (f *fkElementRepo) GetByID(ctx context.Context, elementID string) (*models.Element, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkElementRepo: unexpected call to GetByID")
 	}
-	return f.OnGetElementByID(ctx, elementID)
+	return f.OnGetByID(ctx, elementID)
 }
 
-func (f *fkElementRepo) GetElementsByPageID(ctx context.Context, pageID string) ([]models.Element, error) {
-	f.Calls = append(f.Calls, "GetElementsByPageID")
-	if f.OnGetElementsByPageID == nil {
-		panic("fkElementRepo: unexpected call to GetElementsByPageID")
+func (f *fkElementRepo) ListByPage(ctx context.Context, pageID string) ([]models.Element, error) {
+	f.Calls = append(f.Calls, "ListByPage")
+	if f.OnListByPage == nil {
+		panic("fkElementRepo: unexpected call to ListByPage")
 	}
-	return f.OnGetElementsByPageID(ctx, pageID)
+	return f.OnListByPage(ctx, pageID)
 }
 
-func (f *fkElementRepo) GetElementsByPageIds(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
-	f.Calls = append(f.Calls, "GetElementsByPageIds")
-	if f.OnGetElementsByPageIds == nil {
-		panic("fkElementRepo: unexpected call to GetElementsByPageIds")
+func (f *fkElementRepo) ListByPageIDs(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
+	f.Calls = append(f.Calls, "ListByPageIDs")
+	if f.OnListByPageIDs == nil {
+		panic("fkElementRepo: unexpected call to ListByPageIDs")
 	}
-	return f.OnGetElementsByPageIds(ctx, projectID, pageIDs)
+	return f.OnListByPageIDs(ctx, projectID, pageIDs)
 }
 
-func (f *fkElementRepo) GetChildElements(ctx context.Context, parentID string) ([]models.Element, error) {
-	f.Calls = append(f.Calls, "GetChildElements")
-	if f.OnGetChildElements == nil {
-		panic("fkElementRepo: unexpected call to GetChildElements")
+func (f *fkElementRepo) ListChildren(ctx context.Context, parentID string) ([]models.Element, error) {
+	f.Calls = append(f.Calls, "ListChildren")
+	if f.OnListChildren == nil {
+		panic("fkElementRepo: unexpected call to ListChildren")
 	}
-	return f.OnGetChildElements(ctx, parentID)
+	return f.OnListChildren(ctx, parentID)
 }
 
-func (f *fkElementRepo) GetRootElements(ctx context.Context, projectID string) ([]models.Element, error) {
-	f.Calls = append(f.Calls, "GetRootElements")
-	if f.OnGetRootElements == nil {
-		panic("fkElementRepo: unexpected call to GetRootElements")
+func (f *fkElementRepo) ListRoots(ctx context.Context, projectID string) ([]models.Element, error) {
+	f.Calls = append(f.Calls, "ListRoots")
+	if f.OnListRoots == nil {
+		panic("fkElementRepo: unexpected call to ListRoots")
 	}
-	return f.OnGetRootElements(ctx, projectID)
+	return f.OnListRoots(ctx, projectID)
 }
 
-func (f *fkElementRepo) CreateElement(ctx context.Context, element *models.Element) error {
-	f.Calls = append(f.Calls, "CreateElement")
-	if f.OnCreateElement == nil {
-		panic("fkElementRepo: unexpected call to CreateElement")
+func (f *fkElementRepo) Create(ctx context.Context, element *models.Element) error {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkElementRepo: unexpected call to Create")
 	}
-	return f.OnCreateElement(ctx, element)
+	return f.OnCreate(ctx, element)
 }
 
-func (f *fkElementRepo) UpdateElement(ctx context.Context, element *models.Element) error {
-	f.Calls = append(f.Calls, "UpdateElement")
-	if f.OnUpdateElement == nil {
-		panic("fkElementRepo: unexpected call to UpdateElement")
+func (f *fkElementRepo) Update(ctx context.Context, element *models.Element) error {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkElementRepo: unexpected call to Update")
 	}
-	return f.OnUpdateElement(ctx, element)
+	return f.OnUpdate(ctx, element)
 }
 
 func (f *fkElementRepo) UpdateEventWorkflows(ctx context.Context, elementID string, workflows []byte) error {
@@ -111,52 +111,52 @@ func (f *fkElementRepo) UpdateEventWorkflows(ctx context.Context, elementID stri
 	return f.OnUpdateEventWorkflows(ctx, elementID, workflows)
 }
 
-func (f *fkElementRepo) DeleteElementByID(ctx context.Context, elementID string) error {
-	f.Calls = append(f.Calls, "DeleteElementByID")
-	if f.OnDeleteElementByID == nil {
-		panic("fkElementRepo: unexpected call to DeleteElementByID")
+func (f *fkElementRepo) Delete(ctx context.Context, elementID string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkElementRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteElementByID(ctx, elementID)
+	return f.OnDelete(ctx, elementID)
 }
 
-func (f *fkElementRepo) DeleteElementsByPageID(ctx context.Context, pageID string) error {
-	f.Calls = append(f.Calls, "DeleteElementsByPageID")
-	if f.OnDeleteElementsByPageID == nil {
-		panic("fkElementRepo: unexpected call to DeleteElementsByPageID")
+func (f *fkElementRepo) DeleteByPage(ctx context.Context, pageID string) error {
+	f.Calls = append(f.Calls, "DeleteByPage")
+	if f.OnDeleteByPage == nil {
+		panic("fkElementRepo: unexpected call to DeleteByPage")
 	}
-	return f.OnDeleteElementsByPageID(ctx, pageID)
+	return f.OnDeleteByPage(ctx, pageID)
 }
 
-func (f *fkElementRepo) DeleteElementsByProjectID(ctx context.Context, projectID string) error {
-	f.Calls = append(f.Calls, "DeleteElementsByProjectID")
-	if f.OnDeleteElementsByProjectID == nil {
-		panic("fkElementRepo: unexpected call to DeleteElementsByProjectID")
+func (f *fkElementRepo) DeleteByProject(ctx context.Context, projectID string) error {
+	f.Calls = append(f.Calls, "DeleteByProject")
+	if f.OnDeleteByProject == nil {
+		panic("fkElementRepo: unexpected call to DeleteByProject")
 	}
-	return f.OnDeleteElementsByProjectID(ctx, projectID)
+	return f.OnDeleteByProject(ctx, projectID)
 }
 
-func (f *fkElementRepo) CountElementsByProjectID(ctx context.Context, projectID string) (int64, error) {
-	f.Calls = append(f.Calls, "CountElementsByProjectID")
-	if f.OnCountElementsByProjectID == nil {
-		panic("fkElementRepo: unexpected call to CountElementsByProjectID")
+func (f *fkElementRepo) CountByProject(ctx context.Context, projectID string) (int64, error) {
+	f.Calls = append(f.Calls, "CountByProject")
+	if f.OnCountByProject == nil {
+		panic("fkElementRepo: unexpected call to CountByProject")
 	}
-	return f.OnCountElementsByProjectID(ctx, projectID)
+	return f.OnCountByProject(ctx, projectID)
 }
 
-func (f *fkElementRepo) GetElementWithRelations(ctx context.Context, elementID string) (*models.Element, error) {
-	f.Calls = append(f.Calls, "GetElementWithRelations")
-	if f.OnGetElementWithRelations == nil {
-		panic("fkElementRepo: unexpected call to GetElementWithRelations")
+func (f *fkElementRepo) GetWithRelations(ctx context.Context, elementID string) (*models.Element, error) {
+	f.Calls = append(f.Calls, "GetWithRelations")
+	if f.OnGetWithRelations == nil {
+		panic("fkElementRepo: unexpected call to GetWithRelations")
 	}
-	return f.OnGetElementWithRelations(ctx, elementID)
+	return f.OnGetWithRelations(ctx, elementID)
 }
 
-func (f *fkElementRepo) GetElementsByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error) {
-	f.Calls = append(f.Calls, "GetElementsByIDs")
-	if f.OnGetElementsByIDs == nil {
-		panic("fkElementRepo: unexpected call to GetElementsByIDs")
+func (f *fkElementRepo) ListByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error) {
+	f.Calls = append(f.Calls, "ListByIDs")
+	if f.OnListByIDs == nil {
+		panic("fkElementRepo: unexpected call to ListByIDs")
 	}
-	return f.OnGetElementsByIDs(ctx, elementIDs)
+	return f.OnListByIDs(ctx, elementIDs)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -170,106 +170,106 @@ func (f *fkElementRepo) Called(name string) bool {
 }
 
 type fkElementCommentRepo struct {
-	Calls                              []string
-	OnCreateElementComment             func(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error)
-	OnGetElementCommentByID            func(ctx context.Context, id string) (*models.ElementComment, error)
-	OnGetElementComments               func(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error)
-	OnUpdateElementComment             func(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error)
-	OnDeleteElementComment             func(ctx context.Context, id string) error
-	OnGetElementCommentsByAuthorID     func(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error)
-	OnCountElementComments             func(ctx context.Context, elementID string) (int64, error)
-	OnToggleResolvedStatus             func(ctx context.Context, id string) (*models.ElementComment, error)
-	OnDeleteElementCommentsByElementID func(ctx context.Context, elementID string) error
-	OnGetElementCommentsByProjectID    func(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error)
-	OnCountElementCommentsByProjectID  func(ctx context.Context, projectID string) (int64, error)
+	Calls             []string
+	OnCreate          func(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error)
+	OnGetByID         func(ctx context.Context, id string) (*models.ElementComment, error)
+	OnList            func(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error)
+	OnUpdate          func(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error)
+	OnDelete          func(ctx context.Context, id string) error
+	OnListByAuthor    func(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error)
+	OnCount           func(ctx context.Context, elementID string) (int64, error)
+	OnToggleResolved  func(ctx context.Context, id string) (*models.ElementComment, error)
+	OnDeleteByElement func(ctx context.Context, elementID string) error
+	OnListByProject   func(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error)
+	OnCountByProject  func(ctx context.Context, projectID string) (int64, error)
 }
 
-func (f *fkElementCommentRepo) CreateElementComment(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error) {
-	f.Calls = append(f.Calls, "CreateElementComment")
-	if f.OnCreateElementComment == nil {
-		panic("fkElementCommentRepo: unexpected call to CreateElementComment")
+func (f *fkElementCommentRepo) Create(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkElementCommentRepo: unexpected call to Create")
 	}
-	return f.OnCreateElementComment(ctx, comment)
+	return f.OnCreate(ctx, comment)
 }
 
-func (f *fkElementCommentRepo) GetElementCommentByID(ctx context.Context, id string) (*models.ElementComment, error) {
-	f.Calls = append(f.Calls, "GetElementCommentByID")
-	if f.OnGetElementCommentByID == nil {
-		panic("fkElementCommentRepo: unexpected call to GetElementCommentByID")
+func (f *fkElementCommentRepo) GetByID(ctx context.Context, id string) (*models.ElementComment, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkElementCommentRepo: unexpected call to GetByID")
 	}
-	return f.OnGetElementCommentByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkElementCommentRepo) GetElementComments(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error) {
-	f.Calls = append(f.Calls, "GetElementComments")
-	if f.OnGetElementComments == nil {
-		panic("fkElementCommentRepo: unexpected call to GetElementComments")
+func (f *fkElementCommentRepo) List(ctx context.Context, elementID string, filter *models.ElementCommentFilter) ([]models.ElementComment, error) {
+	f.Calls = append(f.Calls, "List")
+	if f.OnList == nil {
+		panic("fkElementCommentRepo: unexpected call to List")
 	}
-	return f.OnGetElementComments(ctx, elementID, filter)
+	return f.OnList(ctx, elementID, filter)
 }
 
-func (f *fkElementCommentRepo) UpdateElementComment(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error) {
-	f.Calls = append(f.Calls, "UpdateElementComment")
-	if f.OnUpdateElementComment == nil {
-		panic("fkElementCommentRepo: unexpected call to UpdateElementComment")
+func (f *fkElementCommentRepo) Update(ctx context.Context, id string, updates map[string]any) (*models.ElementComment, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkElementCommentRepo: unexpected call to Update")
 	}
-	return f.OnUpdateElementComment(ctx, id, updates)
+	return f.OnUpdate(ctx, id, updates)
 }
 
-func (f *fkElementCommentRepo) DeleteElementComment(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteElementComment")
-	if f.OnDeleteElementComment == nil {
-		panic("fkElementCommentRepo: unexpected call to DeleteElementComment")
+func (f *fkElementCommentRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkElementCommentRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteElementComment(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
-func (f *fkElementCommentRepo) GetElementCommentsByAuthorID(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error) {
-	f.Calls = append(f.Calls, "GetElementCommentsByAuthorID")
-	if f.OnGetElementCommentsByAuthorID == nil {
-		panic("fkElementCommentRepo: unexpected call to GetElementCommentsByAuthorID")
+func (f *fkElementCommentRepo) ListByAuthor(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error) {
+	f.Calls = append(f.Calls, "ListByAuthor")
+	if f.OnListByAuthor == nil {
+		panic("fkElementCommentRepo: unexpected call to ListByAuthor")
 	}
-	return f.OnGetElementCommentsByAuthorID(ctx, authorID, limit, offset)
+	return f.OnListByAuthor(ctx, authorID, limit, offset)
 }
 
-func (f *fkElementCommentRepo) CountElementComments(ctx context.Context, elementID string) (int64, error) {
-	f.Calls = append(f.Calls, "CountElementComments")
-	if f.OnCountElementComments == nil {
-		panic("fkElementCommentRepo: unexpected call to CountElementComments")
+func (f *fkElementCommentRepo) Count(ctx context.Context, elementID string) (int64, error) {
+	f.Calls = append(f.Calls, "Count")
+	if f.OnCount == nil {
+		panic("fkElementCommentRepo: unexpected call to Count")
 	}
-	return f.OnCountElementComments(ctx, elementID)
+	return f.OnCount(ctx, elementID)
 }
 
-func (f *fkElementCommentRepo) ToggleResolvedStatus(ctx context.Context, id string) (*models.ElementComment, error) {
-	f.Calls = append(f.Calls, "ToggleResolvedStatus")
-	if f.OnToggleResolvedStatus == nil {
-		panic("fkElementCommentRepo: unexpected call to ToggleResolvedStatus")
+func (f *fkElementCommentRepo) ToggleResolved(ctx context.Context, id string) (*models.ElementComment, error) {
+	f.Calls = append(f.Calls, "ToggleResolved")
+	if f.OnToggleResolved == nil {
+		panic("fkElementCommentRepo: unexpected call to ToggleResolved")
 	}
-	return f.OnToggleResolvedStatus(ctx, id)
+	return f.OnToggleResolved(ctx, id)
 }
 
-func (f *fkElementCommentRepo) DeleteElementCommentsByElementID(ctx context.Context, elementID string) error {
-	f.Calls = append(f.Calls, "DeleteElementCommentsByElementID")
-	if f.OnDeleteElementCommentsByElementID == nil {
-		panic("fkElementCommentRepo: unexpected call to DeleteElementCommentsByElementID")
+func (f *fkElementCommentRepo) DeleteByElement(ctx context.Context, elementID string) error {
+	f.Calls = append(f.Calls, "DeleteByElement")
+	if f.OnDeleteByElement == nil {
+		panic("fkElementCommentRepo: unexpected call to DeleteByElement")
 	}
-	return f.OnDeleteElementCommentsByElementID(ctx, elementID)
+	return f.OnDeleteByElement(ctx, elementID)
 }
 
-func (f *fkElementCommentRepo) GetElementCommentsByProjectID(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error) {
-	f.Calls = append(f.Calls, "GetElementCommentsByProjectID")
-	if f.OnGetElementCommentsByProjectID == nil {
-		panic("fkElementCommentRepo: unexpected call to GetElementCommentsByProjectID")
+func (f *fkElementCommentRepo) ListByProject(ctx context.Context, projectID string, limit int, offset int) ([]models.ElementComment, error) {
+	f.Calls = append(f.Calls, "ListByProject")
+	if f.OnListByProject == nil {
+		panic("fkElementCommentRepo: unexpected call to ListByProject")
 	}
-	return f.OnGetElementCommentsByProjectID(ctx, projectID, limit, offset)
+	return f.OnListByProject(ctx, projectID, limit, offset)
 }
 
-func (f *fkElementCommentRepo) CountElementCommentsByProjectID(ctx context.Context, projectID string) (int64, error) {
-	f.Calls = append(f.Calls, "CountElementCommentsByProjectID")
-	if f.OnCountElementCommentsByProjectID == nil {
-		panic("fkElementCommentRepo: unexpected call to CountElementCommentsByProjectID")
+func (f *fkElementCommentRepo) CountByProject(ctx context.Context, projectID string) (int64, error) {
+	f.Calls = append(f.Calls, "CountByProject")
+	if f.OnCountByProject == nil {
+		panic("fkElementCommentRepo: unexpected call to CountByProject")
 	}
-	return f.OnCountElementCommentsByProjectID(ctx, projectID)
+	return f.OnCountByProject(ctx, projectID)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -283,124 +283,124 @@ func (f *fkElementCommentRepo) Called(name string) bool {
 }
 
 type fkProjectRepo struct {
-	Calls                           []string
-	OnGetPublicProjectByID          func(ctx context.Context, projectID string) (*models.Project, error)
-	OnGetPublicProjectBySubdomain   func(ctx context.Context, subdomain string) (*models.Project, error)
-	OnGetProjectByID                func(ctx context.Context, projectID string, userID string) (*models.Project, error)
-	OnGetProjectWithAccess    func(ctx context.Context, projectID string, userID string) (*models.Project, error)
-	OnGetProjectsByUserID     func(ctx context.Context, userID string) ([]models.Project, error)
-	OnGetCollaboratorProjects func(ctx context.Context, userID string) ([]models.Project, error)
-	OnGetProjectPages         func(ctx context.Context, projectID string, userID string) ([]models.Page, error)
-	OnCreateProject           func(ctx context.Context, project *models.Project) error
-	OnCreateProjectWithPage   func(ctx context.Context, project *models.Project, page *models.Page) error
-	OnGetProjectAccess        func(ctx context.Context, projectID string, userID string) (*models.ProjectAccess, error)
-	OnUpdateProject           func(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error)
-	OnUpdateProjectFields     func(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error)
-	OnTransferOwnership       func(ctx context.Context, projectID string, currentOwnerID string, newOwnerID string) error
-	OnDeleteProject           func(ctx context.Context, projectID string, userID string) error
-	OnHardDeleteProject       func(ctx context.Context, projectID string, userID string) error
-	OnRestoreProject          func(ctx context.Context, projectID string, userID string) error
-	OnExistsForUser           func(ctx context.Context, projectID string, userID string) (bool, error)
-	OnGetProjectWithLock      func(ctx context.Context, projectID string, userID string) (*models.Project, error)
+	Calls                  []string
+	OnGetPublicByID        func(ctx context.Context, projectID string) (*models.Project, error)
+	OnGetPublicBySubdomain func(ctx context.Context, subdomain string) (*models.Project, error)
+	OnGetByID              func(ctx context.Context, projectID string, userID string) (*models.Project, error)
+	OnGetWithAccess        func(ctx context.Context, projectID string, userID string) (*models.Project, error)
+	OnListByUser           func(ctx context.Context, userID string) ([]models.Project, error)
+	OnListByCollaborator   func(ctx context.Context, userID string) ([]models.Project, error)
+	OnListPages            func(ctx context.Context, projectID string, userID string) ([]models.Page, error)
+	OnCreate               func(ctx context.Context, project *models.Project) error
+	OnCreateWithPage       func(ctx context.Context, project *models.Project, page *models.Page) error
+	OnGetAccess            func(ctx context.Context, projectID string, userID string) (*models.ProjectAccess, error)
+	OnUpdate               func(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error)
+	OnUpdateFields         func(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error)
+	OnTransferOwnership    func(ctx context.Context, projectID string, currentOwnerID string, newOwnerID string) error
+	OnDelete               func(ctx context.Context, projectID string, userID string) error
+	OnHardDelete           func(ctx context.Context, projectID string, userID string) error
+	OnRestore              func(ctx context.Context, projectID string, userID string) error
+	OnExistsForUser        func(ctx context.Context, projectID string, userID string) (bool, error)
+	OnGetWithLock          func(ctx context.Context, projectID string, userID string) (*models.Project, error)
 }
 
-func (f *fkProjectRepo) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
-	f.Calls = append(f.Calls, "GetPublicProjectByID")
-	if f.OnGetPublicProjectByID == nil {
-		panic("fkProjectRepo: unexpected call to GetPublicProjectByID")
+func (f *fkProjectRepo) GetPublicByID(ctx context.Context, projectID string) (*models.Project, error) {
+	f.Calls = append(f.Calls, "GetPublicByID")
+	if f.OnGetPublicByID == nil {
+		panic("fkProjectRepo: unexpected call to GetPublicByID")
 	}
-	return f.OnGetPublicProjectByID(ctx, projectID)
+	return f.OnGetPublicByID(ctx, projectID)
 }
 
-func (f *fkProjectRepo) GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
-	f.Calls = append(f.Calls, "GetPublicProjectBySubdomain")
-	if f.OnGetPublicProjectBySubdomain == nil {
-		panic("fkProjectRepo: unexpected call to GetPublicProjectBySubdomain")
+func (f *fkProjectRepo) GetPublicBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
+	f.Calls = append(f.Calls, "GetPublicBySubdomain")
+	if f.OnGetPublicBySubdomain == nil {
+		panic("fkProjectRepo: unexpected call to GetPublicBySubdomain")
 	}
-	return f.OnGetPublicProjectBySubdomain(ctx, subdomain)
+	return f.OnGetPublicBySubdomain(ctx, subdomain)
 }
 
-func (f *fkProjectRepo) GetProjectByID(ctx context.Context, projectID string, userID string) (*models.Project, error) {
-	f.Calls = append(f.Calls, "GetProjectByID")
-	if f.OnGetProjectByID == nil {
-		panic("fkProjectRepo: unexpected call to GetProjectByID")
+func (f *fkProjectRepo) GetByID(ctx context.Context, projectID string, userID string) (*models.Project, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkProjectRepo: unexpected call to GetByID")
 	}
-	return f.OnGetProjectByID(ctx, projectID, userID)
+	return f.OnGetByID(ctx, projectID, userID)
 }
 
-func (f *fkProjectRepo) GetProjectWithAccess(ctx context.Context, projectID string, userID string) (*models.Project, error) {
-	f.Calls = append(f.Calls, "GetProjectWithAccess")
-	if f.OnGetProjectWithAccess == nil {
-		panic("fkProjectRepo: unexpected call to GetProjectWithAccess")
+func (f *fkProjectRepo) GetWithAccess(ctx context.Context, projectID string, userID string) (*models.Project, error) {
+	f.Calls = append(f.Calls, "GetWithAccess")
+	if f.OnGetWithAccess == nil {
+		panic("fkProjectRepo: unexpected call to GetWithAccess")
 	}
-	return f.OnGetProjectWithAccess(ctx, projectID, userID)
+	return f.OnGetWithAccess(ctx, projectID, userID)
 }
 
-func (f *fkProjectRepo) GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error) {
-	f.Calls = append(f.Calls, "GetProjectsByUserID")
-	if f.OnGetProjectsByUserID == nil {
-		panic("fkProjectRepo: unexpected call to GetProjectsByUserID")
+func (f *fkProjectRepo) ListByUser(ctx context.Context, userID string) ([]models.Project, error) {
+	f.Calls = append(f.Calls, "ListByUser")
+	if f.OnListByUser == nil {
+		panic("fkProjectRepo: unexpected call to ListByUser")
 	}
-	return f.OnGetProjectsByUserID(ctx, userID)
+	return f.OnListByUser(ctx, userID)
 }
 
-func (f *fkProjectRepo) GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error) {
-	f.Calls = append(f.Calls, "GetCollaboratorProjects")
-	if f.OnGetCollaboratorProjects == nil {
-		panic("fkProjectRepo: unexpected call to GetCollaboratorProjects")
+func (f *fkProjectRepo) ListByCollaborator(ctx context.Context, userID string) ([]models.Project, error) {
+	f.Calls = append(f.Calls, "ListByCollaborator")
+	if f.OnListByCollaborator == nil {
+		panic("fkProjectRepo: unexpected call to ListByCollaborator")
 	}
-	return f.OnGetCollaboratorProjects(ctx, userID)
+	return f.OnListByCollaborator(ctx, userID)
 }
 
-func (f *fkProjectRepo) GetProjectPages(ctx context.Context, projectID string, userID string) ([]models.Page, error) {
-	f.Calls = append(f.Calls, "GetProjectPages")
-	if f.OnGetProjectPages == nil {
-		panic("fkProjectRepo: unexpected call to GetProjectPages")
+func (f *fkProjectRepo) ListPages(ctx context.Context, projectID string, userID string) ([]models.Page, error) {
+	f.Calls = append(f.Calls, "ListPages")
+	if f.OnListPages == nil {
+		panic("fkProjectRepo: unexpected call to ListPages")
 	}
-	return f.OnGetProjectPages(ctx, projectID, userID)
+	return f.OnListPages(ctx, projectID, userID)
 }
 
-func (f *fkProjectRepo) CreateProject(ctx context.Context, project *models.Project) error {
-	f.Calls = append(f.Calls, "CreateProject")
-	if f.OnCreateProject == nil {
-		panic("fkProjectRepo: unexpected call to CreateProject")
+func (f *fkProjectRepo) Create(ctx context.Context, project *models.Project) error {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkProjectRepo: unexpected call to Create")
 	}
-	return f.OnCreateProject(ctx, project)
+	return f.OnCreate(ctx, project)
 }
 
-func (f *fkProjectRepo) CreateProjectWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
-	f.Calls = append(f.Calls, "CreateProjectWithPage")
-	if f.OnCreateProjectWithPage == nil {
-		panic("fkProjectRepo: unexpected call to CreateProjectWithPage")
+func (f *fkProjectRepo) CreateWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
+	f.Calls = append(f.Calls, "CreateWithPage")
+	if f.OnCreateWithPage == nil {
+		panic("fkProjectRepo: unexpected call to CreateWithPage")
 	}
-	return f.OnCreateProjectWithPage(ctx, project, page)
+	return f.OnCreateWithPage(ctx, project, page)
 }
 
-func (f *fkProjectRepo) GetProjectAccess(ctx context.Context, projectID string, userID string) (*models.ProjectAccess, error) {
-	f.Calls = append(f.Calls, "GetProjectAccess")
-	if f.OnGetProjectAccess == nil {
-		panic("fkProjectRepo: unexpected call to GetProjectAccess")
+func (f *fkProjectRepo) GetAccess(ctx context.Context, projectID string, userID string) (*models.ProjectAccess, error) {
+	f.Calls = append(f.Calls, "GetAccess")
+	if f.OnGetAccess == nil {
+		panic("fkProjectRepo: unexpected call to GetAccess")
 	}
-	return f.OnGetProjectAccess(ctx, projectID, userID)
+	return f.OnGetAccess(ctx, projectID, userID)
 }
 
-func (f *fkProjectRepo) UpdateProject(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error) {
-	f.Calls = append(f.Calls, "UpdateProject")
-	if f.OnUpdateProject == nil {
-		panic("fkProjectRepo: unexpected call to UpdateProject")
+func (f *fkProjectRepo) Update(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkProjectRepo: unexpected call to Update")
 	}
-	return f.OnUpdateProject(ctx, projectID, userID, updates)
+	return f.OnUpdate(ctx, projectID, userID, updates)
 }
 
-func (f *fkProjectRepo) UpdateProjectFields(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error) {
-	f.Calls = append(f.Calls, "UpdateProjectFields")
-	if f.OnUpdateProjectFields != nil {
-		return f.OnUpdateProjectFields(ctx, projectID, userID, updates)
+func (f *fkProjectRepo) UpdateFields(ctx context.Context, projectID string, userID string, updates map[string]any) (*models.Project, error) {
+	f.Calls = append(f.Calls, "UpdateFields")
+	if f.OnUpdateFields != nil {
+		return f.OnUpdateFields(ctx, projectID, userID, updates)
 	}
-	if f.OnUpdateProject != nil {
-		return f.OnUpdateProject(ctx, projectID, userID, updates)
+	if f.OnUpdate != nil {
+		return f.OnUpdate(ctx, projectID, userID, updates)
 	}
-	panic("fkProjectRepo: unexpected call to UpdateProjectFields")
+	panic("fkProjectRepo: unexpected call to UpdateFields")
 }
 
 func (f *fkProjectRepo) TransferOwnership(ctx context.Context, projectID string, currentOwnerID string, newOwnerID string) error {
@@ -411,28 +411,28 @@ func (f *fkProjectRepo) TransferOwnership(ctx context.Context, projectID string,
 	return f.OnTransferOwnership(ctx, projectID, currentOwnerID, newOwnerID)
 }
 
-func (f *fkProjectRepo) DeleteProject(ctx context.Context, projectID string, userID string) error {
-	f.Calls = append(f.Calls, "DeleteProject")
-	if f.OnDeleteProject == nil {
-		panic("fkProjectRepo: unexpected call to DeleteProject")
+func (f *fkProjectRepo) Delete(ctx context.Context, projectID string, userID string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkProjectRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteProject(ctx, projectID, userID)
+	return f.OnDelete(ctx, projectID, userID)
 }
 
-func (f *fkProjectRepo) HardDeleteProject(ctx context.Context, projectID string, userID string) error {
-	f.Calls = append(f.Calls, "HardDeleteProject")
-	if f.OnHardDeleteProject == nil {
-		panic("fkProjectRepo: unexpected call to HardDeleteProject")
+func (f *fkProjectRepo) HardDelete(ctx context.Context, projectID string, userID string) error {
+	f.Calls = append(f.Calls, "HardDelete")
+	if f.OnHardDelete == nil {
+		panic("fkProjectRepo: unexpected call to HardDelete")
 	}
-	return f.OnHardDeleteProject(ctx, projectID, userID)
+	return f.OnHardDelete(ctx, projectID, userID)
 }
 
-func (f *fkProjectRepo) RestoreProject(ctx context.Context, projectID string, userID string) error {
-	f.Calls = append(f.Calls, "RestoreProject")
-	if f.OnRestoreProject == nil {
-		panic("fkProjectRepo: unexpected call to RestoreProject")
+func (f *fkProjectRepo) Restore(ctx context.Context, projectID string, userID string) error {
+	f.Calls = append(f.Calls, "Restore")
+	if f.OnRestore == nil {
+		panic("fkProjectRepo: unexpected call to Restore")
 	}
-	return f.OnRestoreProject(ctx, projectID, userID)
+	return f.OnRestore(ctx, projectID, userID)
 }
 
 func (f *fkProjectRepo) ExistsForUser(ctx context.Context, projectID string, userID string) (bool, error) {
@@ -443,12 +443,12 @@ func (f *fkProjectRepo) ExistsForUser(ctx context.Context, projectID string, use
 	return f.OnExistsForUser(ctx, projectID, userID)
 }
 
-func (f *fkProjectRepo) GetProjectWithLock(ctx context.Context, projectID string, userID string) (*models.Project, error) {
-	f.Calls = append(f.Calls, "GetProjectWithLock")
-	if f.OnGetProjectWithLock == nil {
-		panic("fkProjectRepo: unexpected call to GetProjectWithLock")
+func (f *fkProjectRepo) GetWithLock(ctx context.Context, projectID string, userID string) (*models.Project, error) {
+	f.Calls = append(f.Calls, "GetWithLock")
+	if f.OnGetWithLock == nil {
+		panic("fkProjectRepo: unexpected call to GetWithLock")
 	}
-	return f.OnGetProjectWithLock(ctx, projectID, userID)
+	return f.OnGetWithLock(ctx, projectID, userID)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -462,43 +462,43 @@ func (f *fkProjectRepo) Called(name string) bool {
 }
 
 type fkSnapshotRepo struct {
-	Calls                     []string
-	OnSaveSnapshot            func(ctx context.Context, projectID string, snapshot *models.Snapshot) error
-	OnGetSnapshotsByProjectID func(ctx context.Context, projectID string) ([]models.Snapshot, error)
-	OnGetSnapshotByID         func(ctx context.Context, snapshotID string) (*models.Snapshot, error)
-	OnDeleteSnapshot          func(ctx context.Context, snapshotID string) error
+	Calls           []string
+	OnSave          func(ctx context.Context, projectID string, snapshot *models.Snapshot) error
+	OnListByProject func(ctx context.Context, projectID string) ([]models.Snapshot, error)
+	OnGetByID       func(ctx context.Context, snapshotID string) (*models.Snapshot, error)
+	OnDelete        func(ctx context.Context, snapshotID string) error
 }
 
-func (f *fkSnapshotRepo) SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
-	f.Calls = append(f.Calls, "SaveSnapshot")
-	if f.OnSaveSnapshot == nil {
-		panic("fkSnapshotRepo: unexpected call to SaveSnapshot")
+func (f *fkSnapshotRepo) Save(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
+	f.Calls = append(f.Calls, "Save")
+	if f.OnSave == nil {
+		panic("fkSnapshotRepo: unexpected call to Save")
 	}
-	return f.OnSaveSnapshot(ctx, projectID, snapshot)
+	return f.OnSave(ctx, projectID, snapshot)
 }
 
-func (f *fkSnapshotRepo) GetSnapshotsByProjectID(ctx context.Context, projectID string) ([]models.Snapshot, error) {
-	f.Calls = append(f.Calls, "GetSnapshotsByProjectID")
-	if f.OnGetSnapshotsByProjectID == nil {
-		panic("fkSnapshotRepo: unexpected call to GetSnapshotsByProjectID")
+func (f *fkSnapshotRepo) ListByProject(ctx context.Context, projectID string) ([]models.Snapshot, error) {
+	f.Calls = append(f.Calls, "ListByProject")
+	if f.OnListByProject == nil {
+		panic("fkSnapshotRepo: unexpected call to ListByProject")
 	}
-	return f.OnGetSnapshotsByProjectID(ctx, projectID)
+	return f.OnListByProject(ctx, projectID)
 }
 
-func (f *fkSnapshotRepo) GetSnapshotByID(ctx context.Context, snapshotID string) (*models.Snapshot, error) {
-	f.Calls = append(f.Calls, "GetSnapshotByID")
-	if f.OnGetSnapshotByID == nil {
-		panic("fkSnapshotRepo: unexpected call to GetSnapshotByID")
+func (f *fkSnapshotRepo) GetByID(ctx context.Context, snapshotID string) (*models.Snapshot, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkSnapshotRepo: unexpected call to GetByID")
 	}
-	return f.OnGetSnapshotByID(ctx, snapshotID)
+	return f.OnGetByID(ctx, snapshotID)
 }
 
-func (f *fkSnapshotRepo) DeleteSnapshot(ctx context.Context, snapshotID string) error {
-	f.Calls = append(f.Calls, "DeleteSnapshot")
-	if f.OnDeleteSnapshot == nil {
-		panic("fkSnapshotRepo: unexpected call to DeleteSnapshot")
+func (f *fkSnapshotRepo) Delete(ctx context.Context, snapshotID string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkSnapshotRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteSnapshot(ctx, snapshotID)
+	return f.OnDelete(ctx, snapshotID)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -512,70 +512,70 @@ func (f *fkSnapshotRepo) Called(name string) bool {
 }
 
 type fkPageRepo struct {
-	Calls                   []string
-	OnGetPagesByProjectID   func(ctx context.Context, projectID string) ([]models.Page, error)
-	OnGetPageByID           func(ctx context.Context, pageID string, projectID string) (*models.Page, error)
-	OnCreatePage            func(ctx context.Context, page *models.Page) error
-	OnUpdatePage            func(ctx context.Context, page *models.Page) error
-	OnUpdatePageFields      func(ctx context.Context, pageID string, updates map[string]any) error
-	OnDeletePage            func(ctx context.Context, pageID string) error
-	OnDeletePageByProjectID func(ctx context.Context, pageID string, projectID string, userID string) error
+	Calls           []string
+	OnListByProject func(ctx context.Context, projectID string) ([]models.Page, error)
+	OnGetByID       func(ctx context.Context, pageID string, projectID string) (*models.Page, error)
+	OnCreate        func(ctx context.Context, page *models.Page) error
+	OnUpdate        func(ctx context.Context, page *models.Page) error
+	OnUpdateFields  func(ctx context.Context, pageID string, updates map[string]any) error
+	OnDelete        func(ctx context.Context, pageID string) error
+	OnDeleteForUser func(ctx context.Context, pageID string, projectID string, userID string) error
 }
 
-func (f *fkPageRepo) GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error) {
-	f.Calls = append(f.Calls, "GetPagesByProjectID")
-	if f.OnGetPagesByProjectID == nil {
-		panic("fkPageRepo: unexpected call to GetPagesByProjectID")
+func (f *fkPageRepo) ListByProject(ctx context.Context, projectID string) ([]models.Page, error) {
+	f.Calls = append(f.Calls, "ListByProject")
+	if f.OnListByProject == nil {
+		panic("fkPageRepo: unexpected call to ListByProject")
 	}
-	return f.OnGetPagesByProjectID(ctx, projectID)
+	return f.OnListByProject(ctx, projectID)
 }
 
-func (f *fkPageRepo) GetPageByID(ctx context.Context, pageID string, projectID string) (*models.Page, error) {
-	f.Calls = append(f.Calls, "GetPageByID")
-	if f.OnGetPageByID == nil {
-		panic("fkPageRepo: unexpected call to GetPageByID")
+func (f *fkPageRepo) GetByID(ctx context.Context, pageID string, projectID string) (*models.Page, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkPageRepo: unexpected call to GetByID")
 	}
-	return f.OnGetPageByID(ctx, pageID, projectID)
+	return f.OnGetByID(ctx, pageID, projectID)
 }
 
-func (f *fkPageRepo) CreatePage(ctx context.Context, page *models.Page) error {
-	f.Calls = append(f.Calls, "CreatePage")
-	if f.OnCreatePage == nil {
-		panic("fkPageRepo: unexpected call to CreatePage")
+func (f *fkPageRepo) Create(ctx context.Context, page *models.Page) error {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkPageRepo: unexpected call to Create")
 	}
-	return f.OnCreatePage(ctx, page)
+	return f.OnCreate(ctx, page)
 }
 
-func (f *fkPageRepo) UpdatePage(ctx context.Context, page *models.Page) error {
-	f.Calls = append(f.Calls, "UpdatePage")
-	if f.OnUpdatePage == nil {
-		panic("fkPageRepo: unexpected call to UpdatePage")
+func (f *fkPageRepo) Update(ctx context.Context, page *models.Page) error {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkPageRepo: unexpected call to Update")
 	}
-	return f.OnUpdatePage(ctx, page)
+	return f.OnUpdate(ctx, page)
 }
 
-func (f *fkPageRepo) UpdatePageFields(ctx context.Context, pageID string, updates map[string]any) error {
-	f.Calls = append(f.Calls, "UpdatePageFields")
-	if f.OnUpdatePageFields == nil {
-		panic("fkPageRepo: unexpected call to UpdatePageFields")
+func (f *fkPageRepo) UpdateFields(ctx context.Context, pageID string, updates map[string]any) error {
+	f.Calls = append(f.Calls, "UpdateFields")
+	if f.OnUpdateFields == nil {
+		panic("fkPageRepo: unexpected call to UpdateFields")
 	}
-	return f.OnUpdatePageFields(ctx, pageID, updates)
+	return f.OnUpdateFields(ctx, pageID, updates)
 }
 
-func (f *fkPageRepo) DeletePage(ctx context.Context, pageID string) error {
-	f.Calls = append(f.Calls, "DeletePage")
-	if f.OnDeletePage == nil {
-		panic("fkPageRepo: unexpected call to DeletePage")
+func (f *fkPageRepo) Delete(ctx context.Context, pageID string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkPageRepo: unexpected call to Delete")
 	}
-	return f.OnDeletePage(ctx, pageID)
+	return f.OnDelete(ctx, pageID)
 }
 
-func (f *fkPageRepo) DeletePageByProjectID(ctx context.Context, pageID string, projectID string, userID string) error {
-	f.Calls = append(f.Calls, "DeletePageByProjectID")
-	if f.OnDeletePageByProjectID == nil {
-		panic("fkPageRepo: unexpected call to DeletePageByProjectID")
+func (f *fkPageRepo) DeleteForUser(ctx context.Context, pageID string, projectID string, userID string) error {
+	f.Calls = append(f.Calls, "DeleteForUser")
+	if f.OnDeleteForUser == nil {
+		panic("fkPageRepo: unexpected call to DeleteForUser")
 	}
-	return f.OnDeletePageByProjectID(ctx, pageID, projectID, userID)
+	return f.OnDeleteForUser(ctx, pageID, projectID, userID)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -589,79 +589,79 @@ func (f *fkPageRepo) Called(name string) bool {
 }
 
 type fkContentTypeRepo struct {
-	Calls                      []string
-	OnGetContentTypes          func(ctx context.Context) ([]models.ContentType, error)
-	OnGetContentTypesByProject func(ctx context.Context, projectID string) ([]models.ContentType, error)
-	OnGetContentTypesByUser    func(ctx context.Context, userID string) ([]models.ContentType, error)
-	OnGetContentTypeByID                 func(ctx context.Context, id string) (*models.ContentType, error)
-	OnGetContentTypeByProjectAndSlugOrID func(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error)
-	OnCreateContentType                  func(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
-	OnUpdateContentType        func(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error)
-	OnDeleteContentType        func(ctx context.Context, id string) error
+	Calls                     []string
+	OnList                    func(ctx context.Context) ([]models.ContentType, error)
+	OnListByProject           func(ctx context.Context, projectID string) ([]models.ContentType, error)
+	OnListByUser              func(ctx context.Context, userID string) ([]models.ContentType, error)
+	OnGetByID                 func(ctx context.Context, id string) (*models.ContentType, error)
+	OnGetByProjectAndSlugOrID func(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error)
+	OnCreate                  func(ctx context.Context, ct *models.ContentType) (*models.ContentType, error)
+	OnUpdate                  func(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error)
+	OnDelete                  func(ctx context.Context, id string) error
 }
 
-func (f *fkContentTypeRepo) GetContentTypes(ctx context.Context) ([]models.ContentType, error) {
-	f.Calls = append(f.Calls, "GetContentTypes")
-	if f.OnGetContentTypes == nil {
-		panic("fkContentTypeRepo: unexpected call to GetContentTypes")
+func (f *fkContentTypeRepo) List(ctx context.Context) ([]models.ContentType, error) {
+	f.Calls = append(f.Calls, "List")
+	if f.OnList == nil {
+		panic("fkContentTypeRepo: unexpected call to List")
 	}
-	return f.OnGetContentTypes(ctx)
+	return f.OnList(ctx)
 }
 
-func (f *fkContentTypeRepo) GetContentTypesByProject(ctx context.Context, projectID string) ([]models.ContentType, error) {
-	f.Calls = append(f.Calls, "GetContentTypesByProject")
-	if f.OnGetContentTypesByProject == nil {
-		panic("fkContentTypeRepo: unexpected call to GetContentTypesByProject")
+func (f *fkContentTypeRepo) ListByProject(ctx context.Context, projectID string) ([]models.ContentType, error) {
+	f.Calls = append(f.Calls, "ListByProject")
+	if f.OnListByProject == nil {
+		panic("fkContentTypeRepo: unexpected call to ListByProject")
 	}
-	return f.OnGetContentTypesByProject(ctx, projectID)
+	return f.OnListByProject(ctx, projectID)
 }
 
-func (f *fkContentTypeRepo) GetContentTypesByUser(ctx context.Context, userID string) ([]models.ContentType, error) {
-	f.Calls = append(f.Calls, "GetContentTypesByUser")
-	if f.OnGetContentTypesByUser == nil {
-		panic("fkContentTypeRepo: unexpected call to GetContentTypesByUser")
+func (f *fkContentTypeRepo) ListByUser(ctx context.Context, userID string) ([]models.ContentType, error) {
+	f.Calls = append(f.Calls, "ListByUser")
+	if f.OnListByUser == nil {
+		panic("fkContentTypeRepo: unexpected call to ListByUser")
 	}
-	return f.OnGetContentTypesByUser(ctx, userID)
+	return f.OnListByUser(ctx, userID)
 }
 
-func (f *fkContentTypeRepo) GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error) {
-	f.Calls = append(f.Calls, "GetContentTypeByID")
-	if f.OnGetContentTypeByID == nil {
-		panic("fkContentTypeRepo: unexpected call to GetContentTypeByID")
+func (f *fkContentTypeRepo) GetByID(ctx context.Context, id string) (*models.ContentType, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkContentTypeRepo: unexpected call to GetByID")
 	}
-	return f.OnGetContentTypeByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkContentTypeRepo) GetContentTypeByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error) {
-	f.Calls = append(f.Calls, "GetContentTypeByProjectAndSlugOrID")
-	if f.OnGetContentTypeByProjectAndSlugOrID == nil {
-		panic("fkContentTypeRepo: unexpected call to GetContentTypeByProjectAndSlugOrID")
+func (f *fkContentTypeRepo) GetByProjectAndSlugOrID(ctx context.Context, projectID, slugOrID string) (*models.ContentType, error) {
+	f.Calls = append(f.Calls, "GetByProjectAndSlugOrID")
+	if f.OnGetByProjectAndSlugOrID == nil {
+		panic("fkContentTypeRepo: unexpected call to GetByProjectAndSlugOrID")
 	}
-	return f.OnGetContentTypeByProjectAndSlugOrID(ctx, projectID, slugOrID)
+	return f.OnGetByProjectAndSlugOrID(ctx, projectID, slugOrID)
 }
 
-func (f *fkContentTypeRepo) CreateContentType(ctx context.Context, ct *models.ContentType) (*models.ContentType, error) {
-	f.Calls = append(f.Calls, "CreateContentType")
-	if f.OnCreateContentType == nil {
-		panic("fkContentTypeRepo: unexpected call to CreateContentType")
+func (f *fkContentTypeRepo) Create(ctx context.Context, ct *models.ContentType) (*models.ContentType, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkContentTypeRepo: unexpected call to Create")
 	}
-	return f.OnCreateContentType(ctx, ct)
+	return f.OnCreate(ctx, ct)
 }
 
-func (f *fkContentTypeRepo) UpdateContentType(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error) {
-	f.Calls = append(f.Calls, "UpdateContentType")
-	if f.OnUpdateContentType == nil {
-		panic("fkContentTypeRepo: unexpected call to UpdateContentType")
+func (f *fkContentTypeRepo) Update(ctx context.Context, id string, updates map[string]any) (*models.ContentType, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkContentTypeRepo: unexpected call to Update")
 	}
-	return f.OnUpdateContentType(ctx, id, updates)
+	return f.OnUpdate(ctx, id, updates)
 }
 
-func (f *fkContentTypeRepo) DeleteContentType(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteContentType")
-	if f.OnDeleteContentType == nil {
-		panic("fkContentTypeRepo: unexpected call to DeleteContentType")
+func (f *fkContentTypeRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkContentTypeRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteContentType(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -675,52 +675,52 @@ func (f *fkContentTypeRepo) Called(name string) bool {
 }
 
 type fkContentFieldRepo struct {
-	Calls                           []string
-	OnGetContentFieldsByContentType func(ctx context.Context, contentTypeID string) ([]models.ContentField, error)
-	OnGetContentFieldByID           func(ctx context.Context, id string) (*models.ContentField, error)
-	OnCreateContentField            func(ctx context.Context, cf *models.ContentField) (*models.ContentField, error)
-	OnUpdateContentField            func(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error)
-	OnDeleteContentField            func(ctx context.Context, id string) error
+	Calls               []string
+	OnListByContentType func(ctx context.Context, contentTypeID string) ([]models.ContentField, error)
+	OnGetByID           func(ctx context.Context, id string) (*models.ContentField, error)
+	OnCreate            func(ctx context.Context, cf *models.ContentField) (*models.ContentField, error)
+	OnUpdate            func(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error)
+	OnDelete            func(ctx context.Context, id string) error
 }
 
-func (f *fkContentFieldRepo) GetContentFieldsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error) {
-	f.Calls = append(f.Calls, "GetContentFieldsByContentType")
-	if f.OnGetContentFieldsByContentType == nil {
-		panic("fkContentFieldRepo: unexpected call to GetContentFieldsByContentType")
+func (f *fkContentFieldRepo) ListByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error) {
+	f.Calls = append(f.Calls, "ListByContentType")
+	if f.OnListByContentType == nil {
+		panic("fkContentFieldRepo: unexpected call to ListByContentType")
 	}
-	return f.OnGetContentFieldsByContentType(ctx, contentTypeID)
+	return f.OnListByContentType(ctx, contentTypeID)
 }
 
-func (f *fkContentFieldRepo) GetContentFieldByID(ctx context.Context, id string) (*models.ContentField, error) {
-	f.Calls = append(f.Calls, "GetContentFieldByID")
-	if f.OnGetContentFieldByID == nil {
-		panic("fkContentFieldRepo: unexpected call to GetContentFieldByID")
+func (f *fkContentFieldRepo) GetByID(ctx context.Context, id string) (*models.ContentField, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkContentFieldRepo: unexpected call to GetByID")
 	}
-	return f.OnGetContentFieldByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkContentFieldRepo) CreateContentField(ctx context.Context, cf *models.ContentField) (*models.ContentField, error) {
-	f.Calls = append(f.Calls, "CreateContentField")
-	if f.OnCreateContentField == nil {
-		panic("fkContentFieldRepo: unexpected call to CreateContentField")
+func (f *fkContentFieldRepo) Create(ctx context.Context, cf *models.ContentField) (*models.ContentField, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkContentFieldRepo: unexpected call to Create")
 	}
-	return f.OnCreateContentField(ctx, cf)
+	return f.OnCreate(ctx, cf)
 }
 
-func (f *fkContentFieldRepo) UpdateContentField(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error) {
-	f.Calls = append(f.Calls, "UpdateContentField")
-	if f.OnUpdateContentField == nil {
-		panic("fkContentFieldRepo: unexpected call to UpdateContentField")
+func (f *fkContentFieldRepo) Update(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkContentFieldRepo: unexpected call to Update")
 	}
-	return f.OnUpdateContentField(ctx, id, updates)
+	return f.OnUpdate(ctx, id, updates)
 }
 
-func (f *fkContentFieldRepo) DeleteContentField(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteContentField")
-	if f.OnDeleteContentField == nil {
-		panic("fkContentFieldRepo: unexpected call to DeleteContentField")
+func (f *fkContentFieldRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkContentFieldRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteContentField(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -734,70 +734,70 @@ func (f *fkContentFieldRepo) Called(name string) bool {
 }
 
 type fkContentItemRepo struct {
-	Calls                          []string
-	OnGetContentItemsByContentType func(ctx context.Context, contentTypeID string) ([]models.ContentItem, error)
-	OnGetContentItemByID           func(ctx context.Context, id string) (*models.ContentItem, error)
-	OnGetContentItemBySlug         func(ctx context.Context, contentTypeID string, slug string) (*models.ContentItem, error)
-	OnGetPublicContentItems        func(ctx context.Context, contentTypeID string, limit int, sortBy string, sortOrder string) ([]models.ContentItem, error)
-	OnCreateContentItem            func(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
-	OnUpdateContentItem            func(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
-	OnDeleteContentItem            func(ctx context.Context, id string) error
+	Calls               []string
+	OnListByContentType func(ctx context.Context, contentTypeID string) ([]models.ContentItem, error)
+	OnGetByID           func(ctx context.Context, id string) (*models.ContentItem, error)
+	OnGetBySlug         func(ctx context.Context, contentTypeID string, slug string) (*models.ContentItem, error)
+	OnListPublic        func(ctx context.Context, contentTypeID string, limit int, sortBy string, sortOrder string) ([]models.ContentItem, error)
+	OnCreate            func(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
+	OnUpdate            func(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error)
+	OnDelete            func(ctx context.Context, id string) error
 }
 
-func (f *fkContentItemRepo) GetContentItemsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error) {
-	f.Calls = append(f.Calls, "GetContentItemsByContentType")
-	if f.OnGetContentItemsByContentType == nil {
-		panic("fkContentItemRepo: unexpected call to GetContentItemsByContentType")
+func (f *fkContentItemRepo) ListByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error) {
+	f.Calls = append(f.Calls, "ListByContentType")
+	if f.OnListByContentType == nil {
+		panic("fkContentItemRepo: unexpected call to ListByContentType")
 	}
-	return f.OnGetContentItemsByContentType(ctx, contentTypeID)
+	return f.OnListByContentType(ctx, contentTypeID)
 }
 
-func (f *fkContentItemRepo) GetContentItemByID(ctx context.Context, id string) (*models.ContentItem, error) {
-	f.Calls = append(f.Calls, "GetContentItemByID")
-	if f.OnGetContentItemByID == nil {
-		panic("fkContentItemRepo: unexpected call to GetContentItemByID")
+func (f *fkContentItemRepo) GetByID(ctx context.Context, id string) (*models.ContentItem, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkContentItemRepo: unexpected call to GetByID")
 	}
-	return f.OnGetContentItemByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkContentItemRepo) GetContentItemBySlug(ctx context.Context, contentTypeID string, slug string) (*models.ContentItem, error) {
-	f.Calls = append(f.Calls, "GetContentItemBySlug")
-	if f.OnGetContentItemBySlug == nil {
-		panic("fkContentItemRepo: unexpected call to GetContentItemBySlug")
+func (f *fkContentItemRepo) GetBySlug(ctx context.Context, contentTypeID string, slug string) (*models.ContentItem, error) {
+	f.Calls = append(f.Calls, "GetBySlug")
+	if f.OnGetBySlug == nil {
+		panic("fkContentItemRepo: unexpected call to GetBySlug")
 	}
-	return f.OnGetContentItemBySlug(ctx, contentTypeID, slug)
+	return f.OnGetBySlug(ctx, contentTypeID, slug)
 }
 
-func (f *fkContentItemRepo) GetPublicContentItems(ctx context.Context, contentTypeID string, limit int, sortBy string, sortOrder string) ([]models.ContentItem, error) {
-	f.Calls = append(f.Calls, "GetPublicContentItems")
-	if f.OnGetPublicContentItems == nil {
-		panic("fkContentItemRepo: unexpected call to GetPublicContentItems")
+func (f *fkContentItemRepo) ListPublic(ctx context.Context, contentTypeID string, limit int, sortBy string, sortOrder string) ([]models.ContentItem, error) {
+	f.Calls = append(f.Calls, "ListPublic")
+	if f.OnListPublic == nil {
+		panic("fkContentItemRepo: unexpected call to ListPublic")
 	}
-	return f.OnGetPublicContentItems(ctx, contentTypeID, limit, sortBy, sortOrder)
+	return f.OnListPublic(ctx, contentTypeID, limit, sortBy, sortOrder)
 }
 
-func (f *fkContentItemRepo) CreateContentItem(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
-	f.Calls = append(f.Calls, "CreateContentItem")
-	if f.OnCreateContentItem == nil {
-		panic("fkContentItemRepo: unexpected call to CreateContentItem")
+func (f *fkContentItemRepo) Create(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkContentItemRepo: unexpected call to Create")
 	}
-	return f.OnCreateContentItem(ctx, ci, fieldValues)
+	return f.OnCreate(ctx, ci, fieldValues)
 }
 
-func (f *fkContentItemRepo) UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
-	f.Calls = append(f.Calls, "UpdateContentItem")
-	if f.OnUpdateContentItem == nil {
-		panic("fkContentItemRepo: unexpected call to UpdateContentItem")
+func (f *fkContentItemRepo) Update(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkContentItemRepo: unexpected call to Update")
 	}
-	return f.OnUpdateContentItem(ctx, id, updates, fieldValues)
+	return f.OnUpdate(ctx, id, updates, fieldValues)
 }
 
-func (f *fkContentItemRepo) DeleteContentItem(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteContentItem")
-	if f.OnDeleteContentItem == nil {
-		panic("fkContentItemRepo: unexpected call to DeleteContentItem")
+func (f *fkContentItemRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkContentItemRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteContentItem(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -811,70 +811,70 @@ func (f *fkContentItemRepo) Called(name string) bool {
 }
 
 type fkImageRepo struct {
-	Calls               []string
-	OnCreateImage       func(ctx context.Context, image models.Image) (*models.Image, error)
-	OnGetImagesByUserID func(ctx context.Context, userID string) ([]models.Image, error)
-	OnGetImageByID       func(ctx context.Context, imageID string, userID string) (*models.Image, error)
-	OnGetPublicImageByID func(ctx context.Context, imageID string) (*models.Image, error)
-	OnDeleteImage       func(ctx context.Context, imageID string, userID string) error
-	OnSoftDeleteImage   func(ctx context.Context, imageID string, userID string) error
-	OnGetAllImages      func(ctx context.Context, limit int, offset int) ([]models.Image, error)
+	Calls           []string
+	OnCreate        func(ctx context.Context, image models.Image) (*models.Image, error)
+	OnListByUser    func(ctx context.Context, userID string) ([]models.Image, error)
+	OnGetByID       func(ctx context.Context, imageID string, userID string) (*models.Image, error)
+	OnGetPublicByID func(ctx context.Context, imageID string) (*models.Image, error)
+	OnDelete        func(ctx context.Context, imageID string, userID string) error
+	OnSoftDelete    func(ctx context.Context, imageID string, userID string) error
+	OnListAll       func(ctx context.Context, limit int, offset int) ([]models.Image, error)
 }
 
-func (f *fkImageRepo) CreateImage(ctx context.Context, image models.Image) (*models.Image, error) {
-	f.Calls = append(f.Calls, "CreateImage")
-	if f.OnCreateImage == nil {
-		panic("fkImageRepo: unexpected call to CreateImage")
+func (f *fkImageRepo) Create(ctx context.Context, image models.Image) (*models.Image, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkImageRepo: unexpected call to Create")
 	}
-	return f.OnCreateImage(ctx, image)
+	return f.OnCreate(ctx, image)
 }
 
-func (f *fkImageRepo) GetImagesByUserID(ctx context.Context, userID string) ([]models.Image, error) {
-	f.Calls = append(f.Calls, "GetImagesByUserID")
-	if f.OnGetImagesByUserID == nil {
-		panic("fkImageRepo: unexpected call to GetImagesByUserID")
+func (f *fkImageRepo) ListByUser(ctx context.Context, userID string) ([]models.Image, error) {
+	f.Calls = append(f.Calls, "ListByUser")
+	if f.OnListByUser == nil {
+		panic("fkImageRepo: unexpected call to ListByUser")
 	}
-	return f.OnGetImagesByUserID(ctx, userID)
+	return f.OnListByUser(ctx, userID)
 }
 
-func (f *fkImageRepo) GetImageByID(ctx context.Context, imageID string, userID string) (*models.Image, error) {
-	f.Calls = append(f.Calls, "GetImageByID")
-	if f.OnGetImageByID == nil {
-		panic("fkImageRepo: unexpected call to GetImageByID")
+func (f *fkImageRepo) GetByID(ctx context.Context, imageID string, userID string) (*models.Image, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkImageRepo: unexpected call to GetByID")
 	}
-	return f.OnGetImageByID(ctx, imageID, userID)
+	return f.OnGetByID(ctx, imageID, userID)
 }
 
-func (f *fkImageRepo) GetPublicImageByID(ctx context.Context, imageID string) (*models.Image, error) {
-	f.Calls = append(f.Calls, "GetPublicImageByID")
-	if f.OnGetPublicImageByID == nil {
-		panic("fkImageRepo: unexpected call to GetPublicImageByID")
+func (f *fkImageRepo) GetPublicByID(ctx context.Context, imageID string) (*models.Image, error) {
+	f.Calls = append(f.Calls, "GetPublicByID")
+	if f.OnGetPublicByID == nil {
+		panic("fkImageRepo: unexpected call to GetPublicByID")
 	}
-	return f.OnGetPublicImageByID(ctx, imageID)
+	return f.OnGetPublicByID(ctx, imageID)
 }
 
-func (f *fkImageRepo) DeleteImage(ctx context.Context, imageID string, userID string) error {
-	f.Calls = append(f.Calls, "DeleteImage")
-	if f.OnDeleteImage == nil {
-		panic("fkImageRepo: unexpected call to DeleteImage")
+func (f *fkImageRepo) Delete(ctx context.Context, imageID string, userID string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkImageRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteImage(ctx, imageID, userID)
+	return f.OnDelete(ctx, imageID, userID)
 }
 
-func (f *fkImageRepo) SoftDeleteImage(ctx context.Context, imageID string, userID string) error {
-	f.Calls = append(f.Calls, "SoftDeleteImage")
-	if f.OnSoftDeleteImage == nil {
-		panic("fkImageRepo: unexpected call to SoftDeleteImage")
+func (f *fkImageRepo) SoftDelete(ctx context.Context, imageID string, userID string) error {
+	f.Calls = append(f.Calls, "SoftDelete")
+	if f.OnSoftDelete == nil {
+		panic("fkImageRepo: unexpected call to SoftDelete")
 	}
-	return f.OnSoftDeleteImage(ctx, imageID, userID)
+	return f.OnSoftDelete(ctx, imageID, userID)
 }
 
-func (f *fkImageRepo) GetAllImages(ctx context.Context, limit int, offset int) ([]models.Image, error) {
-	f.Calls = append(f.Calls, "GetAllImages")
-	if f.OnGetAllImages == nil {
-		panic("fkImageRepo: unexpected call to GetAllImages")
+func (f *fkImageRepo) ListAll(ctx context.Context, limit int, offset int) ([]models.Image, error) {
+	f.Calls = append(f.Calls, "ListAll")
+	if f.OnListAll == nil {
+		panic("fkImageRepo: unexpected call to ListAll")
 	}
-	return f.OnGetAllImages(ctx, limit, offset)
+	return f.OnListAll(ctx, limit, offset)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -888,70 +888,70 @@ func (f *fkImageRepo) Called(name string) bool {
 }
 
 type fkCustomElementRepo struct {
-	Calls                     []string
-	OnGetCustomElements       func(ctx context.Context, userID string, isPublic *bool) ([]models.CustomElement, error)
-	OnGetCustomElementByID    func(ctx context.Context, id string, userID string) (*models.CustomElement, error)
-	OnCreateCustomElement     func(ctx context.Context, customElement *models.CustomElement) (*models.CustomElement, error)
-	OnUpdateCustomElement     func(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error)
-	OnDeleteCustomElement     func(ctx context.Context, id string, userID string) error
-	OnGetPublicCustomElements func(ctx context.Context, category *string, limit int, offset int) ([]models.CustomElement, error)
-	OnDuplicateCustomElement  func(ctx context.Context, id string, userID string, newName string) (*models.CustomElement, error)
+	Calls        []string
+	OnList       func(ctx context.Context, userID string, isPublic *bool) ([]models.CustomElement, error)
+	OnGetByID    func(ctx context.Context, id string, userID string) (*models.CustomElement, error)
+	OnCreate     func(ctx context.Context, customElement *models.CustomElement) (*models.CustomElement, error)
+	OnUpdate     func(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error)
+	OnDelete     func(ctx context.Context, id string, userID string) error
+	OnListPublic func(ctx context.Context, category *string, limit int, offset int) ([]models.CustomElement, error)
+	OnDuplicate  func(ctx context.Context, id string, userID string, newName string) (*models.CustomElement, error)
 }
 
-func (f *fkCustomElementRepo) GetCustomElements(ctx context.Context, userID string, isPublic *bool) ([]models.CustomElement, error) {
-	f.Calls = append(f.Calls, "GetCustomElements")
-	if f.OnGetCustomElements == nil {
-		panic("fkCustomElementRepo: unexpected call to GetCustomElements")
+func (f *fkCustomElementRepo) List(ctx context.Context, userID string, isPublic *bool) ([]models.CustomElement, error) {
+	f.Calls = append(f.Calls, "List")
+	if f.OnList == nil {
+		panic("fkCustomElementRepo: unexpected call to List")
 	}
-	return f.OnGetCustomElements(ctx, userID, isPublic)
+	return f.OnList(ctx, userID, isPublic)
 }
 
-func (f *fkCustomElementRepo) GetCustomElementByID(ctx context.Context, id string, userID string) (*models.CustomElement, error) {
-	f.Calls = append(f.Calls, "GetCustomElementByID")
-	if f.OnGetCustomElementByID == nil {
-		panic("fkCustomElementRepo: unexpected call to GetCustomElementByID")
+func (f *fkCustomElementRepo) GetByID(ctx context.Context, id string, userID string) (*models.CustomElement, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkCustomElementRepo: unexpected call to GetByID")
 	}
-	return f.OnGetCustomElementByID(ctx, id, userID)
+	return f.OnGetByID(ctx, id, userID)
 }
 
-func (f *fkCustomElementRepo) CreateCustomElement(ctx context.Context, customElement *models.CustomElement) (*models.CustomElement, error) {
-	f.Calls = append(f.Calls, "CreateCustomElement")
-	if f.OnCreateCustomElement == nil {
-		panic("fkCustomElementRepo: unexpected call to CreateCustomElement")
+func (f *fkCustomElementRepo) Create(ctx context.Context, customElement *models.CustomElement) (*models.CustomElement, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkCustomElementRepo: unexpected call to Create")
 	}
-	return f.OnCreateCustomElement(ctx, customElement)
+	return f.OnCreate(ctx, customElement)
 }
 
-func (f *fkCustomElementRepo) UpdateCustomElement(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error) {
-	f.Calls = append(f.Calls, "UpdateCustomElement")
-	if f.OnUpdateCustomElement == nil {
-		panic("fkCustomElementRepo: unexpected call to UpdateCustomElement")
+func (f *fkCustomElementRepo) Update(ctx context.Context, id string, userID string, updates map[string]any) (*models.CustomElement, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkCustomElementRepo: unexpected call to Update")
 	}
-	return f.OnUpdateCustomElement(ctx, id, userID, updates)
+	return f.OnUpdate(ctx, id, userID, updates)
 }
 
-func (f *fkCustomElementRepo) DeleteCustomElement(ctx context.Context, id string, userID string) error {
-	f.Calls = append(f.Calls, "DeleteCustomElement")
-	if f.OnDeleteCustomElement == nil {
-		panic("fkCustomElementRepo: unexpected call to DeleteCustomElement")
+func (f *fkCustomElementRepo) Delete(ctx context.Context, id string, userID string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkCustomElementRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteCustomElement(ctx, id, userID)
+	return f.OnDelete(ctx, id, userID)
 }
 
-func (f *fkCustomElementRepo) GetPublicCustomElements(ctx context.Context, category *string, limit int, offset int) ([]models.CustomElement, error) {
-	f.Calls = append(f.Calls, "GetPublicCustomElements")
-	if f.OnGetPublicCustomElements == nil {
-		panic("fkCustomElementRepo: unexpected call to GetPublicCustomElements")
+func (f *fkCustomElementRepo) ListPublic(ctx context.Context, category *string, limit int, offset int) ([]models.CustomElement, error) {
+	f.Calls = append(f.Calls, "ListPublic")
+	if f.OnListPublic == nil {
+		panic("fkCustomElementRepo: unexpected call to ListPublic")
 	}
-	return f.OnGetPublicCustomElements(ctx, category, limit, offset)
+	return f.OnListPublic(ctx, category, limit, offset)
 }
 
-func (f *fkCustomElementRepo) DuplicateCustomElement(ctx context.Context, id string, userID string, newName string) (*models.CustomElement, error) {
-	f.Calls = append(f.Calls, "DuplicateCustomElement")
-	if f.OnDuplicateCustomElement == nil {
-		panic("fkCustomElementRepo: unexpected call to DuplicateCustomElement")
+func (f *fkCustomElementRepo) Duplicate(ctx context.Context, id string, userID string, newName string) (*models.CustomElement, error) {
+	f.Calls = append(f.Calls, "Duplicate")
+	if f.OnDuplicate == nil {
+		panic("fkCustomElementRepo: unexpected call to Duplicate")
 	}
-	return f.OnDuplicateCustomElement(ctx, id, userID, newName)
+	return f.OnDuplicate(ctx, id, userID, newName)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -965,61 +965,61 @@ func (f *fkCustomElementRepo) Called(name string) bool {
 }
 
 type fkCustomElementTypeRepo struct {
-	Calls                        []string
-	OnGetCustomElementTypes      func(ctx context.Context) ([]models.CustomElementType, error)
-	OnGetCustomElementTypeByID   func(ctx context.Context, id string) (*models.CustomElementType, error)
-	OnGetCustomElementTypeByName func(ctx context.Context, name string) (*models.CustomElementType, error)
-	OnCreateCustomElementType    func(ctx context.Context, customElementType *models.CustomElementType) (*models.CustomElementType, error)
-	OnUpdateCustomElementType    func(ctx context.Context, id string, updates map[string]any) (*models.CustomElementType, error)
-	OnDeleteCustomElementType    func(ctx context.Context, id string) error
+	Calls       []string
+	OnList      func(ctx context.Context) ([]models.CustomElementType, error)
+	OnGetByID   func(ctx context.Context, id string) (*models.CustomElementType, error)
+	OnGetByName func(ctx context.Context, name string) (*models.CustomElementType, error)
+	OnCreate    func(ctx context.Context, customElementType *models.CustomElementType) (*models.CustomElementType, error)
+	OnUpdate    func(ctx context.Context, id string, updates map[string]any) (*models.CustomElementType, error)
+	OnDelete    func(ctx context.Context, id string) error
 }
 
-func (f *fkCustomElementTypeRepo) GetCustomElementTypes(ctx context.Context) ([]models.CustomElementType, error) {
-	f.Calls = append(f.Calls, "GetCustomElementTypes")
-	if f.OnGetCustomElementTypes == nil {
-		panic("fkCustomElementTypeRepo: unexpected call to GetCustomElementTypes")
+func (f *fkCustomElementTypeRepo) List(ctx context.Context) ([]models.CustomElementType, error) {
+	f.Calls = append(f.Calls, "List")
+	if f.OnList == nil {
+		panic("fkCustomElementTypeRepo: unexpected call to List")
 	}
-	return f.OnGetCustomElementTypes(ctx)
+	return f.OnList(ctx)
 }
 
-func (f *fkCustomElementTypeRepo) GetCustomElementTypeByID(ctx context.Context, id string) (*models.CustomElementType, error) {
-	f.Calls = append(f.Calls, "GetCustomElementTypeByID")
-	if f.OnGetCustomElementTypeByID == nil {
-		panic("fkCustomElementTypeRepo: unexpected call to GetCustomElementTypeByID")
+func (f *fkCustomElementTypeRepo) GetByID(ctx context.Context, id string) (*models.CustomElementType, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkCustomElementTypeRepo: unexpected call to GetByID")
 	}
-	return f.OnGetCustomElementTypeByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkCustomElementTypeRepo) GetCustomElementTypeByName(ctx context.Context, name string) (*models.CustomElementType, error) {
-	f.Calls = append(f.Calls, "GetCustomElementTypeByName")
-	if f.OnGetCustomElementTypeByName == nil {
-		panic("fkCustomElementTypeRepo: unexpected call to GetCustomElementTypeByName")
+func (f *fkCustomElementTypeRepo) GetByName(ctx context.Context, name string) (*models.CustomElementType, error) {
+	f.Calls = append(f.Calls, "GetByName")
+	if f.OnGetByName == nil {
+		panic("fkCustomElementTypeRepo: unexpected call to GetByName")
 	}
-	return f.OnGetCustomElementTypeByName(ctx, name)
+	return f.OnGetByName(ctx, name)
 }
 
-func (f *fkCustomElementTypeRepo) CreateCustomElementType(ctx context.Context, customElementType *models.CustomElementType) (*models.CustomElementType, error) {
-	f.Calls = append(f.Calls, "CreateCustomElementType")
-	if f.OnCreateCustomElementType == nil {
-		panic("fkCustomElementTypeRepo: unexpected call to CreateCustomElementType")
+func (f *fkCustomElementTypeRepo) Create(ctx context.Context, customElementType *models.CustomElementType) (*models.CustomElementType, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkCustomElementTypeRepo: unexpected call to Create")
 	}
-	return f.OnCreateCustomElementType(ctx, customElementType)
+	return f.OnCreate(ctx, customElementType)
 }
 
-func (f *fkCustomElementTypeRepo) UpdateCustomElementType(ctx context.Context, id string, updates map[string]any) (*models.CustomElementType, error) {
-	f.Calls = append(f.Calls, "UpdateCustomElementType")
-	if f.OnUpdateCustomElementType == nil {
-		panic("fkCustomElementTypeRepo: unexpected call to UpdateCustomElementType")
+func (f *fkCustomElementTypeRepo) Update(ctx context.Context, id string, updates map[string]any) (*models.CustomElementType, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkCustomElementTypeRepo: unexpected call to Update")
 	}
-	return f.OnUpdateCustomElementType(ctx, id, updates)
+	return f.OnUpdate(ctx, id, updates)
 }
 
-func (f *fkCustomElementTypeRepo) DeleteCustomElementType(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteCustomElementType")
-	if f.OnDeleteCustomElementType == nil {
-		panic("fkCustomElementTypeRepo: unexpected call to DeleteCustomElementType")
+func (f *fkCustomElementTypeRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkCustomElementTypeRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteCustomElementType(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -1033,88 +1033,88 @@ func (f *fkCustomElementTypeRepo) Called(name string) bool {
 }
 
 type fkInvitationRepo struct {
-	Calls                            []string
-	OnCreateInvitation               func(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error)
-	OnGetInvitationsByProject        func(ctx context.Context, projectID string) ([]models.Invitation, error)
-	OnGetInvitationByID              func(ctx context.Context, id string) (*models.Invitation, error)
-	OnGetInvitationByToken           func(ctx context.Context, token string) (*models.Invitation, error)
-	OnAcceptInvitation               func(ctx context.Context, token string, userID string) error
-	OnDeleteInvitation               func(ctx context.Context, id string) error
-	OnUpdateInvitationStatus         func(ctx context.Context, id string, status models.InvitationStatus) error
-	OnCancelInvitation               func(ctx context.Context, id string) error
-	OnGetPendingInvitationsByProject func(ctx context.Context, projectID string) ([]models.Invitation, error)
+	Calls                  []string
+	OnCreate               func(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error)
+	OnListByProject        func(ctx context.Context, projectID string) ([]models.Invitation, error)
+	OnGetByID              func(ctx context.Context, id string) (*models.Invitation, error)
+	OnGetByToken           func(ctx context.Context, token string) (*models.Invitation, error)
+	OnAccept               func(ctx context.Context, token string, userID string) error
+	OnDelete               func(ctx context.Context, id string) error
+	OnUpdateStatus         func(ctx context.Context, id string, status models.InvitationStatus) error
+	OnCancel               func(ctx context.Context, id string) error
+	OnListPendingByProject func(ctx context.Context, projectID string) ([]models.Invitation, error)
 }
 
-func (f *fkInvitationRepo) CreateInvitation(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error) {
-	f.Calls = append(f.Calls, "CreateInvitation")
-	if f.OnCreateInvitation == nil {
-		panic("fkInvitationRepo: unexpected call to CreateInvitation")
+func (f *fkInvitationRepo) Create(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkInvitationRepo: unexpected call to Create")
 	}
-	return f.OnCreateInvitation(ctx, invitation)
+	return f.OnCreate(ctx, invitation)
 }
 
-func (f *fkInvitationRepo) GetInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
-	f.Calls = append(f.Calls, "GetInvitationsByProject")
-	if f.OnGetInvitationsByProject == nil {
-		panic("fkInvitationRepo: unexpected call to GetInvitationsByProject")
+func (f *fkInvitationRepo) ListByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
+	f.Calls = append(f.Calls, "ListByProject")
+	if f.OnListByProject == nil {
+		panic("fkInvitationRepo: unexpected call to ListByProject")
 	}
-	return f.OnGetInvitationsByProject(ctx, projectID)
+	return f.OnListByProject(ctx, projectID)
 }
 
-func (f *fkInvitationRepo) GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error) {
-	f.Calls = append(f.Calls, "GetInvitationByID")
-	if f.OnGetInvitationByID == nil {
-		panic("fkInvitationRepo: unexpected call to GetInvitationByID")
+func (f *fkInvitationRepo) GetByID(ctx context.Context, id string) (*models.Invitation, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkInvitationRepo: unexpected call to GetByID")
 	}
-	return f.OnGetInvitationByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkInvitationRepo) GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error) {
-	f.Calls = append(f.Calls, "GetInvitationByToken")
-	if f.OnGetInvitationByToken == nil {
-		panic("fkInvitationRepo: unexpected call to GetInvitationByToken")
+func (f *fkInvitationRepo) GetByToken(ctx context.Context, token string) (*models.Invitation, error) {
+	f.Calls = append(f.Calls, "GetByToken")
+	if f.OnGetByToken == nil {
+		panic("fkInvitationRepo: unexpected call to GetByToken")
 	}
-	return f.OnGetInvitationByToken(ctx, token)
+	return f.OnGetByToken(ctx, token)
 }
 
-func (f *fkInvitationRepo) AcceptInvitation(ctx context.Context, token string, userID string) error {
-	f.Calls = append(f.Calls, "AcceptInvitation")
-	if f.OnAcceptInvitation == nil {
-		panic("fkInvitationRepo: unexpected call to AcceptInvitation")
+func (f *fkInvitationRepo) Accept(ctx context.Context, token string, userID string) error {
+	f.Calls = append(f.Calls, "Accept")
+	if f.OnAccept == nil {
+		panic("fkInvitationRepo: unexpected call to Accept")
 	}
-	return f.OnAcceptInvitation(ctx, token, userID)
+	return f.OnAccept(ctx, token, userID)
 }
 
-func (f *fkInvitationRepo) DeleteInvitation(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteInvitation")
-	if f.OnDeleteInvitation == nil {
-		panic("fkInvitationRepo: unexpected call to DeleteInvitation")
+func (f *fkInvitationRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkInvitationRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteInvitation(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
-func (f *fkInvitationRepo) UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error {
-	f.Calls = append(f.Calls, "UpdateInvitationStatus")
-	if f.OnUpdateInvitationStatus == nil {
-		panic("fkInvitationRepo: unexpected call to UpdateInvitationStatus")
+func (f *fkInvitationRepo) UpdateStatus(ctx context.Context, id string, status models.InvitationStatus) error {
+	f.Calls = append(f.Calls, "UpdateStatus")
+	if f.OnUpdateStatus == nil {
+		panic("fkInvitationRepo: unexpected call to UpdateStatus")
 	}
-	return f.OnUpdateInvitationStatus(ctx, id, status)
+	return f.OnUpdateStatus(ctx, id, status)
 }
 
-func (f *fkInvitationRepo) CancelInvitation(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "CancelInvitation")
-	if f.OnCancelInvitation == nil {
-		panic("fkInvitationRepo: unexpected call to CancelInvitation")
+func (f *fkInvitationRepo) Cancel(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Cancel")
+	if f.OnCancel == nil {
+		panic("fkInvitationRepo: unexpected call to Cancel")
 	}
-	return f.OnCancelInvitation(ctx, id)
+	return f.OnCancel(ctx, id)
 }
 
-func (f *fkInvitationRepo) GetPendingInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
-	f.Calls = append(f.Calls, "GetPendingInvitationsByProject")
-	if f.OnGetPendingInvitationsByProject == nil {
-		panic("fkInvitationRepo: unexpected call to GetPendingInvitationsByProject")
+func (f *fkInvitationRepo) ListPendingByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
+	f.Calls = append(f.Calls, "ListPendingByProject")
+	if f.OnListPendingByProject == nil {
+		panic("fkInvitationRepo: unexpected call to ListPendingByProject")
 	}
-	return f.OnGetPendingInvitationsByProject(ctx, projectID)
+	return f.OnListPendingByProject(ctx, projectID)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -1128,55 +1128,55 @@ func (f *fkInvitationRepo) Called(name string) bool {
 }
 
 type fkCollaboratorRepo struct {
-	Calls                               []string
-	OnCreateCollaborator                func(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
-	OnGetCollaboratorsByProject         func(ctx context.Context, projectID string) ([]models.Collaborator, error)
-	OnGetCollaboratorByID               func(ctx context.Context, id string) (*models.Collaborator, error)
-	OnUpdateCollaboratorRole            func(ctx context.Context, id string, role models.CollaboratorRole) error
-	OnDeleteCollaborator                func(ctx context.Context, id string) error
-	OnIsCollaborator                    func(ctx context.Context, projectID string, userID string) (bool, error)
-	OnGetCollaboratorByProjectAndUser   func(ctx context.Context, projectID string, userID string) (*models.Collaborator, error)
-	OnDeleteCollaboratorByProjectAndUser func(ctx context.Context, projectID string, userID string) (bool, error)
+	Calls                    []string
+	OnCreate                 func(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error)
+	OnListByProject          func(ctx context.Context, projectID string) ([]models.Collaborator, error)
+	OnGetByID                func(ctx context.Context, id string) (*models.Collaborator, error)
+	OnUpdateRole             func(ctx context.Context, id string, role models.CollaboratorRole) error
+	OnDelete                 func(ctx context.Context, id string) error
+	OnIsCollaborator         func(ctx context.Context, projectID string, userID string) (bool, error)
+	OnGetByProjectAndUser    func(ctx context.Context, projectID string, userID string) (*models.Collaborator, error)
+	OnDeleteByProjectAndUser func(ctx context.Context, projectID string, userID string) (bool, error)
 }
 
-func (f *fkCollaboratorRepo) CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error) {
-	f.Calls = append(f.Calls, "CreateCollaborator")
-	if f.OnCreateCollaborator == nil {
-		panic("fkCollaboratorRepo: unexpected call to CreateCollaborator")
+func (f *fkCollaboratorRepo) Create(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkCollaboratorRepo: unexpected call to Create")
 	}
-	return f.OnCreateCollaborator(ctx, collaborator)
+	return f.OnCreate(ctx, collaborator)
 }
 
-func (f *fkCollaboratorRepo) GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error) {
-	f.Calls = append(f.Calls, "GetCollaboratorsByProject")
-	if f.OnGetCollaboratorsByProject == nil {
-		panic("fkCollaboratorRepo: unexpected call to GetCollaboratorsByProject")
+func (f *fkCollaboratorRepo) ListByProject(ctx context.Context, projectID string) ([]models.Collaborator, error) {
+	f.Calls = append(f.Calls, "ListByProject")
+	if f.OnListByProject == nil {
+		panic("fkCollaboratorRepo: unexpected call to ListByProject")
 	}
-	return f.OnGetCollaboratorsByProject(ctx, projectID)
+	return f.OnListByProject(ctx, projectID)
 }
 
-func (f *fkCollaboratorRepo) GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error) {
-	f.Calls = append(f.Calls, "GetCollaboratorByID")
-	if f.OnGetCollaboratorByID == nil {
-		panic("fkCollaboratorRepo: unexpected call to GetCollaboratorByID")
+func (f *fkCollaboratorRepo) GetByID(ctx context.Context, id string) (*models.Collaborator, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkCollaboratorRepo: unexpected call to GetByID")
 	}
-	return f.OnGetCollaboratorByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkCollaboratorRepo) UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error {
-	f.Calls = append(f.Calls, "UpdateCollaboratorRole")
-	if f.OnUpdateCollaboratorRole == nil {
-		panic("fkCollaboratorRepo: unexpected call to UpdateCollaboratorRole")
+func (f *fkCollaboratorRepo) UpdateRole(ctx context.Context, id string, role models.CollaboratorRole) error {
+	f.Calls = append(f.Calls, "UpdateRole")
+	if f.OnUpdateRole == nil {
+		panic("fkCollaboratorRepo: unexpected call to UpdateRole")
 	}
-	return f.OnUpdateCollaboratorRole(ctx, id, role)
+	return f.OnUpdateRole(ctx, id, role)
 }
 
-func (f *fkCollaboratorRepo) DeleteCollaborator(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteCollaborator")
-	if f.OnDeleteCollaborator == nil {
-		panic("fkCollaboratorRepo: unexpected call to DeleteCollaborator")
+func (f *fkCollaboratorRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkCollaboratorRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteCollaborator(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
 func (f *fkCollaboratorRepo) IsCollaborator(ctx context.Context, projectID string, userID string) (bool, error) {
@@ -1187,20 +1187,20 @@ func (f *fkCollaboratorRepo) IsCollaborator(ctx context.Context, projectID strin
 	return f.OnIsCollaborator(ctx, projectID, userID)
 }
 
-func (f *fkCollaboratorRepo) GetCollaboratorByProjectAndUser(ctx context.Context, projectID string, userID string) (*models.Collaborator, error) {
-	f.Calls = append(f.Calls, "GetCollaboratorByProjectAndUser")
-	if f.OnGetCollaboratorByProjectAndUser == nil {
+func (f *fkCollaboratorRepo) GetByProjectAndUser(ctx context.Context, projectID string, userID string) (*models.Collaborator, error) {
+	f.Calls = append(f.Calls, "GetByProjectAndUser")
+	if f.OnGetByProjectAndUser == nil {
 		return nil, nil
 	}
-	return f.OnGetCollaboratorByProjectAndUser(ctx, projectID, userID)
+	return f.OnGetByProjectAndUser(ctx, projectID, userID)
 }
 
-func (f *fkCollaboratorRepo) DeleteCollaboratorByProjectAndUser(ctx context.Context, projectID string, userID string) (bool, error) {
-	f.Calls = append(f.Calls, "DeleteCollaboratorByProjectAndUser")
-	if f.OnDeleteCollaboratorByProjectAndUser == nil {
-		panic("fkCollaboratorRepo: unexpected call to DeleteCollaboratorByProjectAndUser")
+func (f *fkCollaboratorRepo) DeleteByProjectAndUser(ctx context.Context, projectID string, userID string) (bool, error) {
+	f.Calls = append(f.Calls, "DeleteByProjectAndUser")
+	if f.OnDeleteByProjectAndUser == nil {
+		panic("fkCollaboratorRepo: unexpected call to DeleteByProjectAndUser")
 	}
-	return f.OnDeleteCollaboratorByProjectAndUser(ctx, projectID, userID)
+	return f.OnDeleteByProjectAndUser(ctx, projectID, userID)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -1214,124 +1214,124 @@ func (f *fkCollaboratorRepo) Called(name string) bool {
 }
 
 type fkEventWorkflowRepo struct {
-	Calls                                      []string
-	OnCreateEventWorkflow                      func(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
-	OnGetEventWorkflowByID                     func(ctx context.Context, id string) (*models.EventWorkflow, error)
-	OnGetEventWorkflowsByProjectID             func(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	OnGetEventWorkflowsByProjectIDWithElements func(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	OnGetEnabledEventWorkflowsByProjectID      func(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
-	OnGetEventWorkflowsByName                  func(ctx context.Context, projectID string, name string) ([]models.EventWorkflow, error)
-	OnUpdateEventWorkflow                      func(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
-	OnUpdateEventWorkflowEnabled               func(ctx context.Context, id string, enabled bool) error
-	OnDeleteEventWorkflow                      func(ctx context.Context, id string) error
-	OnDeleteEventWorkflowsByProjectID          func(ctx context.Context, projectID string) error
-	OnCountEventWorkflowsByProjectID           func(ctx context.Context, projectID string) (int64, error)
-	OnCheckIfWorkflowNameExists                func(ctx context.Context, projectID string, name string, excludeID string) (bool, error)
-	OnGetEventWorkflowsWithFilters             func(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
+	Calls                       []string
+	OnCreate                    func(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
+	OnGetByID                   func(ctx context.Context, id string) (*models.EventWorkflow, error)
+	OnListByProject             func(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	OnListByProjectWithElements func(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	OnListEnabledByProject      func(ctx context.Context, projectID string) ([]models.EventWorkflow, error)
+	OnListByName                func(ctx context.Context, projectID string, name string) ([]models.EventWorkflow, error)
+	OnUpdate                    func(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error)
+	OnSetEnabled                func(ctx context.Context, id string, enabled bool) error
+	OnDelete                    func(ctx context.Context, id string) error
+	OnDeleteByProject           func(ctx context.Context, projectID string) error
+	OnCountByProject            func(ctx context.Context, projectID string) (int64, error)
+	OnExistsByName              func(ctx context.Context, projectID string, name string, excludeID string) (bool, error)
+	OnListWithFilters           func(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error)
 }
 
-func (f *fkEventWorkflowRepo) CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
-	f.Calls = append(f.Calls, "CreateEventWorkflow")
-	if f.OnCreateEventWorkflow == nil {
-		panic("fkEventWorkflowRepo: unexpected call to CreateEventWorkflow")
+func (f *fkEventWorkflowRepo) Create(ctx context.Context, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkEventWorkflowRepo: unexpected call to Create")
 	}
-	return f.OnCreateEventWorkflow(ctx, workflow)
+	return f.OnCreate(ctx, workflow)
 }
 
-func (f *fkEventWorkflowRepo) GetEventWorkflowByID(ctx context.Context, id string) (*models.EventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetEventWorkflowByID")
-	if f.OnGetEventWorkflowByID == nil {
-		panic("fkEventWorkflowRepo: unexpected call to GetEventWorkflowByID")
+func (f *fkEventWorkflowRepo) GetByID(ctx context.Context, id string) (*models.EventWorkflow, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkEventWorkflowRepo: unexpected call to GetByID")
 	}
-	return f.OnGetEventWorkflowByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkEventWorkflowRepo) GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetEventWorkflowsByProjectID")
-	if f.OnGetEventWorkflowsByProjectID == nil {
-		panic("fkEventWorkflowRepo: unexpected call to GetEventWorkflowsByProjectID")
+func (f *fkEventWorkflowRepo) ListByProject(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListByProject")
+	if f.OnListByProject == nil {
+		panic("fkEventWorkflowRepo: unexpected call to ListByProject")
 	}
-	return f.OnGetEventWorkflowsByProjectID(ctx, projectID)
+	return f.OnListByProject(ctx, projectID)
 }
 
-func (f *fkEventWorkflowRepo) GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetEventWorkflowsByProjectIDWithElements")
-	if f.OnGetEventWorkflowsByProjectIDWithElements == nil {
-		panic("fkEventWorkflowRepo: unexpected call to GetEventWorkflowsByProjectIDWithElements")
+func (f *fkEventWorkflowRepo) ListByProjectWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListByProjectWithElements")
+	if f.OnListByProjectWithElements == nil {
+		panic("fkEventWorkflowRepo: unexpected call to ListByProjectWithElements")
 	}
-	return f.OnGetEventWorkflowsByProjectIDWithElements(ctx, projectID)
+	return f.OnListByProjectWithElements(ctx, projectID)
 }
 
-func (f *fkEventWorkflowRepo) GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetEnabledEventWorkflowsByProjectID")
-	if f.OnGetEnabledEventWorkflowsByProjectID == nil {
-		panic("fkEventWorkflowRepo: unexpected call to GetEnabledEventWorkflowsByProjectID")
+func (f *fkEventWorkflowRepo) ListEnabledByProject(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListEnabledByProject")
+	if f.OnListEnabledByProject == nil {
+		panic("fkEventWorkflowRepo: unexpected call to ListEnabledByProject")
 	}
-	return f.OnGetEnabledEventWorkflowsByProjectID(ctx, projectID)
+	return f.OnListEnabledByProject(ctx, projectID)
 }
 
-func (f *fkEventWorkflowRepo) GetEventWorkflowsByName(ctx context.Context, projectID string, name string) ([]models.EventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetEventWorkflowsByName")
-	if f.OnGetEventWorkflowsByName == nil {
-		panic("fkEventWorkflowRepo: unexpected call to GetEventWorkflowsByName")
+func (f *fkEventWorkflowRepo) ListByName(ctx context.Context, projectID string, name string) ([]models.EventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListByName")
+	if f.OnListByName == nil {
+		panic("fkEventWorkflowRepo: unexpected call to ListByName")
 	}
-	return f.OnGetEventWorkflowsByName(ctx, projectID, name)
+	return f.OnListByName(ctx, projectID, name)
 }
 
-func (f *fkEventWorkflowRepo) UpdateEventWorkflow(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
-	f.Calls = append(f.Calls, "UpdateEventWorkflow")
-	if f.OnUpdateEventWorkflow == nil {
-		panic("fkEventWorkflowRepo: unexpected call to UpdateEventWorkflow")
+func (f *fkEventWorkflowRepo) Update(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkEventWorkflowRepo: unexpected call to Update")
 	}
-	return f.OnUpdateEventWorkflow(ctx, id, workflow)
+	return f.OnUpdate(ctx, id, workflow)
 }
 
-func (f *fkEventWorkflowRepo) UpdateEventWorkflowEnabled(ctx context.Context, id string, enabled bool) error {
-	f.Calls = append(f.Calls, "UpdateEventWorkflowEnabled")
-	if f.OnUpdateEventWorkflowEnabled == nil {
-		panic("fkEventWorkflowRepo: unexpected call to UpdateEventWorkflowEnabled")
+func (f *fkEventWorkflowRepo) SetEnabled(ctx context.Context, id string, enabled bool) error {
+	f.Calls = append(f.Calls, "SetEnabled")
+	if f.OnSetEnabled == nil {
+		panic("fkEventWorkflowRepo: unexpected call to SetEnabled")
 	}
-	return f.OnUpdateEventWorkflowEnabled(ctx, id, enabled)
+	return f.OnSetEnabled(ctx, id, enabled)
 }
 
-func (f *fkEventWorkflowRepo) DeleteEventWorkflow(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteEventWorkflow")
-	if f.OnDeleteEventWorkflow == nil {
-		panic("fkEventWorkflowRepo: unexpected call to DeleteEventWorkflow")
+func (f *fkEventWorkflowRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkEventWorkflowRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteEventWorkflow(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
-func (f *fkEventWorkflowRepo) DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error {
-	f.Calls = append(f.Calls, "DeleteEventWorkflowsByProjectID")
-	if f.OnDeleteEventWorkflowsByProjectID == nil {
-		panic("fkEventWorkflowRepo: unexpected call to DeleteEventWorkflowsByProjectID")
+func (f *fkEventWorkflowRepo) DeleteByProject(ctx context.Context, projectID string) error {
+	f.Calls = append(f.Calls, "DeleteByProject")
+	if f.OnDeleteByProject == nil {
+		panic("fkEventWorkflowRepo: unexpected call to DeleteByProject")
 	}
-	return f.OnDeleteEventWorkflowsByProjectID(ctx, projectID)
+	return f.OnDeleteByProject(ctx, projectID)
 }
 
-func (f *fkEventWorkflowRepo) CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error) {
-	f.Calls = append(f.Calls, "CountEventWorkflowsByProjectID")
-	if f.OnCountEventWorkflowsByProjectID == nil {
-		panic("fkEventWorkflowRepo: unexpected call to CountEventWorkflowsByProjectID")
+func (f *fkEventWorkflowRepo) CountByProject(ctx context.Context, projectID string) (int64, error) {
+	f.Calls = append(f.Calls, "CountByProject")
+	if f.OnCountByProject == nil {
+		panic("fkEventWorkflowRepo: unexpected call to CountByProject")
 	}
-	return f.OnCountEventWorkflowsByProjectID(ctx, projectID)
+	return f.OnCountByProject(ctx, projectID)
 }
 
-func (f *fkEventWorkflowRepo) CheckIfWorkflowNameExists(ctx context.Context, projectID string, name string, excludeID string) (bool, error) {
-	f.Calls = append(f.Calls, "CheckIfWorkflowNameExists")
-	if f.OnCheckIfWorkflowNameExists == nil {
-		panic("fkEventWorkflowRepo: unexpected call to CheckIfWorkflowNameExists")
+func (f *fkEventWorkflowRepo) ExistsByName(ctx context.Context, projectID string, name string, excludeID string) (bool, error) {
+	f.Calls = append(f.Calls, "ExistsByName")
+	if f.OnExistsByName == nil {
+		panic("fkEventWorkflowRepo: unexpected call to ExistsByName")
 	}
-	return f.OnCheckIfWorkflowNameExists(ctx, projectID, name, excludeID)
+	return f.OnExistsByName(ctx, projectID, name, excludeID)
 }
 
-func (f *fkEventWorkflowRepo) GetEventWorkflowsWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetEventWorkflowsWithFilters")
-	if f.OnGetEventWorkflowsWithFilters == nil {
-		panic("fkEventWorkflowRepo: unexpected call to GetEventWorkflowsWithFilters")
+func (f *fkEventWorkflowRepo) ListWithFilters(ctx context.Context, projectID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListWithFilters")
+	if f.OnListWithFilters == nil {
+		panic("fkEventWorkflowRepo: unexpected call to ListWithFilters")
 	}
-	return f.OnGetEventWorkflowsWithFilters(ctx, projectID, enabled, searchName)
+	return f.OnListWithFilters(ctx, projectID, enabled, searchName)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -1345,124 +1345,124 @@ func (f *fkEventWorkflowRepo) Called(name string) bool {
 }
 
 type fkElementEventWorkflowRepo struct {
-	Calls                                     []string
-	OnCreateElementEventWorkflow              func(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
-	OnGetElementEventWorkflowByID             func(ctx context.Context, id string) (*models.ElementEventWorkflow, error)
-	OnGetAllElementEventWorkflows             func(ctx context.Context) ([]models.ElementEventWorkflow, error)
-	OnGetElementEventWorkflowsByElementID     func(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error)
-	OnGetElementEventWorkflowsByWorkflowID    func(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error)
-	OnGetElementEventWorkflowsByEventName     func(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error)
-	OnGetElementEventWorkflowsByFilters       func(ctx context.Context, elementID string, workflowID string, eventName string) ([]models.ElementEventWorkflow, error)
-	OnUpdateElementEventWorkflow              func(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
-	OnDeleteElementEventWorkflow              func(ctx context.Context, id string) error
-	OnDeleteElementEventWorkflowsByElementID  func(ctx context.Context, elementID string) error
-	OnDeleteElementEventWorkflowsByWorkflowID func(ctx context.Context, workflowID string) error
-	OnGetElementEventWorkflowsByPageID        func(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error)
-	OnCheckIfWorkflowLinkedToElement          func(ctx context.Context, elementID string, workflowID string, eventName string) (bool, error)
+	Calls              []string
+	OnCreate           func(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
+	OnGetByID          func(ctx context.Context, id string) (*models.ElementEventWorkflow, error)
+	OnListAll          func(ctx context.Context) ([]models.ElementEventWorkflow, error)
+	OnListByElement    func(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error)
+	OnListByWorkflow   func(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error)
+	OnListByEvent      func(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error)
+	OnListByFilters    func(ctx context.Context, elementID string, workflowID string, eventName string) ([]models.ElementEventWorkflow, error)
+	OnUpdate           func(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error)
+	OnDelete           func(ctx context.Context, id string) error
+	OnDeleteByElement  func(ctx context.Context, elementID string) error
+	OnDeleteByWorkflow func(ctx context.Context, workflowID string) error
+	OnListByPage       func(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error)
+	OnIsLinked         func(ctx context.Context, elementID string, workflowID string, eventName string) (bool, error)
 }
 
-func (f *fkElementEventWorkflowRepo) CreateElementEventWorkflow(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "CreateElementEventWorkflow")
-	if f.OnCreateElementEventWorkflow == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to CreateElementEventWorkflow")
+func (f *fkElementEventWorkflowRepo) Create(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "Create")
+	if f.OnCreate == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to Create")
 	}
-	return f.OnCreateElementEventWorkflow(ctx, eew)
+	return f.OnCreate(ctx, eew)
 }
 
-func (f *fkElementEventWorkflowRepo) GetElementEventWorkflowByID(ctx context.Context, id string) (*models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetElementEventWorkflowByID")
-	if f.OnGetElementEventWorkflowByID == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to GetElementEventWorkflowByID")
+func (f *fkElementEventWorkflowRepo) GetByID(ctx context.Context, id string) (*models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to GetByID")
 	}
-	return f.OnGetElementEventWorkflowByID(ctx, id)
+	return f.OnGetByID(ctx, id)
 }
 
-func (f *fkElementEventWorkflowRepo) GetAllElementEventWorkflows(ctx context.Context) ([]models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetAllElementEventWorkflows")
-	if f.OnGetAllElementEventWorkflows == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to GetAllElementEventWorkflows")
+func (f *fkElementEventWorkflowRepo) ListAll(ctx context.Context) ([]models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListAll")
+	if f.OnListAll == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to ListAll")
 	}
-	return f.OnGetAllElementEventWorkflows(ctx)
+	return f.OnListAll(ctx)
 }
 
-func (f *fkElementEventWorkflowRepo) GetElementEventWorkflowsByElementID(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetElementEventWorkflowsByElementID")
-	if f.OnGetElementEventWorkflowsByElementID == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to GetElementEventWorkflowsByElementID")
+func (f *fkElementEventWorkflowRepo) ListByElement(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListByElement")
+	if f.OnListByElement == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to ListByElement")
 	}
-	return f.OnGetElementEventWorkflowsByElementID(ctx, elementID)
+	return f.OnListByElement(ctx, elementID)
 }
 
-func (f *fkElementEventWorkflowRepo) GetElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetElementEventWorkflowsByWorkflowID")
-	if f.OnGetElementEventWorkflowsByWorkflowID == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to GetElementEventWorkflowsByWorkflowID")
+func (f *fkElementEventWorkflowRepo) ListByWorkflow(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListByWorkflow")
+	if f.OnListByWorkflow == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to ListByWorkflow")
 	}
-	return f.OnGetElementEventWorkflowsByWorkflowID(ctx, workflowID)
+	return f.OnListByWorkflow(ctx, workflowID)
 }
 
-func (f *fkElementEventWorkflowRepo) GetElementEventWorkflowsByEventName(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetElementEventWorkflowsByEventName")
-	if f.OnGetElementEventWorkflowsByEventName == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to GetElementEventWorkflowsByEventName")
+func (f *fkElementEventWorkflowRepo) ListByEvent(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListByEvent")
+	if f.OnListByEvent == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to ListByEvent")
 	}
-	return f.OnGetElementEventWorkflowsByEventName(ctx, eventName)
+	return f.OnListByEvent(ctx, eventName)
 }
 
-func (f *fkElementEventWorkflowRepo) GetElementEventWorkflowsByFilters(ctx context.Context, elementID string, workflowID string, eventName string) ([]models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetElementEventWorkflowsByFilters")
-	if f.OnGetElementEventWorkflowsByFilters == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to GetElementEventWorkflowsByFilters")
+func (f *fkElementEventWorkflowRepo) ListByFilters(ctx context.Context, elementID string, workflowID string, eventName string) ([]models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListByFilters")
+	if f.OnListByFilters == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to ListByFilters")
 	}
-	return f.OnGetElementEventWorkflowsByFilters(ctx, elementID, workflowID, eventName)
+	return f.OnListByFilters(ctx, elementID, workflowID, eventName)
 }
 
-func (f *fkElementEventWorkflowRepo) UpdateElementEventWorkflow(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "UpdateElementEventWorkflow")
-	if f.OnUpdateElementEventWorkflow == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to UpdateElementEventWorkflow")
+func (f *fkElementEventWorkflowRepo) Update(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "Update")
+	if f.OnUpdate == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to Update")
 	}
-	return f.OnUpdateElementEventWorkflow(ctx, id, eew)
+	return f.OnUpdate(ctx, id, eew)
 }
 
-func (f *fkElementEventWorkflowRepo) DeleteElementEventWorkflow(ctx context.Context, id string) error {
-	f.Calls = append(f.Calls, "DeleteElementEventWorkflow")
-	if f.OnDeleteElementEventWorkflow == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to DeleteElementEventWorkflow")
+func (f *fkElementEventWorkflowRepo) Delete(ctx context.Context, id string) error {
+	f.Calls = append(f.Calls, "Delete")
+	if f.OnDelete == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to Delete")
 	}
-	return f.OnDeleteElementEventWorkflow(ctx, id)
+	return f.OnDelete(ctx, id)
 }
 
-func (f *fkElementEventWorkflowRepo) DeleteElementEventWorkflowsByElementID(ctx context.Context, elementID string) error {
-	f.Calls = append(f.Calls, "DeleteElementEventWorkflowsByElementID")
-	if f.OnDeleteElementEventWorkflowsByElementID == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to DeleteElementEventWorkflowsByElementID")
+func (f *fkElementEventWorkflowRepo) DeleteByElement(ctx context.Context, elementID string) error {
+	f.Calls = append(f.Calls, "DeleteByElement")
+	if f.OnDeleteByElement == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to DeleteByElement")
 	}
-	return f.OnDeleteElementEventWorkflowsByElementID(ctx, elementID)
+	return f.OnDeleteByElement(ctx, elementID)
 }
 
-func (f *fkElementEventWorkflowRepo) DeleteElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) error {
-	f.Calls = append(f.Calls, "DeleteElementEventWorkflowsByWorkflowID")
-	if f.OnDeleteElementEventWorkflowsByWorkflowID == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to DeleteElementEventWorkflowsByWorkflowID")
+func (f *fkElementEventWorkflowRepo) DeleteByWorkflow(ctx context.Context, workflowID string) error {
+	f.Calls = append(f.Calls, "DeleteByWorkflow")
+	if f.OnDeleteByWorkflow == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to DeleteByWorkflow")
 	}
-	return f.OnDeleteElementEventWorkflowsByWorkflowID(ctx, workflowID)
+	return f.OnDeleteByWorkflow(ctx, workflowID)
 }
 
-func (f *fkElementEventWorkflowRepo) GetElementEventWorkflowsByPageID(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error) {
-	f.Calls = append(f.Calls, "GetElementEventWorkflowsByPageID")
-	if f.OnGetElementEventWorkflowsByPageID == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to GetElementEventWorkflowsByPageID")
+func (f *fkElementEventWorkflowRepo) ListByPage(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error) {
+	f.Calls = append(f.Calls, "ListByPage")
+	if f.OnListByPage == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to ListByPage")
 	}
-	return f.OnGetElementEventWorkflowsByPageID(ctx, pageID)
+	return f.OnListByPage(ctx, pageID)
 }
 
-func (f *fkElementEventWorkflowRepo) CheckIfWorkflowLinkedToElement(ctx context.Context, elementID string, workflowID string, eventName string) (bool, error) {
-	f.Calls = append(f.Calls, "CheckIfWorkflowLinkedToElement")
-	if f.OnCheckIfWorkflowLinkedToElement == nil {
-		panic("fkElementEventWorkflowRepo: unexpected call to CheckIfWorkflowLinkedToElement")
+func (f *fkElementEventWorkflowRepo) IsLinked(ctx context.Context, elementID string, workflowID string, eventName string) (bool, error) {
+	f.Calls = append(f.Calls, "IsLinked")
+	if f.OnIsLinked == nil {
+		panic("fkElementEventWorkflowRepo: unexpected call to IsLinked")
 	}
-	return f.OnCheckIfWorkflowLinkedToElement(ctx, elementID, workflowID, eventName)
+	return f.OnIsLinked(ctx, elementID, workflowID, eventName)
 }
 
 // Called reports whether the named method was invoked at least once.
@@ -1476,43 +1476,43 @@ func (f *fkElementEventWorkflowRepo) Called(name string) bool {
 }
 
 type fkUserRepo struct {
-	Calls               []string
-	OnGetUserByID       func(ctx context.Context, userID string) (*models.User, error)
-	OnGetUserByEmail    func(ctx context.Context, email string) (*models.User, error)
-	OnGetUserByUsername func(ctx context.Context, username string) (*models.User, error)
-	OnSearchUsers       func(ctx context.Context, query string) ([]models.User, error)
+	Calls           []string
+	OnGetByID       func(ctx context.Context, userID string) (*models.User, error)
+	OnGetByEmail    func(ctx context.Context, email string) (*models.User, error)
+	OnGetByUsername func(ctx context.Context, username string) (*models.User, error)
+	OnSearch        func(ctx context.Context, query string) ([]models.User, error)
 }
 
-func (f *fkUserRepo) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
-	f.Calls = append(f.Calls, "GetUserByID")
-	if f.OnGetUserByID == nil {
-		panic("fkUserRepo: unexpected call to GetUserByID")
+func (f *fkUserRepo) GetByID(ctx context.Context, userID string) (*models.User, error) {
+	f.Calls = append(f.Calls, "GetByID")
+	if f.OnGetByID == nil {
+		panic("fkUserRepo: unexpected call to GetByID")
 	}
-	return f.OnGetUserByID(ctx, userID)
+	return f.OnGetByID(ctx, userID)
 }
 
-func (f *fkUserRepo) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	f.Calls = append(f.Calls, "GetUserByEmail")
-	if f.OnGetUserByEmail == nil {
-		panic("fkUserRepo: unexpected call to GetUserByEmail")
+func (f *fkUserRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	f.Calls = append(f.Calls, "GetByEmail")
+	if f.OnGetByEmail == nil {
+		panic("fkUserRepo: unexpected call to GetByEmail")
 	}
-	return f.OnGetUserByEmail(ctx, email)
+	return f.OnGetByEmail(ctx, email)
 }
 
-func (f *fkUserRepo) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
-	f.Calls = append(f.Calls, "GetUserByUsername")
-	if f.OnGetUserByUsername == nil {
-		panic("fkUserRepo: unexpected call to GetUserByUsername")
+func (f *fkUserRepo) GetByUsername(ctx context.Context, username string) (*models.User, error) {
+	f.Calls = append(f.Calls, "GetByUsername")
+	if f.OnGetByUsername == nil {
+		panic("fkUserRepo: unexpected call to GetByUsername")
 	}
-	return f.OnGetUserByUsername(ctx, username)
+	return f.OnGetByUsername(ctx, username)
 }
 
-func (f *fkUserRepo) SearchUsers(ctx context.Context, query string) ([]models.User, error) {
-	f.Calls = append(f.Calls, "SearchUsers")
-	if f.OnSearchUsers == nil {
-		panic("fkUserRepo: unexpected call to SearchUsers")
+func (f *fkUserRepo) Search(ctx context.Context, query string) ([]models.User, error) {
+	f.Calls = append(f.Calls, "Search")
+	if f.OnSearch == nil {
+		panic("fkUserRepo: unexpected call to Search")
 	}
-	return f.OnSearchUsers(ctx, query)
+	return f.OnSearch(ctx, query)
 }
 
 // Called reports whether the named method was invoked at least once.

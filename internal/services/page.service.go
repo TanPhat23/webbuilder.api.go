@@ -23,9 +23,9 @@ func NewPageService(
 	}
 }
 
-// GetPagesByProjectID lists a project's pages. userID is the signed-in caller,
+// ListByProject lists a project's pages. userID is the signed-in caller,
 // or "" on the public route, where only published projects are readable.
-func (s *PageService) GetPagesByProjectID(ctx context.Context, projectID, userID string) ([]models.Page, error) {
+func (s *PageService) ListByProject(ctx context.Context, projectID, userID string) ([]models.Page, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -34,7 +34,7 @@ func (s *PageService) GetPagesByProjectID(ctx context.Context, projectID, userID
 		return nil, err
 	}
 
-	pages, err := s.pageRepo.GetPagesByProjectID(ctx, projectID)
+	pages, err := s.pageRepo.ListByProject(ctx, projectID)
 	if err != nil || userID != "" {
 		return pages, err
 	}
@@ -48,17 +48,17 @@ func (s *PageService) GetPagesByProjectID(ctx context.Context, projectID, userID
 	return routes, nil
 }
 
-func (s *PageService) GetPageByID(ctx context.Context, pageID string) (*models.Page, error) {
+func (s *PageService) GetByID(ctx context.Context, pageID string) (*models.Page, error) {
 	if pageID == "" {
 		return nil, errors.New("pageId is required")
 	}
 
-	return s.pageRepo.GetPageByID(ctx, pageID, "")
+	return s.pageRepo.GetByID(ctx, pageID, "")
 }
 
-// GetPageByIDForUser verifies project read access (page:view) and ensures the
+// GetByIDForUser verifies project read access (page:view) and ensures the
 // page belongs to projectID.
-func (s *PageService) GetPageByIDForUser(ctx context.Context, projectID, pageID, userID string) (*models.Page, error) {
+func (s *PageService) GetByIDForUser(ctx context.Context, projectID, pageID, userID string) (*models.Page, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -68,22 +68,22 @@ func (s *PageService) GetPageByIDForUser(ctx context.Context, projectID, pageID,
 	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermPageView); err != nil {
 		return nil, err
 	}
-	return s.pageRepo.GetPageByID(ctx, pageID, projectID)
+	return s.pageRepo.GetByID(ctx, pageID, projectID)
 }
 
-// GetPublicPageByID returns routable pages of a published project.
-func (s *PageService) GetPublicPageByID(ctx context.Context, projectID, pageID string) (*models.Page, error) {
+// GetPublicByID returns routable pages of a published project.
+func (s *PageService) GetPublicByID(ctx context.Context, projectID, pageID string) (*models.Page, error) {
 	if projectID == "" || pageID == "" {
 		return nil, errors.New("projectId and pageId are required")
 	}
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
 	if project == nil {
 		return nil, repositories.ErrProjectNotFound
 	}
-	page, err := s.pageRepo.GetPageByID(ctx, pageID, projectID)
+	page, err := s.pageRepo.GetByID(ctx, pageID, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (s *PageService) GetPublicPageByID(ctx context.Context, projectID, pageID s
 	return page, nil
 }
 
-func (s *PageService) CreatePage(ctx context.Context, page *models.Page) (*models.Page, error) {
+func (s *PageService) Create(ctx context.Context, page *models.Page) (*models.Page, error) {
 	if page == nil {
 		return nil, errors.New("page cannot be nil")
 	}
@@ -107,7 +107,7 @@ func (s *PageService) CreatePage(ctx context.Context, page *models.Page) (*model
 		return nil, errors.New("page type is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, page.ProjectId)
+	project, err := s.projectRepo.GetPublicByID(ctx, page.ProjectId)
 	if err != nil {
 		return nil, err
 	}
@@ -120,13 +120,13 @@ func (s *PageService) CreatePage(ctx context.Context, page *models.Page) (*model
 
 // insertPage stores a page whose project the caller has already verified.
 func (s *PageService) insertPage(ctx context.Context, page *models.Page) (*models.Page, error) {
-	if err := s.pageRepo.CreatePage(ctx, page); err != nil {
+	if err := s.pageRepo.Create(ctx, page); err != nil {
 		return nil, err
 	}
 	return page, nil
 }
 
-func (s *PageService) UpdatePage(ctx context.Context, pageID string, page *models.Page) (*models.Page, error) {
+func (s *PageService) Update(ctx context.Context, pageID string, page *models.Page) (*models.Page, error) {
 	if pageID == "" {
 		return nil, errors.New("pageId is required")
 	}
@@ -135,13 +135,13 @@ func (s *PageService) UpdatePage(ctx context.Context, pageID string, page *model
 	}
 
 	page.Id = pageID
-	if err := s.pageRepo.UpdatePage(ctx, page); err != nil {
+	if err := s.pageRepo.Update(ctx, page); err != nil {
 		return nil, err
 	}
 	return page, nil
 }
 
-func (s *PageService) UpdatePageFields(ctx context.Context, pageID string, updates map[string]interface{}) error {
+func (s *PageService) UpdateFields(ctx context.Context, pageID string, updates map[string]interface{}) error {
 	if pageID == "" {
 		return errors.New("pageId is required")
 	}
@@ -149,12 +149,12 @@ func (s *PageService) UpdatePageFields(ctx context.Context, pageID string, updat
 		return errors.New("no updates provided")
 	}
 
-	return s.pageRepo.UpdatePageFields(ctx, pageID, updates)
+	return s.pageRepo.UpdateFields(ctx, pageID, updates)
 }
 
-// UpdatePageFieldsForUser verifies page:edit on projectID and confirms pageID
+// UpdateFieldsForUser verifies page:edit on projectID and confirms pageID
 // belongs to projectID before applying updates.
-func (s *PageService) UpdatePageFieldsForUser(ctx context.Context, projectID, pageID, userID string, updates map[string]interface{}) error {
+func (s *PageService) UpdateFieldsForUser(ctx context.Context, projectID, pageID, userID string, updates map[string]interface{}) error {
 	if projectID == "" {
 		return errors.New("projectId is required")
 	}
@@ -167,21 +167,21 @@ func (s *PageService) UpdatePageFieldsForUser(ctx context.Context, projectID, pa
 	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermPageEdit); err != nil {
 		return err
 	}
-	if _, err := s.pageRepo.GetPageByID(ctx, pageID, projectID); err != nil {
+	if _, err := s.pageRepo.GetByID(ctx, pageID, projectID); err != nil {
 		return err
 	}
-	return s.pageRepo.UpdatePageFields(ctx, pageID, updates)
+	return s.pageRepo.UpdateFields(ctx, pageID, updates)
 }
 
-func (s *PageService) DeletePage(ctx context.Context, pageID string) error {
+func (s *PageService) Delete(ctx context.Context, pageID string) error {
 	if pageID == "" {
 		return errors.New("pageId is required")
 	}
 
-	return s.pageRepo.DeletePage(ctx, pageID)
+	return s.pageRepo.Delete(ctx, pageID)
 }
 
-func (s *PageService) DeletePageByProjectID(ctx context.Context, pageID, projectID, userID string) error {
+func (s *PageService) DeleteForUser(ctx context.Context, pageID, projectID, userID string) error {
 	if pageID == "" {
 		return errors.New("pageId is required")
 	}
@@ -196,10 +196,10 @@ func (s *PageService) DeletePageByProjectID(ctx context.Context, pageID, project
 		return err
 	}
 
-	return s.pageRepo.DeletePageByProjectID(ctx, pageID, projectID, userID)
+	return s.pageRepo.DeleteForUser(ctx, pageID, projectID, userID)
 }
 
-func (s *PageService) DeletePageByProjectIDWithoutVerification(ctx context.Context, pageID, projectID string) error {
+func (s *PageService) DeleteInProject(ctx context.Context, pageID, projectID string) error {
 	if pageID == "" {
 		return errors.New("pageId is required")
 	}
@@ -207,12 +207,12 @@ func (s *PageService) DeletePageByProjectIDWithoutVerification(ctx context.Conte
 		return errors.New("projectId is required")
 	}
 
-	return s.pageRepo.DeletePageByProjectID(ctx, pageID, projectID, "")
+	return s.pageRepo.DeleteForUser(ctx, pageID, projectID, "")
 }
 
-// CreatePageAsUser creates a page after checking the user holds page:create
+// CreateForUser creates a page after checking the user holds page:create
 // (owner or editor). Viewers and strangers get ErrForbidden.
-func (s *PageService) CreatePageAsUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error) {
+func (s *PageService) CreateForUser(ctx context.Context, page *models.Page, userID string) (*models.Page, error) {
 	if page == nil {
 		return nil, errors.New("page cannot be nil")
 	}

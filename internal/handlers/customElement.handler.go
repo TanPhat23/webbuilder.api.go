@@ -24,8 +24,8 @@ func NewCustomElementHandler(customElementService services.CustomElementServiceI
 	}
 }
 
-func (h *CustomElementHandler) GetCustomElements(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+func (h *CustomElementHandler) List(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -37,15 +37,15 @@ func (h *CustomElementHandler) GetCustomElements(c fiber.Ctx) error {
 		}
 	}
 
-	customElements, err := h.customElementService.GetCustomElements(c.RequestCtx(), userID, isPublicPtr)
+	customElements, err := h.customElementService.List(c.RequestCtx(), userID, isPublicPtr)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve custom elements")
+		return utils.RespondError(c, err, "", "Failed to retrieve custom elements")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, customElements)
 }
 
-func (h *CustomElementHandler) GetPublicCustomElements(c fiber.Ctx) error {
+func (h *CustomElementHandler) ListPublic(c fiber.Ctx) error {
 	limit, offset := utils.ParsePagination(c, 20)
 
 	var categoryPtr *string
@@ -53,31 +53,31 @@ func (h *CustomElementHandler) GetPublicCustomElements(c fiber.Ctx) error {
 		categoryPtr = &category
 	}
 
-	customElements, err := h.customElementService.GetPublicCustomElements(c.RequestCtx(), categoryPtr, limit, offset)
+	customElements, err := h.customElementService.ListPublic(c.RequestCtx(), categoryPtr, limit, offset)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve public custom elements")
+		return utils.RespondError(c, err, "", "Failed to retrieve public custom elements")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, customElements)
 }
 
-func (h *CustomElementHandler) GetCustomElementByID(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+func (h *CustomElementHandler) GetByID(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	customElement, err := h.customElementService.GetCustomElementByID(c.RequestCtx(), id, userID)
+	customElement, err := h.customElementService.GetByID(c.RequestCtx(), id, userID)
 	if err != nil {
-		return handleCustomElementError(c, err, "Failed to retrieve custom element", "")
+		return respondCustomElementError(c, err, "Failed to retrieve custom element", "")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, customElement)
 }
 
-func (h *CustomElementHandler) CreateCustomElement(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+func (h *CustomElementHandler) Create(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -107,16 +107,16 @@ func (h *CustomElementHandler) CreateCustomElement(c fiber.Ctx) error {
 		Version:      req.Version,
 	}
 
-	created, err := h.customElementService.CreateCustomElement(c.RequestCtx(), customElement)
+	created, err := h.customElementService.Create(c.RequestCtx(), customElement)
 	if err != nil {
-		return handleCustomElementError(c, err, "Failed to create custom element", "")
+		return respondCustomElementError(c, err, "Failed to create custom element", "")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *CustomElementHandler) UpdateCustomElement(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+func (h *CustomElementHandler) Update(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
@@ -132,9 +132,9 @@ func (h *CustomElementHandler) UpdateCustomElement(c fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.customElementService.UpdateCustomElement(c.RequestCtx(), id, userID, updates)
+	updated, err := h.customElementService.Update(c.RequestCtx(), id, userID, updates)
 	if err != nil {
-		return handleCustomElementError(c, err, "Failed to update custom element", "Unauthorized to update this custom element")
+		return respondCustomElementError(c, err, "Failed to update custom element", "Unauthorized to update this custom element")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updated)
@@ -160,32 +160,32 @@ func buildCustomElementUpdates(req *dto.UpdateCustomElementRequest) map[string]a
 	return updates
 }
 
-func handleCustomElementError(c fiber.Ctx, err error, internalMsg, forbiddenMsg string) error {
+func respondCustomElementError(c fiber.Ctx, err error, internalMsg, forbiddenMsg string) error {
 	if errors.Is(err, repositories.ErrCustomElementAlreadyExists) {
 		return fiber.NewError(fiber.StatusConflict, "Custom element with this name already exists")
 	}
 	if forbiddenMsg != "" && strings.Contains(err.Error(), "unauthorized") {
 		return fiber.NewError(fiber.StatusForbidden, forbiddenMsg)
 	}
-	return utils.HandleRepoError(c, err, "Custom element not found", internalMsg)
+	return utils.RespondError(c, err, "Custom element not found", internalMsg)
 }
 
-func (h *CustomElementHandler) DeleteCustomElement(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+func (h *CustomElementHandler) Delete(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	if err := h.customElementService.DeleteCustomElement(c.RequestCtx(), id, userID); err != nil {
-		return handleCustomElementError(c, err, "Failed to delete custom element", "Unauthorized to delete this custom element")
+	if err := h.customElementService.Delete(c.RequestCtx(), id, userID); err != nil {
+		return respondCustomElementError(c, err, "Failed to delete custom element", "Unauthorized to delete this custom element")
 	}
 
 	return utils.SendSuccess(c, fiber.StatusOK, "Custom element deleted successfully")
 }
 
-func (h *CustomElementHandler) DuplicateCustomElement(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+func (h *CustomElementHandler) Duplicate(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
@@ -196,12 +196,12 @@ func (h *CustomElementHandler) DuplicateCustomElement(c fiber.Ctx) error {
 		return err
 	}
 
-	duplicate, err := h.customElementService.DuplicateCustomElement(c.RequestCtx(), id, userID, req.NewName)
+	duplicate, err := h.customElementService.Duplicate(c.RequestCtx(), id, userID, req.NewName)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return fiber.NewError(fiber.StatusNotFound, "Custom element not found")
 		}
-		return utils.HandleRepoError(c, err, "", "Failed to duplicate custom element")
+		return utils.RespondError(c, err, "", "Failed to duplicate custom element")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, duplicate)

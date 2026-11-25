@@ -48,7 +48,7 @@ func (s *ImageService) publicImageURL(imageID string) string {
 	return s.publicBaseURL + "/api/v1/public/images/" + imageID
 }
 
-func (s *ImageService) CreateImage(ctx context.Context, image models.Image) (*models.Image, error) {
+func (s *ImageService) Create(ctx context.Context, image models.Image) (*models.Image, error) {
 	if image.ImageId == "" {
 		image.ImageId = cuid.New()
 	}
@@ -65,7 +65,7 @@ func (s *ImageService) CreateImage(ctx context.Context, image models.Image) (*mo
 		return nil, errors.New("image link is required")
 	}
 
-	return s.imageRepo.CreateImage(ctx, image)
+	return s.imageRepo.Create(ctx, image)
 }
 
 func (s *ImageService) persistUploadedObject(
@@ -95,7 +95,7 @@ func (s *ImageService) persistUploadedObject(
 		},
 	}
 
-	created, err := s.CreateImage(ctx, image)
+	created, err := s.Create(ctx, image)
 	if err != nil {
 		_ = s.storage.DeleteObject(ctx, key)
 		return nil, err
@@ -120,7 +120,7 @@ func seekerSize(r io.Seeker) (int64, error) {
 	return size, nil
 }
 
-func (s *ImageService) CreateUploadedImage(ctx context.Context, userID string, _ string, imageName *string, file multipart.File) (*models.ImageUploadResponse, error) {
+func (s *ImageService) Upload(ctx context.Context, userID string, imageName *string, file multipart.File) (*models.ImageUploadResponse, error) {
 	if userID == "" {
 		return nil, errors.New("userId is required")
 	}
@@ -172,7 +172,7 @@ func decodeBase64Image(raw string) ([]byte, string, error) {
 	return decoded, contentType, nil
 }
 
-func (s *ImageService) CreateBase64UploadedImage(ctx context.Context, userID string, imageData string, imageName *string) (*models.ImageUploadResponse, error) {
+func (s *ImageService) UploadBase64(ctx context.Context, userID string, imageData string, imageName *string) (*models.ImageUploadResponse, error) {
 	if userID == "" {
 		return nil, errors.New("userId is required")
 	}
@@ -191,46 +191,46 @@ func (s *ImageService) CreateBase64UploadedImage(ctx context.Context, userID str
 	return s.persistUploadedObject(ctx, userID, imageName, bytes.NewReader(decoded), int64(len(decoded)), contentType)
 }
 
-func (s *ImageService) GetImagesByUserID(ctx context.Context, userID string) ([]models.Image, error) {
+func (s *ImageService) ListByUser(ctx context.Context, userID string) ([]models.Image, error) {
 	if userID == "" {
 		return nil, errors.New("userId is required")
 	}
-	return s.imageRepo.GetImagesByUserID(ctx, userID)
+	return s.imageRepo.ListByUser(ctx, userID)
 }
 
-func (s *ImageService) GetImageByID(ctx context.Context, imageID, userID string) (*models.Image, error) {
+func (s *ImageService) GetByID(ctx context.Context, imageID, userID string) (*models.Image, error) {
 	if imageID == "" {
 		return nil, errors.New("image id is required")
 	}
 	if userID == "" {
 		return nil, errors.New("userId is required")
 	}
-	return s.imageRepo.GetImageByID(ctx, imageID, userID)
+	return s.imageRepo.GetByID(ctx, imageID, userID)
 }
 
-// GetPublicImageURL looks up an active image record and mints a short-lived presigned GET URL.
-func (s *ImageService) GetPublicImageURL(ctx context.Context, imageID string) (string, error) {
+// PublicURL looks up an active image record and mints a short-lived presigned GET URL.
+func (s *ImageService) PublicURL(ctx context.Context, imageID string) (string, error) {
 	if imageID == "" {
 		return "", errors.New("image id is required")
 	}
 	if s.storage == nil {
 		return "", errors.New("image storage service is not configured")
 	}
-	img, err := s.imageRepo.GetPublicImageByID(ctx, imageID)
+	img, err := s.imageRepo.GetPublicByID(ctx, imageID)
 	if err != nil {
 		return "", err
 	}
 	return s.storage.PresignedGetURL(ctx, ImageObjectKey(img.UserId, img.ImageId), presignedImageURLTTL)
 }
 
-func (s *ImageService) DeleteImage(ctx context.Context, imageID, userID string) error {
+func (s *ImageService) Delete(ctx context.Context, imageID, userID string) error {
 	if imageID == "" {
 		return errors.New("image id is required")
 	}
 	if userID == "" {
 		return errors.New("userId is required")
 	}
-	if err := s.imageRepo.DeleteImage(ctx, imageID, userID); err != nil {
+	if err := s.imageRepo.Delete(ctx, imageID, userID); err != nil {
 		return err
 	}
 	if s.storage != nil {
@@ -239,22 +239,22 @@ func (s *ImageService) DeleteImage(ctx context.Context, imageID, userID string) 
 	return nil
 }
 
-func (s *ImageService) SoftDeleteImage(ctx context.Context, imageID, userID string) error {
+func (s *ImageService) SoftDelete(ctx context.Context, imageID, userID string) error {
 	if imageID == "" {
 		return errors.New("image id is required")
 	}
 	if userID == "" {
 		return errors.New("userId is required")
 	}
-	return s.imageRepo.SoftDeleteImage(ctx, imageID, userID)
+	return s.imageRepo.SoftDelete(ctx, imageID, userID)
 }
 
-func (s *ImageService) GetAllImages(ctx context.Context, limit, offset int) ([]models.Image, error) {
+func (s *ImageService) ListAll(ctx context.Context, limit, offset int) ([]models.Image, error) {
 	if limit < 0 {
 		return nil, errors.New("limit cannot be negative")
 	}
 	if offset < 0 {
 		return nil, errors.New("offset cannot be negative")
 	}
-	return s.imageRepo.GetAllImages(ctx, limit, offset)
+	return s.imageRepo.ListAll(ctx, limit, offset)
 }

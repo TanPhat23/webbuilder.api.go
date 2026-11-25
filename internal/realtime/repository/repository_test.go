@@ -79,11 +79,11 @@ type sRows struct {
 }
 
 func (c sConnector) Connect(context.Context) (driver.Conn, error) { return &sConn{db: c.db}, nil }
-func (sConnector) Driver() driver.Driver                         { return sDriver{} }
-func (sDriver) Open(string) (driver.Conn, error)                 { return nil, errors.New("unused") }
-func (*sConn) Prepare(string) (driver.Stmt, error)               { return nil, driver.ErrSkip }
-func (*sConn) Close() error                                      { return nil }
-func (*sConn) Begin() (driver.Tx, error)                         { return &sTx{}, nil }
+func (sConnector) Driver() driver.Driver                          { return sDriver{} }
+func (sDriver) Open(string) (driver.Conn, error)                  { return nil, errors.New("unused") }
+func (*sConn) Prepare(string) (driver.Stmt, error)                { return nil, driver.ErrSkip }
+func (*sConn) Close() error                                       { return nil }
+func (*sConn) Begin() (driver.Tx, error)                          { return &sTx{}, nil }
 func (*sConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
 	return &sTx{}, nil
 }
@@ -224,7 +224,7 @@ func TestGormRepositoriesAndLogicRepository(t *testing.T) {
 	defer rdb.Close()
 
 	db, s := newScriptGorm(t)
-	repos := NewRepository(db, rdb)
+	repos := New(db, rdb)
 	ctx := context.Background()
 
 	assertElementRepoCRUD(t, ctx, s, repos)
@@ -248,11 +248,11 @@ func assertElementRepoCRUD(t *testing.T, ctx context.Context, s *scriptDB, repos
 	if got, err := repos.ElementRepo.GetElementByID(ctx, "proj-1", "pg-1", "el-1"); err != nil || got == nil {
 		t.Fatalf("GetElementByID got=%v err=%v", got, err)
 	}
-	if list, err := repos.ElementRepo.GetElementsByPageID(ctx, "proj-1", "pg-1"); err != nil || len(list) == 0 {
-		t.Fatalf("GetElementsByPageID list=%v err=%v", list, err)
+	if list, err := repos.ElementRepo.ListElementsByPage(ctx, "proj-1", "pg-1"); err != nil || len(list) == 0 {
+		t.Fatalf("ListElementsByPage list=%v err=%v", list, err)
 	}
-	if list, err := repos.ElementRepo.GetElementsByProjectID(ctx, "proj-1"); err != nil || len(list) == 0 {
-		t.Fatalf("GetElementsByProjectID list=%v err=%v", list, err)
+	if list, err := repos.ElementRepo.ListElementsByProject(ctx, "proj-1"); err != nil || len(list) == 0 {
+		t.Fatalf("ListElementsByProject list=%v err=%v", list, err)
 	}
 
 	// Cross-project page ownership rejection
@@ -274,7 +274,7 @@ func assertSnapshotAndWorkflowRepos(t *testing.T, ctx context.Context, s *script
 	t.Helper()
 	s.on(`FROM "Page"`, []string{"exists"}, []driver.Value{true})
 	el := domainEntity.Element{ID: "el-1", Type: "Text", PageID: "pg-1"}
-	assertDocRepoNoErr(t, repos.SnapshotRepo.SaveSnapshot(ctx, "proj-1", "pg-1", "snap", domainEntity.SnapshotTypes.Version, []domainEntity.Element{el}))
+	assertDocRepoNoErr(t, repos.SnapshotRepo.CreateSnapshot(ctx, "proj-1", "pg-1", "snap", domainEntity.SnapshotTypes.Version, []domainEntity.Element{el}))
 	s.on(`FROM "Snapshot"`, []string{"Id", "Name"}, []driver.Value{"s1", "snap"})
 	if snap, err := repos.SnapshotRepo.GetSnapshot(ctx, "proj-1", "pg-1", domainEntity.SnapshotTypes.Version); err != nil || snap == nil {
 		t.Fatalf("GetSnapshot snap=%v err=%v", snap, err)
@@ -285,8 +285,8 @@ func assertSnapshotAndWorkflowRepos(t *testing.T, ctx context.Context, s *script
 	s2db, s2 := newScriptGorm(t)
 	scopedSnap := NewSnapshotRepository(s2db)
 	s2.on(`FROM "Page"`, []string{"exists"}, []driver.Value{false})
-	if err := scopedSnap.SaveSnapshot(ctx, "wrong-proj", "pg-1", "snap", domainEntity.SnapshotTypes.Version, []domainEntity.Element{el}); err == nil {
-		t.Fatal("SaveSnapshot must fail when page does not belong to project")
+	if err := scopedSnap.CreateSnapshot(ctx, "wrong-proj", "pg-1", "snap", domainEntity.SnapshotTypes.Version, []domainEntity.Element{el}); err == nil {
+		t.Fatal("CreateSnapshot must fail when page does not belong to project")
 	}
 	if err := scopedSnap.DeleteSnapshot(ctx, "pg-1", "wrong-proj", domainEntity.SnapshotTypes.Version); err == nil {
 		t.Fatal("DeleteSnapshot must fail when page does not belong to project")
@@ -299,8 +299,8 @@ func assertSnapshotAndWorkflowRepos(t *testing.T, ctx context.Context, s *script
 	if got, err := repos.WorkflowRepo.GetWorkflowByID(ctx, "proj-1", "wf-1"); err != nil || got == nil {
 		t.Fatalf("GetWorkflowByID got=%v err=%v", got, err)
 	}
-	if list, err := repos.WorkflowRepo.GetWorkflowsByProjectID(ctx, "proj-1"); err != nil || len(list) == 0 {
-		t.Fatalf("GetWorkflowsByProjectID err=%v", err)
+	if list, err := repos.WorkflowRepo.ListWorkflowsByProject(ctx, "proj-1"); err != nil || len(list) == 0 {
+		t.Fatalf("ListWorkflowsByProject err=%v", err)
 	}
 	assertDocRepoNoErr(t, repos.WorkflowRepo.DeleteWorkflow(ctx, "proj-1", "wf-1"))
 }
@@ -315,11 +315,11 @@ func assertElementWorkflowAndProjectRepos(t *testing.T, ctx context.Context, s *
 	if got, err := repos.ElementWorkflowRepo.GetElementWorkflowByElementID(ctx, "proj-1", "el-1"); err != nil || got == nil {
 		t.Fatalf("GetElementWorkflowByElementID got=%v err=%v", got, err)
 	}
-	if list, err := repos.ElementWorkflowRepo.GetElementWorkflowsByProjectID(ctx, "proj-1"); err != nil || len(list) == 0 {
-		t.Fatalf("GetElementWorkflowsByProjectID err=%v", err)
+	if list, err := repos.ElementWorkflowRepo.ListElementWorkflowsByProject(ctx, "proj-1"); err != nil || len(list) == 0 {
+		t.Fatalf("ListElementWorkflowsByProject err=%v", err)
 	}
-	if list, err := repos.ElementWorkflowRepo.GetElementWorkflowsByPageID(ctx, "proj-1", "pg-1"); err != nil || len(list) == 0 {
-		t.Fatalf("GetElementWorkflowsByPageID err=%v", err)
+	if list, err := repos.ElementWorkflowRepo.ListElementWorkflowsByPage(ctx, "proj-1", "pg-1"); err != nil || len(list) == 0 {
+		t.Fatalf("ListElementWorkflowsByPage err=%v", err)
 	}
 	assertDocRepoNoErr(t, repos.ElementWorkflowRepo.DeleteElementWorkflow(ctx, "proj-1", "el-1"))
 

@@ -69,33 +69,33 @@ func TestPostgresProjectAccessAndLists(t *testing.T) {
 
 	t.Run("owner and collaborator get the project", func(t *testing.T) {
 		for _, user := range []string{owner, collab} {
-			if p, err := repo.GetProjectWithAccess(ctx, older, user); err != nil || p.ID != older {
+			if p, err := repo.GetWithAccess(ctx, older, user); err != nil || p.ID != older {
 				t.Fatalf("user %s: %v %v", user, p, err)
 			}
 		}
 	})
 	t.Run("a stranger is unauthorized, a missing project too", func(t *testing.T) {
-		if _, err := repo.GetProjectWithAccess(ctx, older, stranger); !errors.Is(err, ErrProjectUnauthorized) {
+		if _, err := repo.GetWithAccess(ctx, older, stranger); !errors.Is(err, ErrProjectUnauthorized) {
 			t.Fatalf("stranger: %v", err)
 		}
-		if _, err := repo.GetProjectWithAccess(ctx, uuid.NewString(), collab); !errors.Is(err, ErrProjectUnauthorized) {
+		if _, err := repo.GetWithAccess(ctx, uuid.NewString(), collab); !errors.Is(err, ErrProjectUnauthorized) {
 			t.Fatalf("unknown project: %v", err)
 		}
 	})
 	t.Run("a deleted project is not found for its collaborator", func(t *testing.T) {
-		if _, err := repo.GetProjectWithAccess(ctx, gone, collab); !errors.Is(err, ErrProjectNotFound) {
+		if _, err := repo.GetWithAccess(ctx, gone, collab); !errors.Is(err, ErrProjectNotFound) {
 			t.Fatalf("collaborator of a deleted project: %v", err)
 		}
-		if _, err := repo.GetProjectWithAccess(ctx, gone, owner); !errors.Is(err, ErrProjectUnauthorized) {
+		if _, err := repo.GetWithAccess(ctx, gone, owner); !errors.Is(err, ErrProjectUnauthorized) {
 			t.Fatalf("owner of a deleted project: %v", err)
 		}
 	})
 	t.Run("lists hold owned then shared projects, newest first, without heavy columns", func(t *testing.T) {
-		mine, err := repo.GetProjectsByUserID(ctx, owner)
+		mine, err := repo.ListByUser(ctx, owner)
 		if err != nil || len(mine) != 2 || mine[0].ID != newer || mine[1].ID != older {
 			t.Fatalf("owner list = %v, %v; want [newer=%s older=%s]", projectIDs(mine), err, newer, older)
 		}
-		shared, err := repo.GetProjectsByUserID(ctx, collab)
+		shared, err := repo.ListByUser(ctx, collab)
 		if err != nil || len(shared) != 1 || shared[0].ID != older {
 			t.Fatalf("collaborator list = %v, %v", projectIDs(shared), err)
 		}
@@ -133,11 +133,11 @@ func TestPostgresElementsByPageIdsAreScopedToProject(t *testing.T) {
 		}
 	}
 
-	got, err := repo.GetElementsByPageIds(ctx, projectA, []string{pageOf[projectA]})
+	got, err := repo.ListByPageIDs(ctx, projectA, []string{pageOf[projectA]})
 	if err != nil || len(got) != 1 {
 		t.Fatalf("own page: %d elements, %v", len(got), err)
 	}
-	got, err = repo.GetElementsByPageIds(ctx, projectA, []string{pageOf[projectB]})
+	got, err = repo.ListByPageIDs(ctx, projectA, []string{pageOf[projectB]})
 	if err != nil || len(got) != 0 {
 		t.Fatalf("another project's page must read as empty, got %d elements, %v", len(got), err)
 	}

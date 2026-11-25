@@ -52,11 +52,11 @@ type ItemEventEmitter interface {
 }
 
 const (
-	maxPublicCollectionOffset  = 10000
-	maxRateLimitBuckets        = 50000
-	maxPublicFieldLen          = 16 * 1024
-	maxPublicRichTextFieldLen  = 100 * 1024
-	rateLimitPruneInterval     = 1024
+	maxPublicCollectionOffset = 10000
+	maxRateLimitBuckets       = 50000
+	maxPublicFieldLen         = 16 * 1024
+	maxPublicRichTextFieldLen = 100 * 1024
+	rateLimitPruneInterval    = 1024
 )
 
 type slidingWindowLimiter struct {
@@ -155,7 +155,7 @@ func (s *PublicCollectionService) WithEventEmitter(emitter ItemEventEmitter) *Pu
 }
 
 func (s *PublicCollectionService) ListPublicItems(ctx context.Context, projectID, collectionSlugOrID string, limit, offset int, sortBy, sortOrder string) (*PublicItemsPage, error) {
-	ct, err := s.contentTypeRepo.GetContentTypeByProjectAndSlugOrID(ctx, projectID, collectionSlugOrID)
+	ct, err := s.contentTypeRepo.GetByProjectAndSlugOrID(ctx, projectID, collectionSlugOrID)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (s *PublicCollectionService) ListPublicItems(ctx context.Context, projectID
 		offset = maxPublicCollectionOffset
 	}
 
-	items, err := s.contentItemRepo.GetPublicContentItems(ctx, ct.Id, limit+offset, sortBy, sortOrder)
+	items, err := s.contentItemRepo.ListPublic(ctx, ct.Id, limit+offset, sortBy, sortOrder)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func (s *PublicCollectionService) ListPublicItems(ctx context.Context, projectID
 }
 
 func (s *PublicCollectionService) SubmitPublicItem(ctx context.Context, projectID, collectionSlugOrID, clientIP string, raw map[string]any) (*PublicSubmitResult, error) {
-	ct, err := s.contentTypeRepo.GetContentTypeByProjectAndSlugOrID(ctx, projectID, collectionSlugOrID)
+	ct, err := s.contentTypeRepo.GetByProjectAndSlugOrID(ctx, projectID, collectionSlugOrID)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +250,7 @@ func (s *PublicCollectionService) SubmitPublicItem(ctx context.Context, projectI
 		Published:     ct.DefaultPublished,
 	}
 
-	created, err := s.contentItemRepo.CreateContentItem(ctx, item, fieldValues)
+	created, err := s.contentItemRepo.Create(ctx, item, fieldValues)
 	if err != nil {
 		return nil, err
 	}

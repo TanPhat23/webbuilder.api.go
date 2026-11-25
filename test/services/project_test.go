@@ -14,7 +14,7 @@ import (
 func TestGetPublicProjectByID_Success(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test Project", Published: true}
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetPublicByID(func(ctx context.Context, id string) (*models.Project, error) {
 		return project, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -22,7 +22,7 @@ func TestGetPublicProjectByID_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetPublicProjectByID(context.Background(), "proj123")
+	result, err := service.GetPublicByID(context.Background(), "proj123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -38,7 +38,7 @@ func TestGetPublicProjectByID_EmptyID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetPublicProjectByID(context.Background(), "")
+	result, err := service.GetPublicByID(context.Background(), "")
 	if err == nil {
 		t.Errorf("expected error for empty projectId")
 	}
@@ -52,7 +52,7 @@ func TestGetPublicProjectByID_EmptyID(t *testing.T) {
 
 func TestGetPublicProjectByID_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetPublicByID(func(ctx context.Context, id string) (*models.Project, error) {
 		return nil, errors.New("database error")
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -60,7 +60,7 @@ func TestGetPublicProjectByID_RepositoryError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetPublicProjectByID(context.Background(), "proj123")
+	result, err := service.GetPublicByID(context.Background(), "proj123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -72,7 +72,7 @@ func TestGetPublicProjectByID_RepositoryError(t *testing.T) {
 func TestGetProjectByID_Success(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test Project", OwnerId: "user123"}
-	projectRepo.SetGetProjectByID(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetByID(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -80,7 +80,7 @@ func TestGetProjectByID_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectByID(context.Background(), "proj123", "user123")
+	result, err := service.GetByID(context.Background(), "proj123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -96,7 +96,7 @@ func TestGetProjectByID_EmptyProjectID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectByID(context.Background(), "", "user123")
+	result, err := service.GetByID(context.Background(), "", "user123")
 	if err == nil {
 		t.Errorf("expected error for empty projectId")
 	}
@@ -115,7 +115,7 @@ func TestGetProjectByID_EmptyUserID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectByID(context.Background(), "proj123", "")
+	result, err := service.GetByID(context.Background(), "proj123", "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -129,7 +129,7 @@ func TestGetProjectByID_EmptyUserID(t *testing.T) {
 
 func TestGetProjectByID_NotFound(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectByID(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetByID(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return nil, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -137,7 +137,7 @@ func TestGetProjectByID_NotFound(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectByID(context.Background(), "proj123", "user123")
+	result, err := service.GetByID(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected error for project not found")
 	}
@@ -151,7 +151,7 @@ func TestGetProjectByID_NotFound(t *testing.T) {
 
 func TestGetProjectByID_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectByID(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetByID(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return nil, errors.New("database error")
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -159,7 +159,7 @@ func TestGetProjectByID_RepositoryError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectByID(context.Background(), "proj123", "user123")
+	result, err := service.GetByID(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -171,7 +171,7 @@ func TestGetProjectByID_RepositoryError(t *testing.T) {
 func TestGetProjectWithAccess_Success(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test Project", OwnerId: "user123"}
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -179,7 +179,7 @@ func TestGetProjectWithAccess_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithAccess(context.Background(), "proj123", "user123")
+	result, err := service.GetWithAccess(context.Background(), "proj123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -190,7 +190,7 @@ func TestGetProjectWithAccess_Success(t *testing.T) {
 
 func TestGetProjectWithAccess_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return nil, errors.New("database error")
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -198,7 +198,7 @@ func TestGetProjectWithAccess_RepositoryError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithAccess(context.Background(), "proj123", "user123")
+	result, err := service.GetWithAccess(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -214,7 +214,7 @@ func TestGetProjectWithAccess_EmptyProjectID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithAccess(context.Background(), "", "user123")
+	result, err := service.GetWithAccess(context.Background(), "", "user123")
 	if err == nil {
 		t.Errorf("expected error for empty projectId")
 	}
@@ -230,7 +230,7 @@ func TestGetProjectWithAccess_EmptyUserID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithAccess(context.Background(), "proj123", "")
+	result, err := service.GetWithAccess(context.Background(), "proj123", "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -241,7 +241,7 @@ func TestGetProjectWithAccess_EmptyUserID(t *testing.T) {
 
 func TestGetProjectWithAccess_NotFound(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return nil, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -249,7 +249,7 @@ func TestGetProjectWithAccess_NotFound(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithAccess(context.Background(), "proj123", "user123")
+	result, err := service.GetWithAccess(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected error for project not found")
 	}
@@ -264,7 +264,7 @@ func TestGetProjectsByUserID_Success(t *testing.T) {
 		{ID: "proj2", Name: "Project 2", OwnerId: "user123"},
 	}
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectsByUserID(func(ctx context.Context, userID string) ([]models.Project, error) {
+	projectRepo.SetListByUser(func(ctx context.Context, userID string) ([]models.Project, error) {
 		return projects, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -272,7 +272,7 @@ func TestGetProjectsByUserID_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectsByUserID(context.Background(), "user123")
+	result, err := service.ListByUser(context.Background(), "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -288,7 +288,7 @@ func TestGetProjectsByUserID_EmptyUserID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectsByUserID(context.Background(), "")
+	result, err := service.ListByUser(context.Background(), "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -299,7 +299,7 @@ func TestGetProjectsByUserID_EmptyUserID(t *testing.T) {
 
 func TestGetProjectsByUserID_EmptyResult(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectsByUserID(func(ctx context.Context, userID string) ([]models.Project, error) {
+	projectRepo.SetListByUser(func(ctx context.Context, userID string) ([]models.Project, error) {
 		return []models.Project{}, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -307,7 +307,7 @@ func TestGetProjectsByUserID_EmptyResult(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectsByUserID(context.Background(), "user123")
+	result, err := service.ListByUser(context.Background(), "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -321,7 +321,7 @@ func TestGetCollaboratorProjects_Success(t *testing.T) {
 		{ID: "proj1", Name: "Collab Project 1"},
 	}
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetCollaboratorProjects(func(ctx context.Context, userID string) ([]models.Project, error) {
+	projectRepo.SetListByCollaborator(func(ctx context.Context, userID string) ([]models.Project, error) {
 		return projects, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -329,7 +329,7 @@ func TestGetCollaboratorProjects_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetCollaboratorProjects(context.Background(), "user123")
+	result, err := service.ListByCollaborator(context.Background(), "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -345,7 +345,7 @@ func TestGetCollaboratorProjects_EmptyUserID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetCollaboratorProjects(context.Background(), "")
+	result, err := service.ListByCollaborator(context.Background(), "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -361,10 +361,10 @@ func TestGetProjectPages_Success(t *testing.T) {
 	project := &models.Project{ID: "proj123", Name: "Test Project", Published: true}
 
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetPublicByID(func(ctx context.Context, id string) (*models.Project, error) {
 		return project, nil
 	})
-	projectRepo.SetGetProjectPages(func(ctx context.Context, projID, userID string) ([]models.Page, error) {
+	projectRepo.SetListPages(func(ctx context.Context, projID, userID string) ([]models.Page, error) {
 		return pages, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -372,7 +372,7 @@ func TestGetProjectPages_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "proj123", "")
+	result, err := service.ListPages(context.Background(), "proj123", "")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -383,7 +383,7 @@ func TestGetProjectPages_Success(t *testing.T) {
 
 func TestGetProjectPages_RepositoryErrorOnVerify(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetPublicByID(func(ctx context.Context, id string) (*models.Project, error) {
 		return nil, errors.New("database error")
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -391,7 +391,7 @@ func TestGetProjectPages_RepositoryErrorOnVerify(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "proj123", "")
+	result, err := service.ListPages(context.Background(), "proj123", "")
 	if err == nil {
 		t.Errorf("expected error while verifying project")
 	}
@@ -403,10 +403,10 @@ func TestGetProjectPages_RepositoryErrorOnVerify(t *testing.T) {
 func TestGetProjectPages_RepositoryErrorOnPagesFetch(t *testing.T) {
 	project := &models.Project{ID: "proj123", Name: "Test Project", Published: true}
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetPublicByID(func(ctx context.Context, id string) (*models.Project, error) {
 		return project, nil
 	})
-	projectRepo.SetGetProjectPages(func(ctx context.Context, projID, userID string) ([]models.Page, error) {
+	projectRepo.SetListPages(func(ctx context.Context, projID, userID string) ([]models.Page, error) {
 		return nil, errors.New("database error")
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -414,7 +414,7 @@ func TestGetProjectPages_RepositoryErrorOnPagesFetch(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "proj123", "")
+	result, err := service.ListPages(context.Background(), "proj123", "")
 	if err == nil {
 		t.Errorf("expected error while fetching pages")
 	}
@@ -430,7 +430,7 @@ func TestGetProjectPages_EmptyProjectID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "", "")
+	result, err := service.ListPages(context.Background(), "", "")
 	if err == nil {
 		t.Errorf("expected error for empty projectId")
 	}
@@ -441,7 +441,7 @@ func TestGetProjectPages_EmptyProjectID(t *testing.T) {
 
 func TestGetProjectPages_ProjectNotFound(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetPublicProjectByID(func(ctx context.Context, id string) (*models.Project, error) {
+	projectRepo.SetGetPublicByID(func(ctx context.Context, id string) (*models.Project, error) {
 		return nil, nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -449,7 +449,7 @@ func TestGetProjectPages_ProjectNotFound(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectPages(context.Background(), "proj123", "")
+	result, err := service.ListPages(context.Background(), "proj123", "")
 	if err == nil {
 		t.Errorf("expected error for project not found")
 	}
@@ -460,7 +460,7 @@ func TestGetProjectPages_ProjectNotFound(t *testing.T) {
 
 func TestCreateProject_Success(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetCreateProject(func(ctx context.Context, proj *models.Project) error {
+	projectRepo.SetCreate(func(ctx context.Context, proj *models.Project) error {
 		return nil
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -473,7 +473,7 @@ func TestCreateProject_Success(t *testing.T) {
 		OwnerId: "user123",
 	}
 
-	result, err := service.CreateProject(context.Background(), project)
+	result, err := service.Create(context.Background(), project)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -489,7 +489,7 @@ func TestCreateProject_NilProject(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.CreateProject(context.Background(), nil)
+	result, err := service.Create(context.Background(), nil)
 	if err == nil {
 		t.Errorf("expected error for nil project")
 	}
@@ -512,7 +512,7 @@ func TestCreateProject_MissingName(t *testing.T) {
 		OwnerId: "user123",
 	}
 
-	result, err := service.CreateProject(context.Background(), project)
+	result, err := service.Create(context.Background(), project)
 	if err == nil {
 		t.Errorf("expected error for missing name")
 	}
@@ -535,7 +535,7 @@ func TestCreateProject_MissingOwnerId(t *testing.T) {
 		Name: "New Project",
 	}
 
-	result, err := service.CreateProject(context.Background(), project)
+	result, err := service.Create(context.Background(), project)
 	if err == nil {
 		t.Errorf("expected error for missing ownerId")
 	}
@@ -549,7 +549,7 @@ func TestCreateProject_MissingOwnerId(t *testing.T) {
 
 func TestCreateProject_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetCreateProject(func(ctx context.Context, proj *models.Project) error {
+	projectRepo.SetCreate(func(ctx context.Context, proj *models.Project) error {
 		return errors.New("database error")
 	})
 	collaboratorRepo := test.NewMockCollaboratorRepo()
@@ -562,7 +562,7 @@ func TestCreateProject_RepositoryError(t *testing.T) {
 		OwnerId: "user123",
 	}
 
-	result, err := service.CreateProject(context.Background(), project)
+	result, err := service.Create(context.Background(), project)
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -587,10 +587,10 @@ func TestUpdateProject_Success(t *testing.T) {
 	}
 
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return existingProject, nil
 	})
-	projectRepo.SetUpdateProject(func(ctx context.Context, projID, userID string, updates map[string]any) (*models.Project, error) {
+	projectRepo.SetUpdate(func(ctx context.Context, projID, userID string, updates map[string]any) (*models.Project, error) {
 		return &models.Project{
 			ID:          projID,
 			Name:        updates["Name"].(string),
@@ -611,7 +611,7 @@ func TestUpdateProject_Success(t *testing.T) {
 		Name: "Updated Project",
 	}
 
-	result, err := service.UpdateProject(context.Background(), "proj123", "user123", updatedProject)
+	result, err := service.Update(context.Background(), "proj123", "user123", updatedProject)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -631,10 +631,10 @@ func TestUpdateProject_RepositoryError(t *testing.T) {
 	}
 
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return existingProject, nil
 	})
-	projectRepo.SetUpdateProject(func(ctx context.Context, projID, userID string, updates map[string]any) (*models.Project, error) {
+	projectRepo.SetUpdate(func(ctx context.Context, projID, userID string, updates map[string]any) (*models.Project, error) {
 		return nil, errors.New("database error")
 	})
 
@@ -643,7 +643,7 @@ func TestUpdateProject_RepositoryError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.UpdateProject(context.Background(), "proj123", "user123", &models.Project{Name: "Updated"})
+	result, err := service.Update(context.Background(), "proj123", "user123", &models.Project{Name: "Updated"})
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -687,10 +687,10 @@ func TestUpdateProject_UsesExistingFieldsWhenInputEmptyOrNil(t *testing.T) {
 	}
 
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return existingProject, nil
 	})
-	projectRepo.SetUpdateProject(func(ctx context.Context, projID, userID string, updates map[string]any) (*models.Project, error) {
+	projectRepo.SetUpdate(func(ctx context.Context, projID, userID string, updates map[string]any) (*models.Project, error) {
 		assertFallbackProjectUpdates(t, existingProject, updates)
 		return existingProject, nil
 	})
@@ -700,7 +700,7 @@ func TestUpdateProject_UsesExistingFieldsWhenInputEmptyOrNil(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	_, err := service.UpdateProject(context.Background(), "proj123", "user123", &models.Project{})
+	_, err := service.Update(context.Background(), "proj123", "user123", &models.Project{})
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -708,7 +708,7 @@ func TestUpdateProject_UsesExistingFieldsWhenInputEmptyOrNil(t *testing.T) {
 
 func TestUpdateProject_VerificationError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return nil, errors.New("database error")
 	})
 
@@ -717,7 +717,7 @@ func TestUpdateProject_VerificationError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.UpdateProject(context.Background(), "proj123", "user123", &models.Project{Name: "Updated"})
+	result, err := service.Update(context.Background(), "proj123", "user123", &models.Project{Name: "Updated"})
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -733,7 +733,7 @@ func TestUpdateProject_EmptyProjectID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.UpdateProject(context.Background(), "", "user123", &models.Project{Name: "Updated"})
+	result, err := service.Update(context.Background(), "", "user123", &models.Project{Name: "Updated"})
 	if err == nil {
 		t.Errorf("expected error for empty projectId")
 	}
@@ -749,7 +749,7 @@ func TestUpdateProject_EmptyUserID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.UpdateProject(context.Background(), "proj123", "", &models.Project{Name: "Updated"})
+	result, err := service.Update(context.Background(), "proj123", "", &models.Project{Name: "Updated"})
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -765,7 +765,7 @@ func TestUpdateProject_NilProject(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.UpdateProject(context.Background(), "proj123", "user123", nil)
+	result, err := service.Update(context.Background(), "proj123", "user123", nil)
 	if err == nil {
 		t.Errorf("expected error for nil project")
 	}
@@ -777,10 +777,10 @@ func TestUpdateProject_NilProject(t *testing.T) {
 func TestDeleteProject_Success(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test", OwnerId: "user123"}
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
-	projectRepo.SetDeleteProject(func(ctx context.Context, projID, userID string) error {
+	projectRepo.SetDelete(func(ctx context.Context, projID, userID string) error {
 		return nil
 	})
 
@@ -789,7 +789,7 @@ func TestDeleteProject_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	err := service.DeleteProject(context.Background(), "proj123", "user123")
+	err := service.Delete(context.Background(), "proj123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -798,10 +798,10 @@ func TestDeleteProject_Success(t *testing.T) {
 func TestDeleteProject_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test", OwnerId: "user123"}
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
-	projectRepo.SetDeleteProject(func(ctx context.Context, projID, userID string) error {
+	projectRepo.SetDelete(func(ctx context.Context, projID, userID string) error {
 		return errors.New("database error")
 	})
 
@@ -810,7 +810,7 @@ func TestDeleteProject_RepositoryError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	err := service.DeleteProject(context.Background(), "proj123", "user123")
+	err := service.Delete(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -823,7 +823,7 @@ func TestDeleteProject_EmptyProjectID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	err := service.DeleteProject(context.Background(), "", "user123")
+	err := service.Delete(context.Background(), "", "user123")
 	if err == nil {
 		t.Errorf("expected error for empty projectId")
 	}
@@ -836,7 +836,7 @@ func TestDeleteProject_EmptyUserID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	err := service.DeleteProject(context.Background(), "proj123", "")
+	err := service.Delete(context.Background(), "proj123", "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -845,10 +845,10 @@ func TestDeleteProject_EmptyUserID(t *testing.T) {
 func TestHardDeleteProject_Success(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test", OwnerId: "user123"}
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
-	projectRepo.SetHardDeleteProject(func(ctx context.Context, projID, userID string) error {
+	projectRepo.SetHardDelete(func(ctx context.Context, projID, userID string) error {
 		return nil
 	})
 
@@ -857,7 +857,7 @@ func TestHardDeleteProject_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	err := service.HardDeleteProject(context.Background(), "proj123", "user123")
+	err := service.HardDelete(context.Background(), "proj123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -866,10 +866,10 @@ func TestHardDeleteProject_Success(t *testing.T) {
 func TestHardDeleteProject_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test", OwnerId: "user123"}
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
-	projectRepo.SetHardDeleteProject(func(ctx context.Context, projID, userID string) error {
+	projectRepo.SetHardDelete(func(ctx context.Context, projID, userID string) error {
 		return errors.New("database error")
 	})
 
@@ -878,7 +878,7 @@ func TestHardDeleteProject_RepositoryError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	err := service.HardDeleteProject(context.Background(), "proj123", "user123")
+	err := service.HardDelete(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -887,10 +887,10 @@ func TestHardDeleteProject_RepositoryError(t *testing.T) {
 func TestRestoreProject_Success(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test", OwnerId: "user123"}
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
-	projectRepo.SetRestoreProject(func(ctx context.Context, projID, userID string) error {
+	projectRepo.SetRestore(func(ctx context.Context, projID, userID string) error {
 		return nil
 	})
 
@@ -899,7 +899,7 @@ func TestRestoreProject_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	err := service.RestoreProject(context.Background(), "proj123", "user123")
+	err := service.Restore(context.Background(), "proj123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -908,10 +908,10 @@ func TestRestoreProject_Success(t *testing.T) {
 func TestRestoreProject_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test", OwnerId: "user123"}
-	projectRepo.SetGetProjectWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithAccess(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
-	projectRepo.SetRestoreProject(func(ctx context.Context, projID, userID string) error {
+	projectRepo.SetRestore(func(ctx context.Context, projID, userID string) error {
 		return errors.New("database error")
 	})
 
@@ -920,7 +920,7 @@ func TestRestoreProject_RepositoryError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	err := service.RestoreProject(context.Background(), "proj123", "user123")
+	err := service.Restore(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -1021,7 +1021,7 @@ func TestExistsForUser_EmptyUserID(t *testing.T) {
 func TestGetProjectWithLock_Success(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
 	project := &models.Project{ID: "proj123", Name: "Test", OwnerId: "user123"}
-	projectRepo.SetGetProjectWithLock(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithLock(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return project, nil
 	})
 
@@ -1030,7 +1030,7 @@ func TestGetProjectWithLock_Success(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithLock(context.Background(), "proj123", "user123")
+	result, err := service.GetWithLock(context.Background(), "proj123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -1041,7 +1041,7 @@ func TestGetProjectWithLock_Success(t *testing.T) {
 
 func TestGetProjectWithLock_RepositoryError(t *testing.T) {
 	projectRepo := test.NewMockProjectRepo()
-	projectRepo.SetGetProjectWithLock(func(ctx context.Context, projID, userID string) (*models.Project, error) {
+	projectRepo.SetGetWithLock(func(ctx context.Context, projID, userID string) (*models.Project, error) {
 		return nil, errors.New("database error")
 	})
 
@@ -1050,7 +1050,7 @@ func TestGetProjectWithLock_RepositoryError(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithLock(context.Background(), "proj123", "user123")
+	result, err := service.GetWithLock(context.Background(), "proj123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -1066,7 +1066,7 @@ func TestGetProjectWithLock_EmptyProjectID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithLock(context.Background(), "", "user123")
+	result, err := service.GetWithLock(context.Background(), "", "user123")
 	if err == nil {
 		t.Errorf("expected error for empty projectId")
 	}
@@ -1082,7 +1082,7 @@ func TestGetProjectWithLock_EmptyUserID(t *testing.T) {
 
 	service := services.NewProjectService(projectRepo, collaboratorRepo, userRepo)
 
-	result, err := service.GetProjectWithLock(context.Background(), "proj123", "")
+	result, err := service.GetWithLock(context.Background(), "proj123", "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}

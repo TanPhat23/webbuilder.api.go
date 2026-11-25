@@ -23,7 +23,7 @@ type previewElementRepo struct {
 	label string
 }
 
-func (r previewElementRepo) GetElements(_ context.Context, _ string, _ ...string) ([]models.EditorElement, error) {
+func (r previewElementRepo) List(_ context.Context, _ string, _ ...string) ([]models.EditorElement, error) {
 	return []models.EditorElement{&models.Element{Id: r.label + " elements"}}, nil
 }
 
@@ -42,7 +42,7 @@ func TestPublicPreviewCacheAcrossAPIInstances(t *testing.T) {
 	projectID := uuid.NewString()
 	updatedAt := time.Now()
 	published := true
-	projects := mockrepo.NewMockProjectRepo().SetGetPublicProjectByID(func(_ context.Context, id string) (*models.Project, error) {
+	projects := mockrepo.NewMockProjectRepo().SetGetPublicByID(func(_ context.Context, id string) (*models.Project, error) {
 		if !published || id != projectID {
 			return nil, repositories.ErrProjectNotFound
 		}
@@ -51,10 +51,10 @@ func TestPublicPreviewCacheAcrossAPIInstances(t *testing.T) {
 
 	newAPI := func(client *redis.Client, label string) *fiber.App {
 		app := fiber.New()
-		pages := mockrepo.NewMockPageRepo().SetGetPagesByProjectID(func(_ context.Context, id string) ([]models.Page, error) {
+		pages := mockrepo.NewMockPageRepo().SetListByProject(func(_ context.Context, id string) ([]models.Page, error) {
 			return []models.Page{{Name: label + " pages", ProjectId: id}}, nil
 		})
-		SetupRoutes(app, &repositories.RepositoriesInterface{
+		Register(app, &repositories.Repositories{
 			ProjectRepository: projects,
 			PageRepository:    pages,
 			ElementRepository: previewElementRepo{label: label},

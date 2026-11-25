@@ -28,7 +28,7 @@ func (f *fakeDocUseCase) GetDocument(ctx context.Context, projectID string, page
 	return out, nil
 }
 
-func (f *fakeDocUseCase) RefreshCache(ctx context.Context, projectID string, pageID string) error {
+func (f *fakeDocUseCase) EnsureDocumentCached(ctx context.Context, projectID string, pageID string) error {
 	return nil
 }
 
@@ -36,7 +36,7 @@ func (f *fakeDocUseCase) GetDocumentWithSeq(ctx context.Context, projectID strin
 	return f.doc, f.seq, nil
 }
 
-func (f *fakeDocUseCase) MutateDocument(ctx context.Context, projectID string, pageID string, mutate domainRepo.DocumentMutateFunc) (int64, error) {
+func (f *fakeDocUseCase) UpdateDocument(ctx context.Context, projectID string, pageID string, mutate domainRepo.DocumentMutateFunc) (int64, error) {
 	out := make([]entity.Element, len(f.doc))
 	copy(out, f.doc)
 	updated, err := mutate(out)
@@ -55,7 +55,7 @@ func (f *fakeDocUseCase) MutateDocument(ctx context.Context, projectID string, p
 }
 
 func (f *fakeDocUseCase) MutateElement(ctx context.Context, projectID string, pageID string, elementID string, mutate domainRepo.ElementMutateFunc) (int64, error) {
-	return f.MutateDocument(ctx, projectID, pageID, func(elements []entity.Element) ([]entity.Element, error) {
+	return f.UpdateDocument(ctx, projectID, pageID, func(elements []entity.Element) ([]entity.Element, error) {
 		target := elementutils.FindByID(elements, elementID)
 		if target == nil {
 			return nil, domainErrors.New(domainErrors.CodeNotFound, "element not found in cache", nil)
@@ -64,7 +64,7 @@ func (f *fakeDocUseCase) MutateElement(ctx context.Context, projectID string, pa
 	})
 }
 
-func (f *fakeDocUseCase) AddElementsToDocument(ctx context.Context, projectID string, pageID string, elements []entity.Element) error {
+func (f *fakeDocUseCase) SetDocument(ctx context.Context, projectID string, pageID string, elements []entity.Element) error {
 	f.added = make([]entity.Element, len(elements))
 	copy(f.added, elements)
 	return nil
@@ -151,7 +151,7 @@ func TestMoveElement_ReordersAcrossParents(t *testing.T) {
 		t.Fatalf("expected parent 'p2', got %v", moved.ParentID)
 	}
 	if doc.added == nil {
-		t.Fatalf("expected AddElementsToDocument to be called")
+		t.Fatalf("expected SetDocument to be called")
 	}
 	assertOrderedChildren(t, doc.added, "p2", []string{"c3", "c1", "c4"})
 	assertOrderedChildren(t, doc.added, "p1", []string{"c2"})
@@ -168,7 +168,7 @@ func TestUpdateElement_UseCase(t *testing.T) {
 		t.Fatalf("unexpected error from UpdateElement: %v", err)
 	}
 	if doc.added == nil {
-		t.Fatalf("expected AddElementsToDocument to be called")
+		t.Fatalf("expected SetDocument to be called")
 	}
 	child := findElementByID(doc.added, "child")
 	if child == nil || child.Type != "newType" {
@@ -183,11 +183,11 @@ func TestRemoveElement_UseCase(t *testing.T) {
 	}
 	doc, prst, uc := newUnitElementUseCase(initial)
 
-	if _, err := uc.RemoveElement(context.Background(), "proj2", "page2", "grand"); err != nil {
-		t.Fatalf("unexpected error from RemoveElement: %v", err)
+	if _, err := uc.DeleteElement(context.Background(), "proj2", "page2", "grand"); err != nil {
+		t.Fatalf("unexpected error from DeleteElement: %v", err)
 	}
 	if doc.added == nil {
-		t.Fatalf("expected AddElementsToDocument to be called")
+		t.Fatalf("expected SetDocument to be called")
 	}
 	child := findElementByID(doc.added, "child")
 	if child == nil || len(child.Elements) != 0 {
@@ -247,7 +247,7 @@ func TestCreateElement_InsertUnderParent(t *testing.T) {
 		t.Fatalf("unexpected error from CreateElement: %v", err)
 	}
 	if doc.added == nil {
-		t.Fatalf("expected AddElementsToDocument to be called")
+		t.Fatalf("expected SetDocument to be called")
 	}
 	parent := findElementByID(doc.added, "root")
 	if parent == nil || !hasElementWithTypeAndPage(parent.Elements, "button", "page3") {

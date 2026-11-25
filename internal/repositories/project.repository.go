@@ -36,7 +36,7 @@ func NewProjectRepository(db *gorm.DB) ProjectRepositoryInterface {
 	return &ProjectRepository{db: db}
 }
 
-func (r *ProjectRepository) GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error) {
+func (r *ProjectRepository) GetByID(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
@@ -55,9 +55,9 @@ func (r *ProjectRepository) GetProjectByID(ctx context.Context, projectID, userI
 	return &project, nil
 }
 
-// GetProjectWithAccess returns the project when userID owns it or collaborates on it.
+// GetWithAccess returns the project when userID owns it or collaborates on it.
 // Every project read goes through this check, so the common case is one query.
-func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
+func (r *ProjectRepository) GetWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
@@ -87,7 +87,7 @@ func (r *ProjectRepository) GetProjectWithAccess(ctx context.Context, projectID,
 	return nil, ErrProjectNotFound
 }
 
-func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
+func (r *ProjectRepository) GetPublicByID(ctx context.Context, projectID string) (*models.Project, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -106,7 +106,7 @@ func (r *ProjectRepository) GetPublicProjectByID(ctx context.Context, projectID 
 	return &project, nil
 }
 
-func (r *ProjectRepository) GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
+func (r *ProjectRepository) GetPublicBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
 	cleaned, hasValue, err := models.NormalizeSubdomain(subdomain)
 	if err != nil || !hasValue {
 		return nil, ErrProjectNotFound
@@ -128,10 +128,10 @@ func (r *ProjectRepository) GetPublicProjectBySubdomain(ctx context.Context, sub
 // projectListOmit are the heavy JSON columns the project lists never show.
 var projectListOmit = []string{"Logic", "Styles", "Header"}
 
-// GetProjectsByUserID returns the projects a user owns, then those they collaborate on,
+// ListByUser returns the projects a user owns, then those they collaborate on,
 // newest first within each group, in a single query. Logic, Styles and Header are left
 // out: they can be large and only the editor needs them.
-func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error) {
+func (r *ProjectRepository) ListByUser(ctx context.Context, userID string) ([]models.Project, error) {
 	if userID == "" {
 		return nil, errors.New("userID is required")
 	}
@@ -151,7 +151,7 @@ func (r *ProjectRepository) GetProjectsByUserID(ctx context.Context, userID stri
 	return projects, nil
 }
 
-func (r *ProjectRepository) GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error) {
+func (r *ProjectRepository) ListByCollaborator(ctx context.Context, userID string) ([]models.Project, error) {
 	if userID == "" {
 		return nil, errors.New("userID is required")
 	}
@@ -171,12 +171,12 @@ func (r *ProjectRepository) GetCollaboratorProjects(ctx context.Context, userID 
 	return collabProjects, nil
 }
 
-func (r *ProjectRepository) GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
+func (r *ProjectRepository) ListPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
 
-	_, err := r.GetProjectWithAccess(ctx, projectID, userID)
+	_, err := r.GetWithAccess(ctx, projectID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (r *ProjectRepository) GetProjectPages(ctx context.Context, projectID, user
 	return pages, nil
 }
 
-func (r *ProjectRepository) CreateProject(ctx context.Context, project *models.Project) error {
+func (r *ProjectRepository) Create(ctx context.Context, project *models.Project) error {
 	if project == nil {
 		return errors.New("project cannot be nil")
 	}
@@ -230,7 +230,7 @@ func (r *ProjectRepository) ensureOwner(ctx context.Context, projectID, userID s
 	return nil
 }
 
-func (r *ProjectRepository) UpdateProject(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+func (r *ProjectRepository) Update(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
@@ -257,10 +257,10 @@ func (r *ProjectRepository) UpdateProject(ctx context.Context, projectID, userID
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 
-	return r.GetProjectByID(ctx, projectID, userID)
+	return r.GetByID(ctx, projectID, userID)
 }
 
-func (r *ProjectRepository) DeleteProject(ctx context.Context, projectID, userID string) error {
+func (r *ProjectRepository) Delete(ctx context.Context, projectID, userID string) error {
 	if err := r.ensureOwner(ctx, projectID, userID); err != nil {
 		return err
 	}
@@ -277,7 +277,7 @@ func (r *ProjectRepository) DeleteProject(ctx context.Context, projectID, userID
 	return nil
 }
 
-func (r *ProjectRepository) HardDeleteProject(ctx context.Context, projectID, userID string) error {
+func (r *ProjectRepository) HardDelete(ctx context.Context, projectID, userID string) error {
 	if projectID == "" || userID == "" {
 		return errors.New("projectID and userID are required")
 	}
@@ -296,7 +296,7 @@ func (r *ProjectRepository) HardDeleteProject(ctx context.Context, projectID, us
 	return nil
 }
 
-func (r *ProjectRepository) RestoreProject(ctx context.Context, projectID, userID string) error {
+func (r *ProjectRepository) Restore(ctx context.Context, projectID, userID string) error {
 	if projectID == "" || userID == "" {
 		return errors.New("projectID and userID are required")
 	}
@@ -331,7 +331,7 @@ func (r *ProjectRepository) ExistsForUser(ctx context.Context, projectID, userID
 	return count > 0, nil
 }
 
-func (r *ProjectRepository) GetProjectWithLock(ctx context.Context, projectID, userID string) (*models.Project, error) {
+func (r *ProjectRepository) GetWithLock(ctx context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
@@ -350,7 +350,7 @@ func (r *ProjectRepository) GetProjectWithLock(ctx context.Context, projectID, u
 	return &project, nil
 }
 
-func (r *ProjectRepository) CreateProjectWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
+func (r *ProjectRepository) CreateWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
 	if err := validateProjectWithPage(project, page); err != nil {
 		return err
 	}
@@ -390,7 +390,7 @@ func stampProjectAndPage(project *models.Project, page *models.Page) {
 	page.CreatedAt, page.UpdatedAt = now, now
 }
 
-func (r *ProjectRepository) GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+func (r *ProjectRepository) GetAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
@@ -427,16 +427,16 @@ func (r *ProjectRepository) GetProjectAccess(ctx context.Context, projectID, use
 	return access, nil
 }
 
-// UpdateProjectFields updates pre-authorized project columns without forcing
+// UpdateFields updates pre-authorized project columns without forcing
 // OwnerId equality in SQL (so editors can update content fields allowed by RBAC).
-func (r *ProjectRepository) UpdateProjectFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+func (r *ProjectRepository) UpdateFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
 	if projectID == "" || userID == "" {
 		return nil, errors.New("projectID and userID are required")
 	}
 	if len(updates) == 0 {
 		return nil, errors.New("no updates provided")
 	}
-	if _, err := r.GetProjectWithAccess(ctx, projectID, userID); err != nil {
+	if _, err := r.GetWithAccess(ctx, projectID, userID); err != nil {
 		return nil, err
 	}
 
@@ -452,7 +452,7 @@ func (r *ProjectRepository) UpdateProjectFields(ctx context.Context, projectID, 
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 
-	return r.GetProjectWithAccess(ctx, projectID, userID)
+	return r.GetWithAccess(ctx, projectID, userID)
 }
 
 // TransferOwnership atomically moves Project.OwnerId from currentOwnerID to

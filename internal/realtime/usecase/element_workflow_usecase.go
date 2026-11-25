@@ -11,7 +11,7 @@ type ElementWorkflowsUseCase struct {
 	repo *domainRepo.Repository
 }
 
-func NewElementWorkflowsUseCase(repo *domainRepo.Repository) domainUseCase.ElementWorkflowsUseCase {
+func NewElementWorkflowUseCase(repo *domainRepo.Repository) domainUseCase.ElementWorkflowsUseCase {
 	return &ElementWorkflowsUseCase{
 		repo: repo,
 	}
@@ -25,18 +25,18 @@ func (uc *ElementWorkflowsUseCase) GetElementWorkflowByElementID(ctx context.Con
 	return uc.repo.ElementWorkflowRepo.GetElementWorkflowByElementID(ctx, projectID, elementID)
 }
 
-func (uc *ElementWorkflowsUseCase) GetWorkflowsByProject(ctx context.Context, projectID string) ([]domainEntity.ElementEventWorkflow, error) {
-	return uc.repo.ElementWorkflowRepo.GetElementWorkflowsByProjectID(ctx, projectID)
+func (uc *ElementWorkflowsUseCase) ListElementWorkflowsByProject(ctx context.Context, projectID string) ([]domainEntity.ElementEventWorkflow, error) {
+	return uc.repo.ElementWorkflowRepo.ListElementWorkflowsByProject(ctx, projectID)
 }
 
-func (uc *ElementWorkflowsUseCase) GetWorkflowsByPage(ctx context.Context, projectID string, pageID string) ([]domainEntity.ElementEventWorkflow, error) {
-	return uc.repo.ElementWorkflowRepo.GetElementWorkflowsByPageID(ctx, projectID, pageID)
+func (uc *ElementWorkflowsUseCase) ListElementWorkflowsByPage(ctx context.Context, projectID string, pageID string) ([]domainEntity.ElementEventWorkflow, error) {
+	return uc.repo.ElementWorkflowRepo.ListElementWorkflowsByPage(ctx, projectID, pageID)
 }
 
 func (uc *ElementWorkflowsUseCase) UpdateElementWorkflow(ctx context.Context, projectID string, workflow *domainEntity.ElementEventWorkflow) error {
 	return uc.repo.ElementWorkflowRepo.UpdateElementWorkflow(ctx, projectID, workflow)
 }
 
-func (uc *ElementWorkflowsUseCase) RemoveElementWorkflow(ctx context.Context, projectID string, elementID string) error {
+func (uc *ElementWorkflowsUseCase) DeleteElementWorkflow(ctx context.Context, projectID string, elementID string) error {
 	return uc.repo.ElementWorkflowRepo.DeleteElementWorkflow(ctx, projectID, elementID)
 }

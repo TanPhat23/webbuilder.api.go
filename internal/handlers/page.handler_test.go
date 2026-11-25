@@ -17,7 +17,7 @@ import (
 )
 
 // pageHandlerStub records what reaches the page service. getErrs are returned
-// by successive GetPageByID calls (nil once exhausted).
+// by successive GetByID calls (nil once exhausted).
 type pageHandlerStub struct {
 	services.PageServiceInterface
 	err     error
@@ -30,12 +30,12 @@ type pageHandlerStub struct {
 	getCalls                         int
 }
 
-func (s *pageHandlerStub) DeletePageByProjectID(_ context.Context, pageID, projectID, userID string) error {
+func (s *pageHandlerStub) DeleteForUser(_ context.Context, pageID, projectID, userID string) error {
 	s.gotPageID, s.gotProjectID, s.gotUser = pageID, projectID, userID
 	return s.err
 }
 
-func (s *pageHandlerStub) GetPagesByProjectID(_ context.Context, projectID, userID string) ([]models.Page, error) {
+func (s *pageHandlerStub) ListByProject(_ context.Context, projectID, userID string) ([]models.Page, error) {
 	s.gotProjectID, s.gotUser = projectID, userID
 	if s.err != nil {
 		return nil, s.err
@@ -43,7 +43,7 @@ func (s *pageHandlerStub) GetPagesByProjectID(_ context.Context, projectID, user
 	return []models.Page{{Id: "pg1", ProjectId: projectID, Name: "Home"}}, nil
 }
 
-func (s *pageHandlerStub) GetPageByID(_ context.Context, pageID string) (*models.Page, error) {
+func (s *pageHandlerStub) GetByID(_ context.Context, pageID string) (*models.Page, error) {
 	s.gotPageID = pageID
 	call := s.getCalls
 	s.getCalls++
@@ -56,7 +56,7 @@ func (s *pageHandlerStub) GetPageByID(_ context.Context, pageID string) (*models
 	return &models.Page{Id: pageID, Name: fmt.Sprintf("read-%d", call)}, nil
 }
 
-func (s *pageHandlerStub) GetPublicPageByID(_ context.Context, projectID, pageID string) (*models.Page, error) {
+func (s *pageHandlerStub) GetPublicByID(_ context.Context, projectID, pageID string) (*models.Page, error) {
 	s.gotPublicProject, s.gotPublicPage = projectID, pageID
 	if s.err != nil {
 		return nil, s.err
@@ -64,7 +64,7 @@ func (s *pageHandlerStub) GetPublicPageByID(_ context.Context, projectID, pageID
 	return &models.Page{Id: pageID, ProjectId: projectID, Name: "Public"}, nil
 }
 
-func (s *pageHandlerStub) CreatePageAsUser(_ context.Context, page *models.Page, userID string) (*models.Page, error) {
+func (s *pageHandlerStub) CreateForUser(_ context.Context, page *models.Page, userID string) (*models.Page, error) {
 	s.created, s.gotUser = page, userID
 	if s.err != nil {
 		return nil, s.err
@@ -72,37 +72,37 @@ func (s *pageHandlerStub) CreatePageAsUser(_ context.Context, page *models.Page,
 	return page, nil
 }
 
-func (s *pageHandlerStub) GetPageByIDForUser(_ context.Context, projectID, pageID, userID string) (*models.Page, error) {
+func (s *pageHandlerStub) GetByIDForUser(_ context.Context, projectID, pageID, userID string) (*models.Page, error) {
 	s.gotProjectID, s.gotUser = projectID, userID
-	return s.GetPageByID(context.Background(), pageID)
+	return s.GetByID(context.Background(), pageID)
 }
 
-func (s *pageHandlerStub) UpdatePageFields(_ context.Context, pageID string, updates map[string]any) error {
+func (s *pageHandlerStub) UpdateFields(_ context.Context, pageID string, updates map[string]any) error {
 	s.gotPageID, s.updates = pageID, updates
 	return s.err
 }
 
-func (s *pageHandlerStub) UpdatePageFieldsForUser(_ context.Context, projectID, pageID, userID string, updates map[string]any) error {
+func (s *pageHandlerStub) UpdateFieldsForUser(_ context.Context, projectID, pageID, userID string, updates map[string]any) error {
 	s.gotProjectID, s.gotUser = projectID, userID
-	return s.UpdatePageFields(context.Background(), pageID, updates)
+	return s.UpdateFields(context.Background(), pageID, updates)
 }
 
 func pageHandlerApp(user string, svc services.PageServiceInterface) *fiber.App {
 	h := NewPageHandler(svc)
 	return newKitApp(user, func(app *fiber.App) {
-		app.Get("/projects/:projectid/pages", h.GetPagesByProjectID)
-		app.Get("/public/projects/:projectid/pages", h.GetPublicPagesByProjectID)
-		app.Get("/public/projects/:projectid/pages/:pageid", h.GetPublicPageByID)
-		app.Post("/projects/:projectid/pages", h.CreatePage)
-		app.Get("/projects/:projectid/pages/:pageid", h.GetPageByID)
-		app.Patch("/projects/:projectid/pages/:pageid", h.UpdatePage)
-		app.Delete("/projects/:projectid/pages/:pageid", h.DeletePage)
-		app.Get("/nopage/:projectid", h.GetPageByID)
-		app.Patch("/nopage/:projectid", h.UpdatePage)
-		app.Delete("/nopage/:projectid", h.DeletePage)
-		app.Get("/nopage/public/:projectid", h.GetPublicPageByID)
-		app.Get("/noproject", h.GetPagesByProjectID)
-		app.Post("/noproject", h.CreatePage)
+		app.Get("/projects/:projectid/pages", h.ListByProject)
+		app.Get("/public/projects/:projectid/pages", h.ListPublic)
+		app.Get("/public/projects/:projectid/pages/:pageid", h.GetPublicByID)
+		app.Post("/projects/:projectid/pages", h.Create)
+		app.Get("/projects/:projectid/pages/:pageid", h.GetByID)
+		app.Patch("/projects/:projectid/pages/:pageid", h.Update)
+		app.Delete("/projects/:projectid/pages/:pageid", h.Delete)
+		app.Get("/nopage/:projectid", h.GetByID)
+		app.Patch("/nopage/:projectid", h.Update)
+		app.Delete("/nopage/:projectid", h.Delete)
+		app.Get("/nopage/public/:projectid", h.GetPublicByID)
+		app.Get("/noproject", h.ListByProject)
+		app.Post("/noproject", h.Create)
 	})
 }
 
@@ -294,26 +294,26 @@ func TestUpdatePage(t *testing.T) {
 	}
 }
 
-// updateFailingPageStub fails UpdatePageFields only, so the post read stays separate.
+// updateFailingPageStub fails UpdateFields only, so the post read stays separate.
 type pageHandlerUpdateFails struct {
 	pageHandlerStub
 	updateErr error
 }
 
-func (s *pageHandlerUpdateFails) UpdatePageFields(ctx context.Context, id string, u map[string]any) error {
-	_ = s.pageHandlerStub.UpdatePageFields(ctx, id, u)
+func (s *pageHandlerUpdateFails) UpdateFields(ctx context.Context, id string, u map[string]any) error {
+	_ = s.pageHandlerStub.UpdateFields(ctx, id, u)
 	return s.updateErr
 }
 
-func (s *pageHandlerUpdateFails) UpdatePageFieldsForUser(ctx context.Context, projectID, id, userID string, u map[string]any) error {
-	_ = s.pageHandlerStub.UpdatePageFieldsForUser(ctx, projectID, id, userID, u)
+func (s *pageHandlerUpdateFails) UpdateFieldsForUser(ctx context.Context, projectID, id, userID string, u map[string]any) error {
+	_ = s.pageHandlerStub.UpdateFieldsForUser(ctx, projectID, id, userID, u)
 	return s.updateErr
 }
 
 func TestUpdatePageServiceFailures(t *testing.T) {
 	app := func(svc services.PageServiceInterface) *fiber.App {
 		h := NewPageHandler(svc)
-		return newKitApp("u1", func(a *fiber.App) { a.Patch("/projects/:projectid/pages/:pageid", h.UpdatePage) })
+		return newKitApp("u1", func(a *fiber.App) { a.Patch("/projects/:projectid/pages/:pageid", h.Update) })
 	}
 	kitExpect(t, kitSend(t, app(&pageHandlerUpdateFails{updateErr: gorm.ErrRecordNotFound}), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 404, "Page not found")
 	kitExpect(t, kitSend(t, app(&pageHandlerUpdateFails{updateErr: errInternal}), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 500, "Failed to update page")

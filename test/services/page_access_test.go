@@ -15,10 +15,10 @@ import (
 func TestCreatePageAsUser(t *testing.T) {
 	projectRepo := func(role models.CollaboratorRole, err error) *mockrepo.MockProjectRepo {
 		return mockrepo.NewMockProjectRepo().
-			SetGetPublicProjectByID(func(context.Context, string) (*models.Project, error) {
+			SetGetPublicByID(func(context.Context, string) (*models.Project, error) {
 				return &models.Project{ID: "p1"}, nil
 			}).
-			SetGetProjectAccess(func(_ context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+			SetGetAccess(func(_ context.Context, projectID, userID string) (*models.ProjectAccess, error) {
 				if err != nil {
 					return nil, err
 				}
@@ -42,13 +42,13 @@ func TestCreatePageAsUser(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			created := false
-			pageRepo := mockrepo.NewMockPageRepo().SetCreatePage(func(context.Context, *models.Page) error {
+			pageRepo := mockrepo.NewMockPageRepo().SetCreate(func(context.Context, *models.Page) error {
 				created = true
 				return nil
 			})
 			svc := services.NewPageService(pageRepo, projectRepo(tc.role, tc.repoErr))
 
-			_, err := svc.CreatePageAsUser(context.Background(), newPage(), "u1")
+			_, err := svc.CreateForUser(context.Background(), newPage(), "u1")
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tc.wantErr)
 			}
@@ -63,13 +63,13 @@ func TestCreateProjectWithPage(t *testing.T) {
 	var gotProject *models.Project
 	var gotPage *models.Page
 	projectRepo := mockrepo.NewMockProjectRepo().
-		SetCreateProjectWithPage(func(_ context.Context, p *models.Project, pg *models.Page) error {
+		SetCreateWithPage(func(_ context.Context, p *models.Project, pg *models.Page) error {
 			gotProject, gotPage = p, pg
 			return nil
 		})
 	svc := services.NewProjectService(projectRepo, nil, nil)
 
-	project, err := svc.CreateProjectWithPage(context.Background(), &models.Project{Name: "Site", OwnerId: "u1"})
+	project, err := svc.CreateWithPage(context.Background(), &models.Project{Name: "Site", OwnerId: "u1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestCreateProjectWithPage(t *testing.T) {
 		t.Fatalf("expected a first page of type page, got %+v", gotPage)
 	}
 
-	if _, err := svc.CreateProjectWithPage(context.Background(), &models.Project{OwnerId: "u1"}); err == nil {
+	if _, err := svc.CreateWithPage(context.Background(), &models.Project{OwnerId: "u1"}); err == nil {
 		t.Fatal("expected error for missing name")
 	}
 }

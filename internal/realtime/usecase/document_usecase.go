@@ -30,13 +30,13 @@ func (uc *documentUseCase) GetDocument(ctx context.Context, projectID string, pa
 		return cachedElements, nil
 	}
 
-	elements, err := uc.repo.ElementRepo.GetElementsByPageID(ctx, projectID, pageID)
+	elements, err := uc.repo.ElementRepo.ListElementsByPage(ctx, projectID, pageID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch page elements from db: %w", err)
 	}
 
 	// Build hierarchical tree from flat elements before caching/returning.
-	tree := elementutils.BuildElementTree(elements)
+	tree := elementutils.BuildTree(elements)
 
 	if err := uc.repo.DocumentRepo.SetDocumentIfAbsent(ctx, projectID, pageID, tree); err != nil {
 		fmt.Printf("failed to update cache: %v\n", err)
@@ -44,7 +44,7 @@ func (uc *documentUseCase) GetDocument(ctx context.Context, projectID string, pa
 
 	return tree, nil
 }
-func (uc *documentUseCase) RefreshCache(ctx context.Context, projectID string, pageID string) error {
+func (uc *documentUseCase) EnsureDocumentCached(ctx context.Context, projectID string, pageID string) error {
 	cachedElements, err := uc.repo.DocumentRepo.GetDocument(ctx, projectID, pageID)
 	if err != nil {
 		return fmt.Errorf("failed to check cache during refresh: %w", err)
@@ -54,13 +54,13 @@ func (uc *documentUseCase) RefreshCache(ctx context.Context, projectID string, p
 	}
 
 	// Cache miss — populate from the database.
-	elements, err := uc.repo.ElementRepo.GetElementsByPageID(ctx, projectID, pageID)
+	elements, err := uc.repo.ElementRepo.ListElementsByPage(ctx, projectID, pageID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch elements for cache refresh: %w", err)
 	}
 
 	// Cache a hierarchical tree (not a flat list) so consumers get nested children directly.
-	tree := elementutils.BuildElementTree(elements)
+	tree := elementutils.BuildTree(elements)
 
 	// SET NX: never overwrite a document a concurrent mutation may have just written.
 	if err := uc.repo.DocumentRepo.SetDocumentIfAbsent(ctx, projectID, pageID, tree); err != nil {
@@ -70,7 +70,7 @@ func (uc *documentUseCase) RefreshCache(ctx context.Context, projectID string, p
 	return nil
 }
 
-func (uc *documentUseCase) AddElementsToDocument(ctx context.Context, projectID string, pageID string, elements []domainEntity.Element) error {
+func (uc *documentUseCase) SetDocument(ctx context.Context, projectID string, pageID string, elements []domainEntity.Element) error {
 	if err := uc.repo.DocumentRepo.SetDocument(ctx, projectID, pageID, elements); err != nil {
 		return fmt.Errorf("failed to set document elements in cache: %w", err)
 	}
@@ -81,7 +81,7 @@ func (uc *documentUseCase) GetDocumentWithSeq(ctx context.Context, projectID str
 	return uc.repo.DocumentRepo.GetDocumentWithSeq(ctx, projectID, pageID)
 }
 
-func (uc *documentUseCase) MutateDocument(ctx context.Context, projectID string, pageID string, mutate domainRepo.DocumentMutateFunc) (int64, error) {
+func (uc *documentUseCase) UpdateDocument(ctx context.Context, projectID string, pageID string, mutate domainRepo.DocumentMutateFunc) (int64, error) {
 	return uc.repo.DocumentRepo.UpdateDocument(ctx, projectID, pageID, uc.loader(projectID, pageID), mutate)
 }
 
@@ -92,10 +92,10 @@ func (uc *documentUseCase) MutateElement(ctx context.Context, projectID string, 
 // loader reads the page from the database to fill the cache on a miss.
 func (uc *documentUseCase) loader(projectID string, pageID string) domainRepo.DocumentLoadFunc {
 	return func(ctx context.Context) ([]domainEntity.Element, error) {
-		elements, err := uc.repo.ElementRepo.GetElementsByPageID(ctx, projectID, pageID)
+		elements, err := uc.repo.ElementRepo.ListElementsByPage(ctx, projectID, pageID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch page elements from db: %w", err)
 		}
-		return elementutils.BuildElementTree(elements), nil
+		return elementutils.BuildTree(elements), nil
 	}
 }

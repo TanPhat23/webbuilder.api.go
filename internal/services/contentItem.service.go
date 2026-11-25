@@ -31,7 +31,7 @@ func (s *ContentItemService) emitForItem(ctx context.Context, event string, item
 	if s.emitter == nil || s.contentTypeRepo == nil || item == nil {
 		return
 	}
-	ct, err := s.contentTypeRepo.GetContentTypeByID(ctx, item.ContentTypeId)
+	ct, err := s.contentTypeRepo.GetByID(ctx, item.ContentTypeId)
 	if err != nil || ct == nil || ct.ProjectId == nil || *ct.ProjectId == "" {
 		return
 	}
@@ -55,7 +55,7 @@ func (s *ContentItemService) authorizeContentType(ctx context.Context, contentTy
 	if s.contentTypeRepo == nil || s.projectRepo == nil {
 		return nil
 	}
-	ct, err := s.contentTypeRepo.GetContentTypeByID(ctx, contentTypeID)
+	ct, err := s.contentTypeRepo.GetByID(ctx, contentTypeID)
 	if err != nil {
 		return err
 	}
@@ -69,34 +69,34 @@ func (s *ContentItemService) authorizeContentType(ctx context.Context, contentTy
 	return err
 }
 
-func (s *ContentItemService) GetContentItemsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error) {
+func (s *ContentItemService) ListByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error) {
 	if contentTypeID == "" {
 		return nil, errors.New("contentTypeId is required")
 	}
 
-	return s.contentItemRepo.GetContentItemsByContentType(ctx, contentTypeID)
+	return s.contentItemRepo.ListByContentType(ctx, contentTypeID)
 }
 
-func (s *ContentItemService) GetContentItemsByContentTypeForUser(ctx context.Context, contentTypeID, userID string) ([]models.ContentItem, error) {
+func (s *ContentItemService) ListByContentTypeForUser(ctx context.Context, contentTypeID, userID string) ([]models.ContentItem, error) {
 	if contentTypeID == "" {
 		return nil, errors.New("contentTypeId is required")
 	}
 	if err := s.authorizeContentType(ctx, contentTypeID, userID, authz.PermCMSView); err != nil {
 		return nil, err
 	}
-	return s.contentItemRepo.GetContentItemsByContentType(ctx, contentTypeID)
+	return s.contentItemRepo.ListByContentType(ctx, contentTypeID)
 }
 
-func (s *ContentItemService) GetContentItemByID(ctx context.Context, id string) (*models.ContentItem, error) {
+func (s *ContentItemService) GetByID(ctx context.Context, id string) (*models.ContentItem, error) {
 	if id == "" {
 		return nil, errors.New("content item id is required")
 	}
 
-	return s.contentItemRepo.GetContentItemByID(ctx, id)
+	return s.contentItemRepo.GetByID(ctx, id)
 }
 
-func (s *ContentItemService) GetContentItemByIDForUser(ctx context.Context, id, userID string) (*models.ContentItem, error) {
-	item, err := s.GetContentItemByID(ctx, id)
+func (s *ContentItemService) GetByIDForUser(ctx context.Context, id, userID string) (*models.ContentItem, error) {
+	item, err := s.GetByID(ctx, id)
 	if err != nil || item == nil {
 		return item, err
 	}
@@ -106,7 +106,7 @@ func (s *ContentItemService) GetContentItemByIDForUser(ctx context.Context, id, 
 	return item, nil
 }
 
-func (s *ContentItemService) GetContentItemBySlug(ctx context.Context, contentTypeID, slug string) (*models.ContentItem, error) {
+func (s *ContentItemService) GetBySlug(ctx context.Context, contentTypeID, slug string) (*models.ContentItem, error) {
 	if contentTypeID == "" {
 		return nil, errors.New("contentTypeId is required")
 	}
@@ -115,7 +115,7 @@ func (s *ContentItemService) GetContentItemBySlug(ctx context.Context, contentTy
 	}
 
 	if s.contentTypeRepo != nil && s.projectRepo != nil {
-		ct, err := s.contentTypeRepo.GetContentTypeByID(ctx, contentTypeID)
+		ct, err := s.contentTypeRepo.GetByID(ctx, contentTypeID)
 		if err != nil {
 			if errors.Is(err, repositories.ErrContentTypeNotFound) {
 				return nil, repositories.ErrContentItemNotFound
@@ -125,7 +125,7 @@ func (s *ContentItemService) GetContentItemBySlug(ctx context.Context, contentTy
 		if ct == nil || !ct.PublicRead || ct.ProjectId == nil || *ct.ProjectId == "" {
 			return nil, repositories.ErrContentItemNotFound
 		}
-		proj, err := s.projectRepo.GetPublicProjectByID(ctx, *ct.ProjectId)
+		proj, err := s.projectRepo.GetPublicByID(ctx, *ct.ProjectId)
 		if err != nil {
 			if errors.Is(err, repositories.ErrProjectNotFound) {
 				return nil, repositories.ErrContentItemNotFound
@@ -137,10 +137,10 @@ func (s *ContentItemService) GetContentItemBySlug(ctx context.Context, contentTy
 		}
 	}
 
-	return s.contentItemRepo.GetContentItemBySlug(ctx, contentTypeID, slug)
+	return s.contentItemRepo.GetBySlug(ctx, contentTypeID, slug)
 }
 
-func (s *ContentItemService) GetPublicContentItems(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error) {
+func (s *ContentItemService) ListPublic(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error) {
 	if contentTypeID == "" {
 		return nil, errors.New("contentTypeId is required")
 	}
@@ -154,10 +154,10 @@ func (s *ContentItemService) GetPublicContentItems(ctx context.Context, contentT
 		return nil, errors.New("sortOrder is required")
 	}
 
-	return s.contentItemRepo.GetPublicContentItems(ctx, contentTypeID, limit, sortBy, sortOrder)
+	return s.contentItemRepo.ListPublic(ctx, contentTypeID, limit, sortBy, sortOrder)
 }
 
-func (s *ContentItemService) CreateContentItem(ctx context.Context, item *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
+func (s *ContentItemService) Create(ctx context.Context, item *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
 	if item == nil {
 		return nil, errors.New("content item cannot be nil")
 	}
@@ -176,7 +176,7 @@ func (s *ContentItemService) CreateContentItem(ctx context.Context, item *models
 	}
 	item.FieldValues = nil
 
-	created, err := s.contentItemRepo.CreateContentItem(ctx, item, fieldValues)
+	created, err := s.contentItemRepo.Create(ctx, item, fieldValues)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (s *ContentItemService) CreateContentItem(ctx context.Context, item *models
 	return created, nil
 }
 
-func (s *ContentItemService) CreateContentItemForUser(ctx context.Context, item *models.ContentItem, fieldValues []models.ContentFieldValue, userID string) (*models.ContentItem, error) {
+func (s *ContentItemService) CreateForUser(ctx context.Context, item *models.ContentItem, fieldValues []models.ContentFieldValue, userID string) (*models.ContentItem, error) {
 	if item == nil {
 		return nil, errors.New("content item cannot be nil")
 	}
@@ -197,10 +197,10 @@ func (s *ContentItemService) CreateContentItemForUser(ctx context.Context, item 
 			return nil, err
 		}
 	}
-	return s.CreateContentItem(ctx, item, fieldValues)
+	return s.Create(ctx, item, fieldValues)
 }
 
-func (s *ContentItemService) UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
+func (s *ContentItemService) Update(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
 	if id == "" {
 		return nil, errors.New("content item id is required")
 	}
@@ -222,7 +222,7 @@ func (s *ContentItemService) UpdateContentItem(ctx context.Context, id string, u
 		return nil, errors.New("title cannot be empty")
 	}
 
-	updated, err := s.contentItemRepo.UpdateContentItem(ctx, id, updates, fieldValues)
+	updated, err := s.contentItemRepo.Update(ctx, id, updates, fieldValues)
 	if err != nil {
 		return nil, err
 	}
@@ -231,8 +231,8 @@ func (s *ContentItemService) UpdateContentItem(ctx context.Context, id string, u
 	return updated, nil
 }
 
-func (s *ContentItemService) UpdateContentItemForUser(ctx context.Context, id, userID string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
-	current, err := s.GetContentItemByID(ctx, id)
+func (s *ContentItemService) UpdateForUser(ctx context.Context, id, userID string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
+	current, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -247,19 +247,19 @@ func (s *ContentItemService) UpdateContentItemForUser(ctx context.Context, id, u
 			return nil, err
 		}
 	}
-	return s.UpdateContentItem(ctx, id, updates, fieldValues)
+	return s.Update(ctx, id, updates, fieldValues)
 }
 
-func (s *ContentItemService) DeleteContentItem(ctx context.Context, id string) error {
+func (s *ContentItemService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("content item id is required")
 	}
 
-	return s.contentItemRepo.DeleteContentItem(ctx, id)
+	return s.contentItemRepo.Delete(ctx, id)
 }
 
-func (s *ContentItemService) DeleteContentItemForUser(ctx context.Context, id, userID string) error {
-	current, err := s.GetContentItemByID(ctx, id)
+func (s *ContentItemService) DeleteForUser(ctx context.Context, id, userID string) error {
+	current, err := s.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -269,14 +269,14 @@ func (s *ContentItemService) DeleteContentItemForUser(ctx context.Context, id, u
 	if err := s.authorizeContentType(ctx, current.ContentTypeId, userID, authz.PermCMSEdit); err != nil {
 		return err
 	}
-	if err := s.DeleteContentItem(ctx, id); err != nil {
+	if err := s.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.emitForItem(ctx, models.WebhookEventItemDeleted, current)
 	return nil
 }
 
-func (s *ContentItemService) ValidatePublicSort(sortBy, sortOrder string) (string, string, error) {
+func (s *ContentItemService) NormalizePublicSort(sortBy, sortOrder string) (string, string, error) {
 	if sortBy == "" {
 		return "", "", errors.New("sortBy is required")
 	}

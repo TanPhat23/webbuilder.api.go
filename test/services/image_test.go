@@ -13,7 +13,7 @@ import (
 
 func TestCreateImage_Success(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetCreateImage(func(ctx context.Context, image models.Image) (*models.Image, error) {
+	mock.SetCreate(func(ctx context.Context, image models.Image) (*models.Image, error) {
 		return &image, nil
 	})
 
@@ -24,7 +24,7 @@ func TestCreateImage_Success(t *testing.T) {
 		UserId:    "user123",
 	}
 
-	result, err := service.CreateImage(context.Background(), image)
+	result, err := service.Create(context.Background(), image)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -50,7 +50,7 @@ func TestCreateImage_MissingUserID(t *testing.T) {
 		ImageLink: "https://example.com/image.jpg",
 	}
 
-	result, err := service.CreateImage(context.Background(), image)
+	result, err := service.Create(context.Background(), image)
 	if err == nil {
 		t.Errorf("expected error for missing userId")
 	}
@@ -70,7 +70,7 @@ func TestCreateImage_MissingImageLink(t *testing.T) {
 		UserId: "user123",
 	}
 
-	result, err := service.CreateImage(context.Background(), image)
+	result, err := service.Create(context.Background(), image)
 	if err == nil {
 		t.Errorf("expected error for missing image link")
 	}
@@ -85,7 +85,7 @@ func TestCreateImage_MissingImageLink(t *testing.T) {
 func TestCreateImage_WithCustomID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	customID := "custom-image-id"
-	mock.SetCreateImage(func(ctx context.Context, image models.Image) (*models.Image, error) {
+	mock.SetCreate(func(ctx context.Context, image models.Image) (*models.Image, error) {
 		return &image, nil
 	})
 
@@ -97,7 +97,7 @@ func TestCreateImage_WithCustomID(t *testing.T) {
 		UserId:    "user123",
 	}
 
-	result, err := service.CreateImage(context.Background(), image)
+	result, err := service.Create(context.Background(), image)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -108,7 +108,7 @@ func TestCreateImage_WithCustomID(t *testing.T) {
 
 func TestCreateImage_SetsTimestamps(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetCreateImage(func(ctx context.Context, image models.Image) (*models.Image, error) {
+	mock.SetCreate(func(ctx context.Context, image models.Image) (*models.Image, error) {
 		return &image, nil
 	})
 
@@ -120,7 +120,7 @@ func TestCreateImage_SetsTimestamps(t *testing.T) {
 		UserId:    "user123",
 	}
 
-	result, err := service.CreateImage(context.Background(), image)
+	result, err := service.Create(context.Background(), image)
 	afterTime := time.Now()
 
 	if err != nil {
@@ -155,13 +155,13 @@ func TestGetImagesByUserID_Success(t *testing.T) {
 	}
 
 	mock := test.NewMockImageRepo()
-	mock.SetGetImagesByUserID(func(ctx context.Context, userID string) ([]models.Image, error) {
+	mock.SetListByUser(func(ctx context.Context, userID string) ([]models.Image, error) {
 		return images, nil
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetImagesByUserID(context.Background(), "user123")
+	result, err := service.ListByUser(context.Background(), "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -174,7 +174,7 @@ func TestGetImagesByUserID_EmptyUserID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetImagesByUserID(context.Background(), "")
+	result, err := service.ListByUser(context.Background(), "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -188,13 +188,13 @@ func TestGetImagesByUserID_EmptyUserID(t *testing.T) {
 
 func TestGetImagesByUserID_RepositoryError(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetGetImagesByUserID(func(ctx context.Context, userID string) ([]models.Image, error) {
+	mock.SetListByUser(func(ctx context.Context, userID string) ([]models.Image, error) {
 		return nil, errors.New("database error")
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetImagesByUserID(context.Background(), "user123")
+	result, err := service.ListByUser(context.Background(), "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -214,13 +214,13 @@ func TestGetImageByID_Success(t *testing.T) {
 	}
 
 	mock := test.NewMockImageRepo()
-	mock.SetGetImageByID(func(ctx context.Context, imageID string, userID string) (*models.Image, error) {
+	mock.SetGetByID(func(ctx context.Context, imageID string, userID string) (*models.Image, error) {
 		return image, nil
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetImageByID(context.Background(), "img123", "user123")
+	result, err := service.GetByID(context.Background(), "img123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -236,7 +236,7 @@ func TestGetImageByID_EmptyImageID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetImageByID(context.Background(), "", "user123")
+	result, err := service.GetByID(context.Background(), "", "user123")
 	if err == nil {
 		t.Errorf("expected error for empty imageId")
 	}
@@ -252,7 +252,7 @@ func TestGetImageByID_EmptyUserID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetImageByID(context.Background(), "img123", "")
+	result, err := service.GetByID(context.Background(), "img123", "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -266,13 +266,13 @@ func TestGetImageByID_EmptyUserID(t *testing.T) {
 
 func TestGetImageByID_RepositoryError(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetGetImageByID(func(ctx context.Context, imageID string, userID string) (*models.Image, error) {
+	mock.SetGetByID(func(ctx context.Context, imageID string, userID string) (*models.Image, error) {
 		return nil, errors.New("database error")
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetImageByID(context.Background(), "img123", "user123")
+	result, err := service.GetByID(context.Background(), "img123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -283,13 +283,13 @@ func TestGetImageByID_RepositoryError(t *testing.T) {
 
 func TestDeleteImage_Success(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetDeleteImage(func(ctx context.Context, imageID string, userID string) error {
+	mock.SetDelete(func(ctx context.Context, imageID string, userID string) error {
 		return nil
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	err := service.DeleteImage(context.Background(), "img123", "user123")
+	err := service.Delete(context.Background(), "img123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -299,7 +299,7 @@ func TestDeleteImage_EmptyImageID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	err := service.DeleteImage(context.Background(), "", "user123")
+	err := service.Delete(context.Background(), "", "user123")
 	if err == nil {
 		t.Errorf("expected error for empty imageId")
 	}
@@ -312,7 +312,7 @@ func TestDeleteImage_EmptyUserID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	err := service.DeleteImage(context.Background(), "img123", "")
+	err := service.Delete(context.Background(), "img123", "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -323,13 +323,13 @@ func TestDeleteImage_EmptyUserID(t *testing.T) {
 
 func TestDeleteImage_RepositoryError(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetDeleteImage(func(ctx context.Context, imageID string, userID string) error {
+	mock.SetDelete(func(ctx context.Context, imageID string, userID string) error {
 		return errors.New("database error")
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	err := service.DeleteImage(context.Background(), "img123", "user123")
+	err := service.Delete(context.Background(), "img123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -337,13 +337,13 @@ func TestDeleteImage_RepositoryError(t *testing.T) {
 
 func TestSoftDeleteImage_Success(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetSoftDeleteImage(func(ctx context.Context, imageID string, userID string) error {
+	mock.SetSoftDelete(func(ctx context.Context, imageID string, userID string) error {
 		return nil
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	err := service.SoftDeleteImage(context.Background(), "img123", "user123")
+	err := service.SoftDelete(context.Background(), "img123", "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -353,7 +353,7 @@ func TestSoftDeleteImage_EmptyImageID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	err := service.SoftDeleteImage(context.Background(), "", "user123")
+	err := service.SoftDelete(context.Background(), "", "user123")
 	if err == nil {
 		t.Errorf("expected error for empty imageId")
 	}
@@ -366,7 +366,7 @@ func TestSoftDeleteImage_EmptyUserID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	err := service.SoftDeleteImage(context.Background(), "img123", "")
+	err := service.SoftDelete(context.Background(), "img123", "")
 	if err == nil {
 		t.Errorf("expected error for empty userId")
 	}
@@ -377,13 +377,13 @@ func TestSoftDeleteImage_EmptyUserID(t *testing.T) {
 
 func TestSoftDeleteImage_RepositoryError(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetSoftDeleteImage(func(ctx context.Context, imageID string, userID string) error {
+	mock.SetSoftDelete(func(ctx context.Context, imageID string, userID string) error {
 		return errors.New("database error")
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	err := service.SoftDeleteImage(context.Background(), "img123", "user123")
+	err := service.SoftDelete(context.Background(), "img123", "user123")
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -404,13 +404,13 @@ func TestGetAllImages_Success(t *testing.T) {
 	}
 
 	mock := test.NewMockImageRepo()
-	mock.SetGetAllImages(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
+	mock.SetListAll(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
 		return images, nil
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetAllImages(context.Background(), 10, 0)
+	result, err := service.ListAll(context.Background(), 10, 0)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -421,13 +421,13 @@ func TestGetAllImages_Success(t *testing.T) {
 
 func TestGetAllImages_WithZeroLimit(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetGetAllImages(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
+	mock.SetListAll(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
 		return []models.Image{}, nil
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetAllImages(context.Background(), 0, 0)
+	result, err := service.ListAll(context.Background(), 0, 0)
 	if err != nil {
 		t.Errorf("expected no error with zero limit, got %v", err)
 	}
@@ -440,7 +440,7 @@ func TestGetAllImages_NegativeLimit(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetAllImages(context.Background(), -1, 0)
+	result, err := service.ListAll(context.Background(), -1, 0)
 	if err == nil {
 		t.Errorf("expected error for negative limit")
 	}
@@ -456,7 +456,7 @@ func TestGetAllImages_NegativeOffset(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetAllImages(context.Background(), 10, -1)
+	result, err := service.ListAll(context.Background(), 10, -1)
 	if err == nil {
 		t.Errorf("expected error for negative offset")
 	}
@@ -470,13 +470,13 @@ func TestGetAllImages_NegativeOffset(t *testing.T) {
 
 func TestGetAllImages_RepositoryError(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetGetAllImages(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
+	mock.SetListAll(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
 		return nil, errors.New("database error")
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetAllImages(context.Background(), 10, 0)
+	result, err := service.ListAll(context.Background(), 10, 0)
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -488,7 +488,7 @@ func TestGetAllImages_RepositoryError(t *testing.T) {
 func TestGetAllImages_WithPagination(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	var capturedLimit, capturedOffset int
-	mock.SetGetAllImages(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
+	mock.SetListAll(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
 		capturedLimit = limit
 		capturedOffset = offset
 		return []models.Image{}, nil
@@ -496,7 +496,7 @@ func TestGetAllImages_WithPagination(t *testing.T) {
 
 	service := services.NewImageService(mock, nil)
 
-	_, err := service.GetAllImages(context.Background(), 50, 100)
+	_, err := service.ListAll(context.Background(), 50, 100)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -514,7 +514,7 @@ func TestCreateUploadedImage_MissingUserID(t *testing.T) {
 
 	mockFile := test.NewMockFile([]byte("test data"))
 
-	result, err := service.CreateUploadedImage(context.Background(), "", "test.jpg", nil, mockFile)
+	result, err := service.Upload(context.Background(), "", nil, mockFile)
 	if err == nil {
 		t.Errorf("expected error for missing userId")
 	}
@@ -530,7 +530,7 @@ func TestCreateUploadedImage_NilFile(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.CreateUploadedImage(context.Background(), "user123", "test.jpg", nil, nil)
+	result, err := service.Upload(context.Background(), "user123", nil, nil)
 	if err == nil {
 		t.Errorf("expected error for nil file")
 	}
@@ -546,7 +546,7 @@ func TestCreateBase64UploadedImage_MissingUserID(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.CreateBase64UploadedImage(context.Background(), "", "data:image/jpeg;base64,test", nil)
+	result, err := service.UploadBase64(context.Background(), "", "data:image/jpeg;base64,test", nil)
 	if err == nil {
 		t.Errorf("expected error for missing userId")
 	}
@@ -562,7 +562,7 @@ func TestCreateBase64UploadedImage_MissingImageData(t *testing.T) {
 	mock := test.NewMockImageRepo()
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.CreateBase64UploadedImage(context.Background(), "user123", "", nil)
+	result, err := service.UploadBase64(context.Background(), "user123", "", nil)
 	if err == nil {
 		t.Errorf("expected error for missing image data")
 	}
@@ -576,7 +576,7 @@ func TestCreateBase64UploadedImage_MissingImageData(t *testing.T) {
 
 func TestCreateImage_RepositoryError(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetCreateImage(func(ctx context.Context, image models.Image) (*models.Image, error) {
+	mock.SetCreate(func(ctx context.Context, image models.Image) (*models.Image, error) {
 		return nil, errors.New("database error")
 	})
 
@@ -587,7 +587,7 @@ func TestCreateImage_RepositoryError(t *testing.T) {
 		UserId:    "user123",
 	}
 
-	result, err := service.CreateImage(context.Background(), image)
+	result, err := service.Create(context.Background(), image)
 	if err == nil {
 		t.Errorf("expected database error")
 	}
@@ -598,13 +598,13 @@ func TestCreateImage_RepositoryError(t *testing.T) {
 
 func TestGetImagesByUserID_EmptyResult(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetGetImagesByUserID(func(ctx context.Context, userID string) ([]models.Image, error) {
+	mock.SetListByUser(func(ctx context.Context, userID string) ([]models.Image, error) {
 		return []models.Image{}, nil
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetImagesByUserID(context.Background(), "user123")
+	result, err := service.ListByUser(context.Background(), "user123")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -615,13 +615,13 @@ func TestGetImagesByUserID_EmptyResult(t *testing.T) {
 
 func TestGetAllImages_EmptyResult(t *testing.T) {
 	mock := test.NewMockImageRepo()
-	mock.SetGetAllImages(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
+	mock.SetListAll(func(ctx context.Context, limit int, offset int) ([]models.Image, error) {
 		return []models.Image{}, nil
 	})
 
 	service := services.NewImageService(mock, nil)
 
-	result, err := service.GetAllImages(context.Background(), 10, 0)
+	result, err := service.ListAll(context.Background(), 10, 0)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}

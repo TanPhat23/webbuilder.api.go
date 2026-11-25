@@ -30,14 +30,14 @@ func (h *Handler) applyAndBroadcast(
 	var opErr error
 	key := client.ProjectID + ":" + pageID
 
-	if err := h.pages.Do(ctx, key, func() {
+	if err := h.pages.Run(ctx, key, func() {
 		seq, err := apply(ctx)
 		if err != nil {
 			opErr = err
 			return
 		}
 
-		out, err := build(client.Factory())
+		out, err := build(client.NewMessageFactory())
 		if err != nil {
 			// The change is already committed and has consumed its seq; log loudly because
 			// clients will see a gap and resync.
@@ -55,8 +55,8 @@ func (h *Handler) applyAndBroadcast(
 	return opErr
 }
 
-func (h *Handler) handleElementCreate(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	pageID := client.GetPageID()
+func (h *Handler) createElement(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+	pageID := client.PageID()
 	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
@@ -67,7 +67,7 @@ func (h *Handler) handleElementCreate(ctx context.Context, client *wsentity.Clie
 	}
 
 	payload.Element.PageID = pageID
-	if err := validation.ValidateElementCreate(&payload); err != nil {
+	if err := validation.ElementCreate(&payload); err != nil {
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 
@@ -76,13 +76,13 @@ func (h *Handler) handleElementCreate(ctx context.Context, client *wsentity.Clie
 			return h.uc.Element.CreateElementAt(ctx, client.ProjectID, &payload.Element, payload.Position)
 		},
 		func(f *wsentity.MessageFactory) (domainEntity.Message, error) {
-			return f.CreateElement(payload.Element)
+			return f.NewElementCreatedMessage(payload.Element)
 		},
 	)
 }
 
-func (h *Handler) handleElementUpdate(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	pageID := client.GetPageID()
+func (h *Handler) updateElement(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+	pageID := client.PageID()
 	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
@@ -92,26 +92,26 @@ func (h *Handler) handleElementUpdate(ctx context.Context, client *wsentity.Clie
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 
-	if err := validation.ValidateElementUpdate(&payload); err != nil {
+	if err := validation.ElementUpdate(&payload); err != nil {
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 
-	properties := updateProperties(payload)
+	properties := extractElementProperties(payload)
 
 	return h.applyAndBroadcast(ctx, client, msg, pageID,
 		func(ctx context.Context) (int64, error) {
 			return h.uc.Element.PatchElement(ctx, client.ProjectID, pageID, payload.ID, properties, payload.Styles, payload.Settings)
 		},
 		func(f *wsentity.MessageFactory) (domainEntity.Message, error) {
-			return f.UpdateElement(payload)
+			return f.NewElementUpdatedMessage(payload)
 		},
 	)
 }
 
-// updateProperties merges the explicit `properties` map with the top-level field form
+// extractElementProperties merges the explicit `properties` map with the top-level field form
 // (name, content, src, href, tailwindStyles) that the web client sends. Explicit
 // `properties` entries win if both are present.
-func updateProperties(p domainEntity.PayloadElementUpdate) map[string]any {
+func extractElementProperties(p domainEntity.PayloadElementUpdate) map[string]any {
 	props := make(map[string]any, len(p.Properties)+5)
 	set := func(key string, v *string) {
 		if v != nil {
@@ -129,8 +129,8 @@ func updateProperties(p domainEntity.PayloadElementUpdate) map[string]any {
 	return props
 }
 
-func (h *Handler) handleElementDelete(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	pageID := client.GetPageID()
+func (h *Handler) deleteElement(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+	pageID := client.PageID()
 	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
@@ -142,16 +142,16 @@ func (h *Handler) handleElementDelete(ctx context.Context, client *wsentity.Clie
 
 	return h.applyAndBroadcast(ctx, client, msg, pageID,
 		func(ctx context.Context) (int64, error) {
-			return h.uc.Element.RemoveElement(ctx, client.ProjectID, pageID, payload.ID)
+			return h.uc.Element.DeleteElement(ctx, client.ProjectID, pageID, payload.ID)
 		},
 		func(f *wsentity.MessageFactory) (domainEntity.Message, error) {
-			return f.DeleteElement(payload.ID)
+			return f.NewElementDeletedMessage(payload.ID)
 		},
 	)
 }
 
-func (h *Handler) handleElementMove(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	pageID := client.GetPageID()
+func (h *Handler) moveElement(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
+	pageID := client.PageID()
 	if pageID == "" {
 		return domainErrors.ErrNotJoined
 	}
@@ -166,7 +166,7 @@ func (h *Handler) handleElementMove(ctx context.Context, client *wsentity.Client
 		parentID = *payload.ParentID
 	}
 
-	if err := validation.ValidateElementMove(&payload); err != nil {
+	if err := validation.ElementMove(&payload); err != nil {
 		return domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 	return h.applyAndBroadcast(ctx, client, msg, pageID,
@@ -180,7 +180,7 @@ func (h *Handler) handleElementMove(ctx context.Context, client *wsentity.Client
 			return seq, err
 		},
 		func(f *wsentity.MessageFactory) (domainEntity.Message, error) {
-			return f.MoveElement(payload)
+			return f.NewElementMovedMessage(payload)
 		},
 	)
 }

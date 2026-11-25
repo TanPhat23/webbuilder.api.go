@@ -25,7 +25,7 @@ func (uc *WorkflowUseCase) UpdateWorkflow(ctx context.Context, projectID string,
 	return uc.repo.UpdateWorkflow(ctx, projectID, workflow)
 }
 
-func (uc *WorkflowUseCase) RemoveWorkflow(ctx context.Context, projectID string, workflowID string) error {
+func (uc *WorkflowUseCase) DeleteWorkflow(ctx context.Context, projectID string, workflowID string) error {
 	return uc.repo.DeleteWorkflow(ctx, projectID, workflowID)
 }
 
@@ -33,6 +33,6 @@ func (uc *WorkflowUseCase) GetWorkflowByID(ctx context.Context, projectID string
 	return uc.repo.GetWorkflowByID(ctx, projectID, workflowID)
 }
 
-func (uc *WorkflowUseCase) GetWorkflowsByProject(ctx context.Context, projectID string) ([]domainEntity.EventWorkflow, error) {
-	return uc.repo.GetWorkflowsByProjectID(ctx, projectID)
+func (uc *WorkflowUseCase) ListWorkflowsByProject(ctx context.Context, projectID string) ([]domainEntity.EventWorkflow, error) {
+	return uc.repo.ListWorkflowsByProject(ctx, projectID)
 }

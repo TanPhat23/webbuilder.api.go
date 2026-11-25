@@ -35,7 +35,7 @@ func AllowedOrigins() ([]string, error) {
 	return allowOriginsList, nil
 }
 
-func CorsConfig() cors.Config {
+func CORS() cors.Config {
 	allowOriginsList, err := AllowedOrigins()
 	if err != nil {
 		allowOriginsList = nil

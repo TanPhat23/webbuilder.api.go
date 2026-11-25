@@ -45,7 +45,7 @@ func main() {
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
 	// Initialize database connection
-	db, err := database.InitDB()
+	db, err := database.Connect()
 	if err != nil {
 		log.Fatal("Failed to initialize database connection pool:", err)
 	}
@@ -96,14 +96,14 @@ func main() {
 		log.Println("Image upload functionality will not be available")
 	}
 
-	app := fiber.New(configs.FiberConfig())
-	app.Use(cors.New(configs.CorsConfig()))
-	app.Use(logger.New(configs.LoggerConfig()))
+	app := fiber.New(configs.Fiber())
+	app.Use(cors.New(configs.CORS()))
+	app.Use(logger.New(configs.Logger()))
 	app.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed, // Fast compression for better performance
 	}))
 
-	routes.SetupRoutes(app, repos, storageService, invitationService, nil)
+	routes.Register(app, repos, storageService, invitationService, nil)
 
 	// Handle graceful shutdown
 	go func() {

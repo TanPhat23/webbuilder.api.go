@@ -10,17 +10,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func PageRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface, redisClient *redis.Client) {
+func RegisterPages(publicGroup, privateGroup fiber.Router, repos *repositories.Repositories, redisClient *redis.Client) {
 	pageService := services.NewPageService(repos.PageRepository, repos.ProjectRepository)
 	pageHandler := handlers.NewPageHandler(pageService)
 	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
-	publicGroup.Get("/pages/public/:projectid", cachePublicPreview(redisClient, repos.ProjectRepository, "route-pages"), pageHandler.GetPublicPagesByProjectID)
-	publicGroup.Get("/pages/public/:projectid/:pageid", pageHandler.GetPublicPageByID)
+	publicGroup.Get("/pages/public/:projectid", cachePublicPreview(redisClient, repos.ProjectRepository, "route-pages"), pageHandler.ListPublic)
+	publicGroup.Get("/pages/public/:projectid/:pageid", pageHandler.GetPublicByID)
 
-	privateGroup.Get("/pages/:projectid", pageHandler.GetPagesByProjectID)
-	privateGroup.Get("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageView), pageHandler.GetPageByID)
-	privateGroup.Post("/pages/:projectid", authorizer.RequireProjectPermission("projectid", authz.PermPageCreate), pageHandler.CreatePage)
-	privateGroup.Patch("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageEdit), pageHandler.UpdatePage)
-	privateGroup.Delete("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageDelete), pageHandler.DeletePage)
+	privateGroup.Get("/pages/:projectid", pageHandler.ListByProject)
+	privateGroup.Get("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageView), pageHandler.GetByID)
+	privateGroup.Post("/pages/:projectid", authorizer.RequireProjectPermission("projectid", authz.PermPageCreate), pageHandler.Create)
+	privateGroup.Patch("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageEdit), pageHandler.Update)
+	privateGroup.Delete("/pages/:projectid/:pageid", authorizer.RequireProjectPermission("projectid", authz.PermPageDelete), pageHandler.Delete)
 }

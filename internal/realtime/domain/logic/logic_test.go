@@ -3,7 +3,7 @@ package logic
 import "testing"
 
 func TestMergeWithLiteralNullDefaults(t *testing.T) {
-	base := Empty()
+	base := NewEmptyDocument()
 	patch := map[string]any{"variables": map[string]any{"object": map[string]any{"type": "object", "default": map[string]any{"nested": map[string]any{}}}, "empty": map[string]any{"type": "object"}}}
 	merged, err := MergeWithNulls(base, patch, [][]string{{"variables", "object", "default", "nested", "value"}, {"variables", "empty", "default"}})
 	if err != nil {
@@ -67,7 +67,7 @@ func TestRejectMalformedStepFields(t *testing.T) {
 		{"set": "bad-name", "to": "1"},
 		{"run": "bad-name"},
 	} {
-		doc := Empty()
+		doc := NewEmptyDocument()
 		doc["flows"] = map[string]any{"f": map[string]any{"do": []any{step}}}
 		if err := Validate(doc); err == nil {
 			t.Errorf("accepted invalid step %#v", step)
@@ -76,7 +76,7 @@ func TestRejectMalformedStepFields(t *testing.T) {
 }
 
 func TestRejectInaccessibleVariableNames(t *testing.T) {
-	doc := Empty()
+	doc := NewEmptyDocument()
 	doc["variables"] = map[string]any{"constructor": map[string]any{"type": "string", "default": ""}}
 	if err := Validate(doc); err == nil {
 		t.Fatal("accepted inaccessible variable name")

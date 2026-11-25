@@ -13,8 +13,8 @@ import (
 // Initialised once at startup with the recommended v11-ready option.
 var Validate = validator.New(validator.WithRequiredStructEnabled())
 
-// ValidateRequiredParam checks if a required URL parameter is present.
-func ValidateRequiredParam(c fiber.Ctx, paramName string) (string, error) {
+// RequireParam checks if a required URL parameter is present.
+func RequireParam(c fiber.Ctx, paramName string) (string, error) {
 	value := c.Params(paramName)
 	if value == "" {
 		return "", fiber.NewError(fiber.StatusBadRequest, paramName+" is required")
@@ -22,12 +22,12 @@ func ValidateRequiredParam(c fiber.Ctx, paramName string) (string, error) {
 	return value, nil
 }
 
-// MustParams extracts multiple URL params at once, returning an error on the
+// RequireParams extracts multiple URL params at once, returning an error on the
 // first missing one. The returned slice preserves the order of names.
 //
-//	ids, err := utils.MustParams(c, "projectid", "pageid")
+//	ids, err := utils.RequireParams(c, "projectid", "pageid")
 //	projectID, pageID := ids[0], ids[1]
-func MustParams(c fiber.Ctx, names ...string) ([]string, error) {
+func RequireParams(c fiber.Ctx, names ...string) ([]string, error) {
 	values := make([]string, len(names))
 	for i, name := range names {
 		v := c.Params(name)
@@ -39,17 +39,17 @@ func MustParams(c fiber.Ctx, names ...string) ([]string, error) {
 	return values, nil
 }
 
-// MustUserAndParams is the most common combo: authenticated user ID plus one or
+// RequireUserAndParams is the most common combo: authenticated user ID plus one or
 // more URL params. It validates the user first, then the params.
 //
-//	userID, ids, err := utils.MustUserAndParams(c, "projectid", "pageid")
+//	userID, ids, err := utils.RequireUserAndParams(c, "projectid", "pageid")
 //	projectID, pageID := ids[0], ids[1]
-func MustUserAndParams(c fiber.Ctx, names ...string) (string, []string, error) {
-	userID, err := ValidateUserID(c)
+func RequireUserAndParams(c fiber.Ctx, names ...string) (string, []string, error) {
+	userID, err := RequireUserID(c)
 	if err != nil {
 		return "", nil, err
 	}
-	ids, err := MustParams(c, names...)
+	ids, err := RequireParams(c, names...)
 	if err != nil {
 		return "", nil, err
 	}
@@ -65,8 +65,8 @@ func RequireUpdates(updates map[string]any) error {
 	return nil
 }
 
-// ValidateUserID extracts and validates the authenticated user ID from context locals.
-func ValidateUserID(c fiber.Ctx) (string, error) {
+// RequireUserID extracts and validates the authenticated user ID from context locals.
+func RequireUserID(c fiber.Ctx) (string, error) {
 	id, ok := auth.FromFiber(c)
 	if !ok || id.UserID == "" {
 		return "", fiber.NewError(fiber.StatusUnauthorized, "Unauthorized: You must be logged in")

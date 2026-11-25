@@ -13,7 +13,7 @@ import (
 // revealed to strangers. An empty userID only passes for published projects.
 func ensureProjectVisible(ctx context.Context, projects repositories.ProjectRepositoryInterface, projectID, userID string) error {
 	if userID != "" {
-		project, err := projects.GetProjectWithAccess(ctx, projectID, userID)
+		project, err := projects.GetWithAccess(ctx, projectID, userID)
 		if err == nil && project != nil {
 			return nil
 		}
@@ -21,7 +21,7 @@ func ensureProjectVisible(ctx context.Context, projects repositories.ProjectRepo
 			return err
 		}
 	}
-	project, err := projects.GetPublicProjectByID(ctx, projectID)
+	project, err := projects.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return err
 	}

@@ -47,7 +47,7 @@ func TestInvitationRepositoryCreateInvitation(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	in := &models.Invitation{ProjectId: "p1", Email: "a@b.c", Token: "t", Role: "editor"}
-	got, err := (&InvitationRepository{db: db}).CreateInvitation(ctx, in)
+	got, err := (&InvitationRepository{db: db}).Create(ctx, in)
 	if err != nil || got.Id == "" || got.Status != models.InvitationStatusPending {
 		t.Fatalf("defaults not applied: %+v, %v", got, err)
 	}
@@ -57,14 +57,14 @@ func TestInvitationRepositoryCreateInvitation(t *testing.T) {
 
 	dbKeep, _ := newFakeDB(t)
 	keepIn := &models.Invitation{Id: "mine", Status: models.InvitationStatusCancelled, ProjectId: "p1", Token: "t"}
-	keepGot, err := (&InvitationRepository{db: dbKeep}).CreateInvitation(ctx, keepIn)
+	keepGot, err := (&InvitationRepository{db: dbKeep}).Create(ctx, keepIn)
 	if err != nil || keepGot.Id != "mine" || keepGot.Status != models.InvitationStatusCancelled {
 		t.Fatalf("got %+v, %v", keepGot, err)
 	}
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("INSERT", invitationBoom)
-	errGot, err := (&InvitationRepository{db: dbErr}).CreateInvitation(ctx, &models.Invitation{ProjectId: "p1"})
+	errGot, err := (&InvitationRepository{db: dbErr}).Create(ctx, &models.Invitation{ProjectId: "p1"})
 	if errGot != nil {
 		t.Fatalf("expected nil, got %+v", errGot)
 	}
@@ -79,10 +79,10 @@ func TestInvitationRepositoryListQueries(t *testing.T) {
 		call   func(r *InvitationRepository) ([]models.Invitation, error)
 	}{
 		{"failed to get invitations by project", func(r *InvitationRepository) ([]models.Invitation, error) {
-			return r.GetInvitationsByProject(ctx, "p1")
+			return r.ListByProject(ctx, "p1")
 		}},
 		{"failed to get pending invitations", func(r *InvitationRepository) ([]models.Invitation, error) {
-			return r.GetPendingInvitationsByProject(ctx, "p1")
+			return r.ListPendingByProject(ctx, "p1")
 		}},
 	}
 	for _, tc := range lists {
@@ -113,7 +113,7 @@ func assertListedInvitations(t *testing.T, f *fakeDB, got []models.Invitation, e
 
 func TestInvitationRepositoryPendingFilterUsesStatus(t *testing.T) {
 	db, f := newFakeDB(t)
-	if _, err := (&InvitationRepository{db: db}).GetPendingInvitationsByProject(context.Background(), "p1"); err != nil {
+	if _, err := (&InvitationRepository{db: db}).ListPendingByProject(context.Background(), "p1"); err != nil {
 		t.Fatal(err)
 	}
 	if !invitationHasArg(f, string(models.InvitationStatusPending)) && !invitationHasArg(f, models.InvitationStatusPending) {
@@ -130,10 +130,10 @@ func TestInvitationRepositorySingleLookups(t *testing.T) {
 		call   func(r *InvitationRepository) (*models.Invitation, error)
 	}{
 		{"i1", "failed to get invitation by ID", func(r *InvitationRepository) (*models.Invitation, error) {
-			return r.GetInvitationByID(ctx, "i1")
+			return r.GetByID(ctx, "i1")
 		}},
 		{"tok-i1", "failed to get invitation by token", func(r *InvitationRepository) (*models.Invitation, error) {
-			return r.GetInvitationByToken(ctx, "tok-i1")
+			return r.GetByToken(ctx, "tok-i1")
 		}},
 	}
 	for _, tc := range lookups {
@@ -167,7 +167,7 @@ func TestInvitationRepositoryAcceptInvitationSuccess(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 	db, f := newFakeDB(t)
 	f.on("SELECT", invitationCols, invitationRow("i1", "pending", future))
-	if err := (&InvitationRepository{db: db}).AcceptInvitation(ctx, "tok-i1", "u9"); err != nil {
+	if err := (&InvitationRepository{db: db}).Accept(ctx, "tok-i1", "u9"); err != nil {
 		t.Fatal(err)
 	}
 	if !f.sawQuery("INSERT INTO", "Collaborator") || !invitationHasArg(f, "u9") || !invitationHasArg(f, "p1") {
@@ -179,7 +179,7 @@ func TestInvitationRepositoryAcceptInvitationSuccess(t *testing.T) {
 	row := invitationRow("i1", "pending", future)
 	row[3] = "viewer"
 	fRole.on("SELECT", invitationCols, row)
-	if err := (&InvitationRepository{db: dbRole}).AcceptInvitation(ctx, "tok-i1", "u9"); err != nil {
+	if err := (&InvitationRepository{db: dbRole}).Accept(ctx, "tok-i1", "u9"); err != nil {
 		t.Fatal(err)
 	}
 	if !invitationHasArg(fRole, "viewer") {
@@ -204,20 +204,20 @@ func TestInvitationRepositoryAcceptInvitationRejections(t *testing.T) {
 
 	dbExp, fExp := newFakeDB(t)
 	fExp.on("SELECT", invitationCols, invitationRow("i1", "pending", past))
-	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbExp}).AcceptInvitation(ctx, "tok-i1", "u9"), ErrInvitationExpired, "")
+	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbExp}).Accept(ctx, "tok-i1", "u9"), ErrInvitationExpired, "")
 	if fExp.sawQuery("INSERT") || fExp.sawQuery("UPDATE ", "Invitation") {
 		t.Fatalf("expired invitation must not write: %v", fExp.queries)
 	}
 
 	dbAcc, fAcc := newFakeDB(t)
 	fAcc.on("SELECT", invitationCols, invitationRow("i1", "accepted", future))
-	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbAcc}).AcceptInvitation(ctx, "tok-i1", "u9"), ErrInvitationInvalid, "")
+	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbAcc}).Accept(ctx, "tok-i1", "u9"), ErrInvitationInvalid, "")
 	if fAcc.sawQuery("INSERT") {
 		t.Fatalf("must not write: %v", fAcc.queries)
 	}
 
 	dbMiss, _ := newFakeDB(t)
-	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbMiss}).AcceptInvitation(ctx, "nope", "u9"), ErrInvitationNotFound, "")
+	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbMiss}).Accept(ctx, "nope", "u9"), ErrInvitationNotFound, "")
 }
 
 func TestInvitationRepositoryAcceptInvitationDBErrors(t *testing.T) {
@@ -227,7 +227,7 @@ func TestInvitationRepositoryAcceptInvitationDBErrors(t *testing.T) {
 	dbCollab, fCollab := newFakeDB(t)
 	fCollab.on("SELECT", invitationCols, invitationRow("i1", "pending", future))
 	fCollab.onErr("INSERT", invitationBoom)
-	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbCollab}).AcceptInvitation(ctx, "tok-i1", "u9"), invitationBoom, "failed to create collaborator from invitation")
+	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbCollab}).Accept(ctx, "tok-i1", "u9"), invitationBoom, "failed to create collaborator from invitation")
 	if fCollab.sawQuery("UPDATE ", "Invitation") {
 		t.Fatalf("invitation must stay pending: %v", fCollab.queries)
 	}
@@ -235,7 +235,7 @@ func TestInvitationRepositoryAcceptInvitationDBErrors(t *testing.T) {
 	dbStatus, fStatus := newFakeDB(t)
 	fStatus.on("SELECT", invitationCols, invitationRow("i1", "pending", future))
 	fStatus.onErr("UPDATE", invitationBoom)
-	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbStatus}).AcceptInvitation(ctx, "tok-i1", "u9"), invitationBoom, "failed to mark invitation as accepted")
+	assertInvitationErrPrefix(t, (&InvitationRepository{db: dbStatus}).Accept(ctx, "tok-i1", "u9"), invitationBoom, "failed to mark invitation as accepted")
 }
 
 func TestInvitationRepositoryDeleteInvitation(t *testing.T) {
@@ -255,7 +255,7 @@ func TestInvitationRepositoryDeleteInvitation(t *testing.T) {
 		} else {
 			f.onExec("DELETE", tc.affected)
 		}
-		assertInvitationErrPrefix(t, (&InvitationRepository{db: db}).DeleteInvitation(ctx, "i1"), tc.wantErr, "")
+		assertInvitationErrPrefix(t, (&InvitationRepository{db: db}).Delete(ctx, "i1"), tc.wantErr, "")
 		if !invitationHasArg(f, "i1") {
 			t.Fatalf("id not bound: %v", f.args)
 		}
@@ -280,13 +280,13 @@ func TestInvitationRepositoryUpdateAndCancel(t *testing.T) {
 		} else {
 			f.onExec("UPDATE", tc.affected)
 		}
-		err := (&InvitationRepository{db: db}).UpdateInvitationStatus(ctx, "i1", models.InvitationStatusAccepted)
+		err := (&InvitationRepository{db: db}).UpdateStatus(ctx, "i1", models.InvitationStatusAccepted)
 		assertInvitationErrPrefix(t, err, tc.wantErr, tc.prefix)
 	}
 
 	dbCancel, fCancel := newFakeDB(t)
 	fCancel.onExec("UPDATE", 1)
-	if err := (&InvitationRepository{db: dbCancel}).CancelInvitation(ctx, "i1"); err != nil {
+	if err := (&InvitationRepository{db: dbCancel}).Cancel(ctx, "i1"); err != nil {
 		t.Fatal(err)
 	}
 	if !invitationHasArg(fCancel, string(models.InvitationStatusCancelled)) && !invitationHasArg(fCancel, models.InvitationStatusCancelled) {

@@ -111,7 +111,7 @@ func (h *Hub) getOrCreateRoom(roomID string) *Room {
 			}
 			continue
 		}
-		go r.run()
+		go r.serve()
 		return r
 	}
 }
@@ -304,9 +304,9 @@ func (h *Hub) listenRedis() {
 	}
 }
 
-func (h *Hub) GetRoomParticipants(roomID string) []domainEntity.UserPresence {
+func (h *Hub) RoomParticipants(roomID string) []domainEntity.UserPresence {
 	if r := h.room(roomID); r != nil {
-		return r.GetParticipants()
+		return r.Participants()
 	}
 	return []domainEntity.UserPresence{}
 }

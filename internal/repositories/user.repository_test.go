@@ -40,9 +40,9 @@ func TestUserRepositoryLookups(t *testing.T) {
 		errMsg string
 		call   func(r *UserRepository) (*models.User, error)
 	}{
-		{"by id", "u1", "failed to get user by ID", func(r *UserRepository) (*models.User, error) { return r.GetUserByID(ctx, "u1") }},
-		{"by email", "a@b.c", "failed to get user by email", func(r *UserRepository) (*models.User, error) { return r.GetUserByEmail(ctx, "a@b.c") }},
-		{"by username", "%ann%", "failed to get user by username", func(r *UserRepository) (*models.User, error) { return r.GetUserByUsername(ctx, "ann") }},
+		{"by id", "u1", "failed to get user by ID", func(r *UserRepository) (*models.User, error) { return r.GetByID(ctx, "u1") }},
+		{"by email", "a@b.c", "failed to get user by email", func(r *UserRepository) (*models.User, error) { return r.GetByEmail(ctx, "a@b.c") }},
+		{"by username", "%ann%", "failed to get user by username", func(r *UserRepository) (*models.User, error) { return r.GetByUsername(ctx, "ann") }},
 	}
 	for _, tc := range lookups {
 		t.Run(tc.name+" found", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestUserRepositoryLookups(t *testing.T) {
 
 func TestUserRepositoryGetUserByUsernameMatchesEitherName(t *testing.T) {
 	db, f := newFakeDB(t)
-	if _, err := (&UserRepository{db: db}).GetUserByUsername(context.Background(), "ann"); !errors.Is(err, ErrUserNotFound) {
+	if _, err := (&UserRepository{db: db}).GetByUsername(context.Background(), "ann"); !errors.Is(err, ErrUserNotFound) {
 		t.Fatal(err)
 	}
 	if !f.sawQuery("FirstName", "LastName", "ILIKE") {
@@ -89,7 +89,7 @@ func TestUserRepositorySearchUsers(t *testing.T) {
 	t.Run("matches are returned and capped", func(t *testing.T) {
 		db, f := newFakeDB(t)
 		f.on("SELECT", userCols, userRow("u1", "ann@x.io", "Ann"), userRow("u2", "andy@x.io", "Andy"))
-		got, err := (&UserRepository{db: db}).SearchUsers(ctx, "an")
+		got, err := (&UserRepository{db: db}).Search(ctx, "an")
 		if err != nil || len(got) != 2 || got[1].Id != "u2" {
 			t.Fatalf("got %+v, %v", got, err)
 		}
@@ -104,7 +104,7 @@ func TestUserRepositorySearchUsers(t *testing.T) {
 	t.Run("rejects short queries without touching db", func(t *testing.T) {
 		for _, short := range []string{"", " ", "a", " x "} {
 			db, f := newFakeDB(t)
-			got, err := (&UserRepository{db: db}).SearchUsers(ctx, short)
+			got, err := (&UserRepository{db: db}).Search(ctx, short)
 			if err != nil || len(got) != 0 || f.queryCount() != 0 {
 				t.Fatalf("short=%q: got=%v err=%v queries=%d", short, got, err, f.queryCount())
 			}
@@ -112,7 +112,7 @@ func TestUserRepositorySearchUsers(t *testing.T) {
 	})
 	t.Run("escapes LIKE wildcards", func(t *testing.T) {
 		db, f := newFakeDB(t)
-		_, err := (&UserRepository{db: db}).SearchUsers(ctx, `a%_b\c`)
+		_, err := (&UserRepository{db: db}).Search(ctx, `a%_b\c`)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +123,7 @@ func TestUserRepositorySearchUsers(t *testing.T) {
 	t.Run("database error", func(t *testing.T) {
 		db, f := newFakeDB(t)
 		f.onErr("SELECT", userBoom)
-		got, err := (&UserRepository{db: db}).SearchUsers(ctx, "an")
+		got, err := (&UserRepository{db: db}).Search(ctx, "an")
 		if got != nil || !errors.Is(err, userBoom) || !strings.HasPrefix(err.Error(), "failed to search users") {
 			t.Fatalf("got %+v, %v", got, err)
 		}

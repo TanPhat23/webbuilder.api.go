@@ -44,7 +44,7 @@ func NewPageRepository(db *gorm.DB) PageRepositoryInterface {
 	return &PageRepository{db: db}
 }
 
-func (r *PageRepository) GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error) {
+func (r *PageRepository) ListByProject(ctx context.Context, projectID string) ([]models.Page, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -62,7 +62,7 @@ func (r *PageRepository) GetPagesByProjectID(ctx context.Context, projectID stri
 	return pages, nil
 }
 
-func (r *PageRepository) GetPageByID(ctx context.Context, pageID, projectID string) (*models.Page, error) {
+func (r *PageRepository) GetByID(ctx context.Context, pageID, projectID string) (*models.Page, error) {
 	if pageID == "" {
 		return nil, errors.New("pageID is required")
 	}
@@ -85,7 +85,7 @@ func (r *PageRepository) GetPageByID(ctx context.Context, pageID, projectID stri
 	return &page, nil
 }
 
-func (r *PageRepository) CreatePage(ctx context.Context, page *models.Page) error {
+func (r *PageRepository) Create(ctx context.Context, page *models.Page) error {
 	if err := validateNewPage(page); err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func validateNewPage(page *models.Page) error {
 	return nil
 }
 
-func (r *PageRepository) UpdatePage(ctx context.Context, page *models.Page) error {
+func (r *PageRepository) Update(ctx context.Context, page *models.Page) error {
 	if page == nil {
 		return errors.New("page cannot be nil")
 	}
@@ -153,7 +153,7 @@ func (r *PageRepository) UpdatePage(ctx context.Context, page *models.Page) erro
 	return nil
 }
 
-func (r *PageRepository) UpdatePageFields(ctx context.Context, pageID string, updates map[string]any) error {
+func (r *PageRepository) UpdateFields(ctx context.Context, pageID string, updates map[string]any) error {
 	if pageID == "" {
 		return errors.New("pageID is required")
 	}
@@ -184,7 +184,7 @@ func (r *PageRepository) UpdatePageFields(ctx context.Context, pageID string, up
 	return nil
 }
 
-func (r *PageRepository) DeletePage(ctx context.Context, pageID string) error {
+func (r *PageRepository) Delete(ctx context.Context, pageID string) error {
 	if pageID == "" {
 		return errors.New("pageID is required")
 	}
@@ -204,7 +204,7 @@ func (r *PageRepository) DeletePage(ctx context.Context, pageID string) error {
 	return nil
 }
 
-func (r *PageRepository) DeletePageByProjectID(ctx context.Context, pageID, projectID, userID string) error {
+func (r *PageRepository) DeleteForUser(ctx context.Context, pageID, projectID, userID string) error {
 	if pageID == "" || projectID == "" || userID == "" {
 		return errors.New("pageID, projectID, and userID are required")
 	}
@@ -238,7 +238,7 @@ func (r *PageRepository) DeletePageByProjectID(ctx context.Context, pageID, proj
 	return nil
 }
 
-func (r *PageRepository) HardDeletePage(ctx context.Context, pageID string) error {
+func (r *PageRepository) HardDelete(ctx context.Context, pageID string) error {
 	if pageID == "" {
 		return errors.New("pageID is required")
 	}
@@ -257,7 +257,7 @@ func (r *PageRepository) HardDeletePage(ctx context.Context, pageID string) erro
 	return nil
 }
 
-func (r *PageRepository) RestorePage(ctx context.Context, pageID string) error {
+func (r *PageRepository) Restore(ctx context.Context, pageID string) error {
 	if pageID == "" {
 		return errors.New("pageID is required")
 	}
@@ -293,7 +293,7 @@ func (r *PageRepository) ExistsInProject(ctx context.Context, pageID, projectID 
 	return count > 0, nil
 }
 
-func (r *PageRepository) CountPagesByProjectID(ctx context.Context, projectID string) (int64, error) {
+func (r *PageRepository) CountByProject(ctx context.Context, projectID string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectID is required")
 	}

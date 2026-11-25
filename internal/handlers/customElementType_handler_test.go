@@ -20,30 +20,30 @@ type customElementTypeSvcStub struct {
 	deleted   string
 }
 
-func (s *customElementTypeSvcStub) GetCustomElementTypes(context.Context) ([]models.CustomElementType, error) {
+func (s *customElementTypeSvcStub) List(context.Context) ([]models.CustomElementType, error) {
 	return []models.CustomElementType{{Id: "t1", Name: "Form"}}, s.err
 }
-func (s *customElementTypeSvcStub) GetCustomElementTypeByID(_ context.Context, id string) (*models.CustomElementType, error) {
+func (s *customElementTypeSvcStub) GetByID(_ context.Context, id string) (*models.CustomElementType, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.CustomElementType{Id: id, Name: "Form"}, nil
 }
-func (s *customElementTypeSvcStub) CreateCustomElementType(_ context.Context, t *models.CustomElementType) (*models.CustomElementType, error) {
+func (s *customElementTypeSvcStub) Create(_ context.Context, t *models.CustomElementType) (*models.CustomElementType, error) {
 	s.created = t
 	if s.err != nil {
 		return nil, s.err
 	}
 	return t, nil
 }
-func (s *customElementTypeSvcStub) UpdateCustomElementType(_ context.Context, id string, updates map[string]any) (*models.CustomElementType, error) {
+func (s *customElementTypeSvcStub) Update(_ context.Context, id string, updates map[string]any) (*models.CustomElementType, error) {
 	s.updatedID, s.updates = id, updates
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.CustomElementType{Id: id, Name: "Renamed"}, nil
 }
-func (s *customElementTypeSvcStub) DeleteCustomElementType(_ context.Context, id string) error {
+func (s *customElementTypeSvcStub) Delete(_ context.Context, id string) error {
 	s.deleted = id
 	return s.err
 }
@@ -51,11 +51,11 @@ func (s *customElementTypeSvcStub) DeleteCustomElementType(_ context.Context, id
 func customElementTypeKit(svc *customElementTypeSvcStub) *fiber.App {
 	h := NewCustomElementTypeHandler(svc)
 	return newKitApp("", func(app *fiber.App) {
-		app.Get("/types", h.GetCustomElementTypes)
-		app.Post("/types", h.CreateCustomElementType)
-		app.Get("/types/:id", h.GetCustomElementTypeByID)
-		app.Patch("/types/:id", h.UpdateCustomElementType)
-		app.Delete("/types/:id", h.DeleteCustomElementType)
+		app.Get("/types", h.List)
+		app.Post("/types", h.Create)
+		app.Get("/types/:id", h.GetByID)
+		app.Patch("/types/:id", h.Update)
+		app.Delete("/types/:id", h.Delete)
 	})
 }
 

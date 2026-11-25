@@ -33,7 +33,7 @@ func TestFailedPersistenceIsMarkedDirtyForRetry(t *testing.T) {
 	if err := docs.SetDocument(context.Background(), "proj", "page", []entity.Element{}); err != nil {
 		t.Fatal(err)
 	}
-	persist := usecase.NewPersistenceUsecase(&repo.Repository{DocumentRepo: docs, ElementRepo: failingElements{}}, &mockLogger{})
+	persist := usecase.NewPersistUseCase(&repo.Repository{DocumentRepo: docs, ElementRepo: failingElements{}}, &mockLogger{})
 	if err := persist.Flush(context.Background()); err == nil {
 		t.Fatal("expected persistence failure")
 	}
@@ -54,7 +54,7 @@ func (e *countingElements) UpdateElements(context.Context, string, string, []ent
 func TestMissingCachedDocumentDoesNotDeletePersistedPage(t *testing.T) {
 	docs := &poppedDocument{memDocRepo: newMemDocRepo()}
 	elements := &countingElements{}
-	persist := usecase.NewPersistenceUsecase(&repo.Repository{DocumentRepo: docs, ElementRepo: elements}, &mockLogger{})
+	persist := usecase.NewPersistUseCase(&repo.Repository{DocumentRepo: docs, ElementRepo: elements}, &mockLogger{})
 	if err := persist.Flush(context.Background()); err == nil {
 		t.Fatal("missing document must fail")
 	}

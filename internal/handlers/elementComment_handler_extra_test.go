@@ -34,68 +34,68 @@ type elementCommentSvcStub struct {
 	projUser   string
 }
 
-func (s *elementCommentSvcStub) CreateElementComment(_ context.Context, c *models.ElementComment) (*models.ElementComment, error) {
+func (s *elementCommentSvcStub) Create(_ context.Context, c *models.ElementComment) (*models.ElementComment, error) {
 	s.created = c
 	return c, s.err
 }
-func (s *elementCommentSvcStub) GetElementCommentByID(_ context.Context, id string) (*models.ElementComment, error) {
+func (s *elementCommentSvcStub) GetByID(_ context.Context, id string) (*models.ElementComment, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.ElementComment{Id: id, Content: "hi"}, nil
 }
-func (s *elementCommentSvcStub) GetElementComments(_ context.Context, elementID string, f models.ElementCommentFilter) ([]models.ElementComment, error) {
+func (s *elementCommentSvcStub) List(_ context.Context, elementID string, f models.ElementCommentFilter) ([]models.ElementComment, error) {
 	s.filterElem, s.filter = strings.Clone(elementID), f
 	if s.err != nil {
 		return nil, s.err
 	}
 	return []models.ElementComment{{Id: "c1", ElementId: elementID}}, nil
 }
-func (s *elementCommentSvcStub) CountElementComments(context.Context, string) (int64, error) {
+func (s *elementCommentSvcStub) Count(context.Context, string) (int64, error) {
 	if s.countErr != nil {
 		return 0, s.countErr
 	}
 	return 42, nil
 }
-func (s *elementCommentSvcStub) UpdateElementComment(_ context.Context, id, userID string, u map[string]any) (*models.ElementComment, error) {
+func (s *elementCommentSvcStub) Update(_ context.Context, id, userID string, u map[string]any) (*models.ElementComment, error) {
 	s.updID, s.updUser, s.updates = strings.Clone(id), strings.Clone(userID), u
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.ElementComment{Id: id, Content: "edited"}, nil
 }
-func (s *elementCommentSvcStub) DeleteElementComment(_ context.Context, id, userID string) error {
+func (s *elementCommentSvcStub) Delete(_ context.Context, id, userID string) error {
 	s.delID, s.delUser = strings.Clone(id), strings.Clone(userID)
 	return s.err
 }
-func (s *elementCommentSvcStub) GetElementCommentByIDForUser(_ context.Context, id, _ string) (*models.ElementComment, error) {
-	return s.GetElementCommentByID(context.Background(), id)
+func (s *elementCommentSvcStub) GetByIDForUser(_ context.Context, id, _ string) (*models.ElementComment, error) {
+	return s.GetByID(context.Background(), id)
 }
-func (s *elementCommentSvcStub) GetElementCommentsForUser(_ context.Context, elementID, _ string, f models.ElementCommentFilter) ([]models.ElementComment, error) {
-	return s.GetElementComments(context.Background(), elementID, f)
+func (s *elementCommentSvcStub) ListForUser(_ context.Context, elementID, _ string, f models.ElementCommentFilter) ([]models.ElementComment, error) {
+	return s.List(context.Background(), elementID, f)
 }
-func (s *elementCommentSvcStub) ToggleResolvedStatus(_ context.Context, id string) error {
+func (s *elementCommentSvcStub) ToggleResolved(_ context.Context, id string) error {
 	s.toggledID = strings.Clone(id)
 	return s.err
 }
-func (s *elementCommentSvcStub) ToggleResolvedStatusForUser(_ context.Context, id, _ string) error {
-	return s.ToggleResolvedStatus(context.Background(), id)
+func (s *elementCommentSvcStub) ToggleResolvedForUser(_ context.Context, id, _ string) error {
+	return s.ToggleResolved(context.Background(), id)
 }
-func (s *elementCommentSvcStub) GetElementCommentsByAuthorID(_ context.Context, a string, limit, offset int) ([]models.ElementComment, error) {
+func (s *elementCommentSvcStub) ListByAuthor(_ context.Context, a string, limit, offset int) ([]models.ElementComment, error) {
 	s.authorID, s.limit, s.offset = strings.Clone(a), limit, offset
 	if s.err != nil {
 		return nil, s.err
 	}
 	return []models.ElementComment{{Id: "c2", AuthorId: a}}, nil
 }
-func (s *elementCommentSvcStub) GetElementCommentsByProjectID(_ context.Context, p, u string, limit, offset int) ([]models.ElementComment, error) {
+func (s *elementCommentSvcStub) ListByProject(_ context.Context, p, u string, limit, offset int) ([]models.ElementComment, error) {
 	s.projectID, s.projUser, s.limit, s.offset = strings.Clone(p), strings.Clone(u), limit, offset
 	if s.err != nil {
 		return nil, s.err
 	}
 	return []models.ElementComment{{Id: "c3"}}, nil
 }
-func (s *elementCommentSvcStub) CountElementCommentsByProjectID(context.Context, string, string) (int64, error) {
+func (s *elementCommentSvcStub) CountByProject(context.Context, string, string) (int64, error) {
 	if s.countErr != nil {
 		return 0, s.countErr
 	}
@@ -105,21 +105,21 @@ func (s *elementCommentSvcStub) CountElementCommentsByProjectID(context.Context,
 func elementCommentKit(userID string, svc *elementCommentSvcStub) *fiber.App {
 	h := NewElementCommentHandler(svc)
 	return newKitApp(userID, func(app *fiber.App) {
-		app.Post("/element-comments", h.CreateElementComment)
-		app.Get("/element-comments/author/:authorId", h.GetCommentsByAuthorID)
-		app.Get("/element-comments/:id", h.GetElementCommentByID)
-		app.Patch("/element-comments/:id/toggle-resolved", h.ToggleResolvedStatus)
-		app.Patch("/element-comments/:id", h.UpdateElementComment)
-		app.Delete("/element-comments/:id", h.DeleteElementComment)
-		app.Get("/elements/:elementId/comments", h.GetElementComments)
-		app.Get("/projects/:projectId/comments", h.GetCommentsByProjectID)
-		app.Get("/noparam/get", h.GetElementCommentByID)
-		app.Get("/noparam/list", h.GetElementComments)
-		app.Patch("/noparam/update", h.UpdateElementComment)
-		app.Delete("/noparam/delete", h.DeleteElementComment)
-		app.Patch("/noparam/toggle", h.ToggleResolvedStatus)
-		app.Get("/noparam/author", h.GetCommentsByAuthorID)
-		app.Get("/noparam/project", h.GetCommentsByProjectID)
+		app.Post("/element-comments", h.Create)
+		app.Get("/element-comments/author/:authorId", h.ListByAuthor)
+		app.Get("/element-comments/:id", h.GetByID)
+		app.Patch("/element-comments/:id/toggle-resolved", h.ToggleResolved)
+		app.Patch("/element-comments/:id", h.Update)
+		app.Delete("/element-comments/:id", h.Delete)
+		app.Get("/elements/:elementId/comments", h.List)
+		app.Get("/projects/:projectId/comments", h.ListByProject)
+		app.Get("/noparam/get", h.GetByID)
+		app.Get("/noparam/list", h.List)
+		app.Patch("/noparam/update", h.Update)
+		app.Delete("/noparam/delete", h.Delete)
+		app.Patch("/noparam/toggle", h.ToggleResolved)
+		app.Get("/noparam/author", h.ListByAuthor)
+		app.Get("/noparam/project", h.ListByProject)
 	})
 }
 

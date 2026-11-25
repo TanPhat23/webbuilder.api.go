@@ -38,10 +38,10 @@ type wsTicketPayload struct {
 	ProjectID string `json:"projectId"`
 }
 
-// MintWSTicket issues a single-use 30-second WebSocket ticket bound to the authenticated
+// Mint issues a single-use 30-second WebSocket ticket bound to the authenticated
 // user and requested project, storing only its SHA-256 digest in Redis.
-func (h *WSTicketHandler) MintWSTicket(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *WSTicketHandler) Mint(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}

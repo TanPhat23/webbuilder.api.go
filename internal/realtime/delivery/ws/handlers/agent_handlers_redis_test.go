@@ -20,7 +20,7 @@ import (
 type agentHandlersRedisFailBus struct{ subErr error }
 
 func (agentHandlersRedisFailBus) Publish(context.Context, string, []byte) error { return nil }
-func (b agentHandlersRedisFailBus) PSubscribe(context.Context, string) (<-chan agentproto.BusMessage, func(), error) {
+func (b agentHandlersRedisFailBus) SubscribePattern(context.Context, string) (<-chan agentproto.BusMessage, func(), error) {
 	return nil, nil, b.subErr
 }
 
@@ -143,9 +143,9 @@ func TestAgentBridge_DeliverSkipsWhenClaimLostOrFails(t *testing.T) {
 		"error": {err: errors.New("redis down")},
 	} {
 		bus := &agentproto.MemBus{}
-		acks, stop, err := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"r")
+		acks, stop, err := bus.SubscribePattern(context.Background(), agentproto.AckChannelPrefix+"r")
 		if err != nil {
-			t.Fatalf("%s PSubscribe: %v", name, err)
+			t.Fatalf("%s SubscribePattern: %v", name, err)
 		}
 		tab := &fakeTab{}
 		b := newAgentBridge(fakeLocator{byUser: map[string]agentTarget{"p1/u1": tab}}, bus, claim, handlerTestLogger())
@@ -164,7 +164,7 @@ func TestAgentBridge_DeliverSkipsWhenClaimLostOrFails(t *testing.T) {
 
 func TestAgentBridge_FailedSendForgetsTheRequestAndDoesNotAck(t *testing.T) {
 	bus := &agentproto.MemBus{}
-	acks, stop, err := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"r")
+	acks, stop, err := bus.SubscribePattern(context.Background(), agentproto.AckChannelPrefix+"r")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestAgentBridge_FailedSendForgetsTheRequestAndDoesNotAck(t *testing.T) {
 
 func TestAgentBridge_UnreadableResponseIsReportedAsInternalErrorToTheRelay(t *testing.T) {
 	bus := &agentproto.MemBus{}
-	resps, stop, err := bus.PSubscribe(context.Background(), agentproto.ResponseChannelPrefix+"r")
+	resps, stop, err := bus.SubscribePattern(context.Background(), agentproto.ResponseChannelPrefix+"r")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,12 +270,12 @@ func TestAgentBridge_EndToEndThroughHandlerWithRedis(t *testing.T) {
 	tab.join(handlerTestPage)
 
 	bus := agentproto.NewRedisBus(rdb)
-	acks, stopAck, err := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"e2e")
+	acks, stopAck, err := bus.SubscribePattern(context.Background(), agentproto.AckChannelPrefix+"e2e")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stopAck()
-	resps, stopResp, err := bus.PSubscribe(context.Background(), agentproto.ResponseChannelPrefix+"e2e")
+	resps, stopResp, err := bus.SubscribePattern(context.Background(), agentproto.ResponseChannelPrefix+"e2e")
 	if err != nil {
 		t.Fatal(err)
 	}

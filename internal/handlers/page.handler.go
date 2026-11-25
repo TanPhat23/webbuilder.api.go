@@ -31,62 +31,62 @@ func NewPageHandler(pageService services.PageServiceInterface) *PageHandler {
 	}
 }
 
-func (h *PageHandler) DeletePage(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid", "pageid")
+func (h *PageHandler) Delete(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid", "pageid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 	pageID := ids[1]
 
-	if err := h.pageService.DeletePageByProjectID(c.RequestCtx(), pageID, projectID, userID); err != nil {
-		return utils.HandleRepoError(c, err, "Page not found or not owned by user", "Failed to delete page")
+	if err := h.pageService.DeleteForUser(c.RequestCtx(), pageID, projectID, userID); err != nil {
+		return utils.RespondError(c, err, "Page not found or not owned by user", "Failed to delete page")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-func (h *PageHandler) GetPagesByProjectID(c fiber.Ctx) error {
+func (h *PageHandler) ListByProject(c fiber.Ctx) error {
 	userID, _ := c.Locals("userId").(string)
-	return h.getPagesByProjectID(c, userID)
+	return h.listByProject(c, userID)
 }
 
-func (h *PageHandler) GetPublicPagesByProjectID(c fiber.Ctx) error {
-	return h.getPagesByProjectID(c, "")
+func (h *PageHandler) ListPublic(c fiber.Ctx) error {
+	return h.listByProject(c, "")
 }
 
-func (h *PageHandler) getPagesByProjectID(c fiber.Ctx, userID string) error {
-	ids, err := utils.MustParams(c, "projectid")
+func (h *PageHandler) listByProject(c fiber.Ctx, userID string) error {
+	ids, err := utils.RequireParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	pages, err := h.pageService.GetPagesByProjectID(c.RequestCtx(), projectID, userID)
+	pages, err := h.pageService.ListByProject(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve pages")
+		return utils.RespondError(c, err, "Project not found", "Failed to retrieve pages")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, pages)
 }
 
-func (h *PageHandler) GetPageByID(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid", "pageid")
+func (h *PageHandler) GetByID(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid", "pageid")
 	if err != nil {
 		return err
 	}
 	projectID, pageID := ids[0], ids[1]
 
-	page, err := h.pageService.GetPageByIDForUser(c.RequestCtx(), projectID, pageID, userID)
+	page, err := h.pageService.GetByIDForUser(c.RequestCtx(), projectID, pageID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Page not found", "Failed to retrieve page")
+		return utils.RespondError(c, err, "Page not found", "Failed to retrieve page")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, page)
 }
 
-func (h *PageHandler) CreatePage(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *PageHandler) Create(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 		},
 	}
 
-	createdPage, err := h.pageService.CreatePageAsUser(c.RequestCtx(), page, userID)
+	createdPage, err := h.pageService.CreateForUser(c.RequestCtx(), page, userID)
 	if errors.Is(err, repositories.ErrProjectUnauthorized) || errors.Is(err, authz.ErrForbidden) {
 		return utils.SendError(c, fiber.StatusForbidden, "You cannot add pages to this project", err, userID)
 	}
@@ -139,14 +139,14 @@ func (h *PageHandler) CreatePage(c fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusConflict, "A page with this URL path already exists in the project", err, userID)
 	}
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to create page")
+		return utils.RespondError(c, err, "", "Failed to create page")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, createdPage)
 }
 
-func (h *PageHandler) UpdatePage(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid", "pageid")
+func (h *PageHandler) Update(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid", "pageid")
 	if err != nil {
 		return err
 	}
@@ -179,19 +179,19 @@ func (h *PageHandler) UpdatePage(c fiber.Ctx) error {
 		return err
 	}
 
-	if err := h.pageService.UpdatePageFieldsForUser(c.RequestCtx(), projectID, pageID, userID, updates); err != nil {
+	if err := h.pageService.UpdateFieldsForUser(c.RequestCtx(), projectID, pageID, userID, updates); err != nil {
 		if errors.Is(err, repositories.ErrPageNameTaken) {
 			return utils.SendError(c, fiber.StatusConflict, "A page with this name already exists in the project", err, userID)
 		}
 		if errors.Is(err, repositories.ErrPageSlugTaken) {
 			return utils.SendError(c, fiber.StatusConflict, "A page with this URL path already exists in the project", err, userID)
 		}
-		return utils.HandleRepoError(c, err, "Page not found", "Failed to update page")
+		return utils.RespondError(c, err, "Page not found", "Failed to update page")
 	}
 
-	updated, err := h.pageService.GetPageByIDForUser(c.RequestCtx(), projectID, pageID, userID)
+	updated, err := h.pageService.GetByIDForUser(c.RequestCtx(), projectID, pageID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Page not found", "Failed to fetch updated page")
+		return utils.RespondError(c, err, "Page not found", "Failed to fetch updated page")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updated)

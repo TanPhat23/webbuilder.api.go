@@ -100,9 +100,9 @@ func TestTwoInstancesDeliverARequestToExactlyOneTab(t *testing.T) {
 func TestBridgeDeliversToTheTabAcksAndReturnsItsResponse(t *testing.T) {
 	bus := &agentproto.MemBus{}
 	tab := &fakeTab{}
-	acks, stopAcks, _ := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"r1")
+	acks, stopAcks, _ := bus.SubscribePattern(context.Background(), agentproto.AckChannelPrefix+"r1")
 	defer stopAcks()
-	resps, stopResps, _ := bus.PSubscribe(context.Background(), agentproto.ResponseChannelPrefix+"r1")
+	resps, stopResps, _ := bus.SubscribePattern(context.Background(), agentproto.ResponseChannelPrefix+"r1")
 	defer stopResps()
 	loc := fakeLocator{byUser: map[string]agentTarget{"p1/u1": tab}}
 	b := newAgentBridge(loc, bus, newMemClaimer(), logger.Default())
@@ -140,7 +140,7 @@ func TestBridgeDeliversToTheTabAcksAndReturnsItsResponse(t *testing.T) {
 
 func TestBridgeStaysSilentWhenTheUserHasNoTab(t *testing.T) {
 	bus := &agentproto.MemBus{}
-	acks, stop, _ := bus.PSubscribe(context.Background(), agentproto.AckChannelPrefix+"r2")
+	acks, stop, _ := bus.SubscribePattern(context.Background(), agentproto.AckChannelPrefix+"r2")
 	defer stop()
 	startBridge(t, fakeLocator{}, bus)
 	request(bus, "r2")
@@ -154,7 +154,7 @@ func TestBridgeStaysSilentWhenTheUserHasNoTab(t *testing.T) {
 func TestResponseFromANonAddressedSessionIsRejected(t *testing.T) {
 	bus := &agentproto.MemBus{}
 	addressed, other := &fakeTab{}, &fakeTab{}
-	resps, stop, _ := bus.PSubscribe(context.Background(), agentproto.ResponseChannelPrefix+"r3")
+	resps, stop, _ := bus.SubscribePattern(context.Background(), agentproto.ResponseChannelPrefix+"r3")
 	defer stop()
 	b := newAgentBridge(fakeLocator{byUser: map[string]agentTarget{"p1/u1": addressed}}, bus, newMemClaimer(), logger.Default())
 	ctx, cancel := context.WithCancel(context.Background())

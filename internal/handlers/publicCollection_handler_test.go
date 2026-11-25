@@ -19,7 +19,7 @@ type stubPubCTRepo struct {
 	ct *models.ContentType
 }
 
-func (s *stubPubCTRepo) GetContentTypeByProjectAndSlugOrID(_ context.Context, projectID, slugOrID string) (*models.ContentType, error) {
+func (s *stubPubCTRepo) GetByProjectAndSlugOrID(_ context.Context, projectID, slugOrID string) (*models.ContentType, error) {
 	if s.ct == nil || s.ct.ProjectId == nil || *s.ct.ProjectId != projectID || (s.ct.Id != slugOrID && s.ct.Slug != slugOrID) {
 		return nil, repositories.ErrContentTypeNotFound
 	}
@@ -32,11 +32,11 @@ type stubPubItemRepo struct {
 	items   []models.ContentItem
 }
 
-func (s *stubPubItemRepo) GetPublicContentItems(_ context.Context, _ string, _ int, _, _ string) ([]models.ContentItem, error) {
+func (s *stubPubItemRepo) ListPublic(_ context.Context, _ string, _ int, _, _ string) ([]models.ContentItem, error) {
 	return s.items, nil
 }
 
-func (s *stubPubItemRepo) CreateContentItem(_ context.Context, ci *models.ContentItem, fvs []models.ContentFieldValue) (*models.ContentItem, error) {
+func (s *stubPubItemRepo) Create(_ context.Context, ci *models.ContentItem, fvs []models.ContentFieldValue) (*models.ContentItem, error) {
 	ci.FieldValues = fvs
 	s.created = append(s.created, ci)
 	return ci, nil

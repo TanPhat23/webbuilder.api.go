@@ -18,8 +18,8 @@ const (
 )
 
 var (
-	validate  *validator.Validate
-	safeIDRe  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+	validate *validator.Validate
+	safeIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 )
 
 func init() {
@@ -34,13 +34,13 @@ func init() {
 	})
 }
 
-// IsValidSafeID reports whether id is a safe identifier (1..128 chars of [A-Za-z0-9_-])
+// IsSafeID reports whether id is a safe identifier (1..128 chars of [A-Za-z0-9_-])
 // with no Redis key delimiters, spaces, or path separators.
-func IsValidSafeID(id string) bool {
+func IsSafeID(id string) bool {
 	return safeIDRe.MatchString(id)
 }
 
-func ValidatePresence(p *domainEntity.PayloadPresence) error {
+func Presence(p *domainEntity.PayloadPresence) error {
 	if p == nil {
 		return fmt.Errorf("payload is nil")
 	}
@@ -50,33 +50,33 @@ func ValidatePresence(p *domainEntity.PayloadPresence) error {
 	return nil
 }
 
-// ValidateElementCreate validates the payload for adding a new element to the canvas
-func ValidateElementCreate(p *domainEntity.PayloadElementCreate) error {
+// ElementCreate validates the payload for adding a new element to the canvas
+func ElementCreate(p *domainEntity.PayloadElementCreate) error {
 	if p == nil {
 		return fmt.Errorf("payload is nil")
 	}
-	return ValidateElementForAdd(&p.Element)
+	return ElementForCreate(&p.Element)
 }
 
-// ValidateElementUpdate validates granular updates to properties or styles
-func ValidateElementUpdate(p *domainEntity.PayloadElementUpdate) error {
+// ElementUpdate validates granular updates to properties or styles
+func ElementUpdate(p *domainEntity.PayloadElementUpdate) error {
 	if p == nil {
 		return fmt.Errorf("payload is nil")
 	}
 	if err := validate.Var(p.ID, "required,uuid"); err != nil {
 		return fmt.Errorf("invalid element id: %w", err)
 	}
-	if mapExceedsDepth(p.Styles, MaxMapDepth) {
+	if mapDepthExceeded(p.Styles, MaxMapDepth) {
 		return fmt.Errorf("styles exceed maximum nesting depth of %d", MaxMapDepth)
 	}
-	if mapExceedsDepth(p.Settings, MaxMapDepth) {
+	if mapDepthExceeded(p.Settings, MaxMapDepth) {
 		return fmt.Errorf("settings exceed maximum nesting depth of %d", MaxMapDepth)
 	}
 	return nil
 }
 
-// ValidateElementMove validates reordering or reparenting an element
-func ValidateElementMove(p *domainEntity.PayloadElementMove) error {
+// ElementMove validates reordering or reparenting an element
+func ElementMove(p *domainEntity.PayloadElementMove) error {
 	if p == nil {
 		return fmt.Errorf("payload is nil")
 	}
@@ -94,8 +94,8 @@ func ValidateElementMove(p *domainEntity.PayloadElementMove) error {
 	return nil
 }
 
-// ValidateElementDelete validates removal of an element
-func ValidateElementDelete(p *domainEntity.PayloadElementDelete) error {
+// ElementDelete validates removal of an element
+func ElementDelete(p *domainEntity.PayloadElementDelete) error {
 	if p == nil {
 		return fmt.Errorf("payload is nil")
 	}
@@ -105,8 +105,8 @@ func ValidateElementDelete(p *domainEntity.PayloadElementDelete) error {
 	return nil
 }
 
-// ValidateElementContent validates real-time text content updates
-func ValidateElementContent(p *domainEntity.PayloadElementContent) error {
+// ElementContent validates real-time text content updates
+func ElementContent(p *domainEntity.PayloadElementContent) error {
 	if p == nil {
 		return fmt.Errorf("payload is nil")
 	}
@@ -116,8 +116,8 @@ func ValidateElementContent(p *domainEntity.PayloadElementContent) error {
 	return nil
 }
 
-// ValidateComment validates a new or updated comment
-func ValidateComment(p *domainEntity.PayloadComment) error {
+// Comment validates a new or updated comment
+func Comment(p *domainEntity.PayloadComment) error {
 	if p == nil {
 		return fmt.Errorf("payload is nil")
 	}
@@ -130,8 +130,8 @@ func ValidateComment(p *domainEntity.PayloadComment) error {
 	return nil
 }
 
-// ValidateElementForAdd validates an Element struct for creation
-func ValidateElementForAdd(e *domainEntity.Element) error {
+// ElementForCreate validates an Element struct for creation
+func ElementForCreate(e *domainEntity.Element) error {
 	if e == nil {
 		return fmt.Errorf("element is nil")
 	}
@@ -142,17 +142,16 @@ func ValidateElementForAdd(e *domainEntity.Element) error {
 	if e.PageID == "" {
 		return fmt.Errorf("pageId is required")
 	}
-	if !IsValidSafeID(e.PageID) {
+	if !IsSafeID(e.PageID) {
 		return fmt.Errorf("invalid pageId")
 	}
-	nodes := 0
-	if err := validateElementTreeBounds(e, 1, &nodes); err != nil {
+	if err := ElementTree(e); err != nil {
 		return err
 	}
-	if mapExceedsDepth(e.Styles, MaxMapDepth) {
+	if mapDepthExceeded(e.Styles, MaxMapDepth) {
 		return fmt.Errorf("styles exceed maximum nesting depth of %d", MaxMapDepth)
 	}
-	if mapExceedsDepth(e.Settings, MaxMapDepth) {
+	if mapDepthExceeded(e.Settings, MaxMapDepth) {
 		return fmt.Errorf("settings exceed maximum nesting depth of %d", MaxMapDepth)
 	}
 	var savedParent *string
@@ -179,7 +178,16 @@ func ValidateElementForAdd(e *domainEntity.Element) error {
 	return nil
 }
 
-func validateElementTreeBounds(e *domainEntity.Element, depth int, nodes *int) error {
+// ElementTree enforces depth (max MaxElementTreeDepth) and total node count (max MaxElementTreeNodes) bounds on an element tree.
+func ElementTree(e *domainEntity.Element) error {
+	if e == nil {
+		return nil
+	}
+	nodes := 0
+	return validateElementNode(e, 1, &nodes)
+}
+
+func validateElementNode(e *domainEntity.Element, depth int, nodes *int) error {
 	if depth > MaxElementTreeDepth {
 		return fmt.Errorf("element tree exceeds maximum depth of %d", MaxElementTreeDepth)
 	}
@@ -188,35 +196,35 @@ func validateElementTreeBounds(e *domainEntity.Element, depth int, nodes *int) e
 		return fmt.Errorf("element tree exceeds maximum node count of %d", MaxElementTreeNodes)
 	}
 	for i := range e.Elements {
-		if err := validateElementTreeBounds(&e.Elements[i], depth+1, nodes); err != nil {
+		if err := validateElementNode(&e.Elements[i], depth+1, nodes); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func mapExceedsDepth(m map[string]any, maxDepth int) bool {
+func mapDepthExceeded(m map[string]any, maxDepth int) bool {
 	if len(m) == 0 {
 		return false
 	}
-	return checkMapDepth(m, 1, maxDepth)
+	return !withinMaxDepth(m, 1, maxDepth)
 }
 
-func checkMapDepth(m map[string]any, depth, maxDepth int) bool {
+func withinMaxDepth(m map[string]any, depth, maxDepth int) bool {
 	if depth > maxDepth {
-		return true
+		return false
 	}
 	for _, v := range m {
 		if sub, ok := v.(map[string]any); ok {
-			if checkMapDepth(sub, depth+1, maxDepth) {
-				return true
+			if !withinMaxDepth(sub, depth+1, maxDepth) {
+				return false
 			}
 		}
 	}
-	return false
+	return true
 }
 
-func ValidateElementForUpdate(e *domainEntity.Element) error {
+func ElementForUpdate(e *domainEntity.Element) error {
 	if e == nil {
 		return fmt.Errorf("element is nil")
 	}

@@ -28,14 +28,14 @@ type ElementUseCase interface {
 	// (a nil value deletes the key); properties set the matching element fields
 	// (name, content, href, src, tailwindStyles, isLocked).
 	PatchElement(ctx context.Context, projectID string, pageID string, elementID string, properties map[string]any, styles map[string]any, settings map[string]any) (int64, error)
-	// RemoveElement deletes an element and refreshes the page cache.
-	RemoveElement(ctx context.Context, projectID string, pageID string, elementID string) (int64, error)
+	// DeleteElement deletes an element and refreshes the page cache.
+	DeleteElement(ctx context.Context, projectID string, pageID string, elementID string) (int64, error)
 	// MoveElement moves the element under a new parent at the given index and refreshes the page cache.
 	MoveElement(ctx context.Context, projectID string, pageID string, elementID string, parentID string, index int) (*entity.Element, int64, error)
-	// GetElementsByPageID returns all elements that belong to the specified page.
-	GetElementsByPageID(ctx context.Context, projectID string, pageID string) ([]entity.Element, error)
-	// GetElementsByProjectID returns all elements across the specified project.
-	GetElementsByProjectID(ctx context.Context, projectID string) ([]entity.Element, error)
+	// ListElementsByPage returns all elements that belong to the specified page.
+	ListElementsByPage(ctx context.Context, projectID string, pageID string) ([]entity.Element, error)
+	// ListElementsByProject returns all elements across the specified project.
+	ListElementsByProject(ctx context.Context, projectID string) ([]entity.Element, error)
 	// SyncPage forces a refresh of the page cache from the DB and returns the latest elements.
 	SyncPage(ctx context.Context, projectID string, pageID string) ([]entity.Element, error)
 	// SyncPageWithSeq is SyncPage that also returns the page sequence number matching the returned elements.
@@ -51,18 +51,18 @@ DocumentUseCase so implementations elsewhere can remain comment-free.
 type DocumentUseCase interface {
 	// GetDocument returns the cached snapshot for a page, or builds and returns it if not present.
 	GetDocument(ctx context.Context, projectID string, pageID string) ([]entity.Element, error)
-	// RefreshCache fetches elements for a page from the DB and updates the cache.
-	RefreshCache(ctx context.Context, projectID string, pageID string) error
+	// EnsureDocumentCached fetches elements for a page from the DB and updates the cache.
+	EnsureDocumentCached(ctx context.Context, projectID string, pageID string) error
 	// GetDocumentWithSeq returns the cached document together with its page sequence number (consistent snapshot).
 	GetDocumentWithSeq(ctx context.Context, projectID string, pageID string) ([]entity.Element, int64, error)
-	// MutateDocument atomically applies mutate to the page document and returns the new page sequence number.
-	MutateDocument(ctx context.Context, projectID string, pageID string, mutate domainRepo.DocumentMutateFunc) (int64, error)
+	// UpdateDocument atomically applies mutate to the page document and returns the new page sequence number.
+	UpdateDocument(ctx context.Context, projectID string, pageID string, mutate domainRepo.DocumentMutateFunc) (int64, error)
 	// MutateElement atomically applies mutate to one element without changing the page structure,
 	// and returns the new page sequence number. Edits to different elements do not conflict.
 	MutateElement(ctx context.Context, projectID string, pageID string, elementID string, mutate domainRepo.ElementMutateFunc) (int64, error)
-	// AddElementsToDocument sets the cached snapshot for the given page.
-	// It is not safe for read-modify-write; use MutateDocument for that.
-	AddElementsToDocument(ctx context.Context, projectID string, pageID string, elements []entity.Element) error
+	// SetDocument sets the cached snapshot for the given page.
+	// It is not safe for read-modify-write; use UpdateDocument for that.
+	SetDocument(ctx context.Context, projectID string, pageID string, elements []entity.Element) error
 }
 
 type PersistUseCase interface {
@@ -78,12 +78,12 @@ type WorkflowUseCase interface {
 	CreateWorkflow(ctx context.Context, projectID string, workflow *entity.EventWorkflow) error
 	// UpdateWorkflow updates an existing workflow.
 	UpdateWorkflow(ctx context.Context, projectID string, workflow *entity.EventWorkflow) error
-	// RemoveWorkflow deletes a workflow.
-	RemoveWorkflow(ctx context.Context, projectID string, workflowID string) error
+	// DeleteWorkflow deletes a workflow.
+	DeleteWorkflow(ctx context.Context, projectID string, workflowID string) error
 	// GetWorkflowByID retrieves a single workflow.
 	GetWorkflowByID(ctx context.Context, projectID string, workflowID string) (*entity.EventWorkflow, error)
 	// GetWorkflowsByProject retrieves all workflows for a project.
-	GetWorkflowsByProject(ctx context.Context, projectID string) ([]entity.EventWorkflow, error)
+	ListWorkflowsByProject(ctx context.Context, projectID string) ([]entity.EventWorkflow, error)
 }
 
 type ElementWorkflowsUseCase interface {
@@ -92,13 +92,13 @@ type ElementWorkflowsUseCase interface {
 	// GetElementWorkflowByElementID retrieves a singular event workflow for a specific element.
 	GetElementWorkflowByElementID(ctx context.Context, projectID string, elementID string) (*entity.ElementEventWorkflow, error)
 	// GetWorkflowsByProject retrieves all element-workflow mappings for an entire project.
-	GetWorkflowsByProject(ctx context.Context, projectID string) ([]entity.ElementEventWorkflow, error)
+	ListElementWorkflowsByProject(ctx context.Context, projectID string) ([]entity.ElementEventWorkflow, error)
 	// GetWorkflowsByPage retrieves all element-workflow mappings for a specific page.
-	GetWorkflowsByPage(ctx context.Context, projectID string, pageID string) ([]entity.ElementEventWorkflow, error)
+	ListElementWorkflowsByPage(ctx context.Context, projectID string, pageID string) ([]entity.ElementEventWorkflow, error)
 	// UpdateElementWorkflow updates an existing element-workflow mapping.
 	UpdateElementWorkflow(ctx context.Context, projectID string, workflow *entity.ElementEventWorkflow) error
-	// RemoveElementWorkflow deletes workflow mappings for a specific element.
-	RemoveElementWorkflow(ctx context.Context, projectID string, elementID string) error
+	// DeleteElementWorkflow deletes workflow mappings for a specific element.
+	DeleteElementWorkflow(ctx context.Context, projectID string, elementID string) error
 }
 
 // LogicUseCase edits and reads page/project logic on behalf of a user. Errors

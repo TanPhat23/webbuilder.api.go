@@ -29,7 +29,7 @@ func NewSnapshotRepository(db *gorm.DB) SnapshotRepositoryInterface {
 	return &SnapshotRepository{db: db}
 }
 
-func (r *SnapshotRepository) SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
+func (r *SnapshotRepository) Save(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
 	if snapshot == nil {
 		return errors.New("snapshot cannot be nil")
 	}
@@ -111,7 +111,7 @@ func (r *SnapshotRepository) createSnapshot(ctx context.Context, snapshot *model
 	return nil
 }
 
-func (r *SnapshotRepository) GetSnapshotsByProjectID(ctx context.Context, projectID string) ([]models.Snapshot, error) {
+func (r *SnapshotRepository) ListByProject(ctx context.Context, projectID string) ([]models.Snapshot, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -128,7 +128,7 @@ func (r *SnapshotRepository) GetSnapshotsByProjectID(ctx context.Context, projec
 	return snapshots, nil
 }
 
-func (r *SnapshotRepository) GetSnapshotsByProjectIDAndType(ctx context.Context, projectID, snapshotType string) ([]models.Snapshot, error) {
+func (r *SnapshotRepository) ListByProjectAndType(ctx context.Context, projectID, snapshotType string) ([]models.Snapshot, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -153,7 +153,7 @@ func (r *SnapshotRepository) GetSnapshotsByProjectIDAndType(ctx context.Context,
 	return snapshots, nil
 }
 
-func (r *SnapshotRepository) GetSnapshotByID(ctx context.Context, snapshotID string) (*models.Snapshot, error) {
+func (r *SnapshotRepository) GetByID(ctx context.Context, snapshotID string) (*models.Snapshot, error) {
 	if snapshotID == "" {
 		return nil, errors.New("snapshotID is required")
 	}
@@ -172,7 +172,7 @@ func (r *SnapshotRepository) GetSnapshotByID(ctx context.Context, snapshotID str
 	return &snapshot, nil
 }
 
-func (r *SnapshotRepository) GetLatestWorkingSnapshot(ctx context.Context, projectID string) (*models.Snapshot, error) {
+func (r *SnapshotRepository) GetLatestWorking(ctx context.Context, projectID string) (*models.Snapshot, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -192,7 +192,7 @@ func (r *SnapshotRepository) GetLatestWorkingSnapshot(ctx context.Context, proje
 	return &snapshot, nil
 }
 
-func (r *SnapshotRepository) GetLatestPublishedSnapshot(ctx context.Context, projectID string) (*models.Snapshot, error) {
+func (r *SnapshotRepository) GetLatestPublished(ctx context.Context, projectID string) (*models.Snapshot, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -212,7 +212,7 @@ func (r *SnapshotRepository) GetLatestPublishedSnapshot(ctx context.Context, pro
 	return &snapshot, nil
 }
 
-func (r *SnapshotRepository) DeleteSnapshot(ctx context.Context, snapshotID string) error {
+func (r *SnapshotRepository) Delete(ctx context.Context, snapshotID string) error {
 	if snapshotID == "" {
 		return errors.New("snapshotID is required")
 	}
@@ -232,7 +232,7 @@ func (r *SnapshotRepository) DeleteSnapshot(ctx context.Context, snapshotID stri
 	return nil
 }
 
-func (r *SnapshotRepository) DeleteSnapshotsByProjectID(ctx context.Context, projectID string) error {
+func (r *SnapshotRepository) DeleteByProject(ctx context.Context, projectID string) error {
 	if projectID == "" {
 		return errors.New("projectID is required")
 	}
@@ -248,7 +248,7 @@ func (r *SnapshotRepository) DeleteSnapshotsByProjectID(ctx context.Context, pro
 	return nil
 }
 
-func (r *SnapshotRepository) DeleteOldSnapshots(ctx context.Context, projectID string, olderThan time.Duration) error {
+func (r *SnapshotRepository) DeleteOlderThan(ctx context.Context, projectID string, olderThan time.Duration) error {
 	if projectID == "" {
 		return errors.New("projectID is required")
 	}
@@ -266,7 +266,7 @@ func (r *SnapshotRepository) DeleteOldSnapshots(ctx context.Context, projectID s
 	return nil
 }
 
-func (r *SnapshotRepository) CountSnapshotsByProjectID(ctx context.Context, projectID string) (int64, error) {
+func (r *SnapshotRepository) CountByProject(ctx context.Context, projectID string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectID is required")
 	}
@@ -282,7 +282,7 @@ func (r *SnapshotRepository) CountSnapshotsByProjectID(ctx context.Context, proj
 	return count, nil
 }
 
-func (r *SnapshotRepository) CountSnapshotsByType(ctx context.Context, projectID, snapshotType string) (int64, error) {
+func (r *SnapshotRepository) CountByType(ctx context.Context, projectID, snapshotType string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectID is required")
 	}

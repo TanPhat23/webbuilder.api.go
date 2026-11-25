@@ -51,13 +51,13 @@ func (f *fakeElementRepo) DeleteElement(context.Context, string, string, string)
 func (f *fakeElementRepo) GetElementByID(context.Context, string, string, string) (*domainEntity.Element, error) {
 	return nil, nil
 }
-func (f *fakeElementRepo) GetElementsByPageID(context.Context, string, string) ([]domainEntity.Element, error) {
+func (f *fakeElementRepo) ListElementsByPage(context.Context, string, string) ([]domainEntity.Element, error) {
 	if f.getByPageErr != nil {
 		return nil, f.getByPageErr
 	}
 	return slices.Clone(f.byPage), nil
 }
-func (f *fakeElementRepo) GetElementsByProjectID(context.Context, string) ([]domainEntity.Element, error) {
+func (f *fakeElementRepo) ListElementsByProject(context.Context, string) ([]domainEntity.Element, error) {
 	if f.getByProjectErr != nil {
 		return nil, f.getByProjectErr
 	}
@@ -177,7 +177,7 @@ type fakeSnapshotRepo struct {
 	saved   int
 }
 
-func (f *fakeSnapshotRepo) SaveSnapshot(context.Context, string, string, string, domainEntity.SnapshotType, []domainEntity.Element) error {
+func (f *fakeSnapshotRepo) CreateSnapshot(context.Context, string, string, string, domainEntity.SnapshotType, []domainEntity.Element) error {
 	f.saved++
 	return f.saveErr
 }
@@ -210,7 +210,7 @@ func (f *fakeWorkflowRepo) DeleteWorkflow(_ context.Context, _ string, id string
 func (f *fakeWorkflowRepo) GetWorkflowByID(_ context.Context, _ string, id string) (*domainEntity.EventWorkflow, error) {
 	return f.items[id], nil
 }
-func (f *fakeWorkflowRepo) GetWorkflowsByProjectID(context.Context, string) ([]domainEntity.EventWorkflow, error) {
+func (f *fakeWorkflowRepo) ListWorkflowsByProject(context.Context, string) ([]domainEntity.EventWorkflow, error) {
 	out := make([]domainEntity.EventWorkflow, 0, len(f.items))
 	for _, wf := range f.items {
 		out = append(out, *wf)
@@ -240,15 +240,15 @@ func (f *fakeElementWorkflowRepo) DeleteElementWorkflow(_ context.Context, _ str
 func (f *fakeElementWorkflowRepo) GetElementWorkflowByElementID(_ context.Context, _ string, elementID string) (*domainEntity.ElementEventWorkflow, error) {
 	return f.byElem[elementID], nil
 }
-func (f *fakeElementWorkflowRepo) GetElementWorkflowsByProjectID(context.Context, string) ([]domainEntity.ElementEventWorkflow, error) {
+func (f *fakeElementWorkflowRepo) ListElementWorkflowsByProject(context.Context, string) ([]domainEntity.ElementEventWorkflow, error) {
 	out := make([]domainEntity.ElementEventWorkflow, 0, len(f.byElem))
 	for _, wf := range f.byElem {
 		out = append(out, *wf)
 	}
 	return out, nil
 }
-func (f *fakeElementWorkflowRepo) GetElementWorkflowsByPageID(context.Context, string, string) ([]domainEntity.ElementEventWorkflow, error) {
-	return f.GetElementWorkflowsByProjectID(context.Background(), "")
+func (f *fakeElementWorkflowRepo) ListElementWorkflowsByPage(context.Context, string, string) ([]domainEntity.ElementEventWorkflow, error) {
+	return f.ListElementWorkflowsByProject(context.Background(), "")
 }
 
 type fakeLogicRepo struct {
@@ -268,7 +268,7 @@ func (f *fakeLogicRepo) Apply(context.Context, string, string, string, map[strin
 	if f.err != nil {
 		return logic.Revisioned{}, f.err
 	}
-	return logic.Revisioned{Doc: logic.Empty(), Revision: 5}, nil
+	return logic.Revisioned{Doc: logic.NewEmptyDocument(), Revision: 5}, nil
 }
 func (f *fakeLogicRepo) Get(context.Context, string, string, string) (logic.Revisioned, logic.Revisioned, error) {
 	if f.err != nil {
@@ -315,7 +315,7 @@ func TestDocumentAndElementUseCaseQueriesAndCreates(t *testing.T) {
 	b.elem.byPage = []domainEntity.Element{{ID: elemID1, Type: "Text", PageID: "page-1"}}
 	b.elem.byProj = []domainEntity.Element{{ID: elemID1, Type: "Text", PageID: "page-1"}}
 
-	uc := NewUseCase(b.repo, logger.New(io.Discard, "", 0))
+	uc := New(b.repo, logger.New(io.Discard, "", 0))
 	assertUseCaseSyncAndGetters(t, ctx, uc)
 
 	frame := domainEntity.Element{ID: frameID, Type: "Frame", PageID: "page-1"}
@@ -337,7 +337,7 @@ func TestDocumentAndElementUseCaseMutationsAndMoves(t *testing.T) {
 	elemID2 := "22222222-2222-2222-2222-222222222222"
 	frameID := "33333333-3333-3333-3333-333333333333"
 	b.elem.byPage = []domainEntity.Element{{ID: elemID1, Type: "Text", PageID: "page-1"}}
-	uc := NewUseCase(b.repo, logger.New(io.Discard, "", 0))
+	uc := New(b.repo, logger.New(io.Discard, "", 0))
 	_, err := uc.Element.CreateElement(ctx, "proj-1", &domainEntity.Element{ID: frameID, Type: "Frame", PageID: "page-1"})
 	assertUCNoErr(t, err)
 	_, err = uc.Element.CreateElement(ctx, "proj-1", &domainEntity.Element{ID: elemID2, Type: "Text", PageID: "page-1"})
@@ -379,10 +379,10 @@ func assertUseCaseSyncAndGetters(t *testing.T, ctx context.Context, uc *domainUs
 	}
 	synced, err := uc.Element.SyncPage(ctx, "proj-1", "page-1")
 	assertUCElementLen(t, "SyncPage", synced, err, 1)
-	byProj, err := uc.Element.GetElementsByProjectID(ctx, "proj-1")
-	assertUCElementLen(t, "GetElementsByProjectID", byProj, err, 1)
-	byPage, err := uc.Element.GetElementsByPageID(ctx, "proj-1", "page-1")
-	assertUCElementLen(t, "GetElementsByPageID", byPage, err, 1)
+	byProj, err := uc.Element.ListElementsByProject(ctx, "proj-1")
+	assertUCElementLen(t, "ListElementsByProject", byProj, err, 1)
+	byPage, err := uc.Element.ListElementsByPage(ctx, "proj-1", "page-1")
+	assertUCElementLen(t, "ListElementsByPage", byPage, err, 1)
 }
 
 func assertMoveErrorsAndRemoval(t *testing.T, ctx context.Context, uc *domainUsecase.UseCase, frameID, elemID2 string, docRepo *fakeDocumentRepo) {
@@ -393,13 +393,13 @@ func assertMoveErrorsAndRemoval(t *testing.T, ctx context.Context, uc *domainUse
 	if _, _, err := uc.Element.MoveElement(ctx, "proj-1", "page-1", elemID2, "", -1); !domainErrors.IsCode(err, domainErrors.CodeValidation) {
 		t.Fatalf("expected negative index validation error, got %v", err)
 	}
-	_, err := uc.Element.RemoveElement(ctx, "proj-1", "page-1", elemID2)
+	_, err := uc.Element.DeleteElement(ctx, "proj-1", "page-1", elemID2)
 	assertUCNoErr(t, err)
-	if _, err := uc.Element.RemoveElement(ctx, "proj-1", "page-1", "nonexistent"); !domainErrors.IsCode(err, domainErrors.CodeNotFound) {
+	if _, err := uc.Element.DeleteElement(ctx, "proj-1", "page-1", "nonexistent"); !domainErrors.IsCode(err, domainErrors.CodeNotFound) {
 		t.Fatalf("expected not found, got %v", err)
 	}
-	if err := uc.Document.AddElementsToDocument(ctx, "proj-1", "page-1", []domainEntity.Element{{ID: "root-2", PageID: "page-1"}}); err != nil {
-		t.Fatalf("AddElementsToDocument: %v", err)
+	if err := uc.Document.SetDocument(ctx, "proj-1", "page-1", []domainEntity.Element{{ID: "root-2", PageID: "page-1"}}); err != nil {
+		t.Fatalf("SetDocument: %v", err)
 	}
 	if gotDoc, err := docRepo.GetDocument(ctx, "proj-1", "page-1"); err != nil || len(gotDoc) != 1 || gotDoc[0].ID != "root-2" {
 		t.Fatalf("expected doc replaced, got %+v err=%v", gotDoc, err)
@@ -410,7 +410,7 @@ func TestPersistUseCaseLifecycle(t *testing.T) {
 	ctx := context.Background()
 	b := makeBundle()
 	b.doc.doc = []domainEntity.Element{{ID: "11111111-1111-1111-1111-111111111111", Type: "Text", PageID: "page-1"}}
-	uc := NewUseCase(b.repo, logger.New(io.Discard, "", 0))
+	uc := New(b.repo, logger.New(io.Discard, "", 0))
 
 	if err := uc.Persist.MarkDirty(ctx, "proj-1", "page-1"); err != nil {
 		t.Fatalf("MarkDirty: %v", err)
@@ -435,7 +435,7 @@ func TestPersistUseCaseLifecycle(t *testing.T) {
 func TestWorkflowAndElementWorkflowUseCases(t *testing.T) {
 	ctx := context.Background()
 	b := makeBundle()
-	uc := NewUseCase(b.repo, logger.New(io.Discard, "", 0))
+	uc := New(b.repo, logger.New(io.Discard, "", 0))
 
 	wf := &domainEntity.EventWorkflow{ID: "wf-1", Name: "Click"}
 	if err := uc.Workflow.CreateWorkflow(ctx, "proj-1", wf); err != nil {
@@ -448,11 +448,11 @@ func TestWorkflowAndElementWorkflowUseCases(t *testing.T) {
 	if got, err := uc.Workflow.GetWorkflowByID(ctx, "proj-1", "wf-1"); err != nil || got == nil || got.Name != "Updated Click" {
 		t.Fatalf("GetWorkflowByID=%+v err=%v", got, err)
 	}
-	if list, err := uc.Workflow.GetWorkflowsByProject(ctx, "proj-1"); err != nil || len(list) != 1 {
+	if list, err := uc.Workflow.ListWorkflowsByProject(ctx, "proj-1"); err != nil || len(list) != 1 {
 		t.Fatalf("GetWorkflowsByProject len=%d err=%v", len(list), err)
 	}
-	if err := uc.Workflow.RemoveWorkflow(ctx, "proj-1", "wf-1"); err != nil {
-		t.Fatalf("RemoveWorkflow: %v", err)
+	if err := uc.Workflow.DeleteWorkflow(ctx, "proj-1", "wf-1"); err != nil {
+		t.Fatalf("DeleteWorkflow: %v", err)
 	}
 	assertElementWorkflowUseCaseCRUD(t, ctx, uc)
 }
@@ -469,18 +469,18 @@ func assertElementWorkflowUseCaseCRUD(t *testing.T, ctx context.Context, uc *dom
 	if got, err := uc.ElementWorkflows.GetElementWorkflowByElementID(ctx, "proj-1", "el-1"); err != nil || got == nil {
 		t.Fatalf("GetElementWorkflowByElementID=%v err=%v", got, err)
 	}
-	if list, err := uc.ElementWorkflows.GetWorkflowsByPage(ctx, "proj-1", "page-1"); err != nil || len(list) != 1 {
+	if list, err := uc.ElementWorkflows.ListElementWorkflowsByPage(ctx, "proj-1", "page-1"); err != nil || len(list) != 1 {
 		t.Fatalf("GetWorkflowsByPage len=%d err=%v", len(list), err)
 	}
-	if err := uc.ElementWorkflows.RemoveElementWorkflow(ctx, "proj-1", "el-1"); err != nil {
-		t.Fatalf("RemoveElementWorkflow: %v", err)
+	if err := uc.ElementWorkflows.DeleteElementWorkflow(ctx, "proj-1", "el-1"); err != nil {
+		t.Fatalf("DeleteElementWorkflow: %v", err)
 	}
 }
 
 func TestLogicUseCasePathsAndErrorMapping(t *testing.T) {
 	ctx := context.Background()
 	b := makeBundle()
-	uc := NewUseCase(b.repo, logger.New(io.Discard, "", 0))
+	uc := New(b.repo, logger.New(io.Discard, "", 0))
 
 	b.lgc.readOnly, b.lgc.canWrite = true, false
 	if r, w, err := uc.Logic.Access(ctx, "proj-1", "u1"); err != nil || !r || w {

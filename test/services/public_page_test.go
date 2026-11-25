@@ -18,7 +18,7 @@ import (
 // the URL and that project is published, like /projects/public and /pages/public.
 func publicPageFixture() (*services.PageService, *[]string) {
 	var pageQueries []string
-	pageRepo := mockrepo.NewMockPageRepo().SetGetPageByID(func(_ context.Context, pageID, projectID string) (*models.Page, error) {
+	pageRepo := mockrepo.NewMockPageRepo().SetGetByID(func(_ context.Context, pageID, projectID string) (*models.Page, error) {
 		pageQueries = append(pageQueries, pageID+"@"+projectID)
 		pages := map[string]models.Page{
 			"pub-page":   {Id: "pub-page", ProjectId: "published", Logic: []byte(`{"v":1}`)},
@@ -30,7 +30,7 @@ func publicPageFixture() (*services.PageService, *[]string) {
 		}
 		return &page, nil
 	})
-	projectRepo := mockrepo.NewMockProjectRepo().SetGetPublicProjectByID(func(_ context.Context, id string) (*models.Project, error) {
+	projectRepo := mockrepo.NewMockProjectRepo().SetGetPublicByID(func(_ context.Context, id string) (*models.Project, error) {
 		if id == "published" {
 			return &models.Project{ID: id}, nil
 		}
@@ -42,14 +42,14 @@ func publicPageFixture() (*services.PageService, *[]string) {
 func TestGetPublicPageByIDRequiresPublishedOwningProject(t *testing.T) {
 	service, queries := publicPageFixture()
 	ctx := context.Background()
-	page, err := service.GetPublicPageByID(ctx, "published", "pub-page")
+	page, err := service.GetPublicByID(ctx, "published", "pub-page")
 	if err != nil || page == nil || page.Id != "pub-page" {
 		t.Fatalf("published page: %+v %v", page, err)
 	}
-	if _, err := service.GetPublicPageByID(ctx, "draft", "draft-page"); err == nil {
+	if _, err := service.GetPublicByID(ctx, "draft", "draft-page"); err == nil {
 		t.Fatal("a page of an unpublished project was served")
 	}
-	if _, err := service.GetPublicPageByID(ctx, "published", "draft-page"); err == nil {
+	if _, err := service.GetPublicByID(ctx, "published", "draft-page"); err == nil {
 		t.Fatal("a page of another (unpublished) project was served through a published project id")
 	}
 	for _, q := range *queries {
@@ -59,7 +59,7 @@ func TestGetPublicPageByIDRequiresPublishedOwningProject(t *testing.T) {
 	}
 	// A repository that finds no published project and no error still means not found.
 	nilProject := services.NewPageService(mockrepo.NewMockPageRepo(), mockrepo.NewMockProjectRepo())
-	if _, err := nilProject.GetPublicPageByID(ctx, "published", "pub-page"); err == nil {
+	if _, err := nilProject.GetPublicByID(ctx, "published", "pub-page"); err == nil {
 		t.Fatal("missing project treated as published")
 	}
 }
@@ -67,7 +67,7 @@ func TestGetPublicPageByIDRequiresPublishedOwningProject(t *testing.T) {
 func TestPublicPageRouteReturnsNotFoundForDrafts(t *testing.T) {
 	service, _ := publicPageFixture()
 	app := fiber.New()
-	app.Get("/api/v1/pages/public/:projectid/:pageid", handlers.NewPageHandler(service).GetPublicPageByID)
+	app.Get("/api/v1/pages/public/:projectid/:pageid", handlers.NewPageHandler(service).GetPublicByID)
 	for path, want := range map[string]int{
 		"/api/v1/pages/public/published/pub-page":   fiber.StatusOK,
 		"/api/v1/pages/public/draft/draft-page":     fiber.StatusNotFound,

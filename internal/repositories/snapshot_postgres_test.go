@@ -38,7 +38,7 @@ func TestPostgresSnapshotSaveMatchesTheTable(t *testing.T) {
 	}
 	t.Cleanup(func() { db.Exec(`DELETE FROM "User" WHERE "Id" = ?`, ownerID) })
 	t.Cleanup(func() { db.Exec(`DELETE FROM "Project" WHERE "Id" = ?`, projectID) })
-	if err := NewProjectRepository(db).CreateProjectWithPage(ctx, &models.Project{ID: projectID, Name: "Project", OwnerId: ownerID},
+	if err := NewProjectRepository(db).CreateWithPage(ctx, &models.Project{ID: projectID, Name: "Project", OwnerId: ownerID},
 		&models.Page{Id: "page-" + suffix, Name: "Home", Type: "page", Styles: json.RawMessage(`{}`)}); err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestPostgresSnapshotSaveMatchesTheTable(t *testing.T) {
 	save := func(id, typ, name string) {
 		t.Helper()
 		s := &models.Snapshot{Id: id, Name: name, Type: typ, Timestamp: 1, Elements: json.RawMessage(`[]`)}
-		if err := repo.SaveSnapshot(ctx, projectID, s); err != nil {
+		if err := repo.Save(ctx, projectID, s); err != nil {
 			t.Fatalf("saving a %s snapshot: %v", typ, err)
 		}
 	}

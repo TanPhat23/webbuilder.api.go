@@ -28,7 +28,7 @@ func BenchmarkPageActorsDo(b *testing.B) {
 				n := int(seq.Add(1)) * 7919
 				for pb.Next() {
 					n++
-					if err := p.Do(ctx, keys[n%pages], func() {}); err != nil {
+					if err := p.Run(ctx, keys[n%pages], func() {}); err != nil {
 						b.Fatal(err)
 					}
 				}

@@ -20,9 +20,9 @@ func recv(t *testing.T, ch <-chan BusMessage) BusMessage {
 func TestMemBusExactAndPrefix(t *testing.T) {
 	var b MemBus
 	ctx := context.Background()
-	exact, stopExact, _ := b.PSubscribe(ctx, "agent:ack:r1")
+	exact, stopExact, _ := b.SubscribePattern(ctx, "agent:ack:r1")
 	defer stopExact()
-	prefix, stopPrefix, _ := b.PSubscribe(ctx, "agent:req:*")
+	prefix, stopPrefix, _ := b.SubscribePattern(ctx, "agent:req:*")
 	defer stopPrefix()
 
 	_ = b.Publish(ctx, "agent:req:user-1", []byte("a"))
@@ -44,7 +44,7 @@ func TestMemBusExactAndPrefix(t *testing.T) {
 
 func TestMemBusStopEndsDelivery(t *testing.T) {
 	var b MemBus
-	ch, stop, _ := b.PSubscribe(context.Background(), "x:*")
+	ch, stop, _ := b.SubscribePattern(context.Background(), "x:*")
 	stop()
 	stop() // idempotent
 	_ = b.Publish(context.Background(), "x:1", []byte("late"))

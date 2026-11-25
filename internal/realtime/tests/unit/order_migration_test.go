@@ -51,7 +51,7 @@ func TestMoveAssignsFractionalKeyAndKeepsLegacyOrder(t *testing.T) {
 }
 
 func TestReloadSortsKeyedSiblingsByKey(t *testing.T) {
-	got := elementutils.BuildElementTree([]entity.Element{
+	got := elementutils.BuildTree([]entity.Element{
 		{ID: "a", Order: 0, OrderKey: "a1"},
 		{ID: "b", Order: 1, OrderKey: "a0"},
 	})

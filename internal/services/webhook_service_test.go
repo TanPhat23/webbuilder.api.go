@@ -62,7 +62,7 @@ func (r *memWebhookRepo) Delete(_ context.Context, id string) error {
 	delete(r.webhooks, id)
 	return nil
 }
-func (r *memWebhookRepo) FindMatchingForEvent(_ context.Context, projectID, contentTypeID, event string) ([]models.ProjectWebhook, error) {
+func (r *memWebhookRepo) ListMatchingForEvent(_ context.Context, projectID, contentTypeID, event string) ([]models.ProjectWebhook, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []models.ProjectWebhook

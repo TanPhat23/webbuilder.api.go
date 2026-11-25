@@ -8,7 +8,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func AgentTokenRoutes(group fiber.Router, repos *repositories.RepositoriesInterface) {
+func RegisterAgentTokens(group fiber.Router, repos *repositories.Repositories) {
 	handler := handlers.NewAgentTokenHandler(agenttokens.NewService(repos.AgentTokenRepository), handlers.PublicMCPURL())
 
 	group.Post("/agent-tokens", handler.Create)

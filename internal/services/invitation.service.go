@@ -51,7 +51,7 @@ func NewInvitationService(
 	}
 }
 
-func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, email string, role models.CollaboratorRole, invitedBy string) (*models.Invitation, error) {
+func (s *InvitationService) Create(ctx context.Context, projectID, email string, role models.CollaboratorRole, invitedBy string) (*models.Invitation, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -68,7 +68,7 @@ func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, ema
 		return nil, fmt.Errorf("%w: role %q cannot be assigned in an invitation", authz.ErrForbidden, role)
 	}
 
-	project, err := s.projectRepo.GetProjectByID(ctx, projectID, invitedBy)
+	project, err := s.projectRepo.GetByID(ctx, projectID, invitedBy)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, ema
 		return nil, errors.New("project does not exist")
 	}
 
-	inviter, err := s.userRepo.GetUserByID(ctx, invitedBy)
+	inviter, err := s.userRepo.GetByID(ctx, invitedBy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get inviter details: %w", err)
 	}
@@ -88,7 +88,7 @@ func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, ema
 		return nil, errors.New("cannot invite yourself")
 	}
 
-	existing, err := s.invitationRepo.GetInvitationsByProject(ctx, projectID)
+	existing, err := s.invitationRepo.ListByProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, ema
 		CreatedAt: time.Now(),
 	}
 
-	created, err := s.invitationRepo.CreateInvitation(ctx, invitation)
+	created, err := s.invitationRepo.Create(ctx, invitation)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (s *InvitationService) CreateInvitation(ctx context.Context, projectID, ema
 	return created, nil
 }
 
-func (s *InvitationService) CheckProjectOwnership(ctx context.Context, projectID, userID string) error {
+func (s *InvitationService) RequireProjectOwnership(ctx context.Context, projectID, userID string) error {
 	if projectID == "" {
 		return errors.New("projectId is required")
 	}
@@ -136,7 +136,7 @@ func (s *InvitationService) CheckProjectOwnership(ctx context.Context, projectID
 		return errors.New("userId is required")
 	}
 
-	project, err := s.projectRepo.GetProjectByID(ctx, projectID, userID)
+	project, err := s.projectRepo.GetByID(ctx, projectID, userID)
 	if err != nil {
 		return err
 	}
@@ -150,15 +150,15 @@ func (s *InvitationService) CheckProjectOwnership(ctx context.Context, projectID
 	return nil
 }
 
-func (s *InvitationService) GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error) {
+func (s *InvitationService) GetByID(ctx context.Context, id string) (*models.Invitation, error) {
 	if id == "" {
 		return nil, errors.New("invitation id is required")
 	}
 
-	return s.invitationRepo.GetInvitationByID(ctx, id)
+	return s.invitationRepo.GetByID(ctx, id)
 }
 
-func (s *InvitationService) AcceptInvitation(ctx context.Context, token, userID string) error {
+func (s *InvitationService) Accept(ctx context.Context, token, userID string) error {
 	if token == "" {
 		return errors.New("token is required")
 	}
@@ -166,7 +166,7 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, token, userID 
 		return errors.New("userId is required")
 	}
 
-	invitation, err := s.invitationRepo.GetInvitationByToken(ctx, token)
+	invitation, err := s.invitationRepo.GetByToken(ctx, token)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, token, userID 
 		return fmt.Errorf("%w: role %q cannot be assigned in an invitation", authz.ErrForbidden, invitation.Role)
 	}
 
-	user, err := s.userRepo.GetUserByID(ctx, userID)
+	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to verify user: %w", err)
 	}
@@ -188,31 +188,31 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, token, userID 
 		return fmt.Errorf("%w: invitation belongs to a different email", authz.ErrForbidden)
 	}
 	if s.projectRepo != nil {
-		if access, err := s.projectRepo.GetProjectAccess(ctx, invitation.ProjectId, userID); err == nil && access != nil {
+		if access, err := s.projectRepo.GetAccess(ctx, invitation.ProjectId, userID); err == nil && access != nil {
 			return errors.New("user already has access to this project")
 		}
 	}
 
-	return s.invitationRepo.AcceptInvitation(ctx, token, userID)
+	return s.invitationRepo.Accept(ctx, token, userID)
 }
 
-func (s *InvitationService) GetInvitationsByProject(ctx context.Context, projectID, userID string) ([]models.Invitation, error) {
+func (s *InvitationService) ListByProject(ctx context.Context, projectID, userID string) ([]models.Invitation, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	if err := s.CheckProjectOwnership(ctx, projectID, userID); err != nil {
+	if err := s.RequireProjectOwnership(ctx, projectID, userID); err != nil {
 		return nil, err
 	}
 
-	return s.invitationRepo.GetInvitationsByProject(ctx, projectID)
+	return s.invitationRepo.ListByProject(ctx, projectID)
 }
 
 func (s *InvitationService) requireInvitation(ctx context.Context, id string) (*models.Invitation, error) {
 	if id == "" {
 		return nil, errors.New("invitation id is required")
 	}
-	invitation, err := s.GetInvitationByID(ctx, id)
+	invitation, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -222,38 +222,38 @@ func (s *InvitationService) requireInvitation(ctx context.Context, id string) (*
 	return invitation, nil
 }
 
-func (s *InvitationService) DeleteInvitation(ctx context.Context, id string) error {
+func (s *InvitationService) Delete(ctx context.Context, id string) error {
 	if _, err := s.requireInvitation(ctx, id); err != nil {
 		return err
 	}
-	return s.invitationRepo.DeleteInvitation(ctx, id)
+	return s.invitationRepo.Delete(ctx, id)
 }
 
-func (s *InvitationService) CancelInvitation(ctx context.Context, id string) error {
+func (s *InvitationService) Cancel(ctx context.Context, id string) error {
 	if _, err := s.requireInvitation(ctx, id); err != nil {
 		return err
 	}
-	return s.invitationRepo.CancelInvitation(ctx, id)
+	return s.invitationRepo.Cancel(ctx, id)
 }
 
-func (s *InvitationService) UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error {
+func (s *InvitationService) UpdateStatus(ctx context.Context, id string, status models.InvitationStatus) error {
 	if status == "" {
 		return errors.New("status is required")
 	}
 	if _, err := s.requireInvitation(ctx, id); err != nil {
 		return err
 	}
-	return s.invitationRepo.UpdateInvitationStatus(ctx, id, status)
+	return s.invitationRepo.UpdateStatus(ctx, id, status)
 }
 
-func (s *InvitationService) GetPendingInvitationsByProject(ctx context.Context, projectID, userID string) ([]models.Invitation, error) {
+func (s *InvitationService) ListPendingByProject(ctx context.Context, projectID, userID string) ([]models.Invitation, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	if err := s.CheckProjectOwnership(ctx, projectID, userID); err != nil {
+	if err := s.RequireProjectOwnership(ctx, projectID, userID); err != nil {
 		return nil, err
 	}
 
-	return s.invitationRepo.GetPendingInvitationsByProject(ctx, projectID)
+	return s.invitationRepo.ListPendingByProject(ctx, projectID)
 }

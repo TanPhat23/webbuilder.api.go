@@ -14,84 +14,84 @@ func TestCustomElementTypeService(t *testing.T) {
 	s := NewCustomElementTypeService(r)
 	one := &models.CustomElementType{}
 
-	r.OnGetCustomElementTypes = func(context.Context) ([]models.CustomElementType, error) {
+	r.OnList = func(context.Context) ([]models.CustomElementType, error) {
 		return []models.CustomElementType{*one}, nil
 	}
-	l, err := s.GetCustomElementTypes(ctx)
+	l, err := s.List(ctx)
 	wantNoErr(t, err)
 	if len(l) != 1 {
 		t.Fatal(l)
 	}
-	r.OnGetCustomElementTypes = func(context.Context) ([]models.CustomElementType, error) { return nil, errBoom }
-	if _, err := s.GetCustomElementTypes(ctx); !errors.Is(err, errBoom) {
+	r.OnList = func(context.Context) ([]models.CustomElementType, error) { return nil, errBoom }
+	if _, err := s.List(ctx); !errors.Is(err, errBoom) {
 		t.Fatal(err)
 	}
 
-	r.OnGetCustomElementTypeByID = func(_ context.Context, id string) (*models.CustomElementType, error) {
+	r.OnGetByID = func(_ context.Context, id string) (*models.CustomElementType, error) {
 		if id != "i" {
 			t.Fatal(id)
 		}
 		return one, nil
 	}
-	g, err := s.GetCustomElementTypeByID(ctx, "i")
+	g, err := s.GetByID(ctx, "i")
 	wantNoErr(t, err)
 	if g != one {
 		t.Fatal("wrong")
 	}
-	r.OnGetCustomElementTypeByID = func(context.Context, string) (*models.CustomElementType, error) { return nil, errBoom }
-	if _, err := s.GetCustomElementTypeByID(ctx, "i"); !errors.Is(err, errBoom) {
+	r.OnGetByID = func(context.Context, string) (*models.CustomElementType, error) { return nil, errBoom }
+	if _, err := s.GetByID(ctx, "i"); !errors.Is(err, errBoom) {
 		t.Fatal(err)
 	}
 
-	r.OnGetCustomElementTypeByName = func(_ context.Context, n string) (*models.CustomElementType, error) {
+	r.OnGetByName = func(_ context.Context, n string) (*models.CustomElementType, error) {
 		if n != "nm" {
 			t.Fatal(n)
 		}
 		return one, nil
 	}
-	g, err = s.GetCustomElementTypeByName(ctx, "nm")
+	g, err = s.GetByName(ctx, "nm")
 	wantNoErr(t, err)
 	if g != one {
 		t.Fatal("wrong")
 	}
-	r.OnGetCustomElementTypeByName = func(context.Context, string) (*models.CustomElementType, error) { return nil, errBoom }
-	if _, err := s.GetCustomElementTypeByName(ctx, "nm"); !errors.Is(err, errBoom) {
+	r.OnGetByName = func(context.Context, string) (*models.CustomElementType, error) { return nil, errBoom }
+	if _, err := s.GetByName(ctx, "nm"); !errors.Is(err, errBoom) {
 		t.Fatal(err)
 	}
 
-	r.OnCreateCustomElementType = func(context.Context, *models.CustomElementType) (*models.CustomElementType, error) { return one, nil }
-	g, err = s.CreateCustomElementType(ctx, one)
+	r.OnCreate = func(context.Context, *models.CustomElementType) (*models.CustomElementType, error) { return one, nil }
+	g, err = s.Create(ctx, one)
 	wantNoErr(t, err)
 	if g != one {
 		t.Fatal("wrong")
 	}
-	r.OnCreateCustomElementType = func(context.Context, *models.CustomElementType) (*models.CustomElementType, error) {
+	r.OnCreate = func(context.Context, *models.CustomElementType) (*models.CustomElementType, error) {
 		return nil, errBoom
 	}
-	if _, err := s.CreateCustomElementType(ctx, one); !errors.Is(err, errBoom) {
+	if _, err := s.Create(ctx, one); !errors.Is(err, errBoom) {
 		t.Fatal(err)
 	}
 
-	r.OnUpdateCustomElementType = func(_ context.Context, id string, u map[string]any) (*models.CustomElementType, error) {
+	r.OnUpdate = func(_ context.Context, id string, u map[string]any) (*models.CustomElementType, error) {
 		if id != "i" || u["k"] != "v" {
 			t.Fatal(id, u)
 		}
 		return one, nil
 	}
-	g, err = s.UpdateCustomElementType(ctx, "i", map[string]any{"k": "v"})
+	g, err = s.Update(ctx, "i", map[string]any{"k": "v"})
 	wantNoErr(t, err)
 	if g != one {
 		t.Fatal("wrong")
 	}
-	r.OnUpdateCustomElementType = func(context.Context, string, map[string]any) (*models.CustomElementType, error) { return nil, errBoom }
-	if _, err := s.UpdateCustomElementType(ctx, "i", nil); !errors.Is(err, errBoom) {
+	r.OnUpdate = func(context.Context, string, map[string]any) (*models.CustomElementType, error) { return nil, errBoom }
+	if _, err := s.Update(ctx, "i", nil); !errors.Is(err, errBoom) {
 		t.Fatal(err)
 	}
 
-	r.OnDeleteCustomElementType = func(context.Context, string) error { return errBoom }
-	if err := s.DeleteCustomElementType(ctx, "i"); !errors.Is(err, errBoom) {
+	r.OnDelete = func(context.Context, string) error { return errBoom }
+	if err := s.Delete(ctx, "i"); !errors.Is(err, errBoom) {
 		t.Fatal(err)
 	}
-	r.OnDeleteCustomElementType = func(context.Context, string) error { return nil }
-	wantNoErr(t, s.DeleteCustomElementType(ctx, "i"))
+	r.OnDelete = func(context.Context, string) error { return nil }
+	wantNoErr(t, s.Delete(ctx, "i"))
 }

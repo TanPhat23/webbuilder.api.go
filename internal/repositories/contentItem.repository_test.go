@@ -75,25 +75,25 @@ func TestContentItemCreateValidationErrors(t *testing.T) {
 	}
 	assertContentItemValidationMap(t, map[string]func(*ContentItemRepository) error{
 		"content item cannot be nil": func(r *ContentItemRepository) error {
-			_, err := r.CreateContentItem(ctx, nil, nil)
+			_, err := r.Create(ctx, nil, nil)
 			return err
 		},
 		"content item title is required": func(r *ContentItemRepository) error {
 			ci := full()
 			ci.Title = ""
-			_, err := r.CreateContentItem(ctx, ci, nil)
+			_, err := r.Create(ctx, ci, nil)
 			return err
 		},
 		"content item slug is required": func(r *ContentItemRepository) error {
 			ci := full()
 			ci.Slug = ""
-			_, err := r.CreateContentItem(ctx, ci, nil)
+			_, err := r.Create(ctx, ci, nil)
 			return err
 		},
 		"content type ID is required": func(r *ContentItemRepository) error {
 			ci := full()
 			ci.ContentTypeId = ""
-			_, err := r.CreateContentItem(ctx, ci, nil)
+			_, err := r.Create(ctx, ci, nil)
 			return err
 		},
 	})
@@ -102,21 +102,21 @@ func TestContentItemCreateValidationErrors(t *testing.T) {
 func TestContentItemLookupAndMutationValidationErrors(t *testing.T) {
 	ctx := context.Background()
 	assertContentItemValidationMap(t, map[string]func(*ContentItemRepository) error{
-		"contentTypeID is required": func(r *ContentItemRepository) error { _, err := r.GetContentItemsByContentType(ctx, ""); return err },
-		"id is required":            func(r *ContentItemRepository) error { _, err := r.GetContentItemByID(ctx, ""); return err },
+		"contentTypeID is required": func(r *ContentItemRepository) error { _, err := r.ListByContentType(ctx, ""); return err },
+		"id is required":            func(r *ContentItemRepository) error { _, err := r.GetByID(ctx, ""); return err },
 		"id is required (update)": func(r *ContentItemRepository) error {
-			_, err := r.UpdateContentItem(ctx, "", map[string]any{"a": 1}, nil)
+			_, err := r.Update(ctx, "", map[string]any{"a": 1}, nil)
 			return err
 		},
-		"no updates provided":     func(r *ContentItemRepository) error { _, err := r.UpdateContentItem(ctx, "i1", nil, nil); return err },
-		"id is required (delete)": func(r *ContentItemRepository) error { return r.DeleteContentItem(ctx, "") },
+		"no updates provided":     func(r *ContentItemRepository) error { _, err := r.Update(ctx, "i1", nil, nil); return err },
+		"id is required (delete)": func(r *ContentItemRepository) error { return r.Delete(ctx, "") },
 		"contentTypeID is required (public)": func(r *ContentItemRepository) error {
-			_, err := r.GetPublicContentItems(ctx, "", 5, "", "")
+			_, err := r.ListPublic(ctx, "", 5, "", "")
 			return err
 		},
-		"contentTypeID and slug are required": func(r *ContentItemRepository) error { _, err := r.GetContentItemBySlug(ctx, "ct", ""); return err },
+		"contentTypeID and slug are required": func(r *ContentItemRepository) error { _, err := r.GetBySlug(ctx, "ct", ""); return err },
 		"contentTypeID and slug are required (type)": func(r *ContentItemRepository) error {
-			_, err := r.GetContentItemBySlug(ctx, "", "s")
+			_, err := r.GetBySlug(ctx, "", "s")
 			return err
 		},
 	})
@@ -127,7 +127,7 @@ func TestContentItemGetByContentTypeAndID(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on(contentItemSelect, contentItemCols, []driver.Value{"i1", "ct1", "a", "A", true}, []driver.Value{"i2", "ct1", "b", "B", false})
 	repo := contentItemNew(db)
-	items, err := repo.GetContentItemsByContentType(ctx, "ct1")
+	items, err := repo.ListByContentType(ctx, "ct1")
 	assertContentItemNoErr(t, err)
 	if len(items) != 2 || items[0].Slug != "a" {
 		t.Fatalf("items = %+v", items)
@@ -138,7 +138,7 @@ func TestContentItemGetByContentTypeAndID(t *testing.T) {
 	if !f.sawQuery(`ORDER BY "CreatedAt" DESC`) {
 		t.Errorf("query: %v", f.queries)
 	}
-	item, err := repo.GetContentItemByID(ctx, "i1")
+	item, err := repo.GetByID(ctx, "i1")
 	assertContentItemNoErr(t, err)
 	if item.Id != "i1" {
 		t.Fatalf("item = %+v", item)
@@ -151,15 +151,15 @@ func TestContentItemGetErrors(t *testing.T) {
 	if emptyFake == nil {
 		t.Fatal("missing fake db")
 	}
-	_, err := contentItemNew(empty).GetContentItemByID(ctx, "x")
+	_, err := contentItemNew(empty).GetByID(ctx, "x")
 	assertContentItemErrIs(t, err, ErrContentItemNotFound)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errContentItemBoom)
 	br := contentItemNew(bad)
-	_, err = br.GetContentItemsByContentType(ctx, "ct1")
+	_, err = br.ListByContentType(ctx, "ct1")
 	assertContentItemErrIs(t, err, errContentItemBoom)
-	_, err = br.GetContentItemByID(ctx, "x")
+	_, err = br.GetByID(ctx, "x")
 	assertContentItemErrIs(t, err, errContentItemBoom)
 	if errors.Is(err, ErrContentItemNotFound) {
 		t.Errorf("unexpected ErrContentItemNotFound: %v", err)
@@ -176,7 +176,7 @@ func TestContentItemCreateSuccess(t *testing.T) {
 	values := []models.ContentFieldValue{{FieldId: "f1", Value: &val}, {Id: "given", FieldId: "f2"}}
 	ci := &models.ContentItem{Title: "T", Slug: "s", ContentTypeId: "ct1"}
 	before := time.Now().Add(-time.Second)
-	got, err := contentItemNew(db).CreateContentItem(ctx, ci, values)
+	got, err := contentItemNew(db).Create(ctx, ci, values)
 	assertContentItemNoErr(t, err)
 	assertCreatedContentItemFields(t, f, got, ci, values, before)
 }
@@ -208,7 +208,7 @@ func TestContentItemCreateErrors(t *testing.T) {
 
 	dbDup, fDup := newFakeDB(t)
 	contentItemCount(fDup, 1)
-	_, err := contentItemNew(dbDup).CreateContentItem(ctx, item, nil)
+	_, err := contentItemNew(dbDup).Create(ctx, item, nil)
 	assertContentItemErrIs(t, err, ErrContentItemDuplicate)
 	if fDup.begins != 0 {
 		t.Error("no transaction expected")
@@ -216,13 +216,13 @@ func TestContentItemCreateErrors(t *testing.T) {
 
 	dbChk, fChk := newFakeDB(t)
 	fChk.onErr("count(*)", errContentItemBoom)
-	_, err = contentItemNew(dbChk).CreateContentItem(ctx, item, nil)
+	_, err = contentItemNew(dbChk).Create(ctx, item, nil)
 	assertContentItemErrIs(t, err, errContentItemBoom)
 
 	dbIns, fIns := newFakeDB(t)
 	contentItemCount(fIns, 0)
 	fIns.onErr(`INSERT INTO "public"."ContentItem"`, errContentItemBoom)
-	_, err = contentItemNew(dbIns).CreateContentItem(ctx, item, nil)
+	_, err = contentItemNew(dbIns).Create(ctx, item, nil)
 	assertContentItemErrIs(t, err, errContentItemBoom)
 	if fIns.commits != 0 || fIns.aborts != 1 {
 		t.Errorf("commits=%d aborts=%d", fIns.commits, fIns.aborts)
@@ -231,7 +231,7 @@ func TestContentItemCreateErrors(t *testing.T) {
 	dbVal, fVal := newFakeDB(t)
 	contentItemCount(fVal, 0)
 	fVal.onErr(contentItemValueInsert, errContentItemBoom)
-	_, err = contentItemNew(dbVal).CreateContentItem(ctx, item, []models.ContentFieldValue{{FieldId: "f"}})
+	_, err = contentItemNew(dbVal).Create(ctx, item, []models.ContentFieldValue{{FieldId: "f"}})
 	assertContentItemErrIs(t, err, errContentItemBoom)
 	if fVal.commits != 0 || fVal.aborts != 1 {
 		t.Errorf("commits=%d aborts=%d", fVal.commits, fVal.aborts)
@@ -249,7 +249,7 @@ func TestContentItemUpdateSuccess(t *testing.T) {
 	f.onExec("UPDATE", 1)
 	values := []models.ContentFieldValue{{FieldId: "f1"}}
 	updates := map[string]any{"slug": "new", "Title": "New"}
-	got, err := contentItemNew(db).UpdateContentItem(ctx, "i1", updates, values)
+	got, err := contentItemNew(db).Update(ctx, "i1", updates, values)
 	assertContentItemNoErr(t, err)
 	if got.Id != "i1" || values[0].ContentItemId != "i1" {
 		t.Fatalf("got=%+v val=%+v", got, values[0])
@@ -275,7 +275,7 @@ func TestContentItemUpdatePartialModes(t *testing.T) {
 	fVals.on(contentItemSelect, contentItemCols, row)
 	fVals.onExec("DELETE FROM", 0)
 	fVals.onExec("INSERT INTO", 1)
-	_, err := contentItemNew(dbVals).UpdateContentItem(ctx, "i1", nil, []models.ContentFieldValue{{Id: "v", FieldId: "f1"}})
+	_, err := contentItemNew(dbVals).Update(ctx, "i1", nil, []models.ContentFieldValue{{Id: "v", FieldId: "f1"}})
 	assertContentItemNoErr(t, err)
 	if fVals.sawQuery("UPDATE") {
 		t.Error("no column update expected")
@@ -284,7 +284,7 @@ func TestContentItemUpdatePartialModes(t *testing.T) {
 	dbCols, fCols := newFakeDB(t)
 	fCols.on(contentItemSelect, contentItemCols, row)
 	fCols.onExec("UPDATE", 1)
-	_, err = contentItemNew(dbCols).UpdateContentItem(ctx, "i1", map[string]any{"Title": "x"}, nil)
+	_, err = contentItemNew(dbCols).Update(ctx, "i1", map[string]any{"Title": "x"}, nil)
 	assertContentItemNoErr(t, err)
 	if fCols.sawQuery(contentItemValueDelete) {
 		t.Error("field values must stay untouched")
@@ -298,7 +298,7 @@ func TestContentItemUpdateSlugConflicts(t *testing.T) {
 		db, f := newFakeDB(t)
 		f.on(contentItemSelect, contentItemCols, row)
 		contentItemCount(f, 1)
-		_, err := contentItemNew(db).UpdateContentItem(ctx, "i1", map[string]any{key: "taken"}, nil)
+		_, err := contentItemNew(db).Update(ctx, "i1", map[string]any{key: "taken"}, nil)
 		assertContentItemErrIs(t, err, ErrContentItemDuplicate)
 		if f.sawQuery("UPDATE") || f.commits != 0 {
 			t.Fatal("duplicate slug must roll back without writing")
@@ -313,7 +313,7 @@ func TestContentItemUpdateErrors(t *testing.T) {
 	if emptyFake == nil {
 		t.Fatal("missing fake db")
 	}
-	_, err := contentItemNew(empty).UpdateContentItem(ctx, "i1", map[string]any{"Title": "x"}, nil)
+	_, err := contentItemNew(empty).Update(ctx, "i1", map[string]any{"Title": "x"}, nil)
 	assertContentItemErrIs(t, err, ErrContentItemNotFound)
 
 	for _, tc := range []struct {
@@ -321,10 +321,22 @@ func TestContentItemUpdateErrors(t *testing.T) {
 		call  func(*ContentItemRepository) error
 		abort int
 	}{
-		{func(f *fakeDB) { f.onErr("count(*)", errContentItemBoom) }, func(r *ContentItemRepository) error { _, err := r.UpdateContentItem(ctx, "i1", map[string]any{"slug": "x"}, nil); return err }, 1},
-		{func(f *fakeDB) { f.onErr("UPDATE", errContentItemBoom) }, func(r *ContentItemRepository) error { _, err := r.UpdateContentItem(ctx, "i1", map[string]any{"Title": "x"}, nil); return err }, 1},
-		{func(f *fakeDB) { f.onErr("DELETE FROM", errContentItemBoom) }, func(r *ContentItemRepository) error { _, err := r.UpdateContentItem(ctx, "i1", nil, []models.ContentFieldValue{{FieldId: "f"}}); return err }, 1},
-		{func(f *fakeDB) { f.onErr("INSERT INTO", errContentItemBoom) }, func(r *ContentItemRepository) error { _, err := r.UpdateContentItem(ctx, "i1", nil, []models.ContentFieldValue{{FieldId: "f"}}); return err }, 1},
+		{func(f *fakeDB) { f.onErr("count(*)", errContentItemBoom) }, func(r *ContentItemRepository) error {
+			_, err := r.Update(ctx, "i1", map[string]any{"slug": "x"}, nil)
+			return err
+		}, 1},
+		{func(f *fakeDB) { f.onErr("UPDATE", errContentItemBoom) }, func(r *ContentItemRepository) error {
+			_, err := r.Update(ctx, "i1", map[string]any{"Title": "x"}, nil)
+			return err
+		}, 1},
+		{func(f *fakeDB) { f.onErr("DELETE FROM", errContentItemBoom) }, func(r *ContentItemRepository) error {
+			_, err := r.Update(ctx, "i1", nil, []models.ContentFieldValue{{FieldId: "f"}})
+			return err
+		}, 1},
+		{func(f *fakeDB) { f.onErr("INSERT INTO", errContentItemBoom) }, func(r *ContentItemRepository) error {
+			_, err := r.Update(ctx, "i1", nil, []models.ContentFieldValue{{FieldId: "f"}})
+			return err
+		}, 1},
 	} {
 		db, f := newFakeDB(t)
 		f.on(contentItemSelect, contentItemCols, row)
@@ -340,17 +352,17 @@ func TestContentItemDelete(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onExec("DELETE FROM", 1)
-	assertContentItemNoErr(t, contentItemNew(db).DeleteContentItem(ctx, "i1"))
+	assertContentItemNoErr(t, contentItemNew(db).Delete(ctx, "i1"))
 
 	db2, f2 := newFakeDB(t)
 	if f2 == nil {
 		t.Fatal("missing fake db")
 	}
-	assertContentItemErrIs(t, contentItemNew(db2).DeleteContentItem(ctx, "i1"), ErrContentItemNotFound)
+	assertContentItemErrIs(t, contentItemNew(db2).Delete(ctx, "i1"), ErrContentItemNotFound)
 
 	db3, f3 := newFakeDB(t)
 	f3.onErr("DELETE FROM", errContentItemBoom)
-	assertContentItemErrIs(t, contentItemNew(db3).DeleteContentItem(ctx, "i1"), errContentItemBoom)
+	assertContentItemErrIs(t, contentItemNew(db3).Delete(ctx, "i1"), errContentItemBoom)
 }
 
 func TestContentItemGetPublicNormalisesSortAndLimit(t *testing.T) {
@@ -369,7 +381,7 @@ func TestContentItemGetPublicNormalisesSortAndLimit(t *testing.T) {
 	} {
 		db, f := newFakeDB(t)
 		f.on(`JOIN public."ContentType"`, contentItemCols, []driver.Value{"i1", "ct1", "a", "A", true})
-		got, err := contentItemNew(db).GetPublicContentItems(ctx, "ct1", tc.limit, tc.sortBy, tc.sortDir)
+		got, err := contentItemNew(db).ListPublic(ctx, "ct1", tc.limit, tc.sortBy, tc.sortDir)
 		assertContentItemNoErr(t, err)
 		if len(got) != 1 || got[0].Id != "i1" {
 			t.Fatalf("got=%+v", got)
@@ -386,7 +398,7 @@ func TestContentItemGetPublicNormalisesSortAndLimit(t *testing.T) {
 	}
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errContentItemBoom)
-	_, err := contentItemNew(bad).GetPublicContentItems(ctx, "ct1", 1, "", "")
+	_, err := contentItemNew(bad).ListPublic(ctx, "ct1", 1, "", "")
 	assertContentItemErrIs(t, err, errContentItemBoom)
 }
 
@@ -394,7 +406,7 @@ func TestContentItemGetBySlug(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on(contentItemSelect, contentItemCols, []driver.Value{"i1", "ct1", "hello", "Hello", true})
-	got, err := contentItemNew(db).GetContentItemBySlug(ctx, "ct1", "hello")
+	got, err := contentItemNew(db).GetBySlug(ctx, "ct1", "hello")
 	assertContentItemNoErr(t, err)
 	if got.Slug != "hello" || !contentItemHasArg(f, "hello") {
 		t.Fatalf("got %+v args=%v", got, f.args[0])
@@ -406,11 +418,11 @@ func TestContentItemGetBySlug(t *testing.T) {
 	if emptyFake == nil {
 		t.Fatal("missing fake db")
 	}
-	_, err = contentItemNew(empty).GetContentItemBySlug(ctx, "ct1", "x")
+	_, err = contentItemNew(empty).GetBySlug(ctx, "ct1", "x")
 	assertContentItemErrIs(t, err, ErrContentItemNotFound)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errContentItemBoom)
-	_, err = contentItemNew(bad).GetContentItemBySlug(ctx, "ct1", "x")
+	_, err = contentItemNew(bad).GetBySlug(ctx, "ct1", "x")
 	assertContentItemErrIs(t, err, errContentItemBoom)
 }

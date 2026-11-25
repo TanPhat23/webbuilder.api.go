@@ -21,13 +21,13 @@ type elementServiceSpy struct {
 	pageReads    [][]string
 }
 
-func (s *elementServiceSpy) GetElements(_ context.Context, projectID string, _ ...string) ([]models.EditorElement, error) {
+func (s *elementServiceSpy) List(_ context.Context, projectID string, _ ...string) ([]models.EditorElement, error) {
 	// Fiber reuses param buffers across requests, so keep a copy.
 	s.projectReads = append(s.projectReads, strings.Clone(projectID))
 	return []models.EditorElement{}, nil
 }
 
-func (s *elementServiceSpy) GetElementsByPageIds(_ context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
+func (s *elementServiceSpy) ListByPageIDs(_ context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
 	read := []string{strings.Clone(projectID)}
 	for _, id := range pageIDs {
 		read = append(read, strings.Clone(id))
@@ -40,7 +40,7 @@ func (s *elementServiceSpy) GetElementsByPageIds(_ context.Context, projectID st
 // (exists, not u1's) and "draft"/"live" for the public checks.
 type projectsFake struct{ calls int }
 
-func (p *projectsFake) GetProjectWithAccess(_ context.Context, projectID, userID string) (*models.Project, error) {
+func (p *projectsFake) GetWithAccess(_ context.Context, projectID, userID string) (*models.Project, error) {
 	p.calls++
 	switch {
 	case projectID == "mine" && userID == "u1":
@@ -52,7 +52,7 @@ func (p *projectsFake) GetProjectWithAccess(_ context.Context, projectID, userID
 	}
 }
 
-func (p *projectsFake) GetPublicProjectByID(_ context.Context, projectID string) (*models.Project, error) {
+func (p *projectsFake) GetPublicByID(_ context.Context, projectID string) (*models.Project, error) {
 	p.calls++
 	switch projectID {
 	case "live":
@@ -65,7 +65,7 @@ func (p *projectsFake) GetPublicProjectByID(_ context.Context, projectID string)
 	}
 }
 
-func (p *projectsFake) GetPublicProjectBySubdomain(_ context.Context, _ string) (*models.Project, error) {
+func (p *projectsFake) GetPublicBySubdomain(_ context.Context, _ string) (*models.Project, error) {
 	return nil, repositories.ErrProjectNotFound
 }
 
@@ -78,10 +78,10 @@ func elementAccessApp(spy *elementServiceSpy, projects *projectsFake, userID str
 		}
 		return c.Next()
 	})
-	api.Get("/elements/public/by-pages", h.GetPublicElementsByPageIds)
-	api.Get("/elements/public/:projectid", h.GetPublicElements)
-	api.Get("/elements/by-pages", h.GetElementsByPageIds)
-	api.Get("/elements/:projectid", h.GetElements)
+	api.Get("/elements/public/by-pages", h.ListPublicByPageIDs)
+	api.Get("/elements/public/:projectid", h.ListPublic)
+	api.Get("/elements/by-pages", h.ListByPageIDs)
+	api.Get("/elements/:projectid", h.List)
 	return app
 }
 

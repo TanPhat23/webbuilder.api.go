@@ -17,14 +17,14 @@ func TestValidatePresence(t *testing.T) {
 			CursorX:  100,
 			CursorY:  200,
 		}
-		if err := validation.ValidatePresence(&p); err != nil {
+		if err := validation.Presence(&p); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
 
 	t.Run("missing_userId", func(t *testing.T) {
 		p := domainEntity.PayloadPresence{UserID: ""}
-		if err := validation.ValidatePresence(&p); err == nil {
+		if err := validation.Presence(&p); err == nil {
 			t.Fatalf("expected error for missing userId, got nil")
 		}
 	})
@@ -38,7 +38,7 @@ func TestValidateElementCreate(t *testing.T) {
 				Type:   "button",
 			},
 		}
-		if err := validation.ValidateElementCreate(&p); err != nil {
+		if err := validation.ElementCreate(&p); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
@@ -50,7 +50,7 @@ func TestValidateElementCreate(t *testing.T) {
 				Type:   "", // Missing Type
 			},
 		}
-		if err := validation.ValidateElementCreate(&p); err == nil {
+		if err := validation.ElementCreate(&p); err == nil {
 			t.Fatalf("expected error for invalid element, got nil")
 		}
 	})
@@ -64,14 +64,14 @@ func TestValidateElementUpdate(t *testing.T) {
 				"color": "red",
 			},
 		}
-		if err := validation.ValidateElementUpdate(&p); err != nil {
+		if err := validation.ElementUpdate(&p); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
 
 	t.Run("invalid_id", func(t *testing.T) {
 		p := domainEntity.PayloadElementUpdate{ID: "not-a-uuid"}
-		if err := validation.ValidateElementUpdate(&p); err == nil {
+		if err := validation.ElementUpdate(&p); err == nil {
 			t.Fatalf("expected error for invalid id, got nil")
 		}
 	})
@@ -84,7 +84,7 @@ func TestValidateElementMove(t *testing.T) {
 			ParentID: nil,
 			Order:    5,
 		}
-		if err := validation.ValidateElementMove(&p); err != nil {
+		if err := validation.ElementMove(&p); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
@@ -96,7 +96,7 @@ func TestValidateElementMove(t *testing.T) {
 			ParentID: &parentID,
 			Order:    0,
 		}
-		if err := validation.ValidateElementMove(&p); err != nil {
+		if err := validation.ElementMove(&p); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
@@ -106,7 +106,7 @@ func TestValidateElementMove(t *testing.T) {
 			ID:    validUUID,
 			Order: -1,
 		}
-		if err := validation.ValidateElementMove(&p); err == nil {
+		if err := validation.ElementMove(&p); err == nil {
 			t.Fatalf("expected error for negative order, got nil")
 		}
 	})
@@ -115,14 +115,14 @@ func TestValidateElementMove(t *testing.T) {
 func TestValidateElementDelete(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		p := domainEntity.PayloadElementDelete{ID: validUUID}
-		if err := validation.ValidateElementDelete(&p); err != nil {
+		if err := validation.ElementDelete(&p); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
 
 	t.Run("missing_id", func(t *testing.T) {
 		p := domainEntity.PayloadElementDelete{ID: ""}
-		if err := validation.ValidateElementDelete(&p); err == nil {
+		if err := validation.ElementDelete(&p); err == nil {
 			t.Fatalf("expected error for missing id, got nil")
 		}
 	})
@@ -134,14 +134,14 @@ func TestValidateElementContent(t *testing.T) {
 			ID:      validUUID,
 			Content: "Updated text",
 		}
-		if err := validation.ValidateElementContent(&p); err != nil {
+		if err := validation.ElementContent(&p); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
 
 	t.Run("invalid_id", func(t *testing.T) {
 		p := domainEntity.PayloadElementContent{ID: "invalid"}
-		if err := validation.ValidateElementContent(&p); err == nil {
+		if err := validation.ElementContent(&p); err == nil {
 			t.Fatalf("expected error for invalid id, got nil")
 		}
 	})
@@ -155,7 +155,7 @@ func TestValidateComment(t *testing.T) {
 				Content: "This looks great!",
 			},
 		}
-		if err := validation.ValidateComment(&p); err != nil {
+		if err := validation.Comment(&p); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
@@ -165,7 +165,7 @@ func TestValidateComment(t *testing.T) {
 			ElementID: validUUID,
 			Comment:   domainEntity.ElementComment{Content: ""},
 		}
-		if err := validation.ValidateComment(&p); err == nil {
+		if err := validation.Comment(&p); err == nil {
 			t.Fatalf("expected error for missing content, got nil")
 		}
 	})
@@ -178,7 +178,7 @@ func TestValidateElementForAdd(t *testing.T) {
 			Type:   "container",
 			Order:  0,
 		}
-		if err := validation.ValidateElementForAdd(&e); err != nil {
+		if err := validation.ElementForCreate(&e); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
@@ -187,7 +187,7 @@ func TestValidateElementForAdd(t *testing.T) {
 		e := domainEntity.Element{
 			Type: "button",
 		}
-		if err := validation.ValidateElementForAdd(&e); err == nil {
+		if err := validation.ElementForCreate(&e); err == nil {
 			t.Fatalf("expected error for missing pageId, got nil")
 		}
 	})
@@ -200,7 +200,7 @@ func TestValidateElementForUpdate(t *testing.T) {
 			Type:  "text",
 			Order: 10,
 		}
-		if err := validation.ValidateElementForUpdate(&e); err != nil {
+		if err := validation.ElementForUpdate(&e); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 	})
@@ -210,7 +210,7 @@ func TestValidateElementForUpdate(t *testing.T) {
 			ID:   "",
 			Type: "text",
 		}
-		if err := validation.ValidateElementForUpdate(&e); err == nil {
+		if err := validation.ElementForUpdate(&e); err == nil {
 			t.Fatalf("expected error for missing id, got nil")
 		}
 	})

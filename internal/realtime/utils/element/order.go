@@ -68,7 +68,7 @@ func InsertAt(elements []entity.Element, element entity.Element, position int) (
 	return elements, nil
 }
 
-func Children(elements *[]entity.Element, parentID string) *[]entity.Element {
+func FindChildren(elements *[]entity.Element, parentID string) *[]entity.Element {
 	if parentID == "" {
 		return elements
 	}
@@ -76,19 +76,19 @@ func Children(elements *[]entity.Element, parentID string) *[]entity.Element {
 		if (*elements)[i].ID == parentID {
 			return &(*elements)[i].Elements
 		}
-		if found := ChildrenNested(&(*elements)[i].Elements, parentID); found != nil {
+		if found := findChildrenRecursive(&(*elements)[i].Elements, parentID); found != nil {
 			return found
 		}
 	}
 	return nil
 }
 
-func ChildrenNested(elements *[]entity.Element, parentID string) *[]entity.Element {
+func findChildrenRecursive(elements *[]entity.Element, parentID string) *[]entity.Element {
 	for i := range *elements {
 		if (*elements)[i].ID == parentID {
 			return &(*elements)[i].Elements
 		}
-		if found := ChildrenNested(&(*elements)[i].Elements, parentID); found != nil {
+		if found := findChildrenRecursive(&(*elements)[i].Elements, parentID); found != nil {
 			return found
 		}
 	}

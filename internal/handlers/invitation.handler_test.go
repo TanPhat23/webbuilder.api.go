@@ -25,60 +25,60 @@ func (s *invitationHandlerStub) rec(name string, args ...any) error {
 	return s.errs[name]
 }
 
-func (s *invitationHandlerStub) CreateInvitation(_ context.Context, projectID, email string, role models.CollaboratorRole, invitedBy string) (*models.Invitation, error) {
+func (s *invitationHandlerStub) Create(_ context.Context, projectID, email string, role models.CollaboratorRole, invitedBy string) (*models.Invitation, error) {
 	if err := s.rec("Create", "[", projectID, "|", email, "|", role, "|", invitedBy, "]"); err != nil {
 		return nil, err
 	}
 	return &models.Invitation{Id: "inv-1", ProjectId: projectID, Email: email, Role: role, Status: models.InvitationStatusPending}, nil
 }
-func (s *invitationHandlerStub) AcceptInvitation(_ context.Context, token, userID string) error {
+func (s *invitationHandlerStub) Accept(_ context.Context, token, userID string) error {
 	return s.rec("Accept", "[", token, "|", userID, "]")
 }
-func (s *invitationHandlerStub) GetInvitationsByProject(_ context.Context, projectID, userID string) ([]models.Invitation, error) {
+func (s *invitationHandlerStub) ListByProject(_ context.Context, projectID, userID string) ([]models.Invitation, error) {
 	if err := s.rec("List", "[", projectID, "]"); err != nil {
 		return nil, err
 	}
 	return []models.Invitation{{Id: "inv-1", ProjectId: projectID, Email: "a@b.co"}}, nil
 }
-func (s *invitationHandlerStub) GetPendingInvitationsByProject(_ context.Context, projectID, userID string) ([]models.Invitation, error) {
+func (s *invitationHandlerStub) ListPendingByProject(_ context.Context, projectID, userID string) ([]models.Invitation, error) {
 	if err := s.rec("Pending", "[", projectID, "]"); err != nil {
 		return nil, err
 	}
 	return []models.Invitation{{Id: "inv-2", ProjectId: projectID, Status: models.InvitationStatusPending}}, nil
 }
-func (s *invitationHandlerStub) GetInvitationByID(_ context.Context, id string) (*models.Invitation, error) {
+func (s *invitationHandlerStub) GetByID(_ context.Context, id string) (*models.Invitation, error) {
 	if err := s.rec("Get", "[", id, "]"); err != nil {
 		return nil, err
 	}
 	return &models.Invitation{Id: id, ProjectId: "proj-of-" + id}, nil
 }
-func (s *invitationHandlerStub) CheckProjectOwnership(_ context.Context, projectID, userID string) error {
+func (s *invitationHandlerStub) RequireProjectOwnership(_ context.Context, projectID, userID string) error {
 	return s.rec("Owner", "[", projectID, "|", userID, "]")
 }
-func (s *invitationHandlerStub) CancelInvitation(_ context.Context, id string) error {
+func (s *invitationHandlerStub) Cancel(_ context.Context, id string) error {
 	return s.rec("Cancel", "[", id, "]")
 }
-func (s *invitationHandlerStub) UpdateInvitationStatus(_ context.Context, id string, status models.InvitationStatus) error {
+func (s *invitationHandlerStub) UpdateStatus(_ context.Context, id string, status models.InvitationStatus) error {
 	return s.rec("Status", "[", id, "|", status, "]")
 }
-func (s *invitationHandlerStub) DeleteInvitation(_ context.Context, id string) error {
+func (s *invitationHandlerStub) Delete(_ context.Context, id string) error {
 	return s.rec("Delete", "[", id, "]")
 }
 
 func invitationHandlerApp(user string, svc *invitationHandlerStub) *fiber.App {
 	h := NewInvitationHandler(svc)
 	return newKitApp(user, func(app *fiber.App) {
-		app.Post("/invitations", h.CreateInvitation)
-		app.Post("/invitations/accept", h.AcceptInvitation)
-		app.Get("/projects/:projectid/invitations", h.GetInvitationsByProject)
-		app.Get("/projects/:projectid/invitations/pending", h.GetPendingInvitationsByProject)
-		app.Patch("/invitations/:invitationid", h.UpdateInvitationStatus)
-		app.Post("/invitations/:invitationid/cancel", h.CancelInvitation)
-		app.Delete("/invitations/:invitationid", h.DeleteInvitation)
-		app.Post("/noid/cancel", h.CancelInvitation)
-		app.Patch("/noid", h.UpdateInvitationStatus)
-		app.Delete("/noid", h.DeleteInvitation)
-		app.Get("/noproject", h.GetInvitationsByProject)
+		app.Post("/invitations", h.Create)
+		app.Post("/invitations/accept", h.Accept)
+		app.Get("/projects/:projectid/invitations", h.ListByProject)
+		app.Get("/projects/:projectid/invitations/pending", h.ListPendingByProject)
+		app.Patch("/invitations/:invitationid", h.UpdateStatus)
+		app.Post("/invitations/:invitationid/cancel", h.Cancel)
+		app.Delete("/invitations/:invitationid", h.Delete)
+		app.Post("/noid/cancel", h.Cancel)
+		app.Patch("/noid", h.UpdateStatus)
+		app.Delete("/noid", h.Delete)
+		app.Get("/noproject", h.ListByProject)
 	})
 }
 
@@ -97,7 +97,7 @@ func TestCreateInvitationDefaultsRoleToEditorWithoutValidator(t *testing.T) {
 	svc := &invitationHandlerStub{}
 	app := fiber.New()
 	app.Use(func(c fiber.Ctx) error { c.Locals("userId", "u1"); return c.Next() })
-	app.Post("/invitations", NewInvitationHandler(svc).CreateInvitation)
+	app.Post("/invitations", NewInvitationHandler(svc).Create)
 	kitExpect(t, kitSend(t, app, "POST", "/invitations", `{"project_id":"p1","email":"a@b.co"}`), 201, "editor")
 	if want := []string{"Create[p1|a@b.co|editor|u1]"}; !reflect.DeepEqual(svc.calls, want) {
 		t.Fatalf("calls = %v, want %v", svc.calls, want)

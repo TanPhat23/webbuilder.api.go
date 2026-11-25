@@ -102,7 +102,7 @@ func TestHandleRepoError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			app := fiber.New()
 			app.Get("/", func(c fiber.Ctx) error {
-				return HandleRepoError(c, tc.err, tc.notFoundMsg, "Failed")
+				return RespondError(c, tc.err, tc.notFoundMsg, "Failed")
 			})
 			status, body := call(t, app, "GET", "/")
 			if status != tc.wantStatus {
@@ -126,7 +126,7 @@ func TestHandleRepoError(t *testing.T) {
 func TestHandleRepoErrorNilErrorIsNoop(t *testing.T) {
 	app := fiber.New()
 	app.Get("/", func(c fiber.Ctx) error {
-		if err := HandleRepoError(c, nil, "nf", "fail"); err != nil {
+		if err := RespondError(c, nil, "nf", "fail"); err != nil {
 			return err
 		}
 		return c.SendString("untouched")

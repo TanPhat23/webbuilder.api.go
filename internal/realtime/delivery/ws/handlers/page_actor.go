@@ -48,13 +48,13 @@ func newPageActors(ctx context.Context, idle time.Duration) *pageActors {
 // Do runs fn on the actor for key and waits for it to finish. Calls for the same key never
 // run concurrently and run in submission order. It returns an error if the actors were shut
 // down, ctx ended before fn was queued, or fn panicked.
-func (p *pageActors) Do(ctx context.Context, key string, fn func()) error {
+func (p *pageActors) Run(ctx context.Context, key string, fn func()) error {
 	p.mu.Lock()
 	a := p.actors[key]
 	if a == nil {
 		a = &pageActor{ops: make(chan *pageOp, pageActorQueue)}
 		p.actors[key] = a
-		go p.run(key, a)
+		go p.serveActor(key, a)
 	}
 	a.refs++
 	p.mu.Unlock()
@@ -84,14 +84,14 @@ func (p *pageActors) release(a *pageActor) {
 	p.mu.Unlock()
 }
 
-func (p *pageActors) run(key string, a *pageActor) {
+func (p *pageActors) serveActor(key string, a *pageActor) {
 	timer := time.NewTimer(p.idle)
 	defer timer.Stop()
 
 	for {
 		select {
 		case op := <-a.ops:
-			p.exec(op)
+			p.executeOp(op)
 			p.release(a)
 			if !timer.Stop() {
 				select {
@@ -122,7 +122,7 @@ func (p *pageActors) run(key string, a *pageActor) {
 	}
 }
 
-func (p *pageActors) exec(op *pageOp) {
+func (p *pageActors) executeOp(op *pageOp) {
 	defer func() {
 		if r := recover(); r != nil {
 			op.err = fmt.Errorf("page op panicked: %v", r)

@@ -17,7 +17,7 @@ func (v *structValidator) Validate(out any) error {
 	return v.validate.Struct(out)
 }
 
-func FiberConfig() fiber.Config {
+func Fiber() fiber.Config {
 	return fiber.Config{
 		CaseSensitive:   true,
 		StrictRouting:   true,

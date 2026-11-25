@@ -16,7 +16,7 @@ func NewCollaboratorRepository(db *gorm.DB) CollaboratorRepositoryInterface {
 	return &CollaboratorRepository{db: db}
 }
 
-func (r *CollaboratorRepository) CreateCollaborator(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error) {
+func (r *CollaboratorRepository) Create(ctx context.Context, collaborator *models.Collaborator) (*models.Collaborator, error) {
 	if collaborator.Id == "" {
 		collaborator.Id = cuid.New()
 	}
@@ -26,7 +26,7 @@ func (r *CollaboratorRepository) CreateCollaborator(ctx context.Context, collabo
 	return collaborator, nil
 }
 
-func (r *CollaboratorRepository) GetCollaboratorsByProject(ctx context.Context, projectID string) ([]models.Collaborator, error) {
+func (r *CollaboratorRepository) ListByProject(ctx context.Context, projectID string) ([]models.Collaborator, error) {
 	collaborators, err := gorm.G[models.Collaborator](r.db).
 		Where(&models.Collaborator{ProjectId: projectID}).
 		Preload("User", nil).
@@ -80,7 +80,7 @@ func (r *CollaboratorRepository) GetCollaboratorsByProject(ctx context.Context, 
 	return collaborators, nil
 }
 
-func (r *CollaboratorRepository) GetCollaboratorByID(ctx context.Context, id string) (*models.Collaborator, error) {
+func (r *CollaboratorRepository) GetByID(ctx context.Context, id string) (*models.Collaborator, error) {
 
 	collaborator, err := gorm.G[models.Collaborator](r.db).
 		Preload("User", nil).
@@ -96,14 +96,14 @@ func (r *CollaboratorRepository) GetCollaboratorByID(ctx context.Context, id str
 	return &collaborator, nil
 }
 
-func (r *CollaboratorRepository) UpdateCollaboratorRole(ctx context.Context, id string, role models.CollaboratorRole) error {
+func (r *CollaboratorRepository) UpdateRole(ctx context.Context, id string, role models.CollaboratorRole) error {
 	_, err := gorm.G[models.Collaborator](r.db).
 		Where(`"Id" = ?`, id).
 		Update(ctx, "Role", role)
 	return err
 }
 
-func (r *CollaboratorRepository) DeleteCollaborator(ctx context.Context, id string) error {
+func (r *CollaboratorRepository) Delete(ctx context.Context, id string) error {
 	_, err := gorm.G[models.Collaborator](r.db).Where(`"Id" = ?`, id).
 		Delete(ctx)
 	return err
@@ -116,7 +116,7 @@ func (r *CollaboratorRepository) IsCollaborator(ctx context.Context, projectID, 
 	return count > 0, err
 }
 
-func (r *CollaboratorRepository) GetCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (*models.Collaborator, error) {
+func (r *CollaboratorRepository) GetByProjectAndUser(ctx context.Context, projectID, userID string) (*models.Collaborator, error) {
 	collaborator, err := gorm.G[models.Collaborator](r.db).
 		Where(&models.Collaborator{ProjectId: projectID, UserId: userID}).
 		First(ctx)
@@ -129,7 +129,7 @@ func (r *CollaboratorRepository) GetCollaboratorByProjectAndUser(ctx context.Con
 	return &collaborator, nil
 }
 
-func (r *CollaboratorRepository) DeleteCollaboratorByProjectAndUser(ctx context.Context, projectID, userID string) (bool, error) {
+func (r *CollaboratorRepository) DeleteByProjectAndUser(ctx context.Context, projectID, userID string) (bool, error) {
 	rows, err := gorm.G[models.Collaborator](r.db).
 		Where(`"ProjectId" = ? AND "UserId" = ?`, projectID, userID).
 		Delete(ctx)

@@ -88,7 +88,7 @@ func (b *agentBridge) pruneExpiredLocked(now time.Time) {
 // Run delivers requests until ctx ends. It subscribes before returning control
 // to the loop, so call it in its own goroutine.
 func (b *agentBridge) Run(ctx context.Context) {
-	reqs, stop, err := b.bus.PSubscribe(ctx, agentproto.RequestChannelPrefix+"*")
+	reqs, stop, err := b.bus.SubscribePattern(ctx, agentproto.RequestChannelPrefix+"*")
 	if err != nil {
 		b.logger.Errorf("agent bridge: subscribe failed: %v", err)
 		return

@@ -24,7 +24,7 @@ type rbacProjectRepo struct {
 	roles map[string]models.CollaboratorRole
 }
 
-func (r *rbacProjectRepo) GetProjectAccess(_ context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+func (r *rbacProjectRepo) GetAccess(_ context.Context, projectID, userID string) (*models.ProjectAccess, error) {
 	if projectID != "p1" {
 		return nil, repositories.ErrProjectNotFound
 	}
@@ -42,11 +42,11 @@ func (r *rbacProjectRepo) GetProjectAccess(_ context.Context, projectID, userID 
 	}, nil
 }
 
-func (r *rbacProjectRepo) UpdateProjectFields(_ context.Context, projectID, _ string, _ map[string]any) (*models.Project, error) {
+func (r *rbacProjectRepo) UpdateFields(_ context.Context, projectID, _ string, _ map[string]any) (*models.Project, error) {
 	return &models.Project{ID: projectID, Name: "Updated"}, nil
 }
 
-func (r *rbacProjectRepo) GetProjectWithAccess(_ context.Context, projectID, userID string) (*models.Project, error) {
+func (r *rbacProjectRepo) GetWithAccess(_ context.Context, projectID, userID string) (*models.Project, error) {
 	if projectID == "p1" {
 		if _, ok := r.roles[userID]; ok {
 			return &models.Project{ID: projectID, OwnerId: "owner-1", Name: "Site"}, nil
@@ -55,7 +55,7 @@ func (r *rbacProjectRepo) GetProjectWithAccess(_ context.Context, projectID, use
 	return nil, repositories.ErrProjectNotFound
 }
 
-func (r *rbacProjectRepo) GetProjectPages(_ context.Context, projectID, _ string) ([]models.Page, error) {
+func (r *rbacProjectRepo) ListPages(_ context.Context, projectID, _ string) ([]models.Page, error) {
 	return []models.Page{{Id: "pg1", ProjectId: projectID, Name: "Home"}}, nil
 }
 
@@ -63,8 +63,8 @@ type rbacPageRepo struct {
 	repositories.PageRepositoryInterface
 }
 
-func (r *rbacPageRepo) CreatePage(context.Context, *models.Page) error { return nil }
-func (r *rbacPageRepo) GetPagesByProjectID(context.Context, string) ([]models.Page, error) {
+func (r *rbacPageRepo) Create(context.Context, *models.Page) error { return nil }
+func (r *rbacPageRepo) ListByProject(context.Context, string) ([]models.Page, error) {
 	return []models.Page{{Id: "pg1", ProjectId: "p1", Name: "Home"}}, nil
 }
 
@@ -72,7 +72,7 @@ type rbacCollabRepo struct {
 	repositories.CollaboratorRepositoryInterface
 }
 
-func (r *rbacCollabRepo) GetCollaboratorsByProject(context.Context, string) ([]models.Collaborator, error) {
+func (r *rbacCollabRepo) ListByProject(context.Context, string) ([]models.Collaborator, error) {
 	return []models.Collaborator{{Id: "c1", ProjectId: "p1", UserId: "editor-1", Role: models.RoleEditor}}, nil
 }
 
@@ -80,11 +80,11 @@ type rbacContentTypeRepo struct {
 	repositories.ContentTypeRepositoryInterface
 }
 
-func (r *rbacContentTypeRepo) CreateContentType(_ context.Context, ct *models.ContentType) (*models.ContentType, error) {
+func (r *rbacContentTypeRepo) Create(_ context.Context, ct *models.ContentType) (*models.ContentType, error) {
 	ct.Id = "ct1"
 	return ct, nil
 }
-func (r *rbacContentTypeRepo) GetContentTypesByProject(context.Context, string) ([]models.ContentType, error) {
+func (r *rbacContentTypeRepo) ListByProject(context.Context, string) ([]models.ContentType, error) {
 	return []models.ContentType{{Id: "ct1", Name: "Posts"}}, nil
 }
 
@@ -92,13 +92,13 @@ type rbacSnapshotRepo struct {
 	repositories.SnapshotRepositoryInterface
 }
 
-func (r *rbacSnapshotRepo) GetSnapshotsByProjectID(context.Context, string) ([]models.Snapshot, error) {
+func (r *rbacSnapshotRepo) ListByProject(context.Context, string) ([]models.Snapshot, error) {
 	return []models.Snapshot{{Id: "s1", ProjectId: "p1", Name: "v1"}}, nil
 }
-func (r *rbacSnapshotRepo) GetSnapshotByID(_ context.Context, id string) (*models.Snapshot, error) {
+func (r *rbacSnapshotRepo) GetByID(_ context.Context, id string) (*models.Snapshot, error) {
 	return &models.Snapshot{Id: id, ProjectId: "p1", Name: "v1"}, nil
 }
-func (r *rbacSnapshotRepo) DeleteSnapshot(context.Context, string) error { return nil }
+func (r *rbacSnapshotRepo) Delete(context.Context, string) error { return nil }
 
 func buildRBACTestApp() *fiber.App {
 	roles := map[string]models.CollaboratorRole{
@@ -107,7 +107,7 @@ func buildRBACTestApp() *fiber.App {
 		"viewer-1": models.RoleViewer,
 	}
 
-	repos := &repositories.RepositoriesInterface{
+	repos := &repositories.Repositories{
 		ProjectRepository:      &rbacProjectRepo{roles: roles},
 		PageRepository:         &rbacPageRepo{},
 		CollaboratorRepository: &rbacCollabRepo{},
@@ -115,7 +115,7 @@ func buildRBACTestApp() *fiber.App {
 		SnapshotRepository:     &rbacSnapshotRepo{},
 	}
 
-	app := fiber.New(configs.FiberConfig())
+	app := fiber.New(configs.Fiber())
 	publicGroup := app.Group("/api/v1")
 	protectedGroup := app.Group("/api/v1", func(c fiber.Ctx) error {
 		uid := c.Get("X-Test-User")
@@ -127,12 +127,12 @@ func buildRBACTestApp() *fiber.App {
 		return c.Next()
 	})
 
-	routes.ProjectRoutes(publicGroup, protectedGroup, repos)
-	routes.PageRoutes(publicGroup, protectedGroup, repos, nil)
-	routes.CollaboratorRoutes(protectedGroup, repos)
-	routes.ContentRoutes(publicGroup, protectedGroup, repos)
-	routes.SnapshotRoutes(protectedGroup, repos)
-	routes.InvitationRoutes(protectedGroup, &services.InvitationService{})
+	routes.RegisterProjects(publicGroup, protectedGroup, repos)
+	routes.RegisterPages(publicGroup, protectedGroup, repos, nil)
+	routes.RegisterCollaborators(protectedGroup, repos)
+	routes.RegisterContent(publicGroup, protectedGroup, repos)
+	routes.RegisterSnapshots(protectedGroup, repos)
+	routes.RegisterInvitations(protectedGroup, &services.InvitationService{})
 
 	return app
 }

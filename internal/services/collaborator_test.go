@@ -16,7 +16,7 @@ func collabSvc() (*CollaboratorService, *fkCollaboratorRepo, *fkProjectRepo) {
 }
 
 func ownerProjectAccess(p *fkProjectRepo, projectID, ownerID string) {
-	p.OnGetProjectAccess = func(_ context.Context, pid, uid string) (*models.ProjectAccess, error) {
+	p.OnGetAccess = func(_ context.Context, pid, uid string) (*models.ProjectAccess, error) {
 		if pid == projectID && uid == ownerID {
 			return &models.ProjectAccess{ProjectId: pid, UserId: uid, Role: models.RoleOwner, IsOwner: true}, nil
 		}
@@ -30,10 +30,10 @@ func TestCollaboratorCreate(t *testing.T) {
 		return &models.Collaborator{ProjectId: "p", UserId: "u", Role: models.RoleEditor}
 	}
 	for _, tc := range []struct {
-		name string
+		name   string
 		caller string
-		in   *models.Collaborator
-		msg  string
+		in     *models.Collaborator
+		msg    string
 	}{
 		{"unauthenticated", "", valid(), "unauthorized"},
 		{"nil", "owner", nil, "cannot be nil"},
@@ -43,7 +43,7 @@ func TestCollaboratorCreate(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, c, p := collabSvc()
-			_, err := s.CreateCollaborator(ctx, tc.caller, tc.in)
+			_, err := s.Create(ctx, tc.caller, tc.in)
 			wantErr(t, err, tc.msg)
 			wantCalls(t, c.Calls)
 			wantCalls(t, p.Calls)
@@ -51,10 +51,10 @@ func TestCollaboratorCreate(t *testing.T) {
 	}
 	t.Run("non owner forbidden", func(t *testing.T) {
 		s, c, p := collabSvc()
-		p.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
+		p.OnGetAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
 			return &models.ProjectAccess{ProjectId: "p", UserId: "editor", Role: models.RoleEditor}, nil
 		}
-		_, err := s.CreateCollaborator(ctx, "editor", valid())
+		_, err := s.Create(ctx, "editor", valid())
 		if !errors.Is(err, authz.ErrForbidden) {
 			t.Fatalf("err = %v, want ErrForbidden", err)
 		}
@@ -63,18 +63,18 @@ func TestCollaboratorCreate(t *testing.T) {
 	t.Run("success and repo error", func(t *testing.T) {
 		s, c, p := collabSvc()
 		ownerProjectAccess(p, "p", "owner")
-		c.OnGetCollaboratorByProjectAndUser = func(context.Context, string, string) (*models.Collaborator, error) {
+		c.OnGetByProjectAndUser = func(context.Context, string, string) (*models.Collaborator, error) {
 			return nil, nil
 		}
 		want := &models.Collaborator{Id: "c"}
-		c.OnCreateCollaborator = func(context.Context, *models.Collaborator) (*models.Collaborator, error) { return want, nil }
-		got, err := s.CreateCollaborator(ctx, "owner", valid())
+		c.OnCreate = func(context.Context, *models.Collaborator) (*models.Collaborator, error) { return want, nil }
+		got, err := s.Create(ctx, "owner", valid())
 		wantNoErr(t, err)
 		if got != want {
 			t.Fatal("wrong result")
 		}
-		c.OnCreateCollaborator = func(context.Context, *models.Collaborator) (*models.Collaborator, error) { return nil, errBoom }
-		if _, err := s.CreateCollaborator(ctx, "owner", valid()); !errors.Is(err, errBoom) {
+		c.OnCreate = func(context.Context, *models.Collaborator) (*models.Collaborator, error) { return nil, errBoom }
+		if _, err := s.Create(ctx, "owner", valid()); !errors.Is(err, errBoom) {
 			t.Fatalf("err %v", err)
 		}
 	})
@@ -83,26 +83,26 @@ func TestCollaboratorCreate(t *testing.T) {
 func TestCollaboratorGetByProject(t *testing.T) {
 	ctx := context.Background()
 	s, c, p := collabSvc()
-	_, err := s.GetCollaboratorsByProject(ctx, "", "u")
+	_, err := s.ListByProject(ctx, "", "u")
 	wantErr(t, err, "projectId is required")
 
-	p.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) { return nil, errBoom }
-	_, err = s.GetCollaboratorsByProject(ctx, "p", "u")
+	p.OnGetAccess = func(context.Context, string, string) (*models.ProjectAccess, error) { return nil, errBoom }
+	_, err = s.ListByProject(ctx, "p", "u")
 	if !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 
-	p.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
+	p.OnGetAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
 		return &models.ProjectAccess{ProjectId: "p", UserId: "u", Role: models.RoleViewer}, nil
 	}
 	list := []models.Collaborator{{Id: "1"}}
-	c.OnGetCollaboratorsByProject = func(_ context.Context, id string) ([]models.Collaborator, error) {
+	c.OnListByProject = func(_ context.Context, id string) ([]models.Collaborator, error) {
 		if id != "p" {
 			t.Fatalf("id %s", id)
 		}
 		return list, nil
 	}
-	got, err := s.GetCollaboratorsByProject(ctx, "p", "u")
+	got, err := s.ListByProject(ctx, "p", "u")
 	wantNoErr(t, err)
 	if len(got) != 1 || got[0].Id != "1" {
 		t.Fatalf("got %v", got)
@@ -112,13 +112,13 @@ func TestCollaboratorGetByProject(t *testing.T) {
 func TestCollaboratorGetByID(t *testing.T) {
 	ctx := context.Background()
 	s, c, p := collabSvc()
-	_, err := s.GetCollaboratorByID(ctx, "", "u")
+	_, err := s.GetByID(ctx, "", "u")
 	wantErr(t, err, "collaborator id is required")
 	ownerProjectAccess(p, "p", "u")
-	c.OnGetCollaboratorByID = func(context.Context, string) (*models.Collaborator, error) {
+	c.OnGetByID = func(context.Context, string) (*models.Collaborator, error) {
 		return &models.Collaborator{Id: "x", ProjectId: "p"}, nil
 	}
-	got, err := s.GetCollaboratorByID(ctx, "x", "u")
+	got, err := s.GetByID(ctx, "x", "u")
 	wantNoErr(t, err)
 	if got.Id != "x" {
 		t.Fatal("wrong")
@@ -129,46 +129,46 @@ func TestCollaboratorUpdateRole(t *testing.T) {
 	ctx := context.Background()
 	role := models.CollaboratorRole("viewer")
 	get := func(c *fkCollaboratorRepo, col *models.Collaborator, err error) {
-		c.OnGetCollaboratorByID = func(context.Context, string) (*models.Collaborator, error) { return col, err }
+		c.OnGetByID = func(context.Context, string) (*models.Collaborator, error) { return col, err }
 	}
 	s, c, p := collabSvc()
-	wantErr(t, s.UpdateCollaboratorRole(ctx, "", "owner", role), "collaborator id is required")
-	if err := s.UpdateCollaboratorRole(ctx, "1", "owner", models.RoleOwner); !errors.Is(err, authz.ErrForbidden) {
+	wantErr(t, s.UpdateRole(ctx, "", "owner", role), "collaborator id is required")
+	if err := s.UpdateRole(ctx, "1", "owner", models.RoleOwner); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("err = %v, want forbidden for owner role", err)
 	}
 
 	get(c, nil, errBoom)
-	err := s.UpdateCollaboratorRole(ctx, "1", "owner", role)
+	err := s.UpdateRole(ctx, "1", "owner", role)
 	wantErr(t, err, "failed to retrieve collaborator")
 	if !errors.Is(err, errBoom) {
 		t.Fatal("not wrapped")
 	}
 	get(c, nil, nil)
-	wantErr(t, s.UpdateCollaboratorRole(ctx, "1", "owner", role), "collaborator does not exist")
+	wantErr(t, s.UpdateRole(ctx, "1", "owner", role), "collaborator does not exist")
 	get(c, &models.Collaborator{UserId: "u"}, nil)
-	wantErr(t, s.UpdateCollaboratorRole(ctx, "1", "owner", role), "collaborator projectId is required")
+	wantErr(t, s.UpdateRole(ctx, "1", "owner", role), "collaborator projectId is required")
 
 	// Reject self role change
 	get(c, &models.Collaborator{ProjectId: "p", UserId: "owner"}, nil)
-	if err := s.UpdateCollaboratorRole(ctx, "1", "owner", role); !errors.Is(err, authz.ErrForbidden) {
+	if err := s.UpdateRole(ctx, "1", "owner", role); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("err = %v, want forbidden for self role change", err)
 	}
 
 	get(c, &models.Collaborator{ProjectId: "p", UserId: "u"}, nil)
-	p.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) { return nil, errBoom }
-	err = s.UpdateCollaboratorRole(ctx, "1", "owner", role)
+	p.OnGetAccess = func(context.Context, string, string) (*models.ProjectAccess, error) { return nil, errBoom }
+	err = s.UpdateRole(ctx, "1", "owner", role)
 	if !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 
 	ownerProjectAccess(p, "p", "owner")
 	var gotRole models.CollaboratorRole
-	c.OnUpdateCollaboratorRole = func(_ context.Context, id string, r models.CollaboratorRole) error { gotRole = r; return errBoom }
-	if err := s.UpdateCollaboratorRole(ctx, "1", "owner", role); !errors.Is(err, errBoom) {
+	c.OnUpdateRole = func(_ context.Context, id string, r models.CollaboratorRole) error { gotRole = r; return errBoom }
+	if err := s.UpdateRole(ctx, "1", "owner", role); !errors.Is(err, errBoom) {
 		t.Fatalf("err %v", err)
 	}
-	c.OnUpdateCollaboratorRole = func(_ context.Context, id string, r models.CollaboratorRole) error { gotRole = r; return nil }
-	wantNoErr(t, s.UpdateCollaboratorRole(ctx, "1", "owner", role))
+	c.OnUpdateRole = func(_ context.Context, id string, r models.CollaboratorRole) error { gotRole = r; return nil }
+	wantNoErr(t, s.UpdateRole(ctx, "1", "owner", role))
 	if gotRole != role {
 		t.Fatal("role not forwarded")
 	}
@@ -177,40 +177,40 @@ func TestCollaboratorUpdateRole(t *testing.T) {
 func TestCollaboratorDeleteAndLeave(t *testing.T) {
 	ctx := context.Background()
 	s, c, p := collabSvc()
-	wantErr(t, s.DeleteCollaborator(ctx, "", "owner"), "collaborator id is required")
-	c.OnGetCollaboratorByID = func(context.Context, string) (*models.Collaborator, error) { return nil, errBoom }
-	err := s.DeleteCollaborator(ctx, "1", "owner")
+	wantErr(t, s.Delete(ctx, "", "owner"), "collaborator id is required")
+	c.OnGetByID = func(context.Context, string) (*models.Collaborator, error) { return nil, errBoom }
+	err := s.Delete(ctx, "1", "owner")
 	wantErr(t, err, "failed to retrieve collaborator")
 	if !errors.Is(err, errBoom) {
 		t.Fatal("not wrapped")
 	}
-	c.OnGetCollaboratorByID = func(context.Context, string) (*models.Collaborator, error) { return nil, nil }
-	wantErr(t, s.DeleteCollaborator(ctx, "1", "owner"), "collaborator does not exist")
+	c.OnGetByID = func(context.Context, string) (*models.Collaborator, error) { return nil, nil }
+	wantErr(t, s.Delete(ctx, "1", "owner"), "collaborator does not exist")
 
-	c.OnGetCollaboratorByID = func(context.Context, string) (*models.Collaborator, error) {
+	c.OnGetByID = func(context.Context, string) (*models.Collaborator, error) {
 		return &models.Collaborator{ProjectId: "p", UserId: "target"}, nil
 	}
 	ownerProjectAccess(p, "p", "owner")
 	// Stranger cannot delete another collaborator
-	if err := s.DeleteCollaborator(ctx, "1", "stranger"); !errors.Is(err, authz.ErrForbidden) {
+	if err := s.Delete(ctx, "1", "stranger"); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("err = %v, want forbidden", err)
 	}
 	// Self-removal succeeds even without owner role
-	c.OnDeleteCollaborator = func(context.Context, string) error { return errBoom }
-	if err := s.DeleteCollaborator(ctx, "1", "target"); !errors.Is(err, errBoom) {
+	c.OnDelete = func(context.Context, string) error { return errBoom }
+	if err := s.Delete(ctx, "1", "target"); !errors.Is(err, errBoom) {
 		t.Fatal(err)
 	}
-	c.OnDeleteCollaborator = func(context.Context, string) error { return nil }
-	wantNoErr(t, s.DeleteCollaborator(ctx, "1", "owner"))
+	c.OnDelete = func(context.Context, string) error { return nil }
+	wantNoErr(t, s.Delete(ctx, "1", "owner"))
 
 	// LeaveProject rejects owner, succeeds for collaborator
 	if err := s.LeaveProject(ctx, "p", "owner"); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("owner leave err = %v, want forbidden", err)
 	}
-	p.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
+	p.OnGetAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
 		return &models.ProjectAccess{ProjectId: "p", UserId: "target", Role: models.RoleEditor}, nil
 	}
-	c.OnDeleteCollaboratorByProjectAndUser = func(context.Context, string, string) (bool, error) { return true, nil }
+	c.OnDeleteByProjectAndUser = func(context.Context, string, string) (bool, error) { return true, nil }
 	wantNoErr(t, s.LeaveProject(ctx, "p", "target"))
 }
 
@@ -237,24 +237,24 @@ func TestCollaboratorIsCollaborator(t *testing.T) {
 func TestCollaboratorCheckOwnership(t *testing.T) {
 	ctx := context.Background()
 	s, _, p := collabSvc()
-	wantErr(t, s.CheckOwnership(ctx, "", "u"), "projectId is required")
-	wantErr(t, s.CheckOwnership(ctx, "p", ""), "userId is required")
-	p.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) { return nil, errBoom }
-	if err := s.CheckOwnership(ctx, "p", "u"); !errors.Is(err, errBoom) {
+	wantErr(t, s.RequireOwnership(ctx, "", "u"), "projectId is required")
+	wantErr(t, s.RequireOwnership(ctx, "p", ""), "userId is required")
+	p.OnGetAccess = func(context.Context, string, string) (*models.ProjectAccess, error) { return nil, errBoom }
+	if err := s.RequireOwnership(ctx, "p", "u"); !errors.Is(err, errBoom) {
 		t.Fatal(err)
 	}
-	p.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
+	p.OnGetAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
 		return nil, repositories.ErrProjectNotFound
 	}
-	if err := s.CheckOwnership(ctx, "p", "u"); !errors.Is(err, authz.ErrForbidden) {
+	if err := s.RequireOwnership(ctx, "p", "u"); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("err = %v, want forbidden", err)
 	}
-	p.OnGetProjectAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
+	p.OnGetAccess = func(context.Context, string, string) (*models.ProjectAccess, error) {
 		return &models.ProjectAccess{ProjectId: "p", UserId: "u", Role: models.RoleEditor}, nil
 	}
-	if err := s.CheckOwnership(ctx, "p", "u"); !errors.Is(err, authz.ErrForbidden) {
+	if err := s.RequireOwnership(ctx, "p", "u"); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("err = %v, want forbidden for editor", err)
 	}
 	ownerProjectAccess(p, "p", "u")
-	wantNoErr(t, s.CheckOwnership(ctx, "p", "u"))
+	wantNoErr(t, s.RequireOwnership(ctx, "p", "u"))
 }

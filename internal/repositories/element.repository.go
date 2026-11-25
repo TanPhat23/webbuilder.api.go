@@ -33,9 +33,9 @@ func (r *ElementRepository) getProjectMutex(projectID string) *sync.Mutex {
 	return mu.(*sync.Mutex)
 }
 
-// GetElements retrieves all elements for a project with tree structure
+// List retrieves all elements for a project with tree structure
 // Optional pageID parameter filters elements by specific page
-func (r *ElementRepository) GetElements(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error) {
+func (r *ElementRepository) List(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -71,8 +71,8 @@ func (r *ElementRepository) GetElements(ctx context.Context, projectID string, p
 	return utils.BuildElementTree(editorElements), nil
 }
 
-// GetElementByID retrieves a single element by ID with all relations
-func (r *ElementRepository) GetElementByID(ctx context.Context, elementID string) (*models.Element, error) {
+// GetByID retrieves a single element by ID with all relations
+func (r *ElementRepository) GetByID(ctx context.Context, elementID string) (*models.Element, error) {
 	if elementID == "" {
 		return nil, errors.New("elementID is required")
 	}
@@ -92,8 +92,8 @@ func (r *ElementRepository) GetElementByID(ctx context.Context, elementID string
 	return &element, nil
 }
 
-// GetElementWithRelations retrieves element with all related data loaded
-func (r *ElementRepository) GetElementWithRelations(ctx context.Context, elementID string) (*models.Element, error) {
+// GetWithRelations retrieves element with all related data loaded
+func (r *ElementRepository) GetWithRelations(ctx context.Context, elementID string) (*models.Element, error) {
 	if elementID == "" {
 		return nil, errors.New("elementID is required")
 	}
@@ -114,8 +114,8 @@ func (r *ElementRepository) GetElementWithRelations(ctx context.Context, element
 	return &element, nil
 }
 
-// GetElementsByPageID retrieves all elements for a specific page
-func (r *ElementRepository) GetElementsByPageID(ctx context.Context, pageID string) ([]models.Element, error) {
+// ListByPage retrieves all elements for a specific page
+func (r *ElementRepository) ListByPage(ctx context.Context, pageID string) ([]models.Element, error) {
 	if pageID == "" {
 		return nil, errors.New("pageID is required")
 	}
@@ -132,9 +132,9 @@ func (r *ElementRepository) GetElementsByPageID(ctx context.Context, pageID stri
 	return elements, nil
 }
 
-// GetElementsByPageIds retrieves the elements of several pages as a tree. Only pages
+// ListByPageIDs retrieves the elements of several pages as a tree. Only pages
 // that belong to projectID are read: page IDs from other projects match nothing.
-func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
+func (r *ElementRepository) ListByPageIDs(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -164,8 +164,8 @@ func (r *ElementRepository) GetElementsByPageIds(ctx context.Context, projectID 
 	return utils.BuildElementTree(editorElements), nil
 }
 
-// GetChildElements retrieves child elements of a parent element
-func (r *ElementRepository) GetChildElements(ctx context.Context, parentID string) ([]models.Element, error) {
+// ListChildren retrieves child elements of a parent element
+func (r *ElementRepository) ListChildren(ctx context.Context, parentID string) ([]models.Element, error) {
 	if parentID == "" {
 		return nil, errors.New("parentID is required")
 	}
@@ -182,8 +182,8 @@ func (r *ElementRepository) GetChildElements(ctx context.Context, parentID strin
 	return elements, nil
 }
 
-// GetRootElements retrieves root elements (without parent) for a project
-func (r *ElementRepository) GetRootElements(ctx context.Context, projectID string) ([]models.Element, error) {
+// ListRoots retrieves root elements (without parent) for a project
+func (r *ElementRepository) ListRoots(ctx context.Context, projectID string) ([]models.Element, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -203,8 +203,8 @@ func (r *ElementRepository) GetRootElements(ctx context.Context, projectID strin
 	return elements, nil
 }
 
-// GetElementsByIDs retrieves multiple elements by their IDs
-func (r *ElementRepository) GetElementsByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error) {
+// ListByIDs retrieves multiple elements by their IDs
+func (r *ElementRepository) ListByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error) {
 	if len(elementIDs) == 0 {
 		return []models.Element{}, nil
 	}
@@ -220,8 +220,8 @@ func (r *ElementRepository) GetElementsByIDs(ctx context.Context, elementIDs []s
 	return elements, nil
 }
 
-// CreateElement creates a single element
-func (r *ElementRepository) CreateElement(ctx context.Context, element *models.Element) error {
+// Create creates a single element
+func (r *ElementRepository) Create(ctx context.Context, element *models.Element) error {
 	if element == nil {
 		return errors.New("element cannot be nil")
 	}
@@ -247,8 +247,8 @@ func (r *ElementRepository) CreateElement(ctx context.Context, element *models.E
 	return nil
 }
 
-// UpdateElement updates an element
-func (r *ElementRepository) UpdateElement(ctx context.Context, element *models.Element) error {
+// Update updates an element
+func (r *ElementRepository) Update(ctx context.Context, element *models.Element) error {
 	if element == nil {
 		return errors.New("element cannot be nil")
 	}
@@ -294,8 +294,8 @@ func (r *ElementRepository) UpdateEventWorkflows(ctx context.Context, elementID 
 	return nil
 }
 
-// DeleteElementByID deletes a single element by ID
-func (r *ElementRepository) DeleteElementByID(ctx context.Context, elementID string) error {
+// Delete deletes a single element by ID
+func (r *ElementRepository) Delete(ctx context.Context, elementID string) error {
 	if elementID == "" {
 		return errors.New("elementID is required")
 	}
@@ -315,8 +315,8 @@ func (r *ElementRepository) DeleteElementByID(ctx context.Context, elementID str
 	return nil
 }
 
-// DeleteElementsByPageID deletes all elements in a page
-func (r *ElementRepository) DeleteElementsByPageID(ctx context.Context, pageID string) error {
+// DeleteByPage deletes all elements in a page
+func (r *ElementRepository) DeleteByPage(ctx context.Context, pageID string) error {
 	if pageID == "" {
 		return errors.New("pageID is required")
 	}
@@ -332,7 +332,7 @@ func (r *ElementRepository) DeleteElementsByPageID(ctx context.Context, pageID s
 	return nil
 }
 
-func (r *ElementRepository) DeleteElementsByProjectID(ctx context.Context, projectID string) error {
+func (r *ElementRepository) DeleteByProject(ctx context.Context, projectID string) error {
 	if projectID == "" {
 		return errors.New("projectID is required")
 	}
@@ -349,7 +349,7 @@ func (r *ElementRepository) DeleteElementsByProjectID(ctx context.Context, proje
 	return nil
 }
 
-func (r *ElementRepository) CountElementsByProjectID(ctx context.Context, projectID string) (int64, error) {
+func (r *ElementRepository) CountByProject(ctx context.Context, projectID string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectID is required")
 	}
@@ -368,8 +368,8 @@ func (r *ElementRepository) CountElementsByProjectID(ctx context.Context, projec
 	return count, nil
 }
 
-// ReplaceElements replaces all elements for a project
-func (r *ElementRepository) ReplaceElements(ctx context.Context, projectID string, elements []models.EditorElement) error {
+// Replace replaces all elements for a project
+func (r *ElementRepository) Replace(ctx context.Context, projectID string, elements []models.EditorElement) error {
 	if projectID == "" {
 		return errors.New("projectID is required")
 	}
@@ -482,7 +482,7 @@ func buildFlattenedElement(item elementQueueItem) (*models.Element, error) {
 }
 
 func collectChildQueueItems(parent models.EditorElement, parentID string) ([]elementQueueItem, error) {
-	children := utils.GetChildrenFromEditorElement(parent)
+	children := utils.EditorElementChildren(parent)
 	out := make([]elementQueueItem, 0, len(children))
 	for _, child := range children {
 		childEditor, err := utils.ConvertToEditorElement(child)

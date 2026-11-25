@@ -54,18 +54,18 @@ func TestSnapshotRepositorySaveSnapshotValidation(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	repo := &SnapshotRepository{db: db}
-	assertSnapshotErr(t, repo.SaveSnapshot(ctx, "p1", &models.Snapshot{Type: "bogus"}), ErrInvalidSnapshotType, "")
+	assertSnapshotErr(t, repo.Save(ctx, "p1", &models.Snapshot{Type: "bogus"}), ErrInvalidSnapshotType, "")
 	if f.queryCount() != 0 {
 		t.Fatalf("invalid type must not query: %v", f.queries)
 	}
-	assertSnapshotErr(t, repo.SaveSnapshot(ctx, "p1", &models.Snapshot{Type: SnapshotTypeVersion}), ErrProjectNotFound, "")
+	assertSnapshotErr(t, repo.Save(ctx, "p1", &models.Snapshot{Type: SnapshotTypeVersion}), ErrProjectNotFound, "")
 	if f.sawQuery("INSERT") {
 		t.Fatalf("must not insert for a missing project: %v", f.queries)
 	}
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr(snapshotProjectFrom, snapshotBoom)
-	err := (&SnapshotRepository{db: dbErr}).SaveSnapshot(ctx, "p1", &models.Snapshot{Type: SnapshotTypeVersion})
+	err := (&SnapshotRepository{db: dbErr}).Save(ctx, "p1", &models.Snapshot{Type: SnapshotTypeVersion})
 	assertSnapshotErr(t, err, snapshotBoom, "failed to validate project existence")
 }
 
@@ -75,7 +75,7 @@ func TestSnapshotRepositorySaveSnapshotCreatesNonWorkingSnapshots(t *testing.T) 
 		db, f := newFakeDB(t)
 		snapshotWithProject(f)
 		s := &models.Snapshot{Id: "s1", Type: typ, Name: "n"}
-		if err := (&SnapshotRepository{db: db}).SaveSnapshot(ctx, "p1", s); err != nil {
+		if err := (&SnapshotRepository{db: db}).Save(ctx, "p1", s); err != nil {
 			t.Fatal(err)
 		}
 		if s.ProjectId != "p1" || s.CreatedAt.IsZero() {
@@ -93,14 +93,14 @@ func TestSnapshotRepositorySaveSnapshotTimestampAndError(t *testing.T) {
 	s := &models.Snapshot{Id: "s1", Type: SnapshotTypeVersion, CreatedAt: stamp}
 	db, f := newFakeDB(t)
 	snapshotWithProject(f)
-	if err := (&SnapshotRepository{db: db}).SaveSnapshot(ctx, "p1", s); err != nil || !s.CreatedAt.Equal(stamp) {
+	if err := (&SnapshotRepository{db: db}).Save(ctx, "p1", s); err != nil || !s.CreatedAt.Equal(stamp) {
 		t.Fatalf("got %v, %v", s.CreatedAt, err)
 	}
 
 	dbErr, fErr := newFakeDB(t)
 	snapshotWithProject(fErr)
 	fErr.onErr("INSERT", snapshotBoom)
-	assertSnapshotErr(t, (&SnapshotRepository{db: dbErr}).SaveSnapshot(ctx, "p1", &models.Snapshot{Type: SnapshotTypeVersion}), snapshotBoom, "failed to create snapshot")
+	assertSnapshotErr(t, (&SnapshotRepository{db: dbErr}).Save(ctx, "p1", &models.Snapshot{Type: SnapshotTypeVersion}), snapshotBoom, "failed to create snapshot")
 }
 
 func TestSnapshotRepositorySaveSnapshotWorkingCreate(t *testing.T) {
@@ -108,7 +108,7 @@ func TestSnapshotRepositorySaveSnapshotWorkingCreate(t *testing.T) {
 	db, f := newFakeDB(t)
 	snapshotWithProject(f)
 	s := &models.Snapshot{Id: "new", Type: SnapshotTypeWorking}
-	if err := (&SnapshotRepository{db: db}).SaveSnapshot(ctx, "p1", s); err != nil {
+	if err := (&SnapshotRepository{db: db}).Save(ctx, "p1", s); err != nil {
 		t.Fatal(err)
 	}
 	if !f.sawQuery("INSERT INTO", "Snapshot") || f.sawQuery("UPDATE") {
@@ -127,7 +127,7 @@ func TestSnapshotRepositorySaveSnapshotWorkingUpdate(t *testing.T) {
 	fUpd.on(snapshotSnapshotFrom, append(snapshotCols, "CreatedAt"), append(snapshotRow("old", SnapshotTypeWorking), created))
 	fUpd.onExec("UPDATE", 1)
 	upd := &models.Snapshot{Id: "new", Type: SnapshotTypeWorking, Name: "renamed"}
-	if err := (&SnapshotRepository{db: dbUpd}).SaveSnapshot(ctx, "p1", upd); err != nil {
+	if err := (&SnapshotRepository{db: dbUpd}).Save(ctx, "p1", upd); err != nil {
 		t.Fatal(err)
 	}
 	if upd.Id != "old" || !upd.CreatedAt.Equal(created) {
@@ -146,20 +146,20 @@ func TestSnapshotRepositorySaveSnapshotWorkingErrors(t *testing.T) {
 	db1, f1 := newFakeDB(t)
 	snapshotWithProject(f1)
 	f1.onErr(snapshotSnapshotFrom, snapshotBoom)
-	assertSnapshotErr(t, (&SnapshotRepository{db: db1}).SaveSnapshot(ctx, "p1", &models.Snapshot{Type: SnapshotTypeWorking}), snapshotBoom, "failed to check existing working snapshot")
+	assertSnapshotErr(t, (&SnapshotRepository{db: db1}).Save(ctx, "p1", &models.Snapshot{Type: SnapshotTypeWorking}), snapshotBoom, "failed to check existing working snapshot")
 
 	db2, f2 := newFakeDB(t)
 	snapshotWithProject(f2)
 	f2.on(snapshotSnapshotFrom, snapshotCols, snapshotRow("old", SnapshotTypeWorking))
 	f2.onErr("UPDATE", snapshotBoom)
-	assertSnapshotErr(t, (&SnapshotRepository{db: db2}).SaveSnapshot(ctx, "p1", &models.Snapshot{Type: SnapshotTypeWorking}), snapshotBoom, "failed to update working snapshot")
+	assertSnapshotErr(t, (&SnapshotRepository{db: db2}).Save(ctx, "p1", &models.Snapshot{Type: SnapshotTypeWorking}), snapshotBoom, "failed to update working snapshot")
 }
 
 func TestSnapshotRepositoryReadLists(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("SELECT", snapshotCols, snapshotRow("a", "working"), snapshotRow("b", "version"))
-	got, err := (&SnapshotRepository{db: db}).GetSnapshotsByProjectID(ctx, "p1")
+	got, err := (&SnapshotRepository{db: db}).ListByProject(ctx, "p1")
 	if err != nil || len(got) != 2 || got[0].Id != "a" || got[1].Type != "version" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -169,7 +169,7 @@ func TestSnapshotRepositoryReadLists(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("SELECT", snapshotBoom)
-	_, err = (&SnapshotRepository{db: dbErr}).GetSnapshotsByProjectID(ctx, "p1")
+	_, err = (&SnapshotRepository{db: dbErr}).ListByProject(ctx, "p1")
 	assertSnapshotErr(t, err, snapshotBoom, "failed to get snapshots by project ID")
 }
 
@@ -177,7 +177,7 @@ func TestSnapshotRepositoryReadByType(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("SELECT", snapshotCols, snapshotRow("a", "version"))
-	got, err := (&SnapshotRepository{db: db}).GetSnapshotsByProjectIDAndType(ctx, "p1", "version")
+	got, err := (&SnapshotRepository{db: db}).ListByProjectAndType(ctx, "p1", "version")
 	if err != nil || len(got) != 1 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -187,9 +187,9 @@ func TestSnapshotRepositoryReadByType(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("SELECT", snapshotBoom)
-	_, err = (&SnapshotRepository{db: dbErr}).GetSnapshotsByProjectIDAndType(ctx, "p1", "version")
+	_, err = (&SnapshotRepository{db: dbErr}).ListByProjectAndType(ctx, "p1", "version")
 	assertSnapshotErr(t, err, snapshotBoom, "failed to get snapshots by project ID and type")
-	_, err = (&SnapshotRepository{db: dbErr}).GetSnapshotsByProjectIDAndType(ctx, "p1", "bogus")
+	_, err = (&SnapshotRepository{db: dbErr}).ListByProjectAndType(ctx, "p1", "bogus")
 	assertSnapshotErr(t, err, ErrInvalidSnapshotType, "")
 }
 
@@ -201,10 +201,10 @@ type snapshotSingleCase struct {
 
 func snapshotSingleCases(ctx context.Context) []snapshotSingleCase {
 	return []snapshotSingleCase{
-		{"failed to get snapshot", "", func(r *SnapshotRepository) (*models.Snapshot, error) { return r.GetSnapshotByID(ctx, "a") }},
-		{"failed to get latest working snapshot", SnapshotTypeWorking, func(r *SnapshotRepository) (*models.Snapshot, error) { return r.GetLatestWorkingSnapshot(ctx, "p1") }},
+		{"failed to get snapshot", "", func(r *SnapshotRepository) (*models.Snapshot, error) { return r.GetByID(ctx, "a") }},
+		{"failed to get latest working snapshot", SnapshotTypeWorking, func(r *SnapshotRepository) (*models.Snapshot, error) { return r.GetLatestWorking(ctx, "p1") }},
 		{"failed to get latest published snapshot", SnapshotTypePublished, func(r *SnapshotRepository) (*models.Snapshot, error) {
-			return r.GetLatestPublishedSnapshot(ctx, "p1")
+			return r.GetLatestPublished(ctx, "p1")
 		}},
 	}
 }
@@ -261,7 +261,7 @@ func TestSnapshotRepositoryDeleteOneAndByProject(t *testing.T) {
 		} else {
 			f.onExec("DELETE", tc.affected)
 		}
-		assertSnapshotErr(t, (&SnapshotRepository{db: db}).DeleteSnapshot(ctx, "a"), tc.wantErr, tc.prefix)
+		assertSnapshotErr(t, (&SnapshotRepository{db: db}).Delete(ctx, "a"), tc.wantErr, tc.prefix)
 		if !snapshotHasArg(f, "a") {
 			t.Fatalf("id not bound: %v", f.args)
 		}
@@ -269,7 +269,7 @@ func TestSnapshotRepositoryDeleteOneAndByProject(t *testing.T) {
 
 	dbProj, fProj := newFakeDB(t)
 	fProj.onExec("DELETE", 0)
-	if err := (&SnapshotRepository{db: dbProj}).DeleteSnapshotsByProjectID(ctx, "p1"); err != nil {
+	if err := (&SnapshotRepository{db: dbProj}).DeleteByProject(ctx, "p1"); err != nil {
 		t.Fatal(err)
 	}
 	if !fProj.sawQuery("DELETE FROM", "Snapshot", "ProjectId") || !snapshotHasArg(fProj, "p1") {
@@ -278,7 +278,7 @@ func TestSnapshotRepositoryDeleteOneAndByProject(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("DELETE", snapshotBoom)
-	assertSnapshotErr(t, (&SnapshotRepository{db: dbErr}).DeleteSnapshotsByProjectID(ctx, "p1"), snapshotBoom, "failed to delete snapshots by project ID")
+	assertSnapshotErr(t, (&SnapshotRepository{db: dbErr}).DeleteByProject(ctx, "p1"), snapshotBoom, "failed to delete snapshots by project ID")
 }
 
 func TestSnapshotRepositoryDeleteOld(t *testing.T) {
@@ -286,7 +286,7 @@ func TestSnapshotRepositoryDeleteOld(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.onExec("DELETE", 2)
 	before := time.Now().Add(-time.Hour)
-	if err := (&SnapshotRepository{db: db}).DeleteOldSnapshots(ctx, "p1", time.Hour); err != nil {
+	if err := (&SnapshotRepository{db: db}).DeleteOlderThan(ctx, "p1", time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if !f.sawQuery("DELETE FROM", "Type", "CreatedAt") || !snapshotHasArg(f, SnapshotTypeWorking) {
@@ -296,7 +296,7 @@ func TestSnapshotRepositoryDeleteOld(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("DELETE", snapshotBoom)
-	assertSnapshotErr(t, (&SnapshotRepository{db: dbErr}).DeleteOldSnapshots(ctx, "p1", time.Hour), snapshotBoom, "failed to delete old snapshots")
+	assertSnapshotErr(t, (&SnapshotRepository{db: dbErr}).DeleteOlderThan(ctx, "p1", time.Hour), snapshotBoom, "failed to delete old snapshots")
 }
 
 func assertRecentCutoffArg(t *testing.T, args []driver.NamedValue, before time.Time) {
@@ -314,27 +314,27 @@ func TestSnapshotRepositoryCounts(t *testing.T) {
 	db, f := newFakeDB(t)
 	cols, rows := countRow(4)
 	f.on("count(", cols, rows...)
-	n, err := (&SnapshotRepository{db: db}).CountSnapshotsByProjectID(ctx, "p1")
+	n, err := (&SnapshotRepository{db: db}).CountByProject(ctx, "p1")
 	if err != nil || n != 4 || !snapshotHasArg(f, "p1") {
 		t.Fatalf("got %d, %v", n, err)
 	}
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("count(", snapshotBoom)
-	_, err = (&SnapshotRepository{db: dbErr}).CountSnapshotsByProjectID(ctx, "p1")
+	_, err = (&SnapshotRepository{db: dbErr}).CountByProject(ctx, "p1")
 	assertSnapshotErr(t, err, snapshotBoom, "failed to count snapshots")
 
 	dbType, fType := newFakeDB(t)
 	cols, rows = countRow(2)
 	fType.on("count(", cols, rows...)
-	n, err = (&SnapshotRepository{db: dbType}).CountSnapshotsByType(ctx, "p1", "published")
+	n, err = (&SnapshotRepository{db: dbType}).CountByType(ctx, "p1", "published")
 	if err != nil || n != 2 || !snapshotHasArg(fType, "published") {
 		t.Fatalf("got %d, %v", n, err)
 	}
 
-	_, err = (&SnapshotRepository{db: dbErr}).CountSnapshotsByType(ctx, "p1", "published")
+	_, err = (&SnapshotRepository{db: dbErr}).CountByType(ctx, "p1", "published")
 	assertSnapshotErr(t, err, snapshotBoom, "failed to count snapshots by type")
-	_, err = (&SnapshotRepository{db: dbErr}).CountSnapshotsByType(ctx, "p1", "bogus")
+	_, err = (&SnapshotRepository{db: dbErr}).CountByType(ctx, "p1", "bogus")
 	assertSnapshotErr(t, err, ErrInvalidSnapshotType, "")
 }
 

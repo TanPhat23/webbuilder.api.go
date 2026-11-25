@@ -26,11 +26,11 @@ func (s *ContentTypeService) WithProjectRepo(projectRepo repositories.ProjectRep
 	return s
 }
 
-func (s *ContentTypeService) GetContentTypes(ctx context.Context) ([]models.ContentType, error) {
-	return s.contentTypeRepo.GetContentTypes(ctx)
+func (s *ContentTypeService) List(ctx context.Context) ([]models.ContentType, error) {
+	return s.contentTypeRepo.List(ctx)
 }
 
-func (s *ContentTypeService) GetContentTypesForUser(ctx context.Context, userID, projectID string) ([]models.ContentType, error) {
+func (s *ContentTypeService) ListForUser(ctx context.Context, userID, projectID string) ([]models.ContentType, error) {
 	if userID == "" {
 		return nil, authz.ErrUnauthorized
 	}
@@ -40,20 +40,20 @@ func (s *ContentTypeService) GetContentTypesForUser(ctx context.Context, userID,
 				return nil, err
 			}
 		}
-		return s.contentTypeRepo.GetContentTypesByProject(ctx, projectID)
+		return s.contentTypeRepo.ListByProject(ctx, projectID)
 	}
-	return s.contentTypeRepo.GetContentTypesByUser(ctx, userID)
+	return s.contentTypeRepo.ListByUser(ctx, userID)
 }
 
-func (s *ContentTypeService) GetContentTypeByID(ctx context.Context, id string) (*models.ContentType, error) {
-	return s.contentTypeRepo.GetContentTypeByID(ctx, id)
+func (s *ContentTypeService) GetByID(ctx context.Context, id string) (*models.ContentType, error) {
+	return s.contentTypeRepo.GetByID(ctx, id)
 }
 
-func (s *ContentTypeService) GetContentTypeByIDForUser(ctx context.Context, id, userID string) (*models.ContentType, error) {
+func (s *ContentTypeService) GetByIDForUser(ctx context.Context, id, userID string) (*models.ContentType, error) {
 	if userID == "" {
 		return nil, authz.ErrUnauthorized
 	}
-	ct, err := s.contentTypeRepo.GetContentTypeByID(ctx, id)
+	ct, err := s.contentTypeRepo.GetByID(ctx, id)
 	if err != nil || ct == nil {
 		return ct, err
 	}
@@ -68,11 +68,11 @@ func (s *ContentTypeService) GetContentTypeByIDForUser(ctx context.Context, id, 
 	return ct, nil
 }
 
-func (s *ContentTypeService) CreateContentType(ctx context.Context, contentType *models.ContentType) (*models.ContentType, error) {
-	return s.contentTypeRepo.CreateContentType(ctx, contentType)
+func (s *ContentTypeService) Create(ctx context.Context, contentType *models.ContentType) (*models.ContentType, error) {
+	return s.contentTypeRepo.Create(ctx, contentType)
 }
 
-func (s *ContentTypeService) CreateContentTypeForUser(ctx context.Context, contentType *models.ContentType, userID string) (*models.ContentType, error) {
+func (s *ContentTypeService) CreateForUser(ctx context.Context, contentType *models.ContentType, userID string) (*models.ContentType, error) {
 	if userID == "" {
 		return nil, authz.ErrUnauthorized
 	}
@@ -87,30 +87,30 @@ func (s *ContentTypeService) CreateContentTypeForUser(ctx context.Context, conte
 			return nil, err
 		}
 	}
-	return s.contentTypeRepo.CreateContentType(ctx, contentType)
+	return s.contentTypeRepo.Create(ctx, contentType)
 }
 
-func (s *ContentTypeService) UpdateContentType(ctx context.Context, id string, contentType *models.ContentType) (*models.ContentType, error) {
+func (s *ContentTypeService) Update(ctx context.Context, id string, contentType *models.ContentType) (*models.ContentType, error) {
 	updates := map[string]any{
 		"name":        contentType.Name,
 		"description": contentType.Description,
 	}
-	return s.contentTypeRepo.UpdateContentType(ctx, id, updates)
+	return s.contentTypeRepo.Update(ctx, id, updates)
 }
 
-func (s *ContentTypeService) UpdateContentTypeForUser(ctx context.Context, id, userID string, contentType *models.ContentType) (*models.ContentType, error) {
+func (s *ContentTypeService) UpdateForUser(ctx context.Context, id, userID string, contentType *models.ContentType) (*models.ContentType, error) {
 	updates := map[string]any{
 		"name":        contentType.Name,
 		"description": contentType.Description,
 	}
-	return s.UpdateContentTypeFieldsForUser(ctx, id, userID, updates)
+	return s.PatchForUser(ctx, id, userID, updates)
 }
 
-func (s *ContentTypeService) UpdateContentTypeFieldsForUser(ctx context.Context, id, userID string, updates map[string]any) (*models.ContentType, error) {
+func (s *ContentTypeService) PatchForUser(ctx context.Context, id, userID string, updates map[string]any) (*models.ContentType, error) {
 	if userID == "" {
 		return nil, authz.ErrUnauthorized
 	}
-	existing, err := s.contentTypeRepo.GetContentTypeByID(ctx, id)
+	existing, err := s.contentTypeRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -125,18 +125,18 @@ func (s *ContentTypeService) UpdateContentTypeFieldsForUser(ctx context.Context,
 			return nil, err
 		}
 	}
-	return s.contentTypeRepo.UpdateContentType(ctx, id, updates)
+	return s.contentTypeRepo.Update(ctx, id, updates)
 }
 
-func (s *ContentTypeService) DeleteContentType(ctx context.Context, id string) error {
-	return s.contentTypeRepo.DeleteContentType(ctx, id)
+func (s *ContentTypeService) Delete(ctx context.Context, id string) error {
+	return s.contentTypeRepo.Delete(ctx, id)
 }
 
-func (s *ContentTypeService) DeleteContentTypeForUser(ctx context.Context, id, userID string) error {
+func (s *ContentTypeService) DeleteForUser(ctx context.Context, id, userID string) error {
 	if userID == "" {
 		return authz.ErrUnauthorized
 	}
-	existing, err := s.contentTypeRepo.GetContentTypeByID(ctx, id)
+	existing, err := s.contentTypeRepo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -151,5 +151,5 @@ func (s *ContentTypeService) DeleteContentTypeForUser(ctx context.Context, id, u
 			return err
 		}
 	}
-	return s.contentTypeRepo.DeleteContentType(ctx, id)
+	return s.contentTypeRepo.Delete(ctx, id)
 }

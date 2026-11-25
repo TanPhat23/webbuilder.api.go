@@ -19,37 +19,37 @@ type contentItemSvcStub struct {
 	items  []models.ContentItem
 	bySlug *models.ContentItem
 
-	created      *models.ContentItem
-	createdVals  []models.ContentFieldValue
-	updatedID    string
-	updates      map[string]any
-	updatedVals  []models.ContentFieldValue
-	deleted      string
-	publicArgs   []any
-	slugArgs     []string
+	created     *models.ContentItem
+	createdVals []models.ContentFieldValue
+	updatedID   string
+	updates     map[string]any
+	updatedVals []models.ContentFieldValue
+	deleted     string
+	publicArgs  []any
+	slugArgs    []string
 }
 
-func (s *contentItemSvcStub) GetContentItemsByContentType(_ context.Context, typeID string) ([]models.ContentItem, error) {
+func (s *contentItemSvcStub) ListByContentType(_ context.Context, typeID string) ([]models.ContentItem, error) {
 	return []models.ContentItem{{Id: "i1", ContentTypeId: typeID}}, s.err
 }
-func (s *contentItemSvcStub) GetContentItemByID(_ context.Context, id string) (*models.ContentItem, error) {
+func (s *contentItemSvcStub) GetByID(_ context.Context, id string) (*models.ContentItem, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.ContentItem{Id: id}, nil
 }
-func (s *contentItemSvcStub) GetContentItemBySlug(_ context.Context, typeID, slug string) (*models.ContentItem, error) {
+func (s *contentItemSvcStub) GetBySlug(_ context.Context, typeID, slug string) (*models.ContentItem, error) {
 	s.slugArgs = []string{typeID, slug}
 	if s.err != nil {
 		return nil, s.err
 	}
 	return s.bySlug, nil
 }
-func (s *contentItemSvcStub) GetPublicContentItems(_ context.Context, typeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error) {
+func (s *contentItemSvcStub) ListPublic(_ context.Context, typeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error) {
 	s.publicArgs = []any{typeID, limit, sortBy, sortOrder}
 	return s.items, s.err
 }
-func (s *contentItemSvcStub) CreateContentItem(_ context.Context, item *models.ContentItem, vals []models.ContentFieldValue) (*models.ContentItem, error) {
+func (s *contentItemSvcStub) Create(_ context.Context, item *models.ContentItem, vals []models.ContentFieldValue) (*models.ContentItem, error) {
 	s.created, s.createdVals = item, vals
 	if s.err != nil {
 		return nil, s.err
@@ -57,44 +57,44 @@ func (s *contentItemSvcStub) CreateContentItem(_ context.Context, item *models.C
 	item.Id = "i-new"
 	return item, nil
 }
-func (s *contentItemSvcStub) UpdateContentItem(_ context.Context, id string, updates map[string]any, vals []models.ContentFieldValue) (*models.ContentItem, error) {
+func (s *contentItemSvcStub) Update(_ context.Context, id string, updates map[string]any, vals []models.ContentFieldValue) (*models.ContentItem, error) {
 	s.updatedID, s.updates, s.updatedVals = id, updates, vals
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.ContentItem{Id: id}, nil
 }
-func (s *contentItemSvcStub) DeleteContentItem(_ context.Context, id string) error {
+func (s *contentItemSvcStub) Delete(_ context.Context, id string) error {
 	s.deleted = id
 	return s.err
 }
 
-func (s *contentItemSvcStub) GetContentItemsByContentTypeForUser(_ context.Context, typeID, _ string) ([]models.ContentItem, error) {
-	return s.GetContentItemsByContentType(context.Background(), typeID)
+func (s *contentItemSvcStub) ListByContentTypeForUser(_ context.Context, typeID, _ string) ([]models.ContentItem, error) {
+	return s.ListByContentType(context.Background(), typeID)
 }
-func (s *contentItemSvcStub) GetContentItemByIDForUser(_ context.Context, id, _ string) (*models.ContentItem, error) {
-	return s.GetContentItemByID(context.Background(), id)
+func (s *contentItemSvcStub) GetByIDForUser(_ context.Context, id, _ string) (*models.ContentItem, error) {
+	return s.GetByID(context.Background(), id)
 }
-func (s *contentItemSvcStub) CreateContentItemForUser(_ context.Context, item *models.ContentItem, vals []models.ContentFieldValue, _ string) (*models.ContentItem, error) {
-	return s.CreateContentItem(context.Background(), item, vals)
+func (s *contentItemSvcStub) CreateForUser(_ context.Context, item *models.ContentItem, vals []models.ContentFieldValue, _ string) (*models.ContentItem, error) {
+	return s.Create(context.Background(), item, vals)
 }
-func (s *contentItemSvcStub) UpdateContentItemForUser(_ context.Context, id, _ string, updates map[string]any, vals []models.ContentFieldValue) (*models.ContentItem, error) {
-	return s.UpdateContentItem(context.Background(), id, updates, vals)
+func (s *contentItemSvcStub) UpdateForUser(_ context.Context, id, _ string, updates map[string]any, vals []models.ContentFieldValue) (*models.ContentItem, error) {
+	return s.Update(context.Background(), id, updates, vals)
 }
-func (s *contentItemSvcStub) DeleteContentItemForUser(_ context.Context, id, _ string) error {
-	return s.DeleteContentItem(context.Background(), id)
+func (s *contentItemSvcStub) DeleteForUser(_ context.Context, id, _ string) error {
+	return s.Delete(context.Background(), id)
 }
 
 func contentItemKit(svc *contentItemSvcStub) *fiber.App {
 	h := NewContentItemHandler(svc)
 	return newKitApp("u1", func(app *fiber.App) {
-		app.Get("/public/items", h.GetPublicContentItems)
-		app.Get("/public/:contentTypeId/:slug", h.GetPublicContentItemBySlug)
-		app.Get("/types/:contentTypeId/items", h.GetContentItemsByContentType)
-		app.Post("/types/:contentTypeId/items", h.CreateContentItem)
-		app.Get("/items/:itemId", h.GetContentItemByID)
-		app.Patch("/items/:itemId", h.UpdateContentItem)
-		app.Delete("/items/:itemId", h.DeleteContentItem)
+		app.Get("/public/items", h.ListPublic)
+		app.Get("/public/:contentTypeId/:slug", h.GetPublicBySlug)
+		app.Get("/types/:contentTypeId/items", h.ListByContentType)
+		app.Post("/types/:contentTypeId/items", h.Create)
+		app.Get("/items/:itemId", h.GetByID)
+		app.Patch("/items/:itemId", h.Update)
+		app.Delete("/items/:itemId", h.Delete)
 	})
 }
 

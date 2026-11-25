@@ -12,16 +12,16 @@ import (
 func TestLoggerLevelsAndFormatting(t *testing.T) {
 	tests := []struct {
 		name string
-		call func(l *MyLogger)
+		call func(l *StdLogger)
 		want string
 	}{
-		{"Info", func(l *MyLogger) { l.Info("a", 1, "b") }, "[INFO] a 1 b\n"},
-		{"Infof", func(l *MyLogger) { l.Infof("n=%d s=%s", 7, "x") }, "[INFO] n=7 s=x\n"},
-		{"Error", func(l *MyLogger) { l.Error("boom", 2) }, "[ERROR] boom 2\n"},
-		{"Errorf", func(l *MyLogger) { l.Errorf("bad %v", "thing") }, "[ERROR] bad thing\n"},
-		{"Debug", func(l *MyLogger) { l.Debug("dbg") }, "[DEBUG] dbg\n"},
-		{"Debugf", func(l *MyLogger) { l.Debugf("%03d", 5) }, "[DEBUG] 005\n"},
-		{"Info no args", func(l *MyLogger) { l.Info() }, "[INFO] \n"},
+		{"Info", func(l *StdLogger) { l.Info("a", 1, "b") }, "[INFO] a 1 b\n"},
+		{"Infof", func(l *StdLogger) { l.Infof("n=%d s=%s", 7, "x") }, "[INFO] n=7 s=x\n"},
+		{"Error", func(l *StdLogger) { l.Error("boom", 2) }, "[ERROR] boom 2\n"},
+		{"Errorf", func(l *StdLogger) { l.Errorf("bad %v", "thing") }, "[ERROR] bad thing\n"},
+		{"Debug", func(l *StdLogger) { l.Debug("dbg") }, "[DEBUG] dbg\n"},
+		{"Debugf", func(l *StdLogger) { l.Debugf("%03d", 5) }, "[DEBUG] 005\n"},
+		{"Info no args", func(l *StdLogger) { l.Info() }, "[INFO] \n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestDefault(t *testing.T) {
 }
 
 func TestLoggerSatisfiesInterface(t *testing.T) {
-	var _ Logger = (*MyLogger)(nil)
+	var _ Logger = (*StdLogger)(nil)
 }
 
 func TestFatalExitsWithStatusOne(t *testing.T) {

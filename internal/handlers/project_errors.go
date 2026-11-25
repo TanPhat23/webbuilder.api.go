@@ -32,14 +32,14 @@ func projectAccessFailure(err error) (status int, message string, ok bool) {
 	}
 }
 
-// handleProjectError answers a failed project operation: access errors become
+// respondProjectError answers a failed project operation: access errors become
 // 403/404, a missing record 404, and everything else a 500 that carries only
 // internalMsg (the cause is logged, not returned).
-func handleProjectError(c fiber.Ctx, err error, internalMsg string) error {
+func respondProjectError(c fiber.Ctx, err error, internalMsg string) error {
 	if status, message, ok := projectAccessFailure(err); ok {
 		return utils.SendError(c, status, message, err)
 	}
-	return utils.HandleRepoError(c, err, "Project not found", internalMsg)
+	return utils.RespondError(c, err, "Project not found", internalMsg)
 }
 
 // projectAccessFiberError is projectAccessFailure for handlers that return

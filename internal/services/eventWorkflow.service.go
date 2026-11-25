@@ -23,7 +23,7 @@ func NewEventWorkflowService(
 	}
 }
 
-func (s *EventWorkflowService) CreateEventWorkflow(ctx context.Context, workflow *models.EventWorkflow, userID string) (*models.EventWorkflow, error) {
+func (s *EventWorkflowService) Create(ctx context.Context, workflow *models.EventWorkflow, userID string) (*models.EventWorkflow, error) {
 	if workflow == nil {
 		return nil, errors.New("workflow cannot be nil")
 	}
@@ -45,22 +45,22 @@ func (s *EventWorkflowService) CreateEventWorkflow(ctx context.Context, workflow
 		workflow.Handlers = []byte("[]")
 	}
 
-	return s.eventWorkflowRepo.CreateEventWorkflow(ctx, workflow)
+	return s.eventWorkflowRepo.Create(ctx, workflow)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowByID(ctx context.Context, id string) (*models.EventWorkflow, error) {
+func (s *EventWorkflowService) GetByID(ctx context.Context, id string) (*models.EventWorkflow, error) {
 	if id == "" {
 		return nil, errors.New("workflow id is required")
 	}
-	return s.eventWorkflowRepo.GetEventWorkflowByID(ctx, id)
+	return s.eventWorkflowRepo.GetByID(ctx, id)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) ListByProject(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -68,15 +68,15 @@ func (s *EventWorkflowService) GetEventWorkflowsByProjectID(ctx context.Context,
 		return nil, errors.New("project does not exist")
 	}
 
-	return s.eventWorkflowRepo.GetEventWorkflowsByProjectID(ctx, projectID)
+	return s.eventWorkflowRepo.ListByProject(ctx, projectID)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsByProjectIDWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) ListByProjectWithElements(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -84,15 +84,15 @@ func (s *EventWorkflowService) GetEventWorkflowsByProjectIDWithElements(ctx cont
 		return nil, errors.New("project does not exist")
 	}
 
-	return s.eventWorkflowRepo.GetEventWorkflowsByProjectIDWithElements(ctx, projectID)
+	return s.eventWorkflowRepo.ListByProjectWithElements(ctx, projectID)
 }
 
-func (s *EventWorkflowService) GetEnabledEventWorkflowsByProjectID(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) ListEnabledByProject(ctx context.Context, projectID string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -100,10 +100,10 @@ func (s *EventWorkflowService) GetEnabledEventWorkflowsByProjectID(ctx context.C
 		return nil, errors.New("project does not exist")
 	}
 
-	return s.eventWorkflowRepo.GetEnabledEventWorkflowsByProjectID(ctx, projectID)
+	return s.eventWorkflowRepo.ListEnabledByProject(ctx, projectID)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) ListByName(ctx context.Context, projectID, name string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -111,7 +111,7 @@ func (s *EventWorkflowService) GetEventWorkflowsByName(ctx context.Context, proj
 		return nil, errors.New("workflow name is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -119,10 +119,10 @@ func (s *EventWorkflowService) GetEventWorkflowsByName(ctx context.Context, proj
 		return nil, errors.New("project does not exist")
 	}
 
-	return s.eventWorkflowRepo.GetEventWorkflowsByName(ctx, projectID, name)
+	return s.eventWorkflowRepo.ListByName(ctx, projectID, name)
 }
 
-func (s *EventWorkflowService) UpdateEventWorkflow(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
+func (s *EventWorkflowService) Update(ctx context.Context, id string, workflow *models.EventWorkflow) (*models.EventWorkflow, error) {
 	if id == "" {
 		return nil, errors.New("workflow id is required")
 	}
@@ -133,7 +133,7 @@ func (s *EventWorkflowService) UpdateEventWorkflow(ctx context.Context, id strin
 		return nil, errors.New("workflow name is required")
 	}
 
-	existing, err := s.GetEventWorkflowByID(ctx, id)
+	existing, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -161,15 +161,15 @@ func (s *EventWorkflowService) UpdateEventWorkflow(ctx context.Context, id strin
 		workflow.CreatedAt = existing.CreatedAt
 	}
 
-	return s.eventWorkflowRepo.UpdateEventWorkflow(ctx, id, workflow)
+	return s.eventWorkflowRepo.Update(ctx, id, workflow)
 }
 
-func (s *EventWorkflowService) UpdateEventWorkflowEnabled(ctx context.Context, id string, enabled bool) error {
+func (s *EventWorkflowService) SetEnabled(ctx context.Context, id string, enabled bool) error {
 	if id == "" {
 		return errors.New("workflow id is required")
 	}
 
-	existing, err := s.GetEventWorkflowByID(ctx, id)
+	existing, err := s.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -177,15 +177,15 @@ func (s *EventWorkflowService) UpdateEventWorkflowEnabled(ctx context.Context, i
 		return errors.New("workflow does not exist")
 	}
 
-	return s.eventWorkflowRepo.UpdateEventWorkflowEnabled(ctx, id, enabled)
+	return s.eventWorkflowRepo.SetEnabled(ctx, id, enabled)
 }
 
-func (s *EventWorkflowService) DeleteEventWorkflow(ctx context.Context, id string) error {
+func (s *EventWorkflowService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("workflow id is required")
 	}
 
-	existing, err := s.GetEventWorkflowByID(ctx, id)
+	existing, err := s.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -193,15 +193,15 @@ func (s *EventWorkflowService) DeleteEventWorkflow(ctx context.Context, id strin
 		return errors.New("workflow does not exist")
 	}
 
-	return s.eventWorkflowRepo.DeleteEventWorkflow(ctx, id)
+	return s.eventWorkflowRepo.Delete(ctx, id)
 }
 
-func (s *EventWorkflowService) DeleteEventWorkflowsByProjectID(ctx context.Context, projectID string) error {
+func (s *EventWorkflowService) DeleteByProject(ctx context.Context, projectID string) error {
 	if projectID == "" {
 		return errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -209,15 +209,15 @@ func (s *EventWorkflowService) DeleteEventWorkflowsByProjectID(ctx context.Conte
 		return errors.New("project does not exist")
 	}
 
-	return s.eventWorkflowRepo.DeleteEventWorkflowsByProjectID(ctx, projectID)
+	return s.eventWorkflowRepo.DeleteByProject(ctx, projectID)
 }
 
-func (s *EventWorkflowService) CountEventWorkflowsByProjectID(ctx context.Context, projectID string) (int64, error) {
+func (s *EventWorkflowService) CountByProject(ctx context.Context, projectID string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectId is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -225,10 +225,10 @@ func (s *EventWorkflowService) CountEventWorkflowsByProjectID(ctx context.Contex
 		return 0, errors.New("project does not exist")
 	}
 
-	return s.eventWorkflowRepo.CountEventWorkflowsByProjectID(ctx, projectID)
+	return s.eventWorkflowRepo.CountByProject(ctx, projectID)
 }
 
-func (s *EventWorkflowService) CheckIfWorkflowNameExists(ctx context.Context, projectID, name, excludeID string) (bool, error) {
+func (s *EventWorkflowService) ExistsByName(ctx context.Context, projectID, name, excludeID string) (bool, error) {
 	if projectID == "" {
 		return false, errors.New("projectId is required")
 	}
@@ -236,7 +236,7 @@ func (s *EventWorkflowService) CheckIfWorkflowNameExists(ctx context.Context, pr
 		return false, errors.New("workflow name is required")
 	}
 
-	project, err := s.projectRepo.GetPublicProjectByID(ctx, projectID)
+	project, err := s.projectRepo.GetPublicByID(ctx, projectID)
 	if err != nil {
 		return false, fmt.Errorf("failed to verify project: %w", err)
 	}
@@ -244,10 +244,10 @@ func (s *EventWorkflowService) CheckIfWorkflowNameExists(ctx context.Context, pr
 		return false, errors.New("project does not exist")
 	}
 
-	return s.eventWorkflowRepo.CheckIfWorkflowNameExists(ctx, projectID, name, excludeID)
+	return s.eventWorkflowRepo.ExistsByName(ctx, projectID, name, excludeID)
 }
 
-func (s *EventWorkflowService) GetEventWorkflowsWithFilters(ctx context.Context, projectID, userID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
+func (s *EventWorkflowService) ListWithFilters(ctx context.Context, projectID, userID string, enabled *bool, searchName string) ([]models.EventWorkflow, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -256,5 +256,5 @@ func (s *EventWorkflowService) GetEventWorkflowsWithFilters(ctx context.Context,
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
 
-	return s.eventWorkflowRepo.GetEventWorkflowsWithFilters(ctx, projectID, enabled, searchName)
+	return s.eventWorkflowRepo.ListWithFilters(ctx, projectID, enabled, searchName)
 }

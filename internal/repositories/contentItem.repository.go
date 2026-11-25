@@ -24,7 +24,7 @@ func NewContentItemRepository(db *gorm.DB) ContentItemRepositoryInterface {
 	return &ContentItemRepository{db: db}
 }
 
-func (r *ContentItemRepository) GetContentItemsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error) {
+func (r *ContentItemRepository) ListByContentType(ctx context.Context, contentTypeID string) ([]models.ContentItem, error) {
 	if contentTypeID == "" {
 		return nil, errors.New("contentTypeID is required")
 	}
@@ -43,7 +43,7 @@ func (r *ContentItemRepository) GetContentItemsByContentType(ctx context.Context
 	return contentItems, nil
 }
 
-func (r *ContentItemRepository) GetContentItemByID(ctx context.Context, id string) (*models.ContentItem, error) {
+func (r *ContentItemRepository) GetByID(ctx context.Context, id string) (*models.ContentItem, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -64,7 +64,7 @@ func (r *ContentItemRepository) GetContentItemByID(ctx context.Context, id strin
 	return &contentItem, nil
 }
 
-func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
+func (r *ContentItemRepository) Create(ctx context.Context, ci *models.ContentItem, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
 	if err := validateNewContentItem(ci); err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (r *ContentItemRepository) CreateContentItem(ctx context.Context, ci *model
 	if err != nil {
 		return nil, err
 	}
-	return r.GetContentItemByID(ctx, ci.Id)
+	return r.GetByID(ctx, ci.Id)
 }
 
 func validateNewContentItem(ci *models.ContentItem) error {
@@ -157,14 +157,14 @@ func applyContentItemUpdates(ctx context.Context, tx *gorm.DB, existing *models.
 	return nil
 }
 
-func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
+func (r *ContentItemRepository) Update(ctx context.Context, id string, updates map[string]any, fieldValues []models.ContentFieldValue) (*models.ContentItem, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
 	if len(updates) == 0 && len(fieldValues) == 0 {
 		return nil, errors.New("no updates provided")
 	}
-	existing, err := r.GetContentItemByID(ctx, id)
+	existing, err := r.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (r *ContentItemRepository) UpdateContentItem(ctx context.Context, id string
 	if err != nil {
 		return nil, err
 	}
-	return r.GetContentItemByID(ctx, id)
+	return r.GetByID(ctx, id)
 }
 
 func replaceContentFieldValues(ctx context.Context, tx *gorm.DB, id string, fieldValues []models.ContentFieldValue) error {
@@ -196,7 +196,7 @@ func replaceContentFieldValues(ctx context.Context, tx *gorm.DB, id string, fiel
 	return insertContentFieldValues(ctx, tx, id, fieldValues)
 }
 
-func (r *ContentItemRepository) DeleteContentItem(ctx context.Context, id string) error {
+func (r *ContentItemRepository) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("id is required")
 	}
@@ -235,7 +235,7 @@ var publicContentItemOrders = map[string]map[string]string{
 	},
 }
 
-func (r *ContentItemRepository) GetPublicContentItems(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error) {
+func (r *ContentItemRepository) ListPublic(ctx context.Context, contentTypeID string, limit int, sortBy, sortOrder string) ([]models.ContentItem, error) {
 	if contentTypeID == "" {
 		return nil, errors.New("contentTypeID is required")
 	}
@@ -275,7 +275,7 @@ func (r *ContentItemRepository) GetPublicContentItems(ctx context.Context, conte
 	return contentItems, nil
 }
 
-func (r *ContentItemRepository) GetContentItemBySlug(ctx context.Context, contentTypeID, slug string) (*models.ContentItem, error) {
+func (r *ContentItemRepository) GetBySlug(ctx context.Context, contentTypeID, slug string) (*models.ContentItem, error) {
 	if contentTypeID == "" || slug == "" {
 		return nil, errors.New("contentTypeID and slug are required")
 	}

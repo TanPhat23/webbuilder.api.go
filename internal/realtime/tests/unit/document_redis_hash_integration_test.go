@@ -118,7 +118,7 @@ func runRandomOpsSeed(t *testing.T, ctx context.Context, ref, got domainUsecase.
 	page := fmt.Sprintf("%s-%d", testPage, seed)
 	next := 100 * int(seed)
 	for step := 0; step < 200; step++ {
-		cur, err := ref.GetElementsByPageID(ctx, project, page)
+		cur, err := ref.ListElementsByPage(ctx, project, page)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -129,7 +129,7 @@ func runRandomOpsSeed(t *testing.T, ctx context.Context, ref, got domainUsecase.
 }
 
 func pickRandomTargetID(rng *rand.Rand, els []entity.Element) string {
-	flat := elementutils.FlattenElements(els)
+	flat := elementutils.Flatten(els)
 	if len(flat) == 0 || rng.Intn(12) == 0 {
 		return uid(999999)
 	}
@@ -168,8 +168,8 @@ func executeRandomComparisonOp(
 		return "move", next, sr, er, sg, eg
 	case kind < 90:
 		id := pickRandomTargetID(rng, cur)
-		sr, er := ref.RemoveElement(ctx, project, page, id)
-		sg, eg := got.RemoveElement(ctx, project, page, id)
+		sr, er := ref.DeleteElement(ctx, project, page, id)
+		sg, eg := got.DeleteElement(ctx, project, page, id)
 		return "remove", next, sr, er, sg, eg
 	default:
 		sr, er, sg, eg := executeRandomUpdateOp(ctx, rng, ref, got, project, page, cur, step)
@@ -230,11 +230,11 @@ func executeRandomUpdateOp(
 
 func assertRandomOpDocsMatch(t *testing.T, ctx context.Context, ref, got domainUsecase.ElementUseCase, project, page string, seed int64, step int, op string) {
 	t.Helper()
-	a, err := ref.GetElementsByPageID(ctx, project, page)
+	a, err := ref.ListElementsByPage(ctx, project, page)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := got.GetElementsByPageID(ctx, project, page)
+	b, err := got.ListElementsByPage(ctx, project, page)
 	if err != nil {
 		t.Fatal(err)
 	}

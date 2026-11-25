@@ -15,85 +15,85 @@ func NewMockPageRepo() *MockPageRepo {
 	return &MockPageRepo{GenericMock: &GenericMock{funcs: make(map[string]any)}}
 }
 
-func (m *MockPageRepo) SetGetPagesByProjectID(fn func(context.Context, string) ([]models.Page, error)) *MockPageRepo {
-	m.Set("GetPagesByProjectID", fn)
+func (m *MockPageRepo) SetListByProject(fn func(context.Context, string) ([]models.Page, error)) *MockPageRepo {
+	m.Set("ListByProject", fn)
 	return m
 }
 
-func (m *MockPageRepo) SetGetPageByID(fn func(context.Context, string, string) (*models.Page, error)) *MockPageRepo {
-	m.Set("GetPageByID", fn)
+func (m *MockPageRepo) SetGetByID(fn func(context.Context, string, string) (*models.Page, error)) *MockPageRepo {
+	m.Set("GetByID", fn)
 	return m
 }
 
-func (m *MockPageRepo) SetCreatePage(fn func(context.Context, *models.Page) error) *MockPageRepo {
-	m.Set("CreatePage", fn)
+func (m *MockPageRepo) SetCreate(fn func(context.Context, *models.Page) error) *MockPageRepo {
+	m.Set("Create", fn)
 	return m
 }
 
-func (m *MockPageRepo) SetUpdatePage(fn func(context.Context, *models.Page) error) *MockPageRepo {
-	m.Set("UpdatePage", fn)
+func (m *MockPageRepo) SetUpdate(fn func(context.Context, *models.Page) error) *MockPageRepo {
+	m.Set("Update", fn)
 	return m
 }
 
-func (m *MockPageRepo) SetUpdatePageFields(fn func(context.Context, string, map[string]any) error) *MockPageRepo {
-	m.Set("UpdatePageFields", fn)
+func (m *MockPageRepo) SetUpdateFields(fn func(context.Context, string, map[string]any) error) *MockPageRepo {
+	m.Set("UpdateFields", fn)
 	return m
 }
 
-func (m *MockPageRepo) SetDeletePage(fn func(context.Context, string) error) *MockPageRepo {
-	m.Set("DeletePage", fn)
+func (m *MockPageRepo) SetDelete(fn func(context.Context, string) error) *MockPageRepo {
+	m.Set("Delete", fn)
 	return m
 }
 
-func (m *MockPageRepo) SetDeletePageByProjectID(fn func(context.Context, string, string, string) error) *MockPageRepo {
-	m.Set("DeletePageByProjectID", fn)
+func (m *MockPageRepo) SetDeleteForUser(fn func(context.Context, string, string, string) error) *MockPageRepo {
+	m.Set("DeleteForUser", fn)
 	return m
 }
 
-func (m *MockPageRepo) GetPagesByProjectID(ctx context.Context, projectID string) ([]models.Page, error) {
-	if fn := m.Get("GetPagesByProjectID"); fn != nil {
+func (m *MockPageRepo) ListByProject(ctx context.Context, projectID string) ([]models.Page, error) {
+	if fn := m.Get("ListByProject"); fn != nil {
 		return fn.(func(context.Context, string) ([]models.Page, error))(ctx, projectID)
 	}
 	return nil, nil
 }
 
-func (m *MockPageRepo) GetPageByID(ctx context.Context, pageID, projectID string) (*models.Page, error) {
-	if fn := m.Get("GetPageByID"); fn != nil {
+func (m *MockPageRepo) GetByID(ctx context.Context, pageID, projectID string) (*models.Page, error) {
+	if fn := m.Get("GetByID"); fn != nil {
 		return fn.(func(context.Context, string, string) (*models.Page, error))(ctx, pageID, projectID)
 	}
 	return nil, nil
 }
 
-func (m *MockPageRepo) CreatePage(ctx context.Context, page *models.Page) error {
-	if fn := m.Get("CreatePage"); fn != nil {
+func (m *MockPageRepo) Create(ctx context.Context, page *models.Page) error {
+	if fn := m.Get("Create"); fn != nil {
 		return fn.(func(context.Context, *models.Page) error)(ctx, page)
 	}
 	return nil
 }
 
-func (m *MockPageRepo) UpdatePage(ctx context.Context, page *models.Page) error {
-	if fn := m.Get("UpdatePage"); fn != nil {
+func (m *MockPageRepo) Update(ctx context.Context, page *models.Page) error {
+	if fn := m.Get("Update"); fn != nil {
 		return fn.(func(context.Context, *models.Page) error)(ctx, page)
 	}
 	return nil
 }
 
-func (m *MockPageRepo) UpdatePageFields(ctx context.Context, pageID string, updates map[string]any) error {
-	if fn := m.Get("UpdatePageFields"); fn != nil {
+func (m *MockPageRepo) UpdateFields(ctx context.Context, pageID string, updates map[string]any) error {
+	if fn := m.Get("UpdateFields"); fn != nil {
 		return fn.(func(context.Context, string, map[string]any) error)(ctx, pageID, updates)
 	}
 	return nil
 }
 
-func (m *MockPageRepo) DeletePage(ctx context.Context, pageID string) error {
-	if fn := m.Get("DeletePage"); fn != nil {
+func (m *MockPageRepo) Delete(ctx context.Context, pageID string) error {
+	if fn := m.Get("Delete"); fn != nil {
 		return fn.(func(context.Context, string) error)(ctx, pageID)
 	}
 	return nil
 }
 
-func (m *MockPageRepo) DeletePageByProjectID(ctx context.Context, pageID, projectID, userID string) error {
-	if fn := m.Get("DeletePageByProjectID"); fn != nil {
+func (m *MockPageRepo) DeleteForUser(ctx context.Context, pageID, projectID, userID string) error {
+	if fn := m.Get("DeleteForUser"); fn != nil {
 		return fn.(func(context.Context, string, string, string) error)(ctx, pageID, projectID, userID)
 	}
 	return nil

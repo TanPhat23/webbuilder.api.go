@@ -23,15 +23,15 @@ func ParentsEqual(p1, p2 *string) bool {
 	return *p1 == *p2
 }
 
-func CompareParent(p *string, id string) bool {
+func HasParent(p *string, id string) bool {
 	if p == nil {
 		return id == ""
 	}
 	return *p == id
 }
 
-// FlattenElements flattens nested Elements for database operations, bounded to MaxElementDepth and MaxElementNodes.
-func FlattenElements(elements []entity.Element) []entity.Element {
+// Flatten flattens nested Elements for database operations, bounded to MaxElementDepth and MaxElementNodes.
+func Flatten(elements []entity.Element) []entity.Element {
 	result := make([]entity.Element, 0, len(elements))
 	flatten(elements, &result, 1)
 	return result
@@ -52,8 +52,8 @@ func flatten(elements []entity.Element, result *[]entity.Element, depth int) {
 	}
 }
 
-// BuildElementTree converts a flat list of elements into a hierarchical tree based on ParentID.
-func BuildElementTree(elements []entity.Element) []entity.Element {
+// BuildTree converts a flat list of elements into a hierarchical tree based on ParentID.
+func BuildTree(elements []entity.Element) []entity.Element {
 	if len(elements) == 0 {
 		return nil
 	}
@@ -148,7 +148,7 @@ func sortElementIDs(ids []string, elementMap map[string]entity.Element) {
 	})
 }
 
-func UpdateElement(root *entity.Element, updated entity.Element) bool {
+func Update(root *entity.Element, updated entity.Element) bool {
 	return updateElementAtDepth(root, updated, 1)
 }
 
@@ -168,7 +168,7 @@ func updateElementAtDepth(root *entity.Element, updated entity.Element, depth in
 	return false
 }
 
-func DeleteElement(root *entity.Element, id string) bool {
+func Delete(root *entity.Element, id string) bool {
 	return deleteElementAtDepth(root, id, 1)
 }
 
@@ -190,7 +190,7 @@ func deleteElementAtDepth(root *entity.Element, id string, depth int) bool {
 	return false
 }
 
-func SwapElements(root *entity.Element, id1, id2 string) bool {
+func Swap(root *entity.Element, id1, id2 string) bool {
 	return swapElementsAtDepth(root, id1, id2, 1)
 }
 
@@ -224,7 +224,7 @@ func findSwapIndices(children []entity.Element, id1, id2 string) (int, int) {
 	return idx1, idx2
 }
 
-func CreateElement(root *entity.Element, newElement entity.Element) bool {
+func InsertChild(root *entity.Element, newElement entity.Element) bool {
 	return createElementAtDepth(root, newElement, 1)
 }
 

@@ -21,14 +21,14 @@ func TestUserService_Lookups(t *testing.T) {
 	}
 	lookups := []lookup{
 		{"ByID", func(r *fkUserRepo, f func(string) (*models.User, error)) {
-			r.OnGetUserByID = func(_ context.Context, v string) (*models.User, error) { return f(v) }
-		}, func(s *UserService, in string) (*models.User, error) { return s.GetUserByID(ctx, in) }, "GetUserByID", "userId is required"},
+			r.OnGetByID = func(_ context.Context, v string) (*models.User, error) { return f(v) }
+		}, func(s *UserService, in string) (*models.User, error) { return s.GetByID(ctx, in) }, "GetByID", "userId is required"},
 		{"ByEmail", func(r *fkUserRepo, f func(string) (*models.User, error)) {
-			r.OnGetUserByEmail = func(_ context.Context, v string) (*models.User, error) { return f(v) }
-		}, func(s *UserService, in string) (*models.User, error) { return s.GetUserByEmail(ctx, in) }, "GetUserByEmail", "email is required"},
+			r.OnGetByEmail = func(_ context.Context, v string) (*models.User, error) { return f(v) }
+		}, func(s *UserService, in string) (*models.User, error) { return s.GetByEmail(ctx, in) }, "GetByEmail", "email is required"},
 		{"ByUsername", func(r *fkUserRepo, f func(string) (*models.User, error)) {
-			r.OnGetUserByUsername = func(_ context.Context, v string) (*models.User, error) { return f(v) }
-		}, func(s *UserService, in string) (*models.User, error) { return s.GetUserByUsername(ctx, in) }, "GetUserByUsername", "username is required"},
+			r.OnGetByUsername = func(_ context.Context, v string) (*models.User, error) { return f(v) }
+		}, func(s *UserService, in string) (*models.User, error) { return s.GetByUsername(ctx, in) }, "GetByUsername", "username is required"},
 	}
 
 	for _, l := range lookups {
@@ -76,26 +76,26 @@ func TestUserService_SearchUsers(t *testing.T) {
 
 	t.Run("blank query", func(t *testing.T) {
 		repo := &fkUserRepo{}
-		_, err := NewUserService(repo).SearchUsers(ctx, " ")
+		_, err := NewUserService(repo).Search(ctx, " ")
 		wantErr(t, err, "query is required")
 		wantCalls(t, repo.Calls)
 	})
 	t.Run("results forwarded", func(t *testing.T) {
-		repo := &fkUserRepo{OnSearchUsers: func(_ context.Context, q string) ([]models.User, error) {
+		repo := &fkUserRepo{OnSearch: func(_ context.Context, q string) ([]models.User, error) {
 			if q != "al" {
 				t.Errorf("query = %q", q)
 			}
 			return []models.User{{}, {}}, nil
 		}}
-		res, err := NewUserService(repo).SearchUsers(ctx, "al")
+		res, err := NewUserService(repo).Search(ctx, "al")
 		wantNoErr(t, err)
 		if len(res) != 2 {
 			t.Fatalf("len = %d", len(res))
 		}
 	})
 	t.Run("repo error", func(t *testing.T) {
-		repo := &fkUserRepo{OnSearchUsers: func(context.Context, string) ([]models.User, error) { return nil, errBoom }}
-		_, err := NewUserService(repo).SearchUsers(ctx, "al")
+		repo := &fkUserRepo{OnSearch: func(context.Context, string) ([]models.User, error) { return nil, errBoom }}
+		_, err := NewUserService(repo).Search(ctx, "al")
 		if !errors.Is(err, errBoom) {
 			t.Fatalf("err = %v", err)
 		}

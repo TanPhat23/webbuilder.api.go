@@ -17,7 +17,7 @@ type eventWorkflowSvcStub struct {
 	services.EventWorkflowServiceInterface
 	err      error
 	nilOnGet bool
-	// emptyCreate makes CreateEventWorkflow return a workflow without JSON fields.
+	// emptyCreate makes Create return a workflow without JSON fields.
 	emptyCreate bool
 
 	created    *models.EventWorkflow
@@ -33,7 +33,7 @@ type eventWorkflowSvcStub struct {
 	fSearch    string
 }
 
-func (s *eventWorkflowSvcStub) CreateEventWorkflow(_ context.Context, w *models.EventWorkflow, userID string) (*models.EventWorkflow, error) {
+func (s *eventWorkflowSvcStub) Create(_ context.Context, w *models.EventWorkflow, userID string) (*models.EventWorkflow, error) {
 	s.created, s.createUser = w, strings.Clone(userID)
 	if s.err != nil {
 		return nil, s.err
@@ -44,7 +44,7 @@ func (s *eventWorkflowSvcStub) CreateEventWorkflow(_ context.Context, w *models.
 	}
 	return w, nil
 }
-func (s *eventWorkflowSvcStub) GetEventWorkflowByID(_ context.Context, id string) (*models.EventWorkflow, error) {
+func (s *eventWorkflowSvcStub) GetByID(_ context.Context, id string) (*models.EventWorkflow, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -53,27 +53,27 @@ func (s *eventWorkflowSvcStub) GetEventWorkflowByID(_ context.Context, id string
 	}
 	return &models.EventWorkflow{Id: id, Name: "existing", Enabled: true}, nil
 }
-func (s *eventWorkflowSvcStub) GetEventWorkflowsWithFilters(_ context.Context, projectID, userID string, enabled *bool, search string) ([]models.EventWorkflow, error) {
+func (s *eventWorkflowSvcStub) ListWithFilters(_ context.Context, projectID, userID string, enabled *bool, search string) ([]models.EventWorkflow, error) {
 	s.fProject, s.fUser, s.fEnabled, s.fSearch = strings.Clone(projectID), strings.Clone(userID), enabled, strings.Clone(search)
 	if s.err != nil {
 		return nil, s.err
 	}
 	return []models.EventWorkflow{{Id: "w1"}, {Id: "w2"}, {Id: "w3"}}, nil
 }
-func (s *eventWorkflowSvcStub) UpdateEventWorkflow(_ context.Context, id string, w *models.EventWorkflow) (*models.EventWorkflow, error) {
+func (s *eventWorkflowSvcStub) Update(_ context.Context, id string, w *models.EventWorkflow) (*models.EventWorkflow, error) {
 	s.updatedID, s.updated = strings.Clone(id), w
 	if s.err != nil && !s.nilOnGet {
-		// GetEventWorkflowByID shares err; tests that reach here use updateErr instead.
+		// GetByID shares err; tests that reach here use updateErr instead.
 		return w, nil
 	}
 	w.Id = id
 	return w, nil
 }
-func (s *eventWorkflowSvcStub) UpdateEventWorkflowEnabled(_ context.Context, id string, enabled bool) error {
+func (s *eventWorkflowSvcStub) SetEnabled(_ context.Context, id string, enabled bool) error {
 	s.enabledID, s.enabled = strings.Clone(id), &enabled
 	return s.err
 }
-func (s *eventWorkflowSvcStub) DeleteEventWorkflow(_ context.Context, id string) error {
+func (s *eventWorkflowSvcStub) Delete(_ context.Context, id string) error {
 	s.deletedID = strings.Clone(id)
 	return s.err
 }
@@ -84,26 +84,26 @@ type eventWorkflowUpdateFailStub struct {
 	updateErr error
 }
 
-func (s *eventWorkflowUpdateFailStub) UpdateEventWorkflow(context.Context, string, *models.EventWorkflow) (*models.EventWorkflow, error) {
+func (s *eventWorkflowUpdateFailStub) Update(context.Context, string, *models.EventWorkflow) (*models.EventWorkflow, error) {
 	return nil, s.updateErr
 }
 
 func eventWorkflowKit(userID string, svc services.EventWorkflowServiceInterface, links services.ElementEventWorkflowServiceInterface) *fiber.App {
 	h := NewEventWorkflowHandler(svc, links)
 	return newKitApp(userID, func(app *fiber.App) {
-		app.Post("/workflows", h.CreateEventWorkflow)
-		app.Get("/projects/:projectid/workflows", h.GetEventWorkflowsByProject)
-		app.Get("/workflows/:id/elements", h.GetEventWorkflowElements)
-		app.Patch("/workflows/:id/enabled", h.UpdateEventWorkflowEnabled)
-		app.Get("/workflows/:id", h.GetEventWorkflowByID)
-		app.Put("/workflows/:id", h.UpdateEventWorkflow)
-		app.Delete("/workflows/:id", h.DeleteEventWorkflow)
-		app.Get("/noparam/get", h.GetEventWorkflowByID)
-		app.Get("/noparam/project", h.GetEventWorkflowsByProject)
-		app.Put("/noparam/update", h.UpdateEventWorkflow)
-		app.Patch("/noparam/enabled", h.UpdateEventWorkflowEnabled)
-		app.Delete("/noparam/delete", h.DeleteEventWorkflow)
-		app.Get("/noparam/elements", h.GetEventWorkflowElements)
+		app.Post("/workflows", h.Create)
+		app.Get("/projects/:projectid/workflows", h.ListByProject)
+		app.Get("/workflows/:id/elements", h.ListElements)
+		app.Patch("/workflows/:id/enabled", h.SetEnabled)
+		app.Get("/workflows/:id", h.GetByID)
+		app.Put("/workflows/:id", h.Update)
+		app.Delete("/workflows/:id", h.Delete)
+		app.Get("/noparam/get", h.GetByID)
+		app.Get("/noparam/project", h.ListByProject)
+		app.Put("/noparam/update", h.Update)
+		app.Patch("/noparam/enabled", h.SetEnabled)
+		app.Delete("/noparam/delete", h.Delete)
+		app.Get("/noparam/elements", h.ListElements)
 	})
 }
 

@@ -19,12 +19,12 @@ func NewUserService(userRepo repositories.UserRepositoryInterface) *UserService 
 	}
 }
 
-func (s *UserService) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
+func (s *UserService) GetByID(ctx context.Context, userID string) (*models.User, error) {
 	if strings.TrimSpace(userID) == "" {
 		return nil, errors.New("userId is required")
 	}
 
-	user, err := s.userRepo.GetUserByID(ctx, userID)
+	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -35,12 +35,12 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*models.U
 	return user, nil
 }
 
-func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	if strings.TrimSpace(email) == "" {
 		return nil, errors.New("email is required")
 	}
 
-	user, err := s.userRepo.GetUserByEmail(ctx, email)
+	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -51,12 +51,12 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models
 	return user, nil
 }
 
-func (s *UserService) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+func (s *UserService) GetByUsername(ctx context.Context, username string) (*models.User, error) {
 	if strings.TrimSpace(username) == "" {
 		return nil, errors.New("username is required")
 	}
 
-	user, err := s.userRepo.GetUserByUsername(ctx, username)
+	user, err := s.userRepo.GetByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
@@ -67,10 +67,10 @@ func (s *UserService) GetUserByUsername(ctx context.Context, username string) (*
 	return user, nil
 }
 
-func (s *UserService) SearchUsers(ctx context.Context, query string) ([]models.User, error) {
+func (s *UserService) Search(ctx context.Context, query string) ([]models.User, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, errors.New("query is required")
 	}
 
-	return s.userRepo.SearchUsers(ctx, query)
+	return s.userRepo.Search(ctx, query)
 }

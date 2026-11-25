@@ -211,7 +211,7 @@ func savePageLogic(ctx context.Context, tx *sql.Tx, projectID, pageID string, do
 
 func decodeLogic(raw []byte) (logic.Document, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return logic.Empty(), nil
+		return logic.NewEmptyDocument(), nil
 	}
 	var doc logic.Document
 	if err := json.Unmarshal(raw, &doc); err != nil {

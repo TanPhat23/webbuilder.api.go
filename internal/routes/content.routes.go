@@ -9,7 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func ContentRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.RepositoriesInterface, emitter ...services.ItemEventEmitter) {
+func RegisterContent(publicGroup, privateGroup fiber.Router, repos *repositories.Repositories, emitter ...services.ItemEventEmitter) {
 	var itemEmitter services.ItemEventEmitter
 	if len(emitter) > 0 {
 		itemEmitter = emitter[0]
@@ -25,40 +25,40 @@ func ContentRoutes(publicGroup, privateGroup fiber.Router, repos *repositories.R
 	publicCollectionHandler := handlers.NewPublicCollectionHandler(publicCollectionService)
 	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
-	publicGroup.Get("/public/content", contentItemHandler.GetPublicContentItems)
-	publicGroup.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicContentItemBySlug)
+	publicGroup.Get("/public/content", contentItemHandler.ListPublic)
+	publicGroup.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicBySlug)
 	publicGroup.Get("/public/projects/:projectId/collections/:collection/items", publicCollectionHandler.ListPublicItems)
 	publicGroup.Post("/public/projects/:projectId/collections/:collection/items", publicCollectionHandler.SubmitPublicItem)
 
-	privateGroup.Get("/projects/:projectid/content-types", authorizer.RequireProjectPermission("projectid", authz.PermCMSView), contentTypeHandler.GetContentTypes)
-	privateGroup.Post("/projects/:projectid/content-types", authorizer.RequireProjectPermission("projectid", authz.PermCMSEdit), contentTypeHandler.CreateContentType)
+	privateGroup.Get("/projects/:projectid/content-types", authorizer.RequireProjectPermission("projectid", authz.PermCMSView), contentTypeHandler.List)
+	privateGroup.Post("/projects/:projectid/content-types", authorizer.RequireProjectPermission("projectid", authz.PermCMSEdit), contentTypeHandler.Create)
 
-	privateGroup.Post("/content-types", contentTypeHandler.CreateContentType)
-	privateGroup.Get("/content-types", contentTypeHandler.GetContentTypes)
-	privateGroup.Get("/content-types/:id", contentTypeHandler.GetContentTypeByID)
-	privateGroup.Patch("/content-types/:id", contentTypeHandler.UpdateContentType)
-	privateGroup.Delete("/content-types/:id", contentTypeHandler.DeleteContentType)
+	privateGroup.Post("/content-types", contentTypeHandler.Create)
+	privateGroup.Get("/content-types", contentTypeHandler.List)
+	privateGroup.Get("/content-types/:id", contentTypeHandler.GetByID)
+	privateGroup.Patch("/content-types/:id", contentTypeHandler.Update)
+	privateGroup.Delete("/content-types/:id", contentTypeHandler.Delete)
 
 	// Fields and items nested under a content type (the shape the web UI calls).
-	privateGroup.Post("/content-types/:contentTypeId/fields", contentFieldHandler.CreateContentField)
-	privateGroup.Get("/content-types/:contentTypeId/fields", contentFieldHandler.GetContentFieldsByContentType)
-	privateGroup.Get("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.GetContentFieldByID)
-	privateGroup.Patch("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.UpdateContentField)
-	privateGroup.Delete("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.DeleteContentField)
-	privateGroup.Post("/content-types/:contentTypeId/items", contentItemHandler.CreateContentItem)
-	privateGroup.Get("/content-types/:contentTypeId/items", contentItemHandler.GetContentItemsByContentType)
-	privateGroup.Get("/content-types/:contentTypeId/items/:itemId", contentItemHandler.GetContentItemByID)
-	privateGroup.Patch("/content-types/:contentTypeId/items/:itemId", contentItemHandler.UpdateContentItem)
-	privateGroup.Delete("/content-types/:contentTypeId/items/:itemId", contentItemHandler.DeleteContentItem)
+	privateGroup.Post("/content-types/:contentTypeId/fields", contentFieldHandler.Create)
+	privateGroup.Get("/content-types/:contentTypeId/fields", contentFieldHandler.ListByContentType)
+	privateGroup.Get("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.GetByID)
+	privateGroup.Patch("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.Update)
+	privateGroup.Delete("/content-types/:contentTypeId/fields/:fieldId", contentFieldHandler.Delete)
+	privateGroup.Post("/content-types/:contentTypeId/items", contentItemHandler.Create)
+	privateGroup.Get("/content-types/:contentTypeId/items", contentItemHandler.ListByContentType)
+	privateGroup.Get("/content-types/:contentTypeId/items/:itemId", contentItemHandler.GetByID)
+	privateGroup.Patch("/content-types/:contentTypeId/items/:itemId", contentItemHandler.Update)
+	privateGroup.Delete("/content-types/:contentTypeId/items/:itemId", contentItemHandler.Delete)
 
 	// Flat forms. The param names must match what the handlers read.
-	privateGroup.Get("/content-fields/:contentTypeId", contentFieldHandler.GetContentFieldsByContentType)
-	privateGroup.Get("/content-fields/by-id/:fieldId", contentFieldHandler.GetContentFieldByID)
-	privateGroup.Patch("/content-fields/:fieldId", contentFieldHandler.UpdateContentField)
-	privateGroup.Delete("/content-fields/:fieldId", contentFieldHandler.DeleteContentField)
+	privateGroup.Get("/content-fields/:contentTypeId", contentFieldHandler.ListByContentType)
+	privateGroup.Get("/content-fields/by-id/:fieldId", contentFieldHandler.GetByID)
+	privateGroup.Patch("/content-fields/:fieldId", contentFieldHandler.Update)
+	privateGroup.Delete("/content-fields/:fieldId", contentFieldHandler.Delete)
 
-	privateGroup.Get("/content-items/:contentTypeId", contentItemHandler.GetContentItemsByContentType)
-	privateGroup.Get("/content-items/by-id/:itemId", contentItemHandler.GetContentItemByID)
-	privateGroup.Patch("/content-items/:itemId", contentItemHandler.UpdateContentItem)
-	privateGroup.Delete("/content-items/:itemId", contentItemHandler.DeleteContentItem)
+	privateGroup.Get("/content-items/:contentTypeId", contentItemHandler.ListByContentType)
+	privateGroup.Get("/content-items/by-id/:itemId", contentItemHandler.GetByID)
+	privateGroup.Patch("/content-items/:itemId", contentItemHandler.Update)
+	privateGroup.Delete("/content-items/:itemId", contentItemHandler.Delete)
 }

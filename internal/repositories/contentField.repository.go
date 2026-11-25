@@ -23,7 +23,7 @@ func NewContentFieldRepository(db *gorm.DB) ContentFieldRepositoryInterface {
 	return &ContentFieldRepository{db: db}
 }
 
-func (r *ContentFieldRepository) GetContentFieldsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error) {
+func (r *ContentFieldRepository) ListByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error) {
 	if contentTypeID == "" {
 		return nil, errors.New("contentTypeID is required")
 	}
@@ -40,7 +40,7 @@ func (r *ContentFieldRepository) GetContentFieldsByContentType(ctx context.Conte
 	return contentFields, nil
 }
 
-func (r *ContentFieldRepository) GetContentFieldByID(ctx context.Context, id string) (*models.ContentField, error) {
+func (r *ContentFieldRepository) GetByID(ctx context.Context, id string) (*models.ContentField, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -59,7 +59,7 @@ func (r *ContentFieldRepository) GetContentFieldByID(ctx context.Context, id str
 	return &contentField, nil
 }
 
-func (r *ContentFieldRepository) CreateContentField(ctx context.Context, cf *models.ContentField) (*models.ContentField, error) {
+func (r *ContentFieldRepository) Create(ctx context.Context, cf *models.ContentField) (*models.ContentField, error) {
 	var err error
 	if cf == nil {
 		return nil, errors.New("content field cannot be nil")
@@ -92,7 +92,7 @@ func (r *ContentFieldRepository) CreateContentField(ctx context.Context, cf *mod
 	return cf, nil
 }
 
-func (r *ContentFieldRepository) UpdateContentField(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error) {
+func (r *ContentFieldRepository) Update(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -102,7 +102,7 @@ func (r *ContentFieldRepository) UpdateContentField(ctx context.Context, id stri
 	}
 
 	// Check if content field exists
-	existing, err := r.GetContentFieldByID(ctx, id)
+	existing, err := r.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (r *ContentFieldRepository) UpdateContentField(ctx context.Context, id stri
 	return &contentField, nil
 }
 
-func (r *ContentFieldRepository) DeleteContentField(ctx context.Context, id string) error {
+func (r *ContentFieldRepository) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("id is required")
 	}

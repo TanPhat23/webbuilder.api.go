@@ -52,14 +52,14 @@ func TestElementSaveSnapshotValidationAndRepoErrors(t *testing.T) {
 	wantErr(t, err, "projectId is required")
 	wantCalls(t, e.sr.Calls)
 
-	e.sr.OnSaveSnapshot = func(context.Context, string, *models.Snapshot) error { return errBoom }
+	e.sr.OnSave = func(context.Context, string, *models.Snapshot) error { return errBoom }
 	_, err = e.svc.SaveSnapshot(ctx, newSaveSnapshotReq())
 	isBoom(t, err)
 	wantCalls(t, e.er.Calls)
 
 	e = newElementEnv()
-	e.sr.OnSaveSnapshot = func(context.Context, string, *models.Snapshot) error { return nil }
-	e.er.OnReplaceElements = func(context.Context, string, []models.EditorElement) error { return errBoom }
+	e.sr.OnSave = func(context.Context, string, *models.Snapshot) error { return nil }
+	e.er.OnReplace = func(context.Context, string, []models.EditorElement) error { return errBoom }
 	_, err = e.svc.SaveSnapshot(ctx, newSaveSnapshotReq())
 	isBoom(t, err)
 }
@@ -70,11 +70,11 @@ func TestElementSaveSnapshotSuccess(t *testing.T) {
 	var snap *models.Snapshot
 	var replaced []models.EditorElement
 	var proj string
-	e.sr.OnSaveSnapshot = func(_ context.Context, p string, s *models.Snapshot) error {
+	e.sr.OnSave = func(_ context.Context, p string, s *models.Snapshot) error {
 		proj, snap = p, s
 		return nil
 	}
-	e.er.OnReplaceElements = func(_ context.Context, p string, els []models.EditorElement) error {
+	e.er.OnReplace = func(_ context.Context, p string, els []models.EditorElement) error {
 		if p != "pr" {
 			t.Errorf("project = %q", p)
 		}
@@ -108,7 +108,7 @@ func TestElementWorkflowLinksNilRepos(t *testing.T) {
 	ctx := context.Background()
 	s := NewElementService(nil, nil, nil, nil)
 
-	ws, err := s.GetElementEventWorkflows(ctx, "e")
+	ws, err := s.List(ctx, "e")
 	wantNoErr(t, err)
 	if ws == nil || len(ws) != 0 {
 		t.Fatalf("ws = %#v", ws)
@@ -138,20 +138,20 @@ func TestElementWorkflowLinksNilRepos(t *testing.T) {
 func TestElementWorkflowLinksCRUD(t *testing.T) {
 	ctx := context.Background()
 	e := newElementEnv()
-	e.eew.OnGetElementEventWorkflowsByElementID = func(context.Context, string) ([]models.ElementEventWorkflow, error) {
+	e.eew.OnListByElement = func(context.Context, string) ([]models.ElementEventWorkflow, error) {
 		return []models.ElementEventWorkflow{{Id: "x"}}, nil
 	}
-	got, err := e.svc.GetElementEventWorkflows(ctx, "e")
+	got, err := e.svc.List(ctx, "e")
 	wantNoErr(t, err)
 	if len(got) != 1 || got[0].Id != "x" {
 		t.Fatalf("got %v", got)
 	}
-	e.eew.OnGetElementEventWorkflowsByElementID = func(context.Context, string) ([]models.ElementEventWorkflow, error) { return nil, errBoom }
-	_, err = e.svc.GetElementEventWorkflows(ctx, "e")
+	e.eew.OnListByElement = func(context.Context, string) ([]models.ElementEventWorkflow, error) { return nil, errBoom }
+	_, err = e.svc.List(ctx, "e")
 	isBoom(t, err)
 
 	var sent *models.ElementEventWorkflow
-	e.eew.OnCreateElementEventWorkflow = func(_ context.Context, x *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+	e.eew.OnCreate = func(_ context.Context, x *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
 		sent = x
 		return x, nil
 	}
@@ -163,7 +163,7 @@ func TestElementWorkflowLinksCRUD(t *testing.T) {
 	if link.EventName != "click" || sent != link {
 		t.Fatalf("got %+v", link)
 	}
-	e.eew.OnCreateElementEventWorkflow = func(context.Context, *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+	e.eew.OnCreate = func(context.Context, *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
 		return nil, errBoom
 	}
 	_, err = e.svc.LinkElementToWorkflow(ctx, "e", "w", "click")
@@ -173,13 +173,13 @@ func TestElementWorkflowLinksCRUD(t *testing.T) {
 func TestElementWorkflowLinksUnlinkAndLookups(t *testing.T) {
 	ctx := context.Background()
 	e := newElementEnv()
-	e.eew.OnGetElementEventWorkflowsByFilters = func(_ context.Context, element, workflow, event string) ([]models.ElementEventWorkflow, error) {
+	e.eew.OnListByFilters = func(_ context.Context, element, workflow, event string) ([]models.ElementEventWorkflow, error) {
 		if element != "e" || workflow != "w" || event != "n" {
 			t.Fatal("incorrect filters")
 		}
 		return []models.ElementEventWorkflow{{Id: "link"}}, nil
 	}
-	e.eew.OnDeleteElementEventWorkflow = func(_ context.Context, id string) error {
+	e.eew.OnDelete = func(_ context.Context, id string) error {
 		if id != "link" {
 			t.Fatal(id)
 		}
@@ -187,10 +187,10 @@ func TestElementWorkflowLinksUnlinkAndLookups(t *testing.T) {
 	}
 	wantNoErr(t, e.svc.UnlinkElementFromWorkflow(ctx, "e", "w", "n"))
 
-	e.wr.OnGetEventWorkflowsByProjectID = func(_ context.Context, p string) ([]models.EventWorkflow, error) {
+	e.wr.OnListByProject = func(_ context.Context, p string) ([]models.EventWorkflow, error) {
 		return []models.EventWorkflow{{}}, nil
 	}
-	e.wr.OnGetEnabledEventWorkflowsByProjectID = func(context.Context, string) ([]models.EventWorkflow, error) {
+	e.wr.OnListEnabledByProject = func(context.Context, string) ([]models.EventWorkflow, error) {
 		return []models.EventWorkflow{{}, {}}, nil
 	}
 	a, err := e.svc.GetProjectWorkflows(ctx, "p")
@@ -200,8 +200,8 @@ func TestElementWorkflowLinksUnlinkAndLookups(t *testing.T) {
 	if len(a) != 1 || len(b) != 2 {
 		t.Fatalf("%d %d", len(a), len(b))
 	}
-	e.wr.OnGetEventWorkflowsByProjectID = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
-	e.wr.OnGetEnabledEventWorkflowsByProjectID = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
+	e.wr.OnListByProject = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
+	e.wr.OnListEnabledByProject = func(context.Context, string) ([]models.EventWorkflow, error) { return nil, errBoom }
 	_, err = e.svc.GetProjectWorkflows(ctx, "p")
 	isBoom(t, err)
 	_, err = e.svc.GetEnabledWorkflows(ctx, "p")
@@ -211,7 +211,7 @@ func TestElementWorkflowLinksUnlinkAndLookups(t *testing.T) {
 func TestElementWorkflowLinksByEvent(t *testing.T) {
 	ctx := context.Background()
 	e := newElementEnv()
-	e.eew.OnGetElementEventWorkflowsByEventName = func(_ context.Context, n string) ([]models.ElementEventWorkflow, error) {
+	e.eew.OnListByEvent = func(_ context.Context, n string) ([]models.ElementEventWorkflow, error) {
 		return []models.ElementEventWorkflow{{EventName: n}}, nil
 	}
 	got, err := e.svc.GetWorkflowsByEvent(ctx, "click")
@@ -219,7 +219,7 @@ func TestElementWorkflowLinksByEvent(t *testing.T) {
 	if len(got) != 1 || got[0].EventName != "click" {
 		t.Fatalf("got %v", got)
 	}
-	e.eew.OnGetElementEventWorkflowsByEventName = func(context.Context, string) ([]models.ElementEventWorkflow, error) { return nil, errBoom }
+	e.eew.OnListByEvent = func(context.Context, string) ([]models.ElementEventWorkflow, error) { return nil, errBoom }
 	_, err = e.svc.GetWorkflowsByEvent(ctx, "click")
 	isBoom(t, err)
 }
@@ -233,12 +233,12 @@ func TestElementGetPageElements(t *testing.T) {
 	_, err = e.svc.GetPageElements(ctx, &proto.PageElementsRequest{PageId: "pg"})
 	wantErr(t, err, "projectId is required")
 
-	e.er.OnGetElementsByPageID = func(context.Context, string) ([]models.Element, error) { return nil, errBoom }
+	e.er.OnListByPage = func(context.Context, string) ([]models.Element, error) { return nil, errBoom }
 	_, err = e.svc.GetPageElements(ctx, &proto.PageElementsRequest{PageId: "pg", ProjectId: "p"})
 	isBoom(t, err)
 
 	parent, content, settings := "root", "hello", rawp(`{"a":1}`)
-	e.er.OnGetElementsByPageID = func(_ context.Context, id string) ([]models.Element, error) {
+	e.er.OnListByPage = func(_ context.Context, id string) ([]models.Element, error) {
 		if id != "pg" {
 			t.Errorf("page = %q", id)
 		}

@@ -29,7 +29,7 @@ func main() {
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
 	// Initialize database connection
-	db, err := database.InitDB()
+	db, err := database.Connect()
 	if err != nil {
 		log.Fatal("Failed to initialize database connection pool:", err)
 	}

@@ -143,9 +143,9 @@ func (r *documentRepository) SetDocument(ctx context.Context, projectID string, 
 	// A fresh version, so a whole-document update that read the replaced page cannot apply.
 	fields[structField] = strconv.FormatInt(time.Now().UnixNano(), 10)
 
-	hashKey := r.getHashKey(projectID, pageID)
+	hashKey := r.hashKey(projectID, pageID)
 	if _, err := r.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Del(ctx, hashKey, r.getKey(projectID, pageID))
+		pipe.Del(ctx, hashKey, r.docKey(projectID, pageID))
 		pipe.HSet(ctx, hashKey, fields)
 		pipe.Expire(ctx, hashKey, r.ttl)
 		return nil
@@ -169,7 +169,7 @@ func (r *documentRepository) GetDocument(ctx context.Context, projectID string, 
 
 // DeleteDocument removes the page elements from Redis
 func (r *documentRepository) DeleteDocument(ctx context.Context, projectID string, pageID string) error {
-	if err := r.client.Del(ctx, r.getHashKey(projectID, pageID), r.getKey(projectID, pageID)).Err(); err != nil {
+	if err := r.client.Del(ctx, r.hashKey(projectID, pageID), r.docKey(projectID, pageID)).Err(); err != nil {
 		return fmt.Errorf("failed to delete key from redis: %w", err)
 	}
 
@@ -221,7 +221,7 @@ func (r *documentRepository) SetDocumentIfAbsent(ctx context.Context, projectID 
 	for id, v := range raw {
 		args = append(args, id, v)
 	}
-	keys := []string{r.getHashKey(projectID, pageID), r.getKey(projectID, pageID)}
+	keys := []string{r.hashKey(projectID, pageID), r.docKey(projectID, pageID)}
 	if err := setIfAbsentScript.Run(ctx, r.client, keys, args...).Err(); err != nil {
 		return fmt.Errorf("failed to set value in redis: %w", err)
 	}
@@ -251,8 +251,8 @@ func (r *documentRepository) GetDocumentWithSeq(ctx context.Context, projectID s
 
 func (r *documentRepository) readHashAndSeq(ctx context.Context, projectID, pageID string) (map[string]string, int64, error) {
 	pipe := r.client.TxPipeline()
-	hashCmd := pipe.HGetAll(ctx, r.getHashKey(projectID, pageID))
-	seqCmd := pipe.Get(ctx, r.getSeqKey(projectID, pageID))
+	hashCmd := pipe.HGetAll(ctx, r.hashKey(projectID, pageID))
+	seqCmd := pipe.Get(ctx, r.seqKey(projectID, pageID))
 	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
 		return nil, 0, fmt.Errorf("failed to read document snapshot from redis: %w", err)
 	}
@@ -267,7 +267,7 @@ func (r *documentRepository) resolveStoredDoc(ctx context.Context, projectID, pa
 	if doc := docFromHash(hashVals); doc.present {
 		return doc, nil
 	}
-	return r.readLegacy(ctx, projectID, pageID)
+	return r.readJSONBlob(ctx, projectID, pageID)
 }
 
 // UpdateDocument atomically applies mutate to the current document (loading it with load on a
@@ -327,7 +327,7 @@ func (r *documentRepository) loadDocElements(ctx context.Context, projectID, pag
 // element, so edits to different elements of the same page never conflict. It falls back to a
 // whole-document update when the page is not in the hash yet (cache miss or legacy layout).
 func (r *documentRepository) PatchDocumentElement(ctx context.Context, projectID string, pageID string, elementID string, load domainRepo.DocumentLoadFunc, mutate domainRepo.ElementMutateFunc) (int64, error) {
-	hashKey := r.getHashKey(projectID, pageID)
+	hashKey := r.hashKey(projectID, pageID)
 	for attempt := 0; attempt < maxUpdateRetries; attempt++ {
 		seq, applied, err := r.tryPatchElementOnce(ctx, hashKey, projectID, pageID, elementID, load, mutate)
 		if err != nil {
@@ -357,7 +357,7 @@ func (r *documentRepository) tryPatchElementOnce(ctx context.Context, hashKey, p
 		return 0, false, err
 	}
 	res, err := patchElementScript.Run(ctx, r.client,
-		[]string{hashKey, r.getSeqKey(projectID, pageID), dirtyPageKey},
+		[]string{hashKey, r.seqKey(projectID, pageID), dirtyPageKey},
 		int64(r.ttl/time.Second), int64(seqTTL/time.Second), dirtyMember(projectID, pageID), elementID, prev, next,
 	).Int64()
 	if err != nil {
@@ -418,7 +418,7 @@ func (r *documentRepository) applyDiff(ctx context.Context, projectID, pageID st
 	}, append(sets, dels...)...)
 
 	res, err := applyDocumentScript.Run(ctx, r.client,
-		[]string{r.getHashKey(projectID, pageID), r.getSeqKey(projectID, pageID), dirtyPageKey, r.getKey(projectID, pageID)},
+		[]string{r.hashKey(projectID, pageID), r.seqKey(projectID, pageID), dirtyPageKey, r.docKey(projectID, pageID)},
 		args...,
 	).Int64()
 	if err != nil {
@@ -453,14 +453,14 @@ func diffDocumentEntries(prev, next map[string]string) (sets []any, nSets int, d
 
 // readDoc reads a page from the hash, falling back to the legacy single-string layout.
 func (r *documentRepository) readDoc(ctx context.Context, projectID, pageID string) (*storedDoc, error) {
-	vals, err := r.client.HGetAll(ctx, r.getHashKey(projectID, pageID)).Result()
+	vals, err := r.client.HGetAll(ctx, r.hashKey(projectID, pageID)).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get value from redis: %w", err)
 	}
 	if doc := docFromHash(vals); doc.present {
 		return doc, nil
 	}
-	return r.readLegacy(ctx, projectID, pageID)
+	return r.readJSONBlob(ctx, projectID, pageID)
 }
 
 func docFromHash(vals map[string]string) *storedDoc {
@@ -472,8 +472,8 @@ func docFromHash(vals map[string]string) *storedDoc {
 	return &storedDoc{raw: vals, sv: sv, present: true}
 }
 
-func (r *documentRepository) readLegacy(ctx context.Context, projectID, pageID string) (*storedDoc, error) {
-	val, err := r.client.Get(ctx, r.getKey(projectID, pageID)).Result()
+func (r *documentRepository) readJSONBlob(ctx context.Context, projectID, pageID string) (*storedDoc, error) {
+	val, err := r.client.Get(ctx, r.docKey(projectID, pageID)).Result()
 	if errors.Is(err, redis.Nil) {
 		return &storedDoc{}, nil
 	}
@@ -502,7 +502,7 @@ func (d *storedDoc) tree() ([]domainEntity.Element, error) {
 		}
 		flat = append(flat, el)
 	}
-	tree := elementutils.BuildElementTree(flat)
+	tree := elementutils.BuildTree(flat)
 	if tree == nil {
 		tree = []domainEntity.Element{}
 	}
@@ -554,15 +554,15 @@ func dirtyMember(projectID, pageID string) string {
 	return fmt.Sprintf("%s:%s", projectID, pageID)
 }
 
-func (r *documentRepository) getSeqKey(projectID string, pageID string) string {
-	return r.getKey(projectID, pageID) + ":seq"
+func (r *documentRepository) seqKey(projectID string, pageID string) string {
+	return r.docKey(projectID, pageID) + ":seq"
 }
 
-func (r *documentRepository) getHashKey(projectID string, pageID string) string {
-	return r.getKey(projectID, pageID) + ":els"
+func (r *documentRepository) hashKey(projectID string, pageID string) string {
+	return r.docKey(projectID, pageID) + ":els"
 }
 
-// getKey is the legacy single-string key; it also prefixes the hash and sequence keys.
-func (r *documentRepository) getKey(projectID string, pageID string) string {
+// docKey is the legacy single-string key; it also prefixes the hash and sequence keys.
+func (r *documentRepository) docKey(projectID string, pageID string) string {
 	return fmt.Sprintf("page:%s:%s", projectID, pageID)
 }

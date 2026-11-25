@@ -89,7 +89,7 @@ func (r *elementWorkflowRepository) GetElementWorkflowByElementID(ctx context.Co
 	return &workflow, nil
 }
 
-func (r *elementWorkflowRepository) GetElementWorkflowsByProjectID(ctx context.Context, projectID string) ([]entity.ElementEventWorkflow, error) {
+func (r *elementWorkflowRepository) ListElementWorkflowsByProject(ctx context.Context, projectID string) ([]entity.ElementEventWorkflow, error) {
 	var workflows []entity.ElementEventWorkflow
 	err := r.db.WithContext(ctx).
 		Preload("Element").
@@ -103,7 +103,7 @@ func (r *elementWorkflowRepository) GetElementWorkflowsByProjectID(ctx context.C
 	return workflows, nil
 }
 
-func (r *elementWorkflowRepository) GetElementWorkflowsByPageID(ctx context.Context, projectID string, pageID string) ([]entity.ElementEventWorkflow, error) {
+func (r *elementWorkflowRepository) ListElementWorkflowsByPage(ctx context.Context, projectID string, pageID string) ([]entity.ElementEventWorkflow, error) {
 	var workflows []entity.ElementEventWorkflow
 	err := r.db.WithContext(ctx).
 		Preload("Element").

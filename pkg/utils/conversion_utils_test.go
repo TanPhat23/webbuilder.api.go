@@ -135,25 +135,25 @@ func TestConvertElementsToProto(t *testing.T) {
 }
 
 func TestConvertProtoElementsToModel(t *testing.T) {
-	if got := ConvertProtoElementsToModel(nil); got != nil {
+	if got := ConvertProtoToElements(nil); got != nil {
 		t.Errorf("nil: %v", got)
 	}
-	got := ConvertProtoElementsToModel([]*proto.Element{{Id: "a"}, nil, {Id: "b"}})
+	got := ConvertProtoToElements([]*proto.Element{{Id: "a"}, nil, {Id: "b"}})
 	if len(got) != 2 || got[0].Id != "a" || got[1].Id != "b" {
 		t.Errorf("nil entries must be skipped: %+v", got)
 	}
 }
 
 func TestEventWorkflowStringConversion(t *testing.T) {
-	if ConvertEventWorkflowsToString(nil) != nil || ConvertEventWorkflowsToString([]models.ElementEventWorkflow{}) != nil {
+	if MarshalEventWorkflows(nil) != nil || MarshalEventWorkflows([]models.ElementEventWorkflow{}) != nil {
 		t.Error("empty workflows must map to nil")
 	}
 	in := []models.ElementEventWorkflow{{Id: "1", EventName: "onClick", ElementId: "e", WorkflowId: "w"}}
-	s := ConvertEventWorkflowsToString(in)
+	s := MarshalEventWorkflows(in)
 	if s == nil {
 		t.Fatal("nil result")
 	}
-	back := ConvertStringToEventWorkflows(s)
+	back := UnmarshalEventWorkflows(s)
 	if len(back) != 1 || back[0].Id != "1" || back[0].EventName != "onClick" || back[0].ElementId != "e" || back[0].WorkflowId != "w" {
 		t.Errorf("round trip: %+v", back)
 	}
@@ -161,7 +161,7 @@ func TestEventWorkflowStringConversion(t *testing.T) {
 	empty := ""
 	bad := "{oops"
 	for name, in := range map[string]*string{"nil": nil, "empty": &empty, "invalid": &bad} {
-		got := ConvertStringToEventWorkflows(in)
+		got := UnmarshalEventWorkflows(in)
 		if got == nil || !reflect.DeepEqual(got, []models.ElementEventWorkflow{}) {
 			t.Errorf("%s: want empty non-nil slice, got %#v", name, got)
 		}

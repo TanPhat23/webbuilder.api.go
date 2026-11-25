@@ -15,7 +15,7 @@ var paramRe = regexp.MustCompile(`:[A-Za-z]+`)
 func registered(t *testing.T) map[string][]string {
 	t.Helper()
 	app := fiber.New()
-	routes.SetupRoutes(app, &repositories.RepositoriesInterface{}, nil, nil, nil)
+	routes.Register(app, &repositories.Repositories{}, nil, nil, nil)
 
 	got := map[string][]string{}
 	for _, r := range app.GetRoutes(true) {

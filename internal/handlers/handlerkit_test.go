@@ -29,7 +29,7 @@ const leakMarker = "10.0.0.5"
 // and struct validator). A non-empty userID is installed as the authenticated
 // user, the way the auth middleware does.
 func newKitApp(userID string, register func(app *fiber.App)) *fiber.App {
-	app := fiber.New(configs.FiberConfig())
+	app := fiber.New(configs.Fiber())
 	app.Use(func(c fiber.Ctx) error {
 		if userID != "" {
 			c.Locals("userId", userID)
@@ -105,4 +105,4 @@ func kitExpect(t *testing.T, r kitReply, status int, fragments ...string) {
 	}
 }
 
-func boolPtr(b bool) *bool    { return &b }
+func boolPtr(b bool) *bool { return &b }

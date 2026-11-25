@@ -70,9 +70,9 @@ type projectLookupCase struct {
 
 func projectLookupCases(ctx context.Context) []projectLookupCase {
 	return []projectLookupCase{
-		{"owned", "failed to get project", func(r *ProjectRepository) (*models.Project, error) { return r.GetProjectByID(ctx, "p1", "u1") }},
-		{"public", "failed to get public project", func(r *ProjectRepository) (*models.Project, error) { return r.GetPublicProjectByID(ctx, "p1") }},
-		{"locked", "failed to get project with lock", func(r *ProjectRepository) (*models.Project, error) { return r.GetProjectWithLock(ctx, "p1", "u1") }},
+		{"owned", "failed to get project", func(r *ProjectRepository) (*models.Project, error) { return r.GetByID(ctx, "p1", "u1") }},
+		{"public", "failed to get public project", func(r *ProjectRepository) (*models.Project, error) { return r.GetPublicByID(ctx, "p1") }},
+		{"locked", "failed to get project with lock", func(r *ProjectRepository) (*models.Project, error) { return r.GetWithLock(ctx, "p1", "u1") }},
 	}
 }
 
@@ -121,18 +121,18 @@ func TestProjectRepositoryLookupQueryShapes(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("SELECT", projectCols, projectRow("p1", "u1"))
-	if _, err := (&ProjectRepository{db: db}).GetProjectByID(ctx, "p1", "u1"); err != nil {
+	if _, err := (&ProjectRepository{db: db}).GetByID(ctx, "p1", "u1"); err != nil {
 		t.Fatal(err)
 	}
 	assertProjectQueries(t, f, "OwnerId", "DeletedAt", "IS NULL")
 	assertProjectArgs(t, f, "u1")
 
 	dbPub, fPub := newFakeDB(t)
-	assertProjectNotFound(t, func() error { _, err := (&ProjectRepository{db: dbPub}).GetPublicProjectByID(ctx, "p1"); return err })
+	assertProjectNotFound(t, func() error { _, err := (&ProjectRepository{db: dbPub}).GetPublicByID(ctx, "p1"); return err })
 	assertProjectQueries(t, fPub, "Published", "true")
 
 	dbLock, fLock := newFakeDB(t)
-	assertProjectNotFound(t, func() error { _, err := (&ProjectRepository{db: dbLock}).GetProjectWithLock(ctx, "p1", "u1"); return err })
+	assertProjectNotFound(t, func() error { _, err := (&ProjectRepository{db: dbLock}).GetWithLock(ctx, "p1", "u1"); return err })
 	assertProjectQueries(t, fLock, "FOR UPDATE")
 }
 
@@ -145,20 +145,20 @@ func TestProjectRepositoryGetProjectWithAccessSuccessAndMissing(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("SELECT", projectCols, projectRow("p1", "u9"))
-	got, err := (&ProjectRepository{db: db}).GetProjectWithAccess(ctx, "p1", "u1")
+	got, err := (&ProjectRepository{db: db}).GetWithAccess(ctx, "p1", "u1")
 	if err != nil || got.ID != "p1" || f.queryCount() != 1 {
 		t.Fatalf("got %+v, %v, queries=%v", got, err, f.queries)
 	}
 
 	dbCollab, fCollab := newFakeDB(t)
 	fCollab.on(`FROM "public"."Collaborator"`, []string{"Id", "UserId", "ProjectId"}, []driver.Value{"c1", "u1", "p1"})
-	gotCollab, err := (&ProjectRepository{db: dbCollab}).GetProjectWithAccess(ctx, "p1", "u1")
+	gotCollab, err := (&ProjectRepository{db: dbCollab}).GetWithAccess(ctx, "p1", "u1")
 	if gotCollab != nil || !errors.Is(err, ErrProjectNotFound) {
 		t.Fatalf("got %+v, %v", gotCollab, err)
 	}
 
 	dbStranger, _ := newFakeDB(t)
-	if gotStranger, err := (&ProjectRepository{db: dbStranger}).GetProjectWithAccess(ctx, "p1", "u1"); gotStranger != nil || !errors.Is(err, ErrProjectUnauthorized) {
+	if gotStranger, err := (&ProjectRepository{db: dbStranger}).GetWithAccess(ctx, "p1", "u1"); gotStranger != nil || !errors.Is(err, ErrProjectUnauthorized) {
 		t.Fatalf("got %+v, %v", gotStranger, err)
 	}
 }
@@ -167,7 +167,7 @@ func TestProjectRepositoryGetProjectWithAccessErrors(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onErr("SELECT", projectBoom)
-	_, err := (&ProjectRepository{db: db}).GetProjectWithAccess(ctx, "p1", "u1")
+	_, err := (&ProjectRepository{db: db}).GetWithAccess(ctx, "p1", "u1")
 	assertProjectErr(t, err, projectBoom, "failed to get project")
 	if f.queryCount() != 1 {
 		t.Fatalf("must not fall through to the collaborator check: %v", f.queries)
@@ -175,7 +175,7 @@ func TestProjectRepositoryGetProjectWithAccessErrors(t *testing.T) {
 
 	dbCollab, fCollab := newFakeDB(t)
 	fCollab.onErr(`FROM "public"."Collaborator"`, projectBoom)
-	_, err = (&ProjectRepository{db: dbCollab}).GetProjectWithAccess(ctx, "p1", "u1")
+	_, err = (&ProjectRepository{db: dbCollab}).GetWithAccess(ctx, "p1", "u1")
 	if errors.Is(err, ErrProjectUnauthorized) {
 		t.Fatalf("must not mask collaborator query error: %v", err)
 	}
@@ -189,8 +189,8 @@ func TestProjectRepositoryListQueries(t *testing.T) {
 		errMsg string
 		call   func(r *ProjectRepository) ([]models.Project, error)
 	}{
-		{"by user", "failed to get projects", func(r *ProjectRepository) ([]models.Project, error) { return r.GetProjectsByUserID(ctx, "u1") }},
-		{"collaborator", "failed to get collaborator projects", func(r *ProjectRepository) ([]models.Project, error) { return r.GetCollaboratorProjects(ctx, "u1") }},
+		{"by user", "failed to get projects", func(r *ProjectRepository) ([]models.Project, error) { return r.ListByUser(ctx, "u1") }},
+		{"collaborator", "failed to get collaborator projects", func(r *ProjectRepository) ([]models.Project, error) { return r.ListByCollaborator(ctx, "u1") }},
 	}
 	for _, tc := range lists {
 		assertProjectListResult(t, tc.name, tc.call)
@@ -233,13 +233,13 @@ func assertOmitsHeavyProjectColumns(t *testing.T, q string) {
 func TestProjectRepositoryListQuerySQLDetails(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
-	if _, err := (&ProjectRepository{db: db}).GetCollaboratorProjects(ctx, "u1"); err != nil {
+	if _, err := (&ProjectRepository{db: db}).ListByCollaborator(ctx, "u1"); err != nil {
 		t.Fatal(err)
 	}
 	assertProjectQueries(t, f, "JOIN", "Collaborator", "UserId")
 
 	dbOwned, fOwned := newFakeDB(t)
-	if _, err := (&ProjectRepository{db: dbOwned}).GetProjectsByUserID(ctx, "u1"); err != nil {
+	if _, err := (&ProjectRepository{db: dbOwned}).ListByUser(ctx, "u1"); err != nil {
 		t.Fatal(err)
 	}
 	assertProjectQueries(t, fOwned, "ORDER BY", "OwnerId", "DESC", "CreatedAt")
@@ -250,13 +250,13 @@ func TestProjectRepositoryGetProjectPages(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on(`FROM "public"."Project"`, projectCols, projectRow("p1", "u1"))
 	f.on(`FROM "public"."Page"`, []string{"Id", "ProjectId", "Name"}, []driver.Value{"a", "p1", "Home"}, []driver.Value{"b", "p1", "About"})
-	got, err := (&ProjectRepository{db: db}).GetProjectPages(ctx, "p1", "u1")
+	got, err := (&ProjectRepository{db: db}).ListPages(ctx, "p1", "u1")
 	if err != nil || len(got) != 2 || got[0].Name != "Home" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 
 	dbUnauth, fUnauth := newFakeDB(t)
-	assertProjectErr(t, func() error { _, err := (&ProjectRepository{db: dbUnauth}).GetProjectPages(ctx, "p1", "u1"); return err }(), ErrProjectUnauthorized, "")
+	assertProjectErr(t, func() error { _, err := (&ProjectRepository{db: dbUnauth}).ListPages(ctx, "p1", "u1"); return err }(), ErrProjectUnauthorized, "")
 	if fUnauth.sawQuery(`"public"."Page"`) {
 		t.Fatalf("pages must not be read: %v", fUnauth.queries)
 	}
@@ -264,7 +264,7 @@ func TestProjectRepositoryGetProjectPages(t *testing.T) {
 	dbErr, fErr := newFakeDB(t)
 	fErr.on(`FROM "public"."Project"`, projectCols, projectRow("p1", "u1"))
 	fErr.onErr(`FROM "public"."Page"`, projectBoom)
-	pages, err := (&ProjectRepository{db: dbErr}).GetProjectPages(ctx, "p1", "u1")
+	pages, err := (&ProjectRepository{db: dbErr}).ListPages(ctx, "p1", "u1")
 	if pages != nil {
 		t.Fatalf("unexpected pages: %+v", pages)
 	}
@@ -275,7 +275,7 @@ func TestProjectRepositoryCreateProject(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	p := &models.Project{ID: "p1", Name: "N", OwnerId: "u1", AuditFields: &models.AuditFields{}}
-	if err := (&ProjectRepository{db: db}).CreateProject(ctx, p); err != nil {
+	if err := (&ProjectRepository{db: db}).Create(ctx, p); err != nil {
 		t.Fatal(err)
 	}
 	if p.CreatedAt.IsZero() || !p.CreatedAt.Equal(p.UpdatedAt) {
@@ -286,7 +286,7 @@ func TestProjectRepositoryCreateProject(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("INSERT", projectBoom)
-	err := (&ProjectRepository{db: dbErr}).CreateProject(ctx, &models.Project{ID: "p1", AuditFields: &models.AuditFields{}})
+	err := (&ProjectRepository{db: dbErr}).Create(ctx, &models.Project{ID: "p1", AuditFields: &models.AuditFields{}})
 	assertProjectErr(t, err, projectBoom, "failed to create project")
 }
 
@@ -297,7 +297,7 @@ func TestProjectRepositoryUpdateProjectSuccess(t *testing.T) {
 	f.on("SELECT *", projectCols, projectRow("p1", "u1"))
 	f.onExec("UPDATE", 1)
 	updates := map[string]any{"Name": "Renamed"}
-	got, err := (&ProjectRepository{db: db}).UpdateProject(ctx, "p1", "u1", updates)
+	got, err := (&ProjectRepository{db: db}).Update(ctx, "p1", "u1", updates)
 	if err != nil || got.ID != "p1" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -312,7 +312,7 @@ func TestProjectRepositoryUpdateProjectErrors(t *testing.T) {
 	ctx := context.Background()
 	dbUnauth, fUnauth := newFakeDB(t)
 	projectCount(fUnauth, 0)
-	got, err := (&ProjectRepository{db: dbUnauth}).UpdateProject(ctx, "p1", "u2", map[string]any{"Name": "x"})
+	got, err := (&ProjectRepository{db: dbUnauth}).Update(ctx, "p1", "u2", map[string]any{"Name": "x"})
 	if got != nil || fUnauth.sawQuery("UPDATE") {
 		t.Fatalf("got %+v, %v", got, fUnauth.queries)
 	}
@@ -329,7 +329,7 @@ func TestProjectRepositoryUpdateProjectErrors(t *testing.T) {
 	} {
 		db, f := newFakeDB(t)
 		tc.rule(f)
-		_, err := (&ProjectRepository{db: db}).UpdateProject(ctx, "p1", "u1", map[string]any{"Name": "x"})
+		_, err := (&ProjectRepository{db: db}).Update(ctx, "p1", "u1", map[string]any{"Name": "x"})
 		assertProjectErr(t, err, tc.want, tc.prefix)
 	}
 }
@@ -339,7 +339,7 @@ func TestProjectRepositoryDeleteProject(t *testing.T) {
 	db, f := newFakeDB(t)
 	projectCount(f, 1)
 	f.onExec("UPDATE", 1)
-	if err := (&ProjectRepository{db: db}).DeleteProject(ctx, "p1", "u1"); err != nil {
+	if err := (&ProjectRepository{db: db}).Delete(ctx, "p1", "u1"); err != nil {
 		t.Fatal(err)
 	}
 	assertProjectQueries(t, f, "UPDATE", "DeletedAt")
@@ -349,7 +349,7 @@ func TestProjectRepositoryDeleteProject(t *testing.T) {
 
 	dbUnauth, fUnauth := newFakeDB(t)
 	projectCount(fUnauth, 0)
-	err := (&ProjectRepository{db: dbUnauth}).DeleteProject(ctx, "p1", "u2")
+	err := (&ProjectRepository{db: dbUnauth}).Delete(ctx, "p1", "u2")
 	assertProjectErr(t, err, ErrProjectUnauthorized, "")
 	if fUnauth.sawQuery("UPDATE") {
 		t.Fatalf("must not update: %v", fUnauth.queries)
@@ -360,12 +360,12 @@ func TestProjectRepositoryDeleteProjectErrors(t *testing.T) {
 	ctx := context.Background()
 	db1, f1 := newFakeDB(t)
 	f1.onErr("count(", projectBoom)
-	assertProjectErr(t, (&ProjectRepository{db: db1}).DeleteProject(ctx, "p1", "u1"), projectBoom, "failed to verify project ownership")
+	assertProjectErr(t, (&ProjectRepository{db: db1}).Delete(ctx, "p1", "u1"), projectBoom, "failed to verify project ownership")
 
 	db2, f2 := newFakeDB(t)
 	projectCount(f2, 1)
 	f2.onErr("UPDATE", projectBoom)
-	assertProjectErr(t, (&ProjectRepository{db: db2}).DeleteProject(ctx, "p1", "u1"), projectBoom, "failed to delete project")
+	assertProjectErr(t, (&ProjectRepository{db: db2}).Delete(ctx, "p1", "u1"), projectBoom, "failed to delete project")
 }
 
 func TestProjectRepositoryHardDeleteProject(t *testing.T) {
@@ -386,7 +386,7 @@ func TestProjectRepositoryHardDeleteProject(t *testing.T) {
 		} else {
 			f.onExec("DELETE", tc.affected)
 		}
-		assertProjectErr(t, (&ProjectRepository{db: db}).HardDeleteProject(ctx, "p1", "u1"), tc.wantErr, "")
+		assertProjectErr(t, (&ProjectRepository{db: db}).HardDelete(ctx, "p1", "u1"), tc.wantErr, "")
 		assertProjectQueries(t, f, "DELETE FROM", "Project")
 		assertProjectArgs(t, f, "u1")
 	}
@@ -411,7 +411,7 @@ func TestProjectRepositoryRestoreProject(t *testing.T) {
 		} else {
 			f.onExec("UPDATE", tc.affected)
 		}
-		err := (&ProjectRepository{db: db}).RestoreProject(ctx, "p1", "u1")
+		err := (&ProjectRepository{db: db}).Restore(ctx, "p1", "u1")
 		assertProjectErr(t, err, tc.wantErr, tc.prefix)
 	}
 }
@@ -446,7 +446,7 @@ func TestProjectRepositoryCreateProjectWithPageSuccess(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	p, pg := newValidProjectAndPage()
-	if err := (&ProjectRepository{db: db}).CreateProjectWithPage(ctx, p, pg); err != nil {
+	if err := (&ProjectRepository{db: db}).CreateWithPage(ctx, p, pg); err != nil {
 		t.Fatal(err)
 	}
 	assertSingleCommittedTx(t, f)
@@ -472,7 +472,7 @@ func TestProjectRepositoryCreateProjectWithPageRollbacks(t *testing.T) {
 	db1, f1 := newFakeDB(t)
 	f1.onErr(`INSERT INTO "public"."Project"`, projectBoom)
 	p1, pg1 := newValidProjectAndPage()
-	assertProjectErr(t, (&ProjectRepository{db: db1}).CreateProjectWithPage(ctx, p1, pg1), projectBoom, "failed to create project")
+	assertProjectErr(t, (&ProjectRepository{db: db1}).CreateWithPage(ctx, p1, pg1), projectBoom, "failed to create project")
 	if f1.aborts != 1 || f1.commits != 0 || f1.sawQuery(`INSERT INTO "public"."Page"`) {
 		t.Fatalf("aborts=%d commits=%d %v", f1.aborts, f1.commits, f1.queries)
 	}
@@ -480,7 +480,7 @@ func TestProjectRepositoryCreateProjectWithPageRollbacks(t *testing.T) {
 	db2, f2 := newFakeDB(t)
 	f2.onErr(`INSERT INTO "public"."Page"`, projectBoom)
 	p2, pg2 := newValidProjectAndPage()
-	assertProjectErr(t, (&ProjectRepository{db: db2}).CreateProjectWithPage(ctx, p2, pg2), projectBoom, "failed to create first page")
+	assertProjectErr(t, (&ProjectRepository{db: db2}).CreateWithPage(ctx, p2, pg2), projectBoom, "failed to create first page")
 	if f2.aborts != 1 || f2.commits != 0 {
 		t.Fatalf("aborts=%d commits=%d", f2.aborts, f2.commits)
 	}
@@ -490,7 +490,7 @@ func TestProjectRepositoryCreateProjectWithPageValidation(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	repo := &ProjectRepository{db: db}
-	if err := repo.CreateProjectWithPage(ctx, nil, &models.Page{}); err == nil || err.Error() != "project and page are required" {
+	if err := repo.CreateWithPage(ctx, nil, &models.Page{}); err == nil || err.Error() != "project and page are required" {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*models.Project){
@@ -500,7 +500,7 @@ func TestProjectRepositoryCreateProjectWithPageValidation(t *testing.T) {
 	} {
 		p, pg := newValidProjectAndPage()
 		mutate(p)
-		if err := repo.CreateProjectWithPage(ctx, p, pg); err == nil || err.Error() != "project id, name and owner are required" {
+		if err := repo.CreateWithPage(ctx, p, pg); err == nil || err.Error() != "project id, name and owner are required" {
 			t.Fatal(err)
 		}
 	}
@@ -513,7 +513,7 @@ func TestProjectRepositoryGetProjectAccessRoles(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on(`FROM "public"."Project"`, []string{"Id", "OwnerId"}, []driver.Value{"p1", "u1"})
-	got, err := (&ProjectRepository{db: db}).GetProjectAccess(ctx, "p1", "u1")
+	got, err := (&ProjectRepository{db: db}).GetAccess(ctx, "p1", "u1")
 	assertOwnerAccessResult(t, got, err)
 	if f.sawQuery(`"public"."Collaborator"`) {
 		t.Fatalf("owner should not query collaborators: %v", f.queries)
@@ -522,7 +522,7 @@ func TestProjectRepositoryGetProjectAccessRoles(t *testing.T) {
 	dbC, fC := newFakeDB(t)
 	fC.on(`FROM "public"."Project"`, []string{"Id", "OwnerId"}, []driver.Value{"p1", "u9"})
 	fC.on(`FROM "public"."Collaborator"`, []string{"Role"}, []driver.Value{"viewer"})
-	gotC, err := (&ProjectRepository{db: dbC}).GetProjectAccess(ctx, "p1", "u1")
+	gotC, err := (&ProjectRepository{db: dbC}).GetAccess(ctx, "p1", "u1")
 	assertCollaboratorAccessResult(t, gotC, err)
 }
 
@@ -552,23 +552,23 @@ func assertCollaboratorAccessResult(t *testing.T, got *models.ProjectAccess, err
 func TestProjectRepositoryGetProjectAccessNotFoundAndErrors(t *testing.T) {
 	ctx := context.Background()
 	dbMissing, _ := newFakeDB(t)
-	assertProjectNotFound(t, func() error { _, err := (&ProjectRepository{db: dbMissing}).GetProjectAccess(ctx, "p1", "u1"); return err })
+	assertProjectNotFound(t, func() error { _, err := (&ProjectRepository{db: dbMissing}).GetAccess(ctx, "p1", "u1"); return err })
 
 	dbNonCollab, fNonCollab := newFakeDB(t)
 	fNonCollab.on(`FROM "public"."Project"`, []string{"Id", "OwnerId"}, []driver.Value{"p1", "u9"})
 	assertProjectNotFound(t, func() error {
-		_, err := (&ProjectRepository{db: dbNonCollab}).GetProjectAccess(ctx, "p1", "u1")
+		_, err := (&ProjectRepository{db: dbNonCollab}).GetAccess(ctx, "p1", "u1")
 		return err
 	})
 
 	dbProjErr, fProjErr := newFakeDB(t)
 	fProjErr.onErr(`FROM "public"."Project"`, projectBoom)
-	_, err := (&ProjectRepository{db: dbProjErr}).GetProjectAccess(ctx, "p1", "u1")
+	_, err := (&ProjectRepository{db: dbProjErr}).GetAccess(ctx, "p1", "u1")
 	assertProjectErr(t, err, projectBoom, "failed to get project")
 
 	dbCollabErr, fCollabErr := newFakeDB(t)
 	fCollabErr.on(`FROM "public"."Project"`, []string{"Id", "OwnerId"}, []driver.Value{"p1", "u9"})
 	fCollabErr.onErr(`FROM "public"."Collaborator"`, projectBoom)
-	_, err = (&ProjectRepository{db: dbCollabErr}).GetProjectAccess(ctx, "p1", "u1")
+	_, err = (&ProjectRepository{db: dbCollabErr}).GetAccess(ctx, "p1", "u1")
 	assertProjectErr(t, err, projectBoom, "failed to get collaborator")
 }

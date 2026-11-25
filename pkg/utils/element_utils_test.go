@@ -14,7 +14,7 @@ func el(id, typ string, parent *string) *models.Element {
 
 func childIDs(t *testing.T, e models.EditorElement) []string {
 	t.Helper()
-	kids := GetChildrenFromEditorElement(e)
+	kids := EditorElementChildren(e)
 	ids := make([]string, len(kids))
 	for i, k := range kids {
 		ee, ok := k.(models.EditorElement)
@@ -57,9 +57,9 @@ func TestBuildElementTreeNestsChildrenUnderContainers(t *testing.T) {
 		t.Fatalf("roots must keep input order: %v", roots)
 	}
 	assertStringIDs(t, "section children", childIDs(t, roots[0]), []string{"frame", "btn"})
-	frameNode := GetChildrenFromEditorElement(roots[0])[0].(models.EditorElement)
+	frameNode := EditorElementChildren(roots[0])[0].(models.EditorElement)
 	assertStringIDs(t, "frame children", childIDs(t, frameNode), []string{"text1"})
-	if got := GetChildrenFromEditorElement(roots[1]); got != nil {
+	if got := EditorElementChildren(roots[1]); got != nil {
 		t.Errorf("childless container should be returned as-is, got children %v", got)
 	}
 }
@@ -69,15 +69,15 @@ func TestBuildElementTreeIgnoresChildrenOfNonContainersAndOrphans(t *testing.T) 
 	ghost := "does-not-exist"
 	in := []models.EditorElement{
 		el("text", "Text", nil),
-		el("under-text", "Button", &text),    // parent is not a container
-		el("orphan", "Text", &ghost),         // parent missing from input
-		(*models.Element)(nil),               // typed nil is skipped, not a panic
+		el("under-text", "Button", &text), // parent is not a container
+		el("orphan", "Text", &ghost),      // parent missing from input
+		(*models.Element)(nil),            // typed nil is skipped, not a panic
 	}
 	roots := BuildElementTree(in)
 	if len(roots) != 1 || roots[0].GetElement().Id != "text" {
 		t.Fatalf("only the true root survives: %v", roots)
 	}
-	if kids := GetChildrenFromEditorElement(roots[0]); kids != nil {
+	if kids := EditorElementChildren(roots[0]); kids != nil {
 		t.Errorf("non-container must not gain children: %v", kids)
 	}
 }
@@ -171,20 +171,20 @@ func TestConvertEditorElementsToAny(t *testing.T) {
 }
 
 func TestGetChildrenFromEditorElement(t *testing.T) {
-	if got := GetChildrenFromEditorElement(nil); got != nil {
+	if got := EditorElementChildren(nil); got != nil {
 		t.Errorf("nil element: %v", got)
 	}
-	if got := GetChildrenFromEditorElement((*models.Element)(nil)); got != nil {
+	if got := EditorElementChildren((*models.Element)(nil)); got != nil {
 		t.Errorf("typed nil element: %v", got)
 	}
-	if got := GetChildrenFromEditorElement(el("t", "Text", nil)); got != nil {
+	if got := EditorElementChildren(el("t", "Text", nil)); got != nil {
 		t.Errorf("non-container: %v", got)
 	}
-	if got := GetChildrenFromEditorElement(el("s", "Section", nil)); got != nil {
+	if got := EditorElementChildren(el("s", "Section", nil)); got != nil {
 		t.Errorf("plain container carries no children: %v", got)
 	}
 	w := WrapElementWithChildren(el("s", "Section", nil), []models.EditorElement{el("c", "Text", nil)})
-	if got := GetChildrenFromEditorElement(w); len(got) != 1 {
+	if got := EditorElementChildren(w); len(got) != 1 {
 		t.Errorf("wrapper children = %v", got)
 	}
 }

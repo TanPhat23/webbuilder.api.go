@@ -239,8 +239,8 @@ func (c *Client) SetPageID(pageID string) {
 	c.pageMu.Unlock()
 }
 
-// GetPageID returns the client's current page ID safely across goroutines.
-func (c *Client) GetPageID() string {
+// PageID returns the client's current page ID safely across goroutines.
+func (c *Client) PageID() string {
 	c.pageMu.RLock()
 	id := c.pageID
 	c.pageMu.RUnlock()
@@ -249,7 +249,7 @@ func (c *Client) GetPageID() string {
 
 // RoomID returns a composite room identifier to ensure uniqueness across projects.
 func (c *Client) RoomID() string {
-	pageID := c.GetPageID()
+	pageID := c.PageID()
 	if c.ProjectID == "" {
 		return pageID
 	}
@@ -265,8 +265,8 @@ func (c *Client) Close() {
 	c.CloseConn()
 }
 
-func (c *Client) Factory() *MessageFactory {
-	pageID := c.GetPageID()
+func (c *Client) NewMessageFactory() *MessageFactory {
+	pageID := c.PageID()
 	if c.User != nil && c.User.ID != "" {
 		return NewMessageFactory(c.ProjectID, pageID, c.User.ID)
 	}
@@ -286,7 +286,7 @@ func (c *Client) SetPresence(p domainEntity.PayloadPresence) {
 	}
 }
 
-func (c *Client) GetPresence() domainEntity.Presence {
+func (c *Client) Presence() domainEntity.Presence {
 	c.PresenceMu.Lock()
 	defer c.PresenceMu.Unlock()
 	return domainEntity.Presence{

@@ -40,8 +40,8 @@ func PublicMCPURL() string {
 	return "http://localhost:8090"
 }
 
-func validateInteractiveUser(c fiber.Ctx) (string, bool, error) {
-	userID, err := utils.ValidateUserID(c)
+func requireInteractiveUser(c fiber.Ctx) (string, bool, error) {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return "", false, err
 	}
@@ -54,7 +54,7 @@ func validateInteractiveUser(c fiber.Ctx) (string, bool, error) {
 }
 
 func (h *AgentTokenHandler) Create(c fiber.Ctx) error {
-	userID, ok, err := validateInteractiveUser(c)
+	userID, ok, err := requireInteractiveUser(c)
 	if !ok {
 		return err
 	}
@@ -81,7 +81,7 @@ func (h *AgentTokenHandler) Create(c fiber.Ctx) error {
 }
 
 func (h *AgentTokenHandler) List(c fiber.Ctx) error {
-	userID, ok, err := validateInteractiveUser(c)
+	userID, ok, err := requireInteractiveUser(c)
 	if !ok {
 		return err
 	}
@@ -93,7 +93,7 @@ func (h *AgentTokenHandler) List(c fiber.Ctx) error {
 }
 
 func (h *AgentTokenHandler) Revoke(c fiber.Ctx) error {
-	userID, ok, err := validateInteractiveUser(c)
+	userID, ok, err := requireInteractiveUser(c)
 	if !ok {
 		return err
 	}

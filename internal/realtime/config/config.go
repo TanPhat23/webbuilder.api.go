@@ -40,31 +40,31 @@ type RedisConfig struct {
 	DB       int
 }
 
-// LoadConfig loads configuration from environment variables
-func LoadConfig() (*Config, error) {
+// Load loads configuration from environment variables
+func Load() (*Config, error) {
 	// Load .env file if it exists
 	_ = godotenv.Load()
 
 	return &Config{
-		ServerPort: getEnv("SERVER_PORT", "8080"),
+		ServerPort: envOrDefault("SERVER_PORT", "8080"),
 		Database: DatabaseConfig{
-			URL:      getEnv("DATABASE_URL", ""),
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "5432"),
-			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", "postgres"),
-			Name:     getEnv("DB_NAME", "webbuilder"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			URL:      envOrDefault("DATABASE_URL", ""),
+			Host:     envOrDefault("DB_HOST", "localhost"),
+			Port:     envOrDefault("DB_PORT", "5432"),
+			User:     envOrDefault("DB_USER", "postgres"),
+			Password: envOrDefault("DB_PASSWORD", "postgres"),
+			Name:     envOrDefault("DB_NAME", "webbuilder"),
+			SSLMode:  envOrDefault("DB_SSLMODE", "disable"),
 		},
 		Redis: RedisConfig{
-			URL:      getEnv("REDIS_URL", ""),
-			Host:     getEnv("REDIS_HOST", "localhost"),
-			Port:     getEnv("REDIS_PORT", "6379"),
-			Password: getEnv("REDIS_PASSWORD", ""),
-			DB:       getEnvAsInt("REDIS_DB", 0),
+			URL:      envOrDefault("REDIS_URL", ""),
+			Host:     envOrDefault("REDIS_HOST", "localhost"),
+			Port:     envOrDefault("REDIS_PORT", "6379"),
+			Password: envOrDefault("REDIS_PASSWORD", ""),
+			DB:       envIntOrDefault("REDIS_DB", 0),
 		},
-		DevMode:        getEnvAsBool("DEV_MODE", false),
-		ClerkSecretKey: getEnv("CLERK_SECRET_KEY", ""),
+		DevMode:        envBoolOrDefault("DEV_MODE", false),
+		ClerkSecretKey: envOrDefault("CLERK_SECRET_KEY", ""),
 		AllowedOrigins: loadAllowedOrigins(),
 	}, nil
 }
@@ -91,14 +91,14 @@ func parseOrigins(raw string) []string {
 	return out
 }
 
-func getEnv(key, fallback string) string {
+func envOrDefault(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
 	return fallback
 }
 
-func getEnvAsInt(key string, fallback int) int {
+func envIntOrDefault(key string, fallback int) int {
 	if value, ok := os.LookupEnv(key); ok {
 		i, err := strconv.Atoi(value)
 		if err == nil {
@@ -108,7 +108,7 @@ func getEnvAsInt(key string, fallback int) int {
 	return fallback
 }
 
-func getEnvAsBool(key string, fallback bool) bool {
+func envBoolOrDefault(key string, fallback bool) bool {
 	if value, ok := os.LookupEnv(key); ok {
 		b, err := strconv.ParseBool(value)
 		if err == nil {

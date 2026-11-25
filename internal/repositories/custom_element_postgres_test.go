@@ -42,7 +42,7 @@ func TestPostgresCustomElementNamesAreUniquePerOwner(t *testing.T) {
 		})
 	}
 	create := func(userID, name string) error {
-		_, err := repo.CreateCustomElement(ctx, &models.CustomElement{
+		_, err := repo.Create(ctx, &models.CustomElement{
 			Id: uuid.NewString(), UserId: userID, Name: name, Structure: json.RawMessage(`{}`), IsPublic: true,
 		})
 		return err
@@ -57,14 +57,14 @@ func TestPostgresCustomElementNamesAreUniquePerOwner(t *testing.T) {
 		t.Errorf("case-insensitive duplicate create: %v", err)
 	}
 	onlyPublic := true
-	items, err := repo.GetCustomElements(ctx, users[0], &onlyPublic)
+	items, err := repo.List(ctx, users[0], &onlyPublic)
 	if err != nil || len(items) != 1 || items[0].UserId != users[0] {
 		t.Fatalf("public filter must stay scoped to the caller: %+v (%v)", items, err)
 	}
-	if err := repo.DeleteCustomElement(ctx, items[0].Id, users[1]); !errors.Is(err, ErrCustomElementUnauthorized) {
+	if err := repo.Delete(ctx, items[0].Id, users[1]); !errors.Is(err, ErrCustomElementUnauthorized) {
 		t.Fatalf("another user deleted the snapshot: %v", err)
 	}
-	if err := repo.DeleteCustomElement(ctx, items[0].Id, users[0]); err != nil {
+	if err := repo.Delete(ctx, items[0].Id, users[0]); err != nil {
 		t.Fatal(err)
 	}
 	if err := create(users[0], "Card"); err != nil {

@@ -29,31 +29,31 @@ func TestSnapshotService_ValidateAndSave(t *testing.T) {
 	}
 	for _, b := range bad {
 		t.Run("validate "+b.name, func(t *testing.T) {
-			wantErr(t, svc(&fkSnapshotRepo{}).ValidateSnapshot(ctx, b.s), b.msg)
+			wantErr(t, svc(&fkSnapshotRepo{}).Validate(ctx, b.s), b.msg)
 			sr := &fkSnapshotRepo{}
-			wantErr(t, svc(sr).SaveSnapshot(ctx, "p1", b.s), b.msg)
+			wantErr(t, svc(sr).Save(ctx, "p1", b.s), b.msg)
 			wantCalls(t, sr.Calls)
 		})
 	}
 
 	t.Run("save requires projectId", func(t *testing.T) {
 		sr := &fkSnapshotRepo{}
-		wantErr(t, svc(sr).SaveSnapshot(ctx, "", snapshotValid()), "projectId is required")
+		wantErr(t, svc(sr).Save(ctx, "", snapshotValid()), "projectId is required")
 		wantCalls(t, sr.Calls)
 	})
 	t.Run("save ok", func(t *testing.T) {
-		sr := &fkSnapshotRepo{OnSaveSnapshot: func(_ context.Context, pid string, s *models.Snapshot) error {
+		sr := &fkSnapshotRepo{OnSave: func(_ context.Context, pid string, s *models.Snapshot) error {
 			if pid != "p9" || s.ProjectId != "p1" {
 				t.Errorf("pid=%q s=%+v", pid, s)
 			}
 			return nil
 		}}
-		wantNoErr(t, svc(sr).SaveSnapshot(ctx, "p9", snapshotValid()))
-		wantCalls(t, sr.Calls, "SaveSnapshot")
+		wantNoErr(t, svc(sr).Save(ctx, "p9", snapshotValid()))
+		wantCalls(t, sr.Calls, "Save")
 	})
 	t.Run("save repo error", func(t *testing.T) {
-		sr := &fkSnapshotRepo{OnSaveSnapshot: func(context.Context, string, *models.Snapshot) error { return errBoom }}
-		if err := svc(sr).SaveSnapshot(ctx, "p1", snapshotValid()); !errors.Is(err, errBoom) {
+		sr := &fkSnapshotRepo{OnSave: func(context.Context, string, *models.Snapshot) error { return errBoom }}
+		if err := svc(sr).Save(ctx, "p1", snapshotValid()); !errors.Is(err, errBoom) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -63,33 +63,33 @@ func TestSnapshotService_GetSnapshotsByProjectID(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("empty project", func(t *testing.T) {
-		_, err := NewSnapshotService(&fkSnapshotRepo{}, nil, &fkProjectRepo{}).GetSnapshotsByProjectID(ctx, "", "u")
+		_, err := NewSnapshotService(&fkSnapshotRepo{}, nil, &fkProjectRepo{}).ListByProject(ctx, "", "u")
 		wantErr(t, err, "projectId is required")
 	})
 	t.Run("not visible", func(t *testing.T) {
 		pr := &fkProjectRepo{
-			OnGetProjectAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
+			OnGetAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
 				return nil, repositories.ErrProjectNotFound
 			},
 		}
 		sr := &fkSnapshotRepo{}
-		_, err := NewSnapshotService(sr, nil, pr).GetSnapshotsByProjectID(ctx, "p1", "u")
+		_, err := NewSnapshotService(sr, nil, pr).ListByProject(ctx, "p1", "u")
 		if !errors.Is(err, authz.ErrForbidden) {
 			t.Fatalf("err = %v, want authz.ErrForbidden", err)
 		}
 		wantCalls(t, sr.Calls)
 	})
 	t.Run("ok", func(t *testing.T) {
-		pr := &fkProjectRepo{OnGetProjectAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
+		pr := &fkProjectRepo{OnGetAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
 			return &models.ProjectAccess{ProjectId: "p1", UserId: "u", Role: models.RoleViewer}, nil
 		}}
-		sr := &fkSnapshotRepo{OnGetSnapshotsByProjectID: func(_ context.Context, pid string) ([]models.Snapshot, error) {
+		sr := &fkSnapshotRepo{OnListByProject: func(_ context.Context, pid string) ([]models.Snapshot, error) {
 			if pid != "p1" {
 				t.Errorf("pid = %q", pid)
 			}
 			return []models.Snapshot{{Id: "s1"}}, nil
 		}}
-		res, err := NewSnapshotService(sr, nil, pr).GetSnapshotsByProjectID(ctx, "p1", "u")
+		res, err := NewSnapshotService(sr, nil, pr).ListByProject(ctx, "p1", "u")
 		wantNoErr(t, err)
 		if len(res) != 1 || res[0].Id != "s1" {
 			t.Fatalf("res = %+v", res)
@@ -101,34 +101,34 @@ func TestSnapshotService_GetAndDelete(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("get empty id", func(t *testing.T) {
-		_, err := NewSnapshotService(&fkSnapshotRepo{}, nil, nil).GetSnapshotByID(ctx, "")
+		_, err := NewSnapshotService(&fkSnapshotRepo{}, nil, nil).GetByID(ctx, "")
 		wantErr(t, err, "snapshot id is required")
 	})
 	t.Run("get ok and error", func(t *testing.T) {
-		sr := &fkSnapshotRepo{OnGetSnapshotByID: func(_ context.Context, id string) (*models.Snapshot, error) {
+		sr := &fkSnapshotRepo{OnGetByID: func(_ context.Context, id string) (*models.Snapshot, error) {
 			return &models.Snapshot{Id: id}, nil
 		}}
-		s, err := NewSnapshotService(sr, nil, nil).GetSnapshotByID(ctx, "s1")
+		s, err := NewSnapshotService(sr, nil, nil).GetByID(ctx, "s1")
 		wantNoErr(t, err)
 		if s.Id != "s1" {
 			t.Fatalf("s = %+v", s)
 		}
-		sr.OnGetSnapshotByID = func(context.Context, string) (*models.Snapshot, error) { return nil, errBoom }
-		if _, err := NewSnapshotService(sr, nil, nil).GetSnapshotByID(ctx, "s1"); !errors.Is(err, errBoom) {
+		sr.OnGetByID = func(context.Context, string) (*models.Snapshot, error) { return nil, errBoom }
+		if _, err := NewSnapshotService(sr, nil, nil).GetByID(ctx, "s1"); !errors.Is(err, errBoom) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("delete", func(t *testing.T) {
-		wantErr(t, NewSnapshotService(&fkSnapshotRepo{}, nil, nil).DeleteSnapshot(ctx, ""), "snapshot id is required")
-		sr := &fkSnapshotRepo{OnDeleteSnapshot: func(_ context.Context, id string) error {
+		wantErr(t, NewSnapshotService(&fkSnapshotRepo{}, nil, nil).Delete(ctx, ""), "snapshot id is required")
+		sr := &fkSnapshotRepo{OnDelete: func(_ context.Context, id string) error {
 			if id != "s1" {
 				t.Errorf("id = %q", id)
 			}
 			return nil
 		}}
-		wantNoErr(t, NewSnapshotService(sr, nil, nil).DeleteSnapshot(ctx, "s1"))
-		sr.OnDeleteSnapshot = func(context.Context, string) error { return errBoom }
-		if err := NewSnapshotService(sr, nil, nil).DeleteSnapshot(ctx, "s1"); !errors.Is(err, errBoom) {
+		wantNoErr(t, NewSnapshotService(sr, nil, nil).Delete(ctx, "s1"))
+		sr.OnDelete = func(context.Context, string) error { return errBoom }
+		if err := NewSnapshotService(sr, nil, nil).Delete(ctx, "s1"); !errors.Is(err, errBoom) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -137,7 +137,7 @@ func TestSnapshotService_GetAndDelete(t *testing.T) {
 func TestSnapshotService_DeleteSnapshotWithAccess(t *testing.T) {
 	ctx := context.Background()
 	access := func(role models.CollaboratorRole, err error) *fkProjectRepo {
-		return &fkProjectRepo{OnGetProjectAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
+		return &fkProjectRepo{OnGetAccess: func(context.Context, string, string) (*models.ProjectAccess, error) {
 			if err != nil {
 				return nil, err
 			}
@@ -146,10 +146,10 @@ func TestSnapshotService_DeleteSnapshotWithAccess(t *testing.T) {
 	}
 	found := func(pid string) *fkSnapshotRepo {
 		return &fkSnapshotRepo{
-			OnGetSnapshotByID: func(context.Context, string) (*models.Snapshot, error) {
+			OnGetByID: func(context.Context, string) (*models.Snapshot, error) {
 				return &models.Snapshot{ProjectId: pid}, nil
 			},
-			OnDeleteSnapshot: func(context.Context, string) error { return nil },
+			OnDelete: func(context.Context, string) error { return nil },
 		}
 	}
 
@@ -161,37 +161,37 @@ func TestSnapshotService_DeleteSnapshotWithAccess(t *testing.T) {
 	for _, a := range argErrs {
 		t.Run("missing "+a.name, func(t *testing.T) {
 			sr := &fkSnapshotRepo{}
-			wantErr(t, NewSnapshotService(sr, nil, &fkProjectRepo{}).DeleteSnapshotWithAccess(ctx, a.sid, a.pid, a.uid), a.msg)
+			wantErr(t, NewSnapshotService(sr, nil, &fkProjectRepo{}).DeleteForUser(ctx, a.sid, a.pid, a.uid), a.msg)
 			wantCalls(t, sr.Calls)
 		})
 	}
 
 	t.Run("lookup error", func(t *testing.T) {
-		sr := &fkSnapshotRepo{OnGetSnapshotByID: func(context.Context, string) (*models.Snapshot, error) { return nil, errBoom }}
-		if err := NewSnapshotService(sr, nil, &fkProjectRepo{}).DeleteSnapshotWithAccess(ctx, "s", "p", "u"); !errors.Is(err, errBoom) {
+		sr := &fkSnapshotRepo{OnGetByID: func(context.Context, string) (*models.Snapshot, error) { return nil, errBoom }}
+		if err := NewSnapshotService(sr, nil, &fkProjectRepo{}).DeleteForUser(ctx, "s", "p", "u"); !errors.Is(err, errBoom) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("snapshot missing", func(t *testing.T) {
-		sr := &fkSnapshotRepo{OnGetSnapshotByID: func(context.Context, string) (*models.Snapshot, error) { return nil, nil }}
-		wantErr(t, NewSnapshotService(sr, nil, &fkProjectRepo{}).DeleteSnapshotWithAccess(ctx, "s", "p", "u"), "snapshot does not exist")
+		sr := &fkSnapshotRepo{OnGetByID: func(context.Context, string) (*models.Snapshot, error) { return nil, nil }}
+		wantErr(t, NewSnapshotService(sr, nil, &fkProjectRepo{}).DeleteForUser(ctx, "s", "p", "u"), "snapshot does not exist")
 	})
 	t.Run("wrong project", func(t *testing.T) {
 		sr := found("other")
-		wantErr(t, NewSnapshotService(sr, nil, &fkProjectRepo{}).DeleteSnapshotWithAccess(ctx, "s", "p", "u"), "does not belong")
-		wantCalls(t, sr.Calls, "GetSnapshotByID")
+		wantErr(t, NewSnapshotService(sr, nil, &fkProjectRepo{}).DeleteForUser(ctx, "s", "p", "u"), "does not belong")
+		wantCalls(t, sr.Calls, "GetByID")
 	})
 	t.Run("access denied", func(t *testing.T) {
 		sr := found("p")
-		err := NewSnapshotService(sr, nil, access(models.RoleEditor, nil)).DeleteSnapshotWithAccess(ctx, "s", "p", "u")
+		err := NewSnapshotService(sr, nil, access(models.RoleEditor, nil)).DeleteForUser(ctx, "s", "p", "u")
 		if !errors.Is(err, authz.ErrForbidden) {
 			t.Fatalf("err = %v, want authz.ErrForbidden", err)
 		}
-		wantCalls(t, sr.Calls, "GetSnapshotByID")
+		wantCalls(t, sr.Calls, "GetByID")
 	})
 	t.Run("deleted", func(t *testing.T) {
 		sr := found("p")
-		wantNoErr(t, NewSnapshotService(sr, nil, access(models.RoleOwner, nil)).DeleteSnapshotWithAccess(ctx, "s", "p", "u"))
-		wantCalls(t, sr.Calls, "GetSnapshotByID", "DeleteSnapshot")
+		wantNoErr(t, NewSnapshotService(sr, nil, access(models.RoleOwner, nil)).DeleteForUser(ctx, "s", "p", "u"))
+		wantCalls(t, sr.Calls, "GetByID", "Delete")
 	})
 }

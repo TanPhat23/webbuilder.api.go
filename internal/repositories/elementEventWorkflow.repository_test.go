@@ -37,20 +37,20 @@ func TestElementEventWorkflowCreate(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.onExec("INSERT INTO", 1)
 	repo := elementEventWorkflowNew(db)
-	got, err := repo.CreateElementEventWorkflow(ctx, &models.ElementEventWorkflow{ElementId: "e1", WorkflowId: "w1", EventName: "onClick"})
+	got, err := repo.Create(ctx, &models.ElementEventWorkflow{ElementId: "e1", WorkflowId: "w1", EventName: "onClick"})
 	if err != nil || got.Id == "" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 	if got.EventName != "onClick" {
 		t.Fatalf("got EventName=%q", got.EventName)
 	}
-	got, err = repo.CreateElementEventWorkflow(ctx, &models.ElementEventWorkflow{Id: "mine"})
+	got, err = repo.Create(ctx, &models.ElementEventWorkflow{Id: "mine"})
 	if err != nil || got.Id != "mine" {
 		t.Errorf("supplied id changed: %+v, %v", got, err)
 	}
 	bad, fb := newFakeDB(t)
 	fb.onErr("INSERT INTO", errElementEventWorkflowBoom)
-	if got, err := elementEventWorkflowNew(bad).CreateElementEventWorkflow(ctx, &models.ElementEventWorkflow{}); got != nil || !errors.Is(err, errElementEventWorkflowBoom) {
+	if got, err := elementEventWorkflowNew(bad).Create(ctx, &models.ElementEventWorkflow{}); got != nil || !errors.Is(err, errElementEventWorkflowBoom) {
 		t.Errorf("got %+v, %v", got, err)
 	}
 }
@@ -59,7 +59,7 @@ func TestElementEventWorkflowGetByID(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on(elementEventWorkflowSelect, elementEventWorkflowCols, []driver.Value{"l1", "e1", "w1", "onClick"})
-	got, err := elementEventWorkflowNew(db).GetElementEventWorkflowByID(ctx, "l1")
+	got, err := elementEventWorkflowNew(db).GetByID(ctx, "l1")
 	if err != nil || got == nil {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -70,12 +70,12 @@ func TestElementEventWorkflowGetByID(t *testing.T) {
 	if emptyFake == nil {
 		t.Fatal("missing fake db")
 	}
-	if got, err := elementEventWorkflowNew(empty).GetElementEventWorkflowByID(ctx, "x"); got != nil || err != nil {
+	if got, err := elementEventWorkflowNew(empty).GetByID(ctx, "x"); got != nil || err != nil {
 		t.Errorf("missing should be nil,nil: %+v, %v", got, err)
 	}
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errElementEventWorkflowBoom)
-	if got, err := elementEventWorkflowNew(bad).GetElementEventWorkflowByID(ctx, "x"); got != nil || !errors.Is(err, errElementEventWorkflowBoom) {
+	if got, err := elementEventWorkflowNew(bad).GetByID(ctx, "x"); got != nil || !errors.Is(err, errElementEventWorkflowBoom) {
 		t.Errorf("got %+v, %v", got, err)
 	}
 }
@@ -110,19 +110,19 @@ func assertElementEventWorkflowListCase(
 func TestElementEventWorkflowListQueries(t *testing.T) {
 	ctx := context.Background()
 	assertElementEventWorkflowListCase(t, func(r *ElementEventWorkflowRepository) ([]models.ElementEventWorkflow, error) {
-		return r.GetAllElementEventWorkflows(ctx)
+		return r.ListAll(ctx)
 	}, "", nil, elementEventWorkflowSelect)
 	assertElementEventWorkflowListCase(t, func(r *ElementEventWorkflowRepository) ([]models.ElementEventWorkflow, error) {
-		return r.GetElementEventWorkflowsByElementID(ctx, "e1")
+		return r.ListByElement(ctx, "e1")
 	}, `"ElementId" =`, "e1", elementEventWorkflowSelect)
 	assertElementEventWorkflowListCase(t, func(r *ElementEventWorkflowRepository) ([]models.ElementEventWorkflow, error) {
-		return r.GetElementEventWorkflowsByWorkflowID(ctx, "w1")
+		return r.ListByWorkflow(ctx, "w1")
 	}, `"WorkflowId" =`, "w1", elementEventWorkflowSelect)
 	assertElementEventWorkflowListCase(t, func(r *ElementEventWorkflowRepository) ([]models.ElementEventWorkflow, error) {
-		return r.GetElementEventWorkflowsByEventName(ctx, "onClick")
+		return r.ListByEvent(ctx, "onClick")
 	}, `"EventName" =`, "onClick", elementEventWorkflowSelect)
 	assertElementEventWorkflowListCase(t, func(r *ElementEventWorkflowRepository) ([]models.ElementEventWorkflow, error) {
-		return r.GetElementEventWorkflowsByPageID(ctx, "pg1")
+		return r.ListByPage(ctx, "pg1")
 	}, `"Element"."PageId" =`, "pg1", `JOIN "Element"`)
 }
 
@@ -130,7 +130,7 @@ func TestElementEventWorkflowFiltersNone(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on(elementEventWorkflowSelect, elementEventWorkflowCols, []driver.Value{"l1", "e1", "w1", "onClick"})
-	got, err := elementEventWorkflowNew(db).GetElementEventWorkflowsByFilters(ctx, "", "", "")
+	got, err := elementEventWorkflowNew(db).ListByFilters(ctx, "", "", "")
 	if err != nil || len(got) != 1 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -145,7 +145,7 @@ func TestElementEventWorkflowFiltersNone(t *testing.T) {
 func TestElementEventWorkflowFiltersAllAndErr(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
-	if _, err := elementEventWorkflowNew(db).GetElementEventWorkflowsByFilters(ctx, "e1", "w1", "onClick"); err != nil {
+	if _, err := elementEventWorkflowNew(db).ListByFilters(ctx, "e1", "w1", "onClick"); err != nil {
 		t.Fatal(err)
 	}
 	if !f.sawQuery(`"ElementId" =`, `"WorkflowId" =`, `"EventName" =`) {
@@ -154,7 +154,7 @@ func TestElementEventWorkflowFiltersAllAndErr(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("SELECT", errElementEventWorkflowBoom)
-	if got, err := elementEventWorkflowNew(dbErr).GetElementEventWorkflowsByFilters(ctx, "", "", ""); got != nil || !errors.Is(err, errElementEventWorkflowBoom) {
+	if got, err := elementEventWorkflowNew(dbErr).ListByFilters(ctx, "", "", ""); got != nil || !errors.Is(err, errElementEventWorkflowBoom) {
 		t.Errorf("got %+v, %v", got, err)
 	}
 }
@@ -164,7 +164,7 @@ func TestElementEventWorkflowUpdate(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.onExec("UPDATE", 1)
 	f.on(elementEventWorkflowSelect, elementEventWorkflowCols, []driver.Value{"l1", "e1", "w2", "onHover"})
-	got, err := elementEventWorkflowNew(db).UpdateElementEventWorkflow(ctx, "l1", &models.ElementEventWorkflow{WorkflowId: "w2", EventName: "onHover"})
+	got, err := elementEventWorkflowNew(db).Update(ctx, "l1", &models.ElementEventWorkflow{WorkflowId: "w2", EventName: "onHover"})
 	if err != nil || got == nil {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -177,7 +177,7 @@ func TestElementEventWorkflowUpdate(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("UPDATE", errElementEventWorkflowBoom)
-	if got, err := elementEventWorkflowNew(dbErr).UpdateElementEventWorkflow(ctx, "l1", &models.ElementEventWorkflow{EventName: "x"}); got != nil || !errors.Is(err, errElementEventWorkflowBoom) {
+	if got, err := elementEventWorkflowNew(dbErr).Update(ctx, "l1", &models.ElementEventWorkflow{EventName: "x"}); got != nil || !errors.Is(err, errElementEventWorkflowBoom) {
 		t.Errorf("got %+v, %v", got, err)
 	}
 }
@@ -192,12 +192,12 @@ func TestElementEventWorkflowDeletes(t *testing.T) {
 		call     func(*ElementEventWorkflowRepository) error
 		fragment string
 	}{
-		{"by id", func(r *ElementEventWorkflowRepository) error { return r.DeleteElementEventWorkflow(ctx, "l1") }, `"Id" =`},
+		{"by id", func(r *ElementEventWorkflowRepository) error { return r.Delete(ctx, "l1") }, `"Id" =`},
 		{"by element", func(r *ElementEventWorkflowRepository) error {
-			return r.DeleteElementEventWorkflowsByElementID(ctx, "e1")
+			return r.DeleteByElement(ctx, "e1")
 		}, `"ElementId" =`},
 		{"by workflow", func(r *ElementEventWorkflowRepository) error {
-			return r.DeleteElementEventWorkflowsByWorkflowID(ctx, "w1")
+			return r.DeleteByWorkflow(ctx, "w1")
 		}, `"WorkflowId" =`},
 	}
 	for _, tc := range calls {
@@ -223,7 +223,7 @@ func TestElementEventWorkflowCheckIfLinked(t *testing.T) {
 	}{{0, false}, {1, true}} {
 		db, f := newFakeDB(t)
 		f.on("count(*)", []string{"count"}, []driver.Value{tc.n})
-		got, err := elementEventWorkflowNew(db).CheckIfWorkflowLinkedToElement(ctx, "e1", "w1", "onClick")
+		got, err := elementEventWorkflowNew(db).IsLinked(ctx, "e1", "w1", "onClick")
 		if err != nil || got != tc.want {
 			t.Errorf("count=%d: got %v, %v", tc.n, got, err)
 		}
@@ -233,7 +233,7 @@ func TestElementEventWorkflowCheckIfLinked(t *testing.T) {
 	}
 	bad, fb := newFakeDB(t)
 	fb.onErr("count(*)", errElementEventWorkflowBoom)
-	if ok, err := elementEventWorkflowNew(bad).CheckIfWorkflowLinkedToElement(ctx, "e", "w", "n"); ok || !errors.Is(err, errElementEventWorkflowBoom) {
+	if ok, err := elementEventWorkflowNew(bad).IsLinked(ctx, "e", "w", "n"); ok || !errors.Is(err, errElementEventWorkflowBoom) {
 		t.Errorf("got %v, %v", ok, err)
 	}
 }

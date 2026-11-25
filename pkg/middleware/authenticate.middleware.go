@@ -26,7 +26,7 @@ const (
 
 // AgentTokenLookup resolves an active (non-revoked) agent token by its SHA-256 hex hash.
 type AgentTokenLookup interface {
-	FindActiveByHash(ctx context.Context, hash string) (*models.AgentToken, error)
+	GetActiveByHash(ctx context.Context, hash string) (*models.AgentToken, error)
 	Touch(ctx context.Context, id string, at time.Time) error
 }
 
@@ -84,11 +84,11 @@ func attachIdentity(c fiber.Ctx, id auth.Identity) {
 	c.SetContext(ctx)
 }
 
-func AuthenticateMiddleware(c fiber.Ctx) error {
-	return NewAuthenticateMiddleware(nil)(c)
+func Authenticate(c fiber.Ctx) error {
+	return NewAuthenticate(nil)(c)
 }
 
-func NewAuthenticateMiddleware(tokenLookup AgentTokenLookup) fiber.Handler {
+func NewAuthenticate(tokenLookup AgentTokenLookup) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		if isPublicRoute(c) {
 			return c.Next()
@@ -127,7 +127,7 @@ func NewAuthenticateMiddleware(tokenLookup AgentTokenLookup) fiber.Handler {
 					"error": "Unauthorized: Invalid agent token",
 				})
 			}
-			rec, err := tokenLookup.FindActiveByHash(c.RequestCtx(), hashAgentSecret(sessionToken))
+			rec, err := tokenLookup.GetActiveByHash(c.RequestCtx(), hashAgentSecret(sessionToken))
 			if err != nil {
 				log.Printf("Agent token lookup failed: %v", err)
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{

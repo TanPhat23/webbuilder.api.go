@@ -15,7 +15,7 @@ type projectCapture struct {
 	page    *models.Page
 }
 
-func (r *projectCapture) CreateProjectWithPage(_ context.Context, p *models.Project, page *models.Page) error {
+func (r *projectCapture) CreateWithPage(_ context.Context, p *models.Project, page *models.Page) error {
 	r.project = p
 	r.page = page
 	return nil
@@ -26,7 +26,7 @@ func TestCreateProjectWithPageIDs(t *testing.T) {
 		t.Run(supplied, func(t *testing.T) {
 			repo := &projectCapture{}
 			service := NewProjectService(repo, nil, nil)
-			result, err := service.CreateProjectWithPage(context.Background(), &models.Project{ID: supplied, Name: "test", OwnerId: "owner"})
+			result, err := service.CreateWithPage(context.Background(), &models.Project{ID: supplied, Name: "test", OwnerId: "owner"})
 			if err != nil {
 				t.Fatal(err)
 			}

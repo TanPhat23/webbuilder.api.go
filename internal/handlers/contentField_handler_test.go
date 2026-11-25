@@ -20,16 +20,16 @@ type contentFieldSvcStub struct {
 	deleted   string
 }
 
-func (s *contentFieldSvcStub) GetContentFieldsByContentType(_ context.Context, typeID string) ([]models.ContentField, error) {
+func (s *contentFieldSvcStub) ListByContentType(_ context.Context, typeID string) ([]models.ContentField, error) {
 	return []models.ContentField{{Id: "f1", ContentTypeId: typeID, Name: "title"}}, s.err
 }
-func (s *contentFieldSvcStub) GetContentFieldByID(_ context.Context, id string) (*models.ContentField, error) {
+func (s *contentFieldSvcStub) GetByID(_ context.Context, id string) (*models.ContentField, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.ContentField{Id: id, Name: "title"}, nil
 }
-func (s *contentFieldSvcStub) CreateContentField(_ context.Context, f *models.ContentField) (*models.ContentField, error) {
+func (s *contentFieldSvcStub) Create(_ context.Context, f *models.ContentField) (*models.ContentField, error) {
 	s.created = f
 	if s.err != nil {
 		return nil, s.err
@@ -37,42 +37,42 @@ func (s *contentFieldSvcStub) CreateContentField(_ context.Context, f *models.Co
 	f.Id = "f-new"
 	return f, nil
 }
-func (s *contentFieldSvcStub) UpdateContentField(_ context.Context, id string, updates map[string]any) (*models.ContentField, error) {
+func (s *contentFieldSvcStub) Update(_ context.Context, id string, updates map[string]any) (*models.ContentField, error) {
 	s.updatedID, s.updates = id, updates
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.ContentField{Id: id, Name: "renamed"}, nil
 }
-func (s *contentFieldSvcStub) DeleteContentField(_ context.Context, id string) error {
+func (s *contentFieldSvcStub) Delete(_ context.Context, id string) error {
 	s.deleted = id
 	return s.err
 }
 
-func (s *contentFieldSvcStub) GetContentFieldsByContentTypeForUser(_ context.Context, typeID, _ string) ([]models.ContentField, error) {
-	return s.GetContentFieldsByContentType(context.Background(), typeID)
+func (s *contentFieldSvcStub) ListByContentTypeForUser(_ context.Context, typeID, _ string) ([]models.ContentField, error) {
+	return s.ListByContentType(context.Background(), typeID)
 }
-func (s *contentFieldSvcStub) GetContentFieldByIDForUser(_ context.Context, id, _ string) (*models.ContentField, error) {
-	return s.GetContentFieldByID(context.Background(), id)
+func (s *contentFieldSvcStub) GetByIDForUser(_ context.Context, id, _ string) (*models.ContentField, error) {
+	return s.GetByID(context.Background(), id)
 }
-func (s *contentFieldSvcStub) CreateContentFieldForUser(_ context.Context, f *models.ContentField, _ string) (*models.ContentField, error) {
-	return s.CreateContentField(context.Background(), f)
+func (s *contentFieldSvcStub) CreateForUser(_ context.Context, f *models.ContentField, _ string) (*models.ContentField, error) {
+	return s.Create(context.Background(), f)
 }
-func (s *contentFieldSvcStub) UpdateContentFieldForUser(_ context.Context, id, _ string, updates map[string]any) (*models.ContentField, error) {
-	return s.UpdateContentField(context.Background(), id, updates)
+func (s *contentFieldSvcStub) UpdateForUser(_ context.Context, id, _ string, updates map[string]any) (*models.ContentField, error) {
+	return s.Update(context.Background(), id, updates)
 }
-func (s *contentFieldSvcStub) DeleteContentFieldForUser(_ context.Context, id, _ string) error {
-	return s.DeleteContentField(context.Background(), id)
+func (s *contentFieldSvcStub) DeleteForUser(_ context.Context, id, _ string) error {
+	return s.Delete(context.Background(), id)
 }
 
 func contentFieldKit(svc *contentFieldSvcStub) *fiber.App {
 	h := NewContentFieldHandler(svc)
 	return newKitApp("u1", func(app *fiber.App) {
-		app.Get("/types/:contentTypeId/fields", h.GetContentFieldsByContentType)
-		app.Post("/types/:contentTypeId/fields", h.CreateContentField)
-		app.Get("/fields/:fieldId", h.GetContentFieldByID)
-		app.Patch("/fields/:fieldId", h.UpdateContentField)
-		app.Delete("/fields/:fieldId", h.DeleteContentField)
+		app.Get("/types/:contentTypeId/fields", h.ListByContentType)
+		app.Post("/types/:contentTypeId/fields", h.Create)
+		app.Get("/fields/:fieldId", h.GetByID)
+		app.Patch("/fields/:fieldId", h.Update)
+		app.Delete("/fields/:fieldId", h.Delete)
 	})
 }
 

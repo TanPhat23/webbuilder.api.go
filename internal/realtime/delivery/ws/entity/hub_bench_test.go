@@ -89,9 +89,9 @@ func newFanoutRigWith(tb testing.TB, clients int, onFrame func(idx int, frame []
 		}()
 	}
 	deadline := time.Now().Add(5 * time.Second)
-	for len(hub.GetRoomParticipants(rig.roomID)) < clients {
+	for len(hub.RoomParticipants(rig.roomID)) < clients {
 		if time.Now().After(deadline) {
-			tb.Fatalf("only %d of %d clients registered", len(hub.GetRoomParticipants(rig.roomID)), clients)
+			tb.Fatalf("only %d of %d clients registered", len(hub.RoomParticipants(rig.roomID)), clients)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -167,7 +167,7 @@ func BenchmarkHubRoomLookup(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
-			_ = hub.GetRoomParticipants(fmt.Sprintf("proj-%d:page", i%rooms))
+			_ = hub.RoomParticipants(fmt.Sprintf("proj-%d:page", i%rooms))
 			i++
 		}
 	})

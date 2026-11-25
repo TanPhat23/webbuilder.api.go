@@ -7,12 +7,12 @@ import (
 )
 
 // NewUseCase initializes all use cases and returns a central container.
-func NewUseCase(repo *domainRepo.Repository, lg logger.Logger) *domainUsecase.UseCase {
+func New(repo *domainRepo.Repository, lg logger.Logger) *domainUsecase.UseCase {
 	docUC := NewDocumentUseCase(repo)
-	persistUC := NewPersistenceUsecase(repo, lg)
+	persistUC := NewPersistUseCase(repo, lg)
 	elemUC := NewElementUseCase(repo, docUC, persistUC)
 	workflowUC := NewWorkflowUseCase(repo.WorkflowRepo)
-	elementWorkflowUC := NewElementWorkflowsUseCase(repo)
+	elementWorkflowUC := NewElementWorkflowUseCase(repo)
 
 	return &domainUsecase.UseCase{
 		Element:          elemUC,

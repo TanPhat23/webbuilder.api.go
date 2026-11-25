@@ -90,7 +90,7 @@ func (f *handlerFakeElements) PatchElement(_ context.Context, project, page, id 
 	return f.next()
 }
 
-func (f *handlerFakeElements) RemoveElement(_ context.Context, project, page, id string) (int64, error) {
+func (f *handlerFakeElements) DeleteElement(_ context.Context, project, page, id string) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.removed = append(f.removed, handlerRefCall{project, page, id})
@@ -121,7 +121,7 @@ func (f *handlerFakeElements) SyncPageWithSeq(_ context.Context, project, page s
 	return f.pageElems, f.seq, nil
 }
 
-func (f *handlerFakeElements) GetElementsByProjectID(_ context.Context, _ string) ([]domainEntity.Element, error) {
+func (f *handlerFakeElements) ListElementsByProject(_ context.Context, _ string) ([]domainEntity.Element, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.projErr != nil {
@@ -156,7 +156,7 @@ func handlerTestNew(t *testing.T, lg domainUsecase.LogicUseCase, access ProjectA
 	uc := &domainUsecase.UseCase{Element: els, Logic: lg}
 	h := NewHandler(uc, nil, handlerTestLogger())
 	if access != nil {
-		h.RequireAccess(access)
+		h.SetAccessChecker(access)
 	}
 	t.Cleanup(h.Shutdown)
 	return handlerTestServe(t, h, els)
@@ -173,7 +173,7 @@ func handlerTestServe(t *testing.T, h *Handler, els *handlerFakeElements) *handl
 		c.Locals("user", &domainEntity.User{ID: u, Email: u + "@example.com"})
 		return c.Next()
 	})
-	h.SetupRoutes(app)
+	h.RegisterRoutes(app)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("cannot listen on loopback: %v", err)
@@ -536,7 +536,7 @@ func TestHandler_ShutdownStopsActorsAndRejectsNewOps(t *testing.T) {
 	client := wsentity.NewClient(nil, handlerTestProject, &domainEntity.User{ID: "u1"})
 	client.SetPageID(handlerTestPage)
 	payload, _ := json.Marshal(map[string]any{"id": handlerTestElemA})
-	err := env.h.handleElementDelete(context.Background(), client, domainEntity.Message{Payload: payload})
+	err := env.h.deleteElement(context.Background(), client, domainEntity.Message{Payload: payload})
 	if err == nil {
 		t.Fatal("ops after shutdown must fail")
 	}
@@ -670,7 +670,7 @@ func TestHandler_TicketProjectMismatchAndInvalidProjectID(t *testing.T) {
 		}
 		return c.Next()
 	})
-	h.SetupRoutes(app)
+	h.RegisterRoutes(app)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("cannot listen on loopback: %v", err)
@@ -710,7 +710,7 @@ func TestHandler_AllowedOriginsBlocksCSWSH(t *testing.T) {
 		c.Locals("user", &domainEntity.User{ID: "u1"})
 		return c.Next()
 	})
-	h.SetupRoutes(app)
+	h.RegisterRoutes(app)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("cannot listen on loopback: %v", err)

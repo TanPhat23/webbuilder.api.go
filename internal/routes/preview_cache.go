@@ -32,13 +32,13 @@ func cachePublicPreview(client *redis.Client, projects repositories.ProjectRepos
 }
 
 func serveCachedPreview(c fiber.Ctx, client *redis.Client, projects repositories.ProjectRepositoryInterface, resource string) error {
-	projectID, err := utils.ValidateRequiredParam(c, "projectid")
+	projectID, err := utils.RequireParam(c, "projectid")
 	if err != nil {
 		return err
 	}
-	project, err := projects.GetPublicProjectByID(c.RequestCtx(), projectID)
+	project, err := projects.GetPublicByID(c.RequestCtx(), projectID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to verify publication")
+		return utils.RespondError(c, err, "Project not found", "Failed to verify publication")
 	}
 	if project == nil || !project.Published {
 		return fiber.NewError(fiber.StatusNotFound, "Project not found")

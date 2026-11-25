@@ -21,16 +21,16 @@ type imageHandlerStub struct {
 	services.ImageServiceInterface
 	err error
 
-	gotUser, gotFile, gotID string
-	gotName                 *string
-	gotContent              string
-	gotBase64               string
-	calls                   int
+	gotUser, gotID string
+	gotName        *string
+	gotContent     string
+	gotBase64      string
+	calls          int
 }
 
-func (s *imageHandlerStub) CreateUploadedImage(_ context.Context, userID, fileName string, imageName *string, file multipart.File) (*models.ImageUploadResponse, error) {
+func (s *imageHandlerStub) Upload(_ context.Context, userID string, imageName *string, file multipart.File) (*models.ImageUploadResponse, error) {
 	s.calls++
-	s.gotUser, s.gotFile, s.gotName = userID, fileName, imageName
+	s.gotUser, s.gotName = userID, imageName
 	raw, _ := io.ReadAll(file)
 	s.gotContent = string(raw)
 	if s.err != nil {
@@ -39,7 +39,7 @@ func (s *imageHandlerStub) CreateUploadedImage(_ context.Context, userID, fileNa
 	return &models.ImageUploadResponse{ImageId: "img-1", ImageLink: "https://cdn.example/x.png", ImageName: imageName, CreatedAt: time.Unix(0, 0).UTC()}, nil
 }
 
-func (s *imageHandlerStub) CreateBase64UploadedImage(_ context.Context, userID, data string, name *string) (*models.ImageUploadResponse, error) {
+func (s *imageHandlerStub) UploadBase64(_ context.Context, userID, data string, name *string) (*models.ImageUploadResponse, error) {
 	s.calls++
 	s.gotUser, s.gotBase64, s.gotName = userID, data, name
 	if s.err != nil {
@@ -48,7 +48,7 @@ func (s *imageHandlerStub) CreateBase64UploadedImage(_ context.Context, userID, 
 	return &models.ImageUploadResponse{ImageId: "img-2", ImageLink: "https://cdn.example/y.png", ImageName: name}, nil
 }
 
-func (s *imageHandlerStub) GetImagesByUserID(_ context.Context, userID string) ([]models.Image, error) {
+func (s *imageHandlerStub) ListByUser(_ context.Context, userID string) ([]models.Image, error) {
 	s.gotUser = userID
 	if s.err != nil {
 		return nil, s.err
@@ -56,7 +56,7 @@ func (s *imageHandlerStub) GetImagesByUserID(_ context.Context, userID string) (
 	return []models.Image{{ImageId: "img-1", UserId: userID, ImageLink: "https://cdn.example/x.png"}}, nil
 }
 
-func (s *imageHandlerStub) GetImageByID(_ context.Context, imageID, userID string) (*models.Image, error) {
+func (s *imageHandlerStub) GetByID(_ context.Context, imageID, userID string) (*models.Image, error) {
 	s.gotID, s.gotUser = imageID, userID
 	if s.err != nil {
 		return nil, s.err
@@ -64,12 +64,12 @@ func (s *imageHandlerStub) GetImageByID(_ context.Context, imageID, userID strin
 	return &models.Image{ImageId: imageID, UserId: userID}, nil
 }
 
-func (s *imageHandlerStub) DeleteImage(_ context.Context, imageID, userID string) error {
+func (s *imageHandlerStub) Delete(_ context.Context, imageID, userID string) error {
 	s.gotID, s.gotUser = imageID, userID
 	return s.err
 }
 
-func (s *imageHandlerStub) GetPublicImageURL(_ context.Context, imageID string) (string, error) {
+func (s *imageHandlerStub) PublicURL(_ context.Context, imageID string) (string, error) {
 	s.gotID = imageID
 	if s.err != nil {
 		return "", s.err
@@ -80,16 +80,16 @@ func (s *imageHandlerStub) GetPublicImageURL(_ context.Context, imageID string) 
 func imageHandlerApp(userID string, svc *imageHandlerStub) *fiber.App {
 	h := NewImageHandler(svc)
 	return newKitApp(userID, func(app *fiber.App) {
-		app.Get("/public/images/:imageid", h.RedirectPublicImage)
-		app.Post("/images", h.UploadImage)
-		app.Post("/images/base64", h.UploadBase64Image)
-		app.Get("/images", h.GetUserImages)
-		app.Get("/images/:imageid", h.GetImageByID)
-		app.Delete("/images/:imageid", h.DeleteImage)
+		app.Get("/public/images/:imageid", h.ServePublic)
+		app.Post("/images", h.Upload)
+		app.Post("/images/base64", h.UploadBase64)
+		app.Get("/images", h.ListByUser)
+		app.Get("/images/:imageid", h.GetByID)
+		app.Delete("/images/:imageid", h.Delete)
 		// Registered without the parameter to exercise the missing-id branch.
-		app.Get("/noid", h.GetImageByID)
-		app.Delete("/noid", h.DeleteImage)
-		app.Get("/public/noid", h.RedirectPublicImage)
+		app.Get("/noid", h.GetByID)
+		app.Delete("/noid", h.Delete)
+		app.Get("/public/noid", h.ServePublic)
 	})
 }
 
@@ -126,8 +126,8 @@ func TestUploadImagePassesFileAndNameToService(t *testing.T) {
 	svc := &imageHandlerStub{}
 	r := imageHandlerUpload(t, imageHandlerApp("u1", svc), "logo.png", testPNGBytes, "My Logo")
 	kitExpect(t, r, 201, "img-1", "https://cdn.example/x.png", "My Logo")
-	if svc.gotUser != "u1" || svc.gotFile != "logo.png" || svc.gotContent != testPNGBytes {
-		t.Fatalf("service got user=%q file=%q content=%q", svc.gotUser, svc.gotFile, svc.gotContent)
+	if svc.gotUser != "u1" || svc.gotContent != testPNGBytes {
+		t.Fatalf("service got user=%q content=%q", svc.gotUser, svc.gotContent)
 	}
 	if svc.gotName == nil || *svc.gotName != "My Logo" {
 		t.Fatalf("image name = %v", svc.gotName)

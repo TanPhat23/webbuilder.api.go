@@ -27,7 +27,7 @@ func NewInvitationRepository(db *gorm.DB) InvitationRepositoryInterface {
 	return &InvitationRepository{db: db}
 }
 
-func (r *InvitationRepository) CreateInvitation(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error) {
+func (r *InvitationRepository) Create(ctx context.Context, invitation *models.Invitation) (*models.Invitation, error) {
 	if invitation == nil {
 		return nil, errors.New("invitation cannot be nil")
 	}
@@ -43,7 +43,7 @@ func (r *InvitationRepository) CreateInvitation(ctx context.Context, invitation 
 	return invitation, nil
 }
 
-func (r *InvitationRepository) GetInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
+func (r *InvitationRepository) ListByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
@@ -57,7 +57,7 @@ func (r *InvitationRepository) GetInvitationsByProject(ctx context.Context, proj
 	return invitations, nil
 }
 
-func (r *InvitationRepository) GetInvitationByID(ctx context.Context, id string) (*models.Invitation, error) {
+func (r *InvitationRepository) GetByID(ctx context.Context, id string) (*models.Invitation, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -74,7 +74,7 @@ func (r *InvitationRepository) GetInvitationByID(ctx context.Context, id string)
 	return &invitation, nil
 }
 
-func (r *InvitationRepository) GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error) {
+func (r *InvitationRepository) GetByToken(ctx context.Context, token string) (*models.Invitation, error) {
 	if token == "" {
 		return nil, errors.New("token is required")
 	}
@@ -91,7 +91,7 @@ func (r *InvitationRepository) GetInvitationByToken(ctx context.Context, token s
 	return &invitation, nil
 }
 
-func (r *InvitationRepository) AcceptInvitation(ctx context.Context, token string, userID string) error {
+func (r *InvitationRepository) Accept(ctx context.Context, token string, userID string) error {
 	if token == "" || userID == "" {
 		return errors.New("token and userID are required")
 	}
@@ -126,7 +126,7 @@ func (r *InvitationRepository) AcceptInvitation(ctx context.Context, token strin
 	})
 }
 
-func (r *InvitationRepository) DeleteInvitation(ctx context.Context, id string) error {
+func (r *InvitationRepository) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("id is required")
 	}
@@ -140,7 +140,7 @@ func (r *InvitationRepository) DeleteInvitation(ctx context.Context, id string) 
 	return nil
 }
 
-func (r *InvitationRepository) UpdateInvitationStatus(ctx context.Context, id string, status models.InvitationStatus) error {
+func (r *InvitationRepository) UpdateStatus(ctx context.Context, id string, status models.InvitationStatus) error {
 	if id == "" {
 		return errors.New("id is required")
 	}
@@ -156,11 +156,11 @@ func (r *InvitationRepository) UpdateInvitationStatus(ctx context.Context, id st
 	return nil
 }
 
-func (r *InvitationRepository) CancelInvitation(ctx context.Context, id string) error {
-	return r.UpdateInvitationStatus(ctx, id, models.InvitationStatusCancelled)
+func (r *InvitationRepository) Cancel(ctx context.Context, id string) error {
+	return r.UpdateStatus(ctx, id, models.InvitationStatusCancelled)
 }
 
-func (r *InvitationRepository) GetPendingInvitationsByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
+func (r *InvitationRepository) ListPendingByProject(ctx context.Context, projectID string) ([]models.Invitation, error) {
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}

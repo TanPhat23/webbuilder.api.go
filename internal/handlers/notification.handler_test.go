@@ -55,11 +55,11 @@ func (s *notificationHandlerStub) Create(_ context.Context, n *models.Notificati
 func notificationHandlerApp(user string, repo *notificationHandlerStub) *fiber.App {
 	h := NewNotificationHandler(repo)
 	return newKitApp(user, func(app *fiber.App) {
-		app.Get("/notifications", h.GetNotifications)
+		app.Get("/notifications", h.List)
 		app.Patch("/notifications/read-all", h.MarkAllRead)
 		app.Post("/notifications/profile-update", h.CreateProfileUpdate)
-		app.Patch("/notifications/:id", h.SetNotificationRead)
-		app.Patch("/noid", h.SetNotificationRead)
+		app.Patch("/notifications/:id", h.SetRead)
+		app.Patch("/noid", h.SetRead)
 	})
 }
 

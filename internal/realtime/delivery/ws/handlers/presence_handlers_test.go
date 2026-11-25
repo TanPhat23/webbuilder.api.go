@@ -86,7 +86,7 @@ func (f fakePageChecker) PageBelongsToProject(context.Context, string, string) (
 
 func TestJoin_RejectsInvalidPageIDAndCrossProjectPage(t *testing.T) {
 	env := handlerTestNew(t, nil, nil)
-	env.h.RequirePageOwnership(fakePageChecker{owns: false})
+	env.h.SetPageChecker(fakePageChecker{owns: false})
 
 	c := env.dial("u1")
 	c.sendPage("join", "page:bad", map[string]any{}, "j1", "")
@@ -159,13 +159,13 @@ func TestLeave_ClearsPageSoLaterRequestsNeedAJoin(t *testing.T) {
 	env := handlerTestNew(t, nil, nil)
 	client := wsentity.NewClient(nil, handlerTestProject, &domainEntity.User{ID: "u1"})
 	client.SetPageID(handlerTestPage)
-	if err := env.h.handleLeave(context.Background(), client, domainEntity.Message{}); err != nil {
+	if err := env.h.leavePage(context.Background(), client, domainEntity.Message{}); err != nil {
 		t.Fatal(err)
 	}
-	if client.GetPageID() != "" {
-		t.Fatalf("PageID = %q after leave", client.GetPageID())
+	if client.PageID() != "" {
+		t.Fatalf("PageID = %q after leave", client.PageID())
 	}
-	if err := env.h.handleSync(context.Background(), client, domainEntity.Message{}); !errors.Is(err, domainErrors.ErrNotJoined) {
+	if err := env.h.syncPage(context.Background(), client, domainEntity.Message{}); !errors.Is(err, domainErrors.ErrNotJoined) {
 		t.Fatalf("sync after leave: %v", err)
 	}
 }

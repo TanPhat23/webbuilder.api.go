@@ -24,7 +24,7 @@ func NewCustomElementTypeRepository(db *gorm.DB) CustomElementTypeRepositoryInte
 	}
 }
 
-func (r *CustomElementTypeRepository) GetCustomElementTypes(ctx context.Context) ([]models.CustomElementType, error) {
+func (r *CustomElementTypeRepository) List(ctx context.Context) ([]models.CustomElementType, error) {
 	customElementTypes, err := gorm.G[models.CustomElementType](r.db).
 		Order("\"Name\" ASC").
 		Find(ctx)
@@ -36,7 +36,7 @@ func (r *CustomElementTypeRepository) GetCustomElementTypes(ctx context.Context)
 	return customElementTypes, nil
 }
 
-func (r *CustomElementTypeRepository) GetCustomElementTypeByID(ctx context.Context, id string) (*models.CustomElementType, error) {
+func (r *CustomElementTypeRepository) GetByID(ctx context.Context, id string) (*models.CustomElementType, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -55,7 +55,7 @@ func (r *CustomElementTypeRepository) GetCustomElementTypeByID(ctx context.Conte
 	return &customElementType, nil
 }
 
-func (r *CustomElementTypeRepository) GetCustomElementTypeByName(ctx context.Context, name string) (*models.CustomElementType, error) {
+func (r *CustomElementTypeRepository) GetByName(ctx context.Context, name string) (*models.CustomElementType, error) {
 	if name == "" {
 		return nil, errors.New("name is required")
 	}
@@ -74,7 +74,7 @@ func (r *CustomElementTypeRepository) GetCustomElementTypeByName(ctx context.Con
 	return &customElementType, nil
 }
 
-func (r *CustomElementTypeRepository) CreateCustomElementType(ctx context.Context, customElementType *models.CustomElementType) (*models.CustomElementType, error) {
+func (r *CustomElementTypeRepository) Create(ctx context.Context, customElementType *models.CustomElementType) (*models.CustomElementType, error) {
 	if customElementType == nil {
 		return nil, errors.New("customElementType is required")
 	}
@@ -102,7 +102,7 @@ func (r *CustomElementTypeRepository) CreateCustomElementType(ctx context.Contex
 	return customElementType, nil
 }
 
-func (r *CustomElementTypeRepository) UpdateCustomElementType(ctx context.Context, id string, updates map[string]any) (*models.CustomElementType, error) {
+func (r *CustomElementTypeRepository) Update(ctx context.Context, id string, updates map[string]any) (*models.CustomElementType, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -139,7 +139,7 @@ func (r *CustomElementTypeRepository) UpdateCustomElementType(ctx context.Contex
 	return &customElementType, nil
 }
 
-func (r *CustomElementTypeRepository) DeleteCustomElementType(ctx context.Context, id string) error {
+func (r *CustomElementTypeRepository) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("id is required")
 	}

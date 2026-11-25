@@ -33,7 +33,7 @@ func TestHandleProjectErrorMapsAccessErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			app := fiber.New()
-			app.Get("/", func(c fiber.Ctx) error { return handleProjectError(c, tc.err, "Failed to retrieve project") })
+			app.Get("/", func(c fiber.Ctx) error { return respondProjectError(c, tc.err, "Failed to retrieve project") })
 			res, err := app.Test(httptest.NewRequest(http.MethodGet, "/", nil))
 			if err != nil {
 				t.Fatal(err)

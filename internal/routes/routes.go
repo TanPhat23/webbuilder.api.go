@@ -30,9 +30,9 @@ func publishAccessChange(rdb *redis.Client) func(projectID, userID string) {
 	}
 }
 
-func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, storage services.ObjectStorage, invitationService *services.InvitationService, redisClient *redis.Client) {
+func Register(app *fiber.App, repos *repositories.Repositories, storage services.ObjectStorage, invitationService *services.InvitationService, redisClient *redis.Client) {
 	publicGroup := app.Group("/api/v1")
-	privateGroup := app.Group("/api/v1", middleware.NewAuthenticateMiddleware(repos.AgentTokenRepository))
+	privateGroup := app.Group("/api/v1", middleware.NewAuthenticate(repos.AgentTokenRepository))
 
 	onAccessChanged := publishAccessChange(redisClient)
 
@@ -44,23 +44,23 @@ func SetupRoutes(app *fiber.App, repos *repositories.RepositoriesInterface, stor
 		itemEmitter = webhookService
 	}
 
-	ElementRoutes(publicGroup, privateGroup, repos, redisClient)
-	PageRoutes(publicGroup, privateGroup, repos, redisClient)
-	ProjectRoutes(publicGroup, privateGroup, repos, onAccessChanged)
-	ProjectWSTicketRoutes(privateGroup, repos, redisClient)
-	ContentRoutes(publicGroup, privateGroup, repos, itemEmitter)
+	RegisterElements(publicGroup, privateGroup, repos, redisClient)
+	RegisterPages(publicGroup, privateGroup, repos, redisClient)
+	RegisterProjects(publicGroup, privateGroup, repos, onAccessChanged)
+	RegisterProjectWSTickets(privateGroup, repos, redisClient)
+	RegisterContent(publicGroup, privateGroup, repos, itemEmitter)
 	if webhookService != nil {
-		WebhookRoutes(privateGroup, repos, webhookService)
+		RegisterWebhooks(privateGroup, repos, webhookService)
 	}
 
-	AgentTokenRoutes(privateGroup, repos)
-	SnapshotRoutes(privateGroup, repos)
-	ImageRoutes(publicGroup, privateGroup, repos, storage)
-	CustomElementRoutes(privateGroup, repos)
-	InvitationRoutes(privateGroup, invitationService)
-	CollaboratorRoutes(privateGroup, repos, onAccessChanged)
-	ElementCommentRoutes(privateGroup, repos)
-	UserRoutes(privateGroup, repos)
-	WorkflowRoutes(privateGroup, repos)
-	NotificationRoutes(privateGroup, repos)
+	RegisterAgentTokens(privateGroup, repos)
+	RegisterSnapshots(privateGroup, repos)
+	RegisterImages(publicGroup, privateGroup, repos, storage)
+	RegisterCustomElements(privateGroup, repos)
+	RegisterInvitations(privateGroup, invitationService)
+	RegisterCollaborators(privateGroup, repos, onAccessChanged)
+	RegisterElementComments(privateGroup, repos)
+	RegisterUsers(privateGroup, repos)
+	RegisterWorkflows(privateGroup, repos)
+	RegisterNotifications(privateGroup, repos)
 }

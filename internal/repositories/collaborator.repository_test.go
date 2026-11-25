@@ -25,14 +25,14 @@ func TestCollaboratorCreateGeneratesIDAndKeepsSuppliedID(t *testing.T) {
 	f.onExec("INSERT INTO", 1)
 	repo := NewCollaboratorRepository(db)
 
-	got, err := repo.CreateCollaborator(context.Background(), &models.Collaborator{UserId: "u1", ProjectId: "p1", Role: models.RoleEditor})
+	got, err := repo.Create(context.Background(), &models.Collaborator{UserId: "u1", ProjectId: "p1", Role: models.RoleEditor})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.Id == "" || got.UserId != "u1" || got.ProjectId != "p1" {
 		t.Errorf("unexpected collaborator: %+v", got)
 	}
-	got, err = repo.CreateCollaborator(context.Background(), &models.Collaborator{Id: "fixed", UserId: "u1", ProjectId: "p1"})
+	got, err = repo.Create(context.Background(), &models.Collaborator{Id: "fixed", UserId: "u1", ProjectId: "p1"})
 	if err != nil || got.Id != "fixed" {
 		t.Errorf("supplied id changed: %+v, %v", got, err)
 	}
@@ -44,7 +44,7 @@ func TestCollaboratorCreateGeneratesIDAndKeepsSuppliedID(t *testing.T) {
 func TestCollaboratorCreatePropagatesError(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.onErr("INSERT INTO", errCollaboratorBoom)
-	got, err := NewCollaboratorRepository(db).CreateCollaborator(context.Background(), &models.Collaborator{UserId: "u1", ProjectId: "p1"})
+	got, err := NewCollaboratorRepository(db).Create(context.Background(), &models.Collaborator{UserId: "u1", ProjectId: "p1"})
 	if got != nil || !errors.Is(err, errCollaboratorBoom) {
 		t.Errorf("got %+v, %v", got, err)
 	}
@@ -59,7 +59,7 @@ func TestCollaboratorGetByProjectAddsNormalisedOwner(t *testing.T) {
 	f.on(collaboratorUser, []string{"Id", "Email", "FirstName", "LastName"}, []driver.Value{"o1", "owner@example.com", "Olly", nil})
 	f.on(collaboratorProj, []string{"Id", "OwnerId", "CreatedAt", "UpdatedAt"}, []driver.Value{"p1", "o1", created, created})
 
-	got, err := NewCollaboratorRepository(db).GetCollaboratorsByProject(context.Background(), "p1")
+	got, err := NewCollaboratorRepository(db).ListByProject(context.Background(), "p1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestCollaboratorGetByProjectNormalisesOwnerWithoutNames(t *testing.T) {
 	now := time.Now()
 	f.on(collaboratorProj, []string{"Id", "OwnerId", "CreatedAt", "UpdatedAt"}, []driver.Value{"p1", "o1", now, now})
 	f.on(collaboratorUser, []string{"Id", "Email", "FirstName", "LastName"}, []driver.Value{"o1", "owner@example.com", nil, nil})
-	got, err := NewCollaboratorRepository(db).GetCollaboratorsByProject(context.Background(), "p1")
+	got, err := NewCollaboratorRepository(db).ListByProject(context.Background(), "p1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestCollaboratorGetByProjectOmitsMissingOwner(t *testing.T) {
 	db, f := newFakeDB(t)
 	now := time.Now()
 	f.on(collaboratorProj, []string{"Id", "OwnerId", "CreatedAt", "UpdatedAt"}, []driver.Value{"p1", "ghost", now, now})
-	got, err := NewCollaboratorRepository(db).GetCollaboratorsByProject(context.Background(), "p1")
+	got, err := NewCollaboratorRepository(db).ListByProject(context.Background(), "p1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,13 +110,13 @@ func TestCollaboratorGetByProjectErrors(t *testing.T) {
 	t.Run("list fails", func(t *testing.T) {
 		db, f := newFakeDB(t)
 		f.onErr(collaboratorTable, errCollaboratorBoom)
-		if _, err := NewCollaboratorRepository(db).GetCollaboratorsByProject(context.Background(), "p1"); !errors.Is(err, errCollaboratorBoom) {
+		if _, err := NewCollaboratorRepository(db).ListByProject(context.Background(), "p1"); !errors.Is(err, errCollaboratorBoom) {
 			t.Errorf("err = %v", err)
 		}
 	})
 	t.Run("project missing", func(t *testing.T) {
 		db, _ := newFakeDB(t)
-		got, err := NewCollaboratorRepository(db).GetCollaboratorsByProject(context.Background(), "p1")
+		got, err := NewCollaboratorRepository(db).ListByProject(context.Background(), "p1")
 		if got != nil || !errors.Is(err, gorm.ErrRecordNotFound) {
 			t.Errorf("got %+v, %v", got, err)
 		}
@@ -127,14 +127,14 @@ func TestCollaboratorGetByID(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		db, f := newFakeDB(t)
 		f.on(collaboratorTable, []string{"Id", "UserId", "ProjectId", "Role"}, []driver.Value{"c1", "u1", "p1", "viewer"})
-		got, err := NewCollaboratorRepository(db).GetCollaboratorByID(context.Background(), "c1")
+		got, err := NewCollaboratorRepository(db).GetByID(context.Background(), "c1")
 		if err != nil || got == nil || got.Id != "c1" || got.Role != "viewer" {
 			t.Fatalf("got %+v, %v", got, err)
 		}
 	})
 	t.Run("missing returns nil without error", func(t *testing.T) {
 		db, _ := newFakeDB(t)
-		got, err := NewCollaboratorRepository(db).GetCollaboratorByID(context.Background(), "nope")
+		got, err := NewCollaboratorRepository(db).GetByID(context.Background(), "nope")
 		if got != nil || err != nil {
 			t.Errorf("got %+v, %v", got, err)
 		}
@@ -142,7 +142,7 @@ func TestCollaboratorGetByID(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		db, f := newFakeDB(t)
 		f.onErr(collaboratorTable, errCollaboratorBoom)
-		got, err := NewCollaboratorRepository(db).GetCollaboratorByID(context.Background(), "c1")
+		got, err := NewCollaboratorRepository(db).GetByID(context.Background(), "c1")
 		if got != nil || !errors.Is(err, errCollaboratorBoom) {
 			t.Errorf("got %+v, %v", got, err)
 		}
@@ -153,7 +153,7 @@ func TestCollaboratorUpdateRole(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.onExec("UPDATE", 1)
 	repo := NewCollaboratorRepository(db)
-	if err := repo.UpdateCollaboratorRole(context.Background(), "c1", models.RoleViewer); err != nil {
+	if err := repo.UpdateRole(context.Background(), "c1", models.RoleViewer); err != nil {
 		t.Fatal(err)
 	}
 	if !f.sawQuery("UPDATE", "\"Role\"", "\"Id\" =") {
@@ -171,7 +171,7 @@ func TestCollaboratorUpdateRole(t *testing.T) {
 
 	db2, f2 := newFakeDB(t)
 	f2.onErr("UPDATE", errCollaboratorBoom)
-	if err := NewCollaboratorRepository(db2).UpdateCollaboratorRole(context.Background(), "c1", models.RoleViewer); !errors.Is(err, errCollaboratorBoom) {
+	if err := NewCollaboratorRepository(db2).UpdateRole(context.Background(), "c1", models.RoleViewer); !errors.Is(err, errCollaboratorBoom) {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -179,7 +179,7 @@ func TestCollaboratorUpdateRole(t *testing.T) {
 func TestCollaboratorDelete(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.onExec("DELETE", 1)
-	if err := NewCollaboratorRepository(db).DeleteCollaborator(context.Background(), "c1"); err != nil {
+	if err := NewCollaboratorRepository(db).Delete(context.Background(), "c1"); err != nil {
 		t.Fatal(err)
 	}
 	if !f.sawQuery("DELETE FROM", "Collaborator", "\"Id\" =") {
@@ -187,7 +187,7 @@ func TestCollaboratorDelete(t *testing.T) {
 	}
 	db2, f2 := newFakeDB(t)
 	f2.onErr("DELETE", errCollaboratorBoom)
-	if err := NewCollaboratorRepository(db2).DeleteCollaborator(context.Background(), "c1"); !errors.Is(err, errCollaboratorBoom) {
+	if err := NewCollaboratorRepository(db2).Delete(context.Background(), "c1"); !errors.Is(err, errCollaboratorBoom) {
 		t.Errorf("err = %v", err)
 	}
 }

@@ -38,7 +38,7 @@ func TestValidateRequiredParam(t *testing.T) {
 	var got string
 	var gotErr error
 	app := paramApp(t, nil, func(c fiber.Ctx) error {
-		got, gotErr = ValidateRequiredParam(c, "projectid")
+		got, gotErr = RequireParam(c, "projectid")
 		return c.SendStatus(http.StatusOK)
 	})
 	call(t, app, "GET", "/p1/pg1")
@@ -47,7 +47,7 @@ func TestValidateRequiredParam(t *testing.T) {
 	}
 
 	app = paramApp(t, nil, func(c fiber.Ctx) error {
-		got, gotErr = ValidateRequiredParam(c, "nope")
+		got, gotErr = RequireParam(c, "nope")
 		return c.SendStatus(http.StatusOK)
 	})
 	call(t, app, "GET", "/p1/pg1")
@@ -63,7 +63,7 @@ func TestMustParams(t *testing.T) {
 	var ids []string
 	var err error
 	app := paramApp(t, nil, func(c fiber.Ctx) error {
-		ids, err = MustParams(c, "pageid", "projectid")
+		ids, err = RequireParams(c, "pageid", "projectid")
 		return c.SendStatus(http.StatusOK)
 	})
 	call(t, app, "GET", "/p1/pg1")
@@ -72,7 +72,7 @@ func TestMustParams(t *testing.T) {
 	}
 
 	app = paramApp(t, nil, func(c fiber.Ctx) error {
-		ids, err = MustParams(c, "projectid", "missing", "pageid")
+		ids, err = RequireParams(c, "projectid", "missing", "pageid")
 		return c.SendStatus(http.StatusOK)
 	})
 	call(t, app, "GET", "/p1/pg1")
@@ -84,7 +84,7 @@ func TestMustParams(t *testing.T) {
 	}
 
 	app = paramApp(t, nil, func(c fiber.Ctx) error {
-		ids, err = MustParams(c)
+		ids, err = RequireParams(c)
 		return c.SendStatus(http.StatusOK)
 	})
 	call(t, app, "GET", "/p1/pg1")
@@ -110,7 +110,7 @@ func TestValidateUserID(t *testing.T) {
 			var got string
 			var err error
 			app := paramApp(t, tc.locals, func(c fiber.Ctx) error {
-				got, err = ValidateUserID(c)
+				got, err = RequireUserID(c)
 				return c.SendStatus(http.StatusOK)
 			})
 			call(t, app, "GET", "/a/b")
@@ -134,7 +134,7 @@ func TestMustUserAndParams(t *testing.T) {
 	var err error
 	run := func(locals any, names ...string) {
 		app := paramApp(t, locals, func(c fiber.Ctx) error {
-			user, ids, err = MustUserAndParams(c, names...)
+			user, ids, err = RequireUserAndParams(c, names...)
 			return c.SendStatus(http.StatusOK)
 		})
 		call(t, app, "GET", "/p1/pg1")

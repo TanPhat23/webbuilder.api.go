@@ -9,18 +9,18 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func ElementCommentRoutes(group fiber.Router, repos *repositories.RepositoriesInterface) {
+func RegisterElementComments(group fiber.Router, repos *repositories.Repositories) {
 	elementCommentService := services.NewElementCommentService(repos.ElementCommentRepository, repos.ElementRepository, repos.ProjectRepository)
 	elementCommentHandler := handlers.NewElementCommentHandler(elementCommentService)
 	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
-	group.Post("/element-comments", elementCommentHandler.CreateElementComment)
-	group.Get("/element-comments/:id", elementCommentHandler.GetElementCommentByID)
-	group.Get("/element-comments", elementCommentHandler.GetElementComments)
-	group.Get("/elements/:elementId/comments", elementCommentHandler.GetElementComments)
-	group.Get("/element-comments/author/:authorId", elementCommentHandler.GetCommentsByAuthorID)
-	group.Get("/projects/:projectId/comments", authorizer.RequireProjectPermission("projectId", authz.PermCommentView), elementCommentHandler.GetCommentsByProjectID)
-	group.Patch("/element-comments/:id", elementCommentHandler.UpdateElementComment)
-	group.Patch("/element-comments/:id/toggle-resolved", elementCommentHandler.ToggleResolvedStatus)
-	group.Delete("/element-comments/:id", elementCommentHandler.DeleteElementComment)
+	group.Post("/element-comments", elementCommentHandler.Create)
+	group.Get("/element-comments/:id", elementCommentHandler.GetByID)
+	group.Get("/element-comments", elementCommentHandler.List)
+	group.Get("/elements/:elementId/comments", elementCommentHandler.List)
+	group.Get("/element-comments/author/:authorId", elementCommentHandler.ListByAuthor)
+	group.Get("/projects/:projectId/comments", authorizer.RequireProjectPermission("projectId", authz.PermCommentView), elementCommentHandler.ListByProject)
+	group.Patch("/element-comments/:id", elementCommentHandler.Update)
+	group.Patch("/element-comments/:id/toggle-resolved", elementCommentHandler.ToggleResolved)
+	group.Delete("/element-comments/:id", elementCommentHandler.Delete)
 }

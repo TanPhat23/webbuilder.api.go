@@ -28,7 +28,7 @@ func NewElementCommentService(
 }
 
 func (s *ElementCommentService) resolveElementProjectID(ctx context.Context, elementID string) (string, error) {
-	element, err := s.elementRepo.GetElementByID(ctx, elementID)
+	element, err := s.elementRepo.GetByID(ctx, elementID)
 	if err != nil {
 		return "", fmt.Errorf("element not found: %w", err)
 	}
@@ -41,7 +41,7 @@ func (s *ElementCommentService) resolveElementProjectID(ctx context.Context, ele
 	return element.Page.ProjectId, nil
 }
 
-func (s *ElementCommentService) CreateElementComment(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error) {
+func (s *ElementCommentService) Create(ctx context.Context, comment *models.ElementComment) (*models.ElementComment, error) {
 	if comment == nil {
 		return nil, errors.New("comment cannot be nil")
 	}
@@ -64,7 +64,7 @@ func (s *ElementCommentService) CreateElementComment(ctx context.Context, commen
 			return nil, err
 		}
 	} else {
-		element, err := s.elementRepo.GetElementByID(ctx, comment.ElementId)
+		element, err := s.elementRepo.GetByID(ctx, comment.ElementId)
 		if err != nil {
 			return nil, fmt.Errorf("element not found: %w", err)
 		}
@@ -73,18 +73,18 @@ func (s *ElementCommentService) CreateElementComment(ctx context.Context, commen
 		}
 	}
 
-	return s.elementCommentRepo.CreateElementComment(ctx, comment)
+	return s.elementCommentRepo.Create(ctx, comment)
 }
 
-func (s *ElementCommentService) GetElementCommentByID(ctx context.Context, id string) (*models.ElementComment, error) {
+func (s *ElementCommentService) GetByID(ctx context.Context, id string) (*models.ElementComment, error) {
 	if id == "" {
 		return nil, errors.New("comment id is required")
 	}
 
-	return s.elementCommentRepo.GetElementCommentByID(ctx, id)
+	return s.elementCommentRepo.GetByID(ctx, id)
 }
 
-func (s *ElementCommentService) GetElementCommentByIDForUser(ctx context.Context, id, userID string) (*models.ElementComment, error) {
+func (s *ElementCommentService) GetByIDForUser(ctx context.Context, id, userID string) (*models.ElementComment, error) {
 	if id == "" {
 		return nil, errors.New("comment id is required")
 	}
@@ -92,7 +92,7 @@ func (s *ElementCommentService) GetElementCommentByIDForUser(ctx context.Context
 		return nil, authz.ErrUnauthorized
 	}
 
-	comment, err := s.elementCommentRepo.GetElementCommentByID(ctx, id)
+	comment, err := s.elementCommentRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +111,12 @@ func (s *ElementCommentService) GetElementCommentByIDForUser(ctx context.Context
 	return comment, nil
 }
 
-func (s *ElementCommentService) GetElementComments(ctx context.Context, elementID string, filter models.ElementCommentFilter) ([]models.ElementComment, error) {
+func (s *ElementCommentService) List(ctx context.Context, elementID string, filter models.ElementCommentFilter) ([]models.ElementComment, error) {
 	if elementID == "" {
 		return nil, errors.New("elementId is required")
 	}
 
-	element, err := s.elementRepo.GetElementByID(ctx, elementID)
+	element, err := s.elementRepo.GetByID(ctx, elementID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify element: %w", err)
 	}
@@ -124,10 +124,10 @@ func (s *ElementCommentService) GetElementComments(ctx context.Context, elementI
 		return nil, errors.New("element does not exist")
 	}
 
-	return s.elementCommentRepo.GetElementComments(ctx, elementID, &filter)
+	return s.elementCommentRepo.List(ctx, elementID, &filter)
 }
 
-func (s *ElementCommentService) GetElementCommentsForUser(ctx context.Context, elementID, userID string, filter models.ElementCommentFilter) ([]models.ElementComment, error) {
+func (s *ElementCommentService) ListForUser(ctx context.Context, elementID, userID string, filter models.ElementCommentFilter) ([]models.ElementComment, error) {
 	if elementID == "" {
 		return nil, errors.New("elementId is required")
 	}
@@ -143,10 +143,10 @@ func (s *ElementCommentService) GetElementCommentsForUser(ctx context.Context, e
 			return nil, err
 		}
 	}
-	return s.elementCommentRepo.GetElementComments(ctx, elementID, &filter)
+	return s.elementCommentRepo.List(ctx, elementID, &filter)
 }
 
-func (s *ElementCommentService) GetElementCommentsByAuthorID(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error) {
+func (s *ElementCommentService) ListByAuthor(ctx context.Context, authorID string, limit int, offset int) ([]models.ElementComment, error) {
 	if authorID == "" {
 		return nil, errors.New("authorId is required")
 	}
@@ -157,10 +157,10 @@ func (s *ElementCommentService) GetElementCommentsByAuthorID(ctx context.Context
 		return nil, errors.New("offset cannot be negative")
 	}
 
-	return s.elementCommentRepo.GetElementCommentsByAuthorID(ctx, authorID, limit, offset)
+	return s.elementCommentRepo.ListByAuthor(ctx, authorID, limit, offset)
 }
 
-func (s *ElementCommentService) GetElementCommentsByProjectID(ctx context.Context, projectID, userID string, limit int, offset int) ([]models.ElementComment, error) {
+func (s *ElementCommentService) ListByProject(ctx context.Context, projectID, userID string, limit int, offset int) ([]models.ElementComment, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -175,10 +175,10 @@ func (s *ElementCommentService) GetElementCommentsByProjectID(ctx context.Contex
 		return nil, fmt.Errorf("failed to verify project: %w", err)
 	}
 
-	return s.elementCommentRepo.GetElementCommentsByProjectID(ctx, projectID, limit, offset)
+	return s.elementCommentRepo.ListByProject(ctx, projectID, limit, offset)
 }
 
-func (s *ElementCommentService) UpdateElementComment(ctx context.Context, id string, userID string, updates map[string]any) (*models.ElementComment, error) {
+func (s *ElementCommentService) Update(ctx context.Context, id string, userID string, updates map[string]any) (*models.ElementComment, error) {
 	if id == "" {
 		return nil, errors.New("comment id is required")
 	}
@@ -189,7 +189,7 @@ func (s *ElementCommentService) UpdateElementComment(ctx context.Context, id str
 		return nil, errors.New("no updates provided")
 	}
 
-	comment, err := s.GetElementCommentByID(ctx, id)
+	comment, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve comment: %w", err)
 	}
@@ -217,7 +217,7 @@ func (s *ElementCommentService) UpdateElementComment(ctx context.Context, id str
 		return nil, fmt.Errorf("%w: user is not the comment author", authz.ErrForbidden)
 	}
 
-	return s.elementCommentRepo.UpdateElementComment(ctx, id, updates)
+	return s.elementCommentRepo.Update(ctx, id, updates)
 }
 
 func hasResolvedUpdate(updates map[string]any) bool {
@@ -228,7 +228,7 @@ func hasResolvedUpdate(updates map[string]any) bool {
 	return ok
 }
 
-func (s *ElementCommentService) DeleteElementComment(ctx context.Context, id string, userID string) error {
+func (s *ElementCommentService) Delete(ctx context.Context, id string, userID string) error {
 	if id == "" {
 		return errors.New("comment id is required")
 	}
@@ -236,7 +236,7 @@ func (s *ElementCommentService) DeleteElementComment(ctx context.Context, id str
 		return errors.New("userID is required")
 	}
 
-	comment, err := s.GetElementCommentByID(ctx, id)
+	comment, err := s.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve comment: %w", err)
 	}
@@ -259,24 +259,24 @@ func (s *ElementCommentService) DeleteElementComment(ctx context.Context, id str
 		return fmt.Errorf("%w: user is not the comment author", authz.ErrForbidden)
 	}
 
-	return s.elementCommentRepo.DeleteElementComment(ctx, id)
+	return s.elementCommentRepo.Delete(ctx, id)
 }
 
-func (s *ElementCommentService) ToggleResolvedStatus(ctx context.Context, id string) error {
+func (s *ElementCommentService) ToggleResolved(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("comment id is required")
 	}
 
-	_, err := s.GetElementCommentByID(ctx, id)
+	_, err := s.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve comment: %w", err)
 	}
 
-	_, err = s.elementCommentRepo.ToggleResolvedStatus(ctx, id)
+	_, err = s.elementCommentRepo.ToggleResolved(ctx, id)
 	return err
 }
 
-func (s *ElementCommentService) ToggleResolvedStatusForUser(ctx context.Context, id, userID string) error {
+func (s *ElementCommentService) ToggleResolvedForUser(ctx context.Context, id, userID string) error {
 	if id == "" {
 		return errors.New("comment id is required")
 	}
@@ -284,7 +284,7 @@ func (s *ElementCommentService) ToggleResolvedStatusForUser(ctx context.Context,
 		return authz.ErrUnauthorized
 	}
 
-	comment, err := s.GetElementCommentByID(ctx, id)
+	comment, err := s.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve comment: %w", err)
 	}
@@ -301,16 +301,16 @@ func (s *ElementCommentService) ToggleResolvedStatusForUser(ctx context.Context,
 		}
 	}
 
-	_, err = s.elementCommentRepo.ToggleResolvedStatus(ctx, id)
+	_, err = s.elementCommentRepo.ToggleResolved(ctx, id)
 	return err
 }
 
-func (s *ElementCommentService) CountElementComments(ctx context.Context, elementID string) (int64, error) {
+func (s *ElementCommentService) Count(ctx context.Context, elementID string) (int64, error) {
 	if elementID == "" {
 		return 0, errors.New("elementId is required")
 	}
 
-	element, err := s.elementRepo.GetElementByID(ctx, elementID)
+	element, err := s.elementRepo.GetByID(ctx, elementID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to verify element: %w", err)
 	}
@@ -318,10 +318,10 @@ func (s *ElementCommentService) CountElementComments(ctx context.Context, elemen
 		return 0, errors.New("element does not exist")
 	}
 
-	return s.elementCommentRepo.CountElementComments(ctx, elementID)
+	return s.elementCommentRepo.Count(ctx, elementID)
 }
 
-func (s *ElementCommentService) CountElementCommentsByProjectID(ctx context.Context, projectID, userID string) (int64, error) {
+func (s *ElementCommentService) CountByProject(ctx context.Context, projectID, userID string) (int64, error) {
 	if projectID == "" {
 		return 0, errors.New("projectId is required")
 	}
@@ -330,15 +330,15 @@ func (s *ElementCommentService) CountElementCommentsByProjectID(ctx context.Cont
 		return 0, fmt.Errorf("failed to verify project: %w", err)
 	}
 
-	return s.elementCommentRepo.CountElementCommentsByProjectID(ctx, projectID)
+	return s.elementCommentRepo.CountByProject(ctx, projectID)
 }
 
-func (s *ElementCommentService) DeleteElementCommentsByElementID(ctx context.Context, elementID string) error {
+func (s *ElementCommentService) DeleteByElement(ctx context.Context, elementID string) error {
 	if elementID == "" {
 		return errors.New("elementId is required")
 	}
 
-	element, err := s.elementRepo.GetElementByID(ctx, elementID)
+	element, err := s.elementRepo.GetByID(ctx, elementID)
 	if err != nil {
 		return fmt.Errorf("failed to verify element: %w", err)
 	}
@@ -346,5 +346,5 @@ func (s *ElementCommentService) DeleteElementCommentsByElementID(ctx context.Con
 		return errors.New("element does not exist")
 	}
 
-	return s.elementCommentRepo.DeleteElementCommentsByElementID(ctx, elementID)
+	return s.elementCommentRepo.DeleteByElement(ctx, elementID)
 }

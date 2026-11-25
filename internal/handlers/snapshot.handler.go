@@ -30,8 +30,8 @@ func NewSnapshotHandler(
 	}
 }
 
-func (h *SnapshotHandler) SaveSnapshot(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *SnapshotHandler) Save(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (h *SnapshotHandler) SaveSnapshot(c fiber.Ctx) error {
 		req.Id = uuid.NewString()
 	}
 
-	elements, err := h.processElements(req.Elements)
+	elements, err := h.decodeElements(req.Elements)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusBadRequest, "Invalid element structure", err)
 	}
@@ -57,51 +57,51 @@ func (h *SnapshotHandler) SaveSnapshot(c fiber.Ctx) error {
 	}
 
 	if err := h.saveSnapshot(c.RequestCtx(), projectID, userID, snapshot, elements); err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to save and sync snapshot")
+		return utils.RespondError(c, err, "Project not found", "Failed to save and sync snapshot")
 	}
 
 	return utils.SendSuccess(c, fiber.StatusCreated, "Snapshot saved successfully")
 }
 
-func (h *SnapshotHandler) GetSnapshots(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *SnapshotHandler) ListByProject(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	snapshots, err := h.snapshotService.GetSnapshotsByProjectID(c.RequestCtx(), projectID, userID)
+	snapshots, err := h.snapshotService.ListByProject(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to get snapshots")
+		return utils.RespondError(c, err, "Project not found", "Failed to get snapshots")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, snapshots)
 }
 
-func (h *SnapshotHandler) GetSnapshotByID(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid", "snapshotid")
+func (h *SnapshotHandler) GetByID(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid", "snapshotid")
 	if err != nil {
 		return err
 	}
 	projectID, snapshotID := ids[0], ids[1]
 
-	snapshot, err := h.snapshotService.GetSnapshotByIDWithAccess(c.RequestCtx(), projectID, snapshotID, userID)
+	snapshot, err := h.snapshotService.GetByIDForUser(c.RequestCtx(), projectID, snapshotID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Snapshot not found", "Failed to get snapshot")
+		return utils.RespondError(c, err, "Snapshot not found", "Failed to get snapshot")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, snapshot)
 }
 
-func (h *SnapshotHandler) DeleteSnapshot(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid", "snapshotid")
+func (h *SnapshotHandler) Delete(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid", "snapshotid")
 	if err != nil {
 		return err
 	}
 	projectID, snapshotID := ids[0], ids[1]
 
-	if err := h.snapshotService.DeleteSnapshotWithAccess(c.RequestCtx(), snapshotID, projectID, userID); err != nil {
-		return utils.HandleRepoError(c, err, "Snapshot not found", "Failed to delete snapshot")
+	if err := h.snapshotService.DeleteForUser(c.RequestCtx(), snapshotID, projectID, userID); err != nil {
+		return utils.RespondError(c, err, "Snapshot not found", "Failed to delete snapshot")
 	}
 
 	return utils.SendSuccess(c, fiber.StatusOK, "Snapshot deleted successfully")
@@ -109,7 +109,7 @@ func (h *SnapshotHandler) DeleteSnapshot(c fiber.Ctx) error {
 
 // ── private helpers ──────────────────────────────────────────────────────────
 
-func (h *SnapshotHandler) processElements(rawElements []any) ([]models.EditorElement, error) {
+func (h *SnapshotHandler) decodeElements(rawElements []any) ([]models.EditorElement, error) {
 	elements := make([]models.EditorElement, len(rawElements))
 	for i, e := range rawElements {
 		ee, err := utils.ConvertToEditorElement(e)
@@ -148,13 +148,13 @@ func (h *SnapshotHandler) buildSnapshot(projectID string, req dto.SaveSnapshotRe
 }
 
 func (h *SnapshotHandler) saveSnapshot(ctx context.Context, projectID, userID string, snapshot models.Snapshot, elements []models.EditorElement) error {
-	if err := h.snapshotService.SaveSnapshotWithAccess(ctx, projectID, userID, &snapshot); err != nil {
+	if err := h.snapshotService.SaveForUser(ctx, projectID, userID, &snapshot); err != nil {
 		log.Printf("Error saving snapshot for project %s: %v", projectID, err)
 		return err
 	}
 
 	log.Printf("Syncing %d elements for project %s", len(elements), projectID)
-	if err := h.elementRepo.ReplaceElements(ctx, projectID, elements); err != nil {
+	if err := h.elementRepo.Replace(ctx, projectID, elements); err != nil {
 		log.Printf("Error syncing elements for project %s: %v", projectID, err)
 		return err
 	}

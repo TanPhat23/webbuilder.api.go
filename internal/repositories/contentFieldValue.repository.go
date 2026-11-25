@@ -22,7 +22,7 @@ func NewContentFieldValueRepository(db *gorm.DB) ContentFieldValueRepositoryInte
 	return &ContentFieldValueRepository{db: db}
 }
 
-func (r *ContentFieldValueRepository) GetContentFieldValuesByContentItem(ctx context.Context, contentItemID string) ([]models.ContentFieldValue, error) {
+func (r *ContentFieldValueRepository) ListByContentItem(ctx context.Context, contentItemID string) ([]models.ContentFieldValue, error) {
 	if contentItemID == "" {
 		return nil, errors.New("contentItemID is required")
 	}
@@ -38,7 +38,7 @@ func (r *ContentFieldValueRepository) GetContentFieldValuesByContentItem(ctx con
 	return contentFieldValues, nil
 }
 
-func (r *ContentFieldValueRepository) GetContentFieldValueByID(ctx context.Context, id string) (*models.ContentFieldValue, error) {
+func (r *ContentFieldValueRepository) GetByID(ctx context.Context, id string) (*models.ContentFieldValue, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -57,7 +57,7 @@ func (r *ContentFieldValueRepository) GetContentFieldValueByID(ctx context.Conte
 	return &contentFieldValue, nil
 }
 
-func (r *ContentFieldValueRepository) CreateContentFieldValue(ctx context.Context, cfv *models.ContentFieldValue) (*models.ContentFieldValue, error) {
+func (r *ContentFieldValueRepository) Create(ctx context.Context, cfv *models.ContentFieldValue) (*models.ContentFieldValue, error) {
 	if cfv == nil {
 		return nil, errors.New("content field value cannot be nil")
 	}
@@ -84,7 +84,7 @@ func (r *ContentFieldValueRepository) CreateContentFieldValue(ctx context.Contex
 	return cfv, nil
 }
 
-func (r *ContentFieldValueRepository) UpdateContentFieldValue(ctx context.Context, id string, value *string) (*models.ContentFieldValue, error) {
+func (r *ContentFieldValueRepository) Update(ctx context.Context, id string, value *string) (*models.ContentFieldValue, error) {
 	if id == "" {
 		return nil, errors.New("id is required")
 	}
@@ -113,7 +113,7 @@ func (r *ContentFieldValueRepository) UpdateContentFieldValue(ctx context.Contex
 	return &contentFieldValue, nil
 }
 
-func (r *ContentFieldValueRepository) DeleteContentFieldValue(ctx context.Context, id string) error {
+func (r *ContentFieldValueRepository) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("id is required")
 	}

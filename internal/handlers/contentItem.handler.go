@@ -26,38 +26,38 @@ func NewContentItemHandler(contentItemService services.ContentItemServiceInterfa
 	}
 }
 
-func (h *ContentItemHandler) GetContentItemsByContentType(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "contentTypeId")
+func (h *ContentItemHandler) ListByContentType(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
 	contentTypeID := ids[0]
 
-	contentItems, err := h.contentItemService.GetContentItemsByContentTypeForUser(c.RequestCtx(), contentTypeID, userID)
+	contentItems, err := h.contentItemService.ListByContentTypeForUser(c.RequestCtx(), contentTypeID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Content type not found", "Failed to retrieve content items")
+		return utils.RespondError(c, err, "Content type not found", "Failed to retrieve content items")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, contentItems)
 }
 
-func (h *ContentItemHandler) GetContentItemByID(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "itemId")
+func (h *ContentItemHandler) GetByID(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "itemId")
 	if err != nil {
 		return err
 	}
 	itemID := ids[0]
 
-	contentItem, err := h.contentItemService.GetContentItemByIDForUser(c.RequestCtx(), itemID, userID)
+	contentItem, err := h.contentItemService.GetByIDForUser(c.RequestCtx(), itemID, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Content item not found", "Failed to retrieve content item")
+		return utils.RespondError(c, err, "Content item not found", "Failed to retrieve content item")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, contentItem)
 }
 
-func (h *ContentItemHandler) CreateContentItem(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "contentTypeId")
+func (h *ContentItemHandler) Create(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
@@ -80,16 +80,16 @@ func (h *ContentItemHandler) CreateContentItem(c fiber.Ctx) error {
 		Published:     published,
 	}
 
-	created, err := h.contentItemService.CreateContentItemForUser(c.RequestCtx(), contentItem, req.FieldValues, userID)
+	created, err := h.contentItemService.CreateForUser(c.RequestCtx(), contentItem, req.FieldValues, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Content type not found", "Failed to create content item")
+		return utils.RespondError(c, err, "Content type not found", "Failed to create content item")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *ContentItemHandler) UpdateContentItem(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "itemId")
+func (h *ContentItemHandler) Update(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "itemId")
 	if err != nil {
 		return err
 	}
@@ -116,37 +116,37 @@ func (h *ContentItemHandler) UpdateContentItem(c fiber.Ctx) error {
 		}
 	}
 
-	updated, err := h.contentItemService.UpdateContentItemForUser(c.RequestCtx(), itemID, userID, columnUpdates, req.FieldValues)
+	updated, err := h.contentItemService.UpdateForUser(c.RequestCtx(), itemID, userID, columnUpdates, req.FieldValues)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Content item not found", "Failed to update content item")
+		return utils.RespondError(c, err, "Content item not found", "Failed to update content item")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-func (h *ContentItemHandler) DeleteContentItem(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "itemId")
+func (h *ContentItemHandler) Delete(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "itemId")
 	if err != nil {
 		return err
 	}
 	itemID := ids[0]
 
-	if err := h.contentItemService.DeleteContentItemForUser(c.RequestCtx(), itemID, userID); err != nil {
-		return utils.HandleRepoError(c, err, "Content item not found", "Failed to delete content item")
+	if err := h.contentItemService.DeleteForUser(c.RequestCtx(), itemID, userID); err != nil {
+		return utils.RespondError(c, err, "Content item not found", "Failed to delete content item")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-func (h *ContentItemHandler) GetPublicContentItems(c fiber.Ctx) error {
+func (h *ContentItemHandler) ListPublic(c fiber.Ctx) error {
 	contentTypeId := c.Query("contentTypeId")
 	sortOrder := c.Query("sortOrder", "desc")
 	sortBy := resolveContentItemSortBy(c.Query("sortBy", "createdAt"))
 	limit := utils.ParsePositiveIntQuery(c, "limit", 10)
 
-	contentItems, err := h.contentItemService.GetPublicContentItems(c.RequestCtx(), contentTypeId, limit, sortBy, sortOrder)
+	contentItems, err := h.contentItemService.ListPublic(c.RequestCtx(), contentTypeId, limit, sortBy, sortOrder)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve content items")
+		return utils.RespondError(c, err, "", "Failed to retrieve content items")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, h.flattenContentItems(contentItems))
@@ -163,16 +163,16 @@ func resolveContentItemSortBy(raw string) string {
 	}
 }
 
-func (h *ContentItemHandler) GetPublicContentItemBySlug(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "contentTypeId", "slug")
+func (h *ContentItemHandler) GetPublicBySlug(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "contentTypeId", "slug")
 	if err != nil {
 		return err
 	}
 	contentTypeID, slug := ids[0], ids[1]
 
-	contentItem, err := h.contentItemService.GetContentItemBySlug(c.RequestCtx(), contentTypeID, slug)
+	contentItem, err := h.contentItemService.GetBySlug(c.RequestCtx(), contentTypeID, slug)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Content item not found", "Failed to retrieve content item")
+		return utils.RespondError(c, err, "Content item not found", "Failed to retrieve content item")
 	}
 
 	if !contentItem.Published {

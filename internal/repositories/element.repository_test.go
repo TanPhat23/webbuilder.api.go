@@ -51,35 +51,35 @@ func assertElementNoErr(t *testing.T, err error) {
 func TestElementValidationErrors(t *testing.T) {
 	ctx := context.Background()
 	cases := map[string]func(*ElementRepository) error{
-		"projectID is required": func(r *ElementRepository) error { _, err := r.GetElements(ctx, ""); return err },
-		"elementID is required": func(r *ElementRepository) error { _, err := r.GetElementByID(ctx, ""); return err },
+		"projectID is required": func(r *ElementRepository) error { _, err := r.List(ctx, ""); return err },
+		"elementID is required": func(r *ElementRepository) error { _, err := r.GetByID(ctx, ""); return err },
 		"elementID is required (relations)": func(r *ElementRepository) error {
-			_, err := r.GetElementWithRelations(ctx, "")
+			_, err := r.GetWithRelations(ctx, "")
 			return err
 		},
-		"pageID is required": func(r *ElementRepository) error { _, err := r.GetElementsByPageID(ctx, ""); return err },
+		"pageID is required": func(r *ElementRepository) error { _, err := r.ListByPage(ctx, ""); return err },
 		"projectID is required (page ids)": func(r *ElementRepository) error {
-			_, err := r.GetElementsByPageIds(ctx, "", []string{"p"})
+			_, err := r.ListByPageIDs(ctx, "", []string{"p"})
 			return err
 		},
-		"pageIDs is required":  func(r *ElementRepository) error { _, err := r.GetElementsByPageIds(ctx, "p", nil); return err },
-		"parentID is required": func(r *ElementRepository) error { _, err := r.GetChildElements(ctx, ""); return err },
+		"pageIDs is required":  func(r *ElementRepository) error { _, err := r.ListByPageIDs(ctx, "p", nil); return err },
+		"parentID is required": func(r *ElementRepository) error { _, err := r.ListChildren(ctx, ""); return err },
 		"projectID is required (roots)": func(r *ElementRepository) error {
-			_, err := r.GetRootElements(ctx, "")
+			_, err := r.ListRoots(ctx, "")
 			return err
 		},
-		"element cannot be nil":          func(r *ElementRepository) error { return r.CreateElement(ctx, nil) },
-		"type is required":               func(r *ElementRepository) error { return r.CreateElement(ctx, &models.Element{}) },
-		"element cannot be nil (update)": func(r *ElementRepository) error { return r.UpdateElement(ctx, nil) },
-		"element ID is required":         func(r *ElementRepository) error { return r.UpdateElement(ctx, &models.Element{}) },
+		"element cannot be nil":          func(r *ElementRepository) error { return r.Create(ctx, nil) },
+		"type is required":               func(r *ElementRepository) error { return r.Create(ctx, &models.Element{}) },
+		"element cannot be nil (update)": func(r *ElementRepository) error { return r.Update(ctx, nil) },
+		"element ID is required":         func(r *ElementRepository) error { return r.Update(ctx, &models.Element{}) },
 		"elementID is required (workflows)": func(r *ElementRepository) error {
 			return r.UpdateEventWorkflows(ctx, "", []byte("[]"))
 		},
-		"elementID is required (delete)":  func(r *ElementRepository) error { return r.DeleteElementByID(ctx, "") },
-		"pageID is required (delete)":     func(r *ElementRepository) error { return r.DeleteElementsByPageID(ctx, "") },
-		"projectID is required (delete)":  func(r *ElementRepository) error { return r.DeleteElementsByProjectID(ctx, "") },
-		"projectID is required (count)":   func(r *ElementRepository) error { _, err := r.CountElementsByProjectID(ctx, ""); return err },
-		"projectID is required (replace)": func(r *ElementRepository) error { return r.ReplaceElements(ctx, "", nil) },
+		"elementID is required (delete)":  func(r *ElementRepository) error { return r.Delete(ctx, "") },
+		"pageID is required (delete)":     func(r *ElementRepository) error { return r.DeleteByPage(ctx, "") },
+		"projectID is required (delete)":  func(r *ElementRepository) error { return r.DeleteByProject(ctx, "") },
+		"projectID is required (count)":   func(r *ElementRepository) error { _, err := r.CountByProject(ctx, ""); return err },
+		"projectID is required (replace)": func(r *ElementRepository) error { return r.Replace(ctx, "", nil) },
 	}
 	for want, call := range cases {
 		db, f := newFakeDB(t)
@@ -111,7 +111,7 @@ func TestElementGetElementsWholeProjectAndPageFilter(t *testing.T) {
 	}
 	db, f := newFakeDB(t)
 	f.on(elementSelect, elementCols, rows...)
-	got, err := elementNew(db).GetElements(ctx, "proj")
+	got, err := elementNew(db).List(ctx, "proj")
 	assertElementNoErr(t, err)
 	assertElementTreeRootWithChild(t, got, "root")
 	if f.sawQuery(`"Element"."PageId" = $2`) || !f.sawQuery(`"Page"."ProjectId" =`, `"DeletedAt" IS NULL`) || !elementArg(f, "proj") {
@@ -120,7 +120,7 @@ func TestElementGetElementsWholeProjectAndPageFilter(t *testing.T) {
 
 	dbPage, fPage := newFakeDB(t)
 	fPage.on(elementSelect, elementCols, rows[0])
-	_, err = elementNew(dbPage).GetElements(ctx, "proj", "pg1")
+	_, err = elementNew(dbPage).List(ctx, "proj", "pg1")
 	assertElementNoErr(t, err)
 	if !fPage.sawQuery(`"Element"."PageId" = $2`) || !elementArg(fPage, "pg1") {
 		t.Errorf("page filter missing: %q", fPage.queries[0])
@@ -130,14 +130,14 @@ func TestElementGetElementsWholeProjectAndPageFilter(t *testing.T) {
 func TestElementGetElementsEdgeCases(t *testing.T) {
 	ctx := context.Background()
 	dbEmptyPage, fEmptyPage := newFakeDB(t)
-	_, err := elementNew(dbEmptyPage).GetElements(ctx, "proj", "")
+	_, err := elementNew(dbEmptyPage).List(ctx, "proj", "")
 	assertElementNoErr(t, err)
 	if fEmptyPage.sawQuery(`"Element"."PageId" = $2`) {
 		t.Error("empty page id must not filter")
 	}
 
 	dbNone, _ := newFakeDB(t)
-	got, err := elementNew(dbNone).GetElements(ctx, "proj")
+	got, err := elementNew(dbNone).List(ctx, "proj")
 	assertElementNoErr(t, err)
 	if got == nil || len(got) != 0 {
 		t.Errorf("got %#v", got)
@@ -145,7 +145,7 @@ func TestElementGetElementsEdgeCases(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("SELECT", errElementBoom)
-	_, err = elementNew(dbErr).GetElements(ctx, "proj")
+	_, err = elementNew(dbErr).List(ctx, "proj")
 	assertElementErrIs(t, err, errElementBoom)
 }
 
@@ -154,7 +154,7 @@ func assertElementTreeRootWithChild(t *testing.T, got []models.EditorElement, ro
 	if len(got) != 1 || got[0].GetElement().Id != rootID {
 		t.Fatalf("want single root %q, got %+v", rootID, got)
 	}
-	if len(utils.GetChildrenFromEditorElement(got[0])) != 1 {
+	if len(utils.EditorElementChildren(got[0])) != 1 {
 		t.Fatalf("root should carry one child")
 	}
 }
@@ -164,15 +164,15 @@ func TestElementGetByIDAndRelations(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.on(elementSelect, elementCols, []driver.Value{"e1", "Text", "pg1", nil, int64(1)})
 	repo := elementNew(db)
-	got, err := repo.GetElementByID(ctx, "e1")
+	got, err := repo.GetByID(ctx, "e1")
 	assertElementNoErr(t, err)
 	if got.Id != "e1" || got.PageId == nil || *got.PageId != "pg1" {
-		t.Errorf("GetElementByID: %+v", got)
+		t.Errorf("GetByID: %+v", got)
 	}
-	rel, err := repo.GetElementWithRelations(ctx, "e1")
+	rel, err := repo.GetWithRelations(ctx, "e1")
 	assertElementNoErr(t, err)
 	if rel.Id != "e1" {
-		t.Errorf("GetElementWithRelations: %+v", rel)
+		t.Errorf("GetWithRelations: %+v", rel)
 	}
 }
 
@@ -180,20 +180,20 @@ func TestElementGetByIDAndRelationsErrors(t *testing.T) {
 	ctx := context.Background()
 	empty, _ := newFakeDB(t)
 	er := elementNew(empty)
-	_, err := er.GetElementByID(ctx, "x")
+	_, err := er.GetByID(ctx, "x")
 	assertElementErrIs(t, err, ErrElementNotFound)
-	_, err = er.GetElementWithRelations(ctx, "x")
+	_, err = er.GetWithRelations(ctx, "x")
 	assertElementErrIs(t, err, ErrElementNotFound)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errElementBoom)
 	br := elementNew(bad)
-	_, err = br.GetElementByID(ctx, "x")
+	_, err = br.GetByID(ctx, "x")
 	assertElementErrIs(t, err, errElementBoom)
 	if errors.Is(err, ErrElementNotFound) {
 		t.Errorf("unexpected ErrElementNotFound: %v", err)
 	}
-	_, err = br.GetElementWithRelations(ctx, "x")
+	_, err = br.GetWithRelations(ctx, "x")
 	assertElementErrIs(t, err, errElementBoom)
 }
 
@@ -208,10 +208,10 @@ func TestElementListQueries(t *testing.T) {
 		fragment string
 		arg      any
 	}{
-		{func(r *ElementRepository) ([]models.Element, error) { return r.GetElementsByPageID(ctx, "pg1") }, `"PageId" =`, "pg1"},
-		{func(r *ElementRepository) ([]models.Element, error) { return r.GetChildElements(ctx, "parent") }, `"ParentId" =`, "parent"},
-		{func(r *ElementRepository) ([]models.Element, error) { return r.GetRootElements(ctx, "proj") }, `"ParentId" IS NULL`, "proj"},
-		{func(r *ElementRepository) ([]models.Element, error) { return r.GetElementsByIDs(ctx, []string{"e1", "e2"}) }, `"Id" IN`, "e2"},
+		{func(r *ElementRepository) ([]models.Element, error) { return r.ListByPage(ctx, "pg1") }, `"PageId" =`, "pg1"},
+		{func(r *ElementRepository) ([]models.Element, error) { return r.ListChildren(ctx, "parent") }, `"ParentId" =`, "parent"},
+		{func(r *ElementRepository) ([]models.Element, error) { return r.ListRoots(ctx, "proj") }, `"ParentId" IS NULL`, "proj"},
+		{func(r *ElementRepository) ([]models.Element, error) { return r.ListByIDs(ctx, []string{"e1", "e2"}) }, `"Id" IN`, "e2"},
 	}
 	for _, tc := range cases {
 		db, f := newFakeDB(t)
@@ -233,7 +233,7 @@ func TestElementListQueries(t *testing.T) {
 
 func TestElementGetElementsByIDsEmpty(t *testing.T) {
 	db, f := newFakeDB(t)
-	got, err := elementNew(db).GetElementsByIDs(context.Background(), nil)
+	got, err := elementNew(db).ListByIDs(context.Background(), nil)
 	assertElementNoErr(t, err)
 	if got == nil || len(got) != 0 || f.queryCount() != 0 {
 		t.Errorf("got %#v, queries %d", got, f.queryCount())
@@ -246,7 +246,7 @@ func TestElementGetElementsByPageIds(t *testing.T) {
 	f.on(elementSelect, elementCols,
 		[]driver.Value{"root", "Frame", "pg1", nil, int64(1)},
 		[]driver.Value{"child", "Text", "pg1", "root", int64(2)})
-	got, err := elementNew(db).GetElementsByPageIds(ctx, "proj", []string{"pg1", "pg2"})
+	got, err := elementNew(db).ListByPageIDs(ctx, "proj", []string{"pg1", "pg2"})
 	assertElementNoErr(t, err)
 	assertElementTreeRootWithChild(t, got, "root")
 	if !f.sawQuery(`"ProjectId" =`, `"DeletedAt" IS NULL`) || !elementArg(f, "proj") || !elementArg(f, "pg2") {
@@ -254,7 +254,7 @@ func TestElementGetElementsByPageIds(t *testing.T) {
 	}
 
 	emptyDB, _ := newFakeDB(t)
-	emptyGot, err := elementNew(emptyDB).GetElementsByPageIds(ctx, "proj", []string{"pg1"})
+	emptyGot, err := elementNew(emptyDB).ListByPageIDs(ctx, "proj", []string{"pg1"})
 	assertElementNoErr(t, err)
 	if emptyGot == nil || len(emptyGot) != 0 {
 		t.Errorf("got %#v", emptyGot)
@@ -262,7 +262,7 @@ func TestElementGetElementsByPageIds(t *testing.T) {
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("SELECT", errElementBoom)
-	_, err = elementNew(bad).GetElementsByPageIds(ctx, "proj", []string{"pg1"})
+	_, err = elementNew(bad).ListByPageIDs(ctx, "proj", []string{"pg1"})
 	assertElementErrIs(t, err, errElementBoom)
 }
 
@@ -271,39 +271,39 @@ func TestElementCreate(t *testing.T) {
 	db, f := newFakeDB(t)
 	f.onExec("INSERT INTO", 1)
 	e := &models.Element{Type: "Text"}
-	assertElementNoErr(t, elementNew(db).CreateElement(ctx, e))
+	assertElementNoErr(t, elementNew(db).Create(ctx, e))
 	if e.Id == "" || !f.sawQuery("INSERT INTO", "Element") || !elementArg(f, e.Id) {
 		t.Errorf("id=%q queries=%v", e.Id, f.queries)
 	}
 
 	dbKeep, _ := newFakeDB(t)
 	kept := &models.Element{Id: "mine", Type: "Text"}
-	assertElementNoErr(t, elementNew(dbKeep).CreateElement(ctx, kept))
+	assertElementNoErr(t, elementNew(dbKeep).Create(ctx, kept))
 	if kept.Id != "mine" {
 		t.Errorf("id=%q", kept.Id)
 	}
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("INSERT INTO", errElementBoom)
-	assertElementErrIs(t, elementNew(bad).CreateElement(ctx, &models.Element{Type: "Text"}), errElementBoom)
+	assertElementErrIs(t, elementNew(bad).Create(ctx, &models.Element{Type: "Text"}), errElementBoom)
 }
 
 func TestElementUpdate(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onExec("UPDATE", 1)
-	err := elementNew(db).UpdateElement(ctx, &models.Element{Id: "e1", Type: "Text", Content: elementStrPtr("hello")})
+	err := elementNew(db).Update(ctx, &models.Element{Id: "e1", Type: "Text", Content: elementStrPtr("hello")})
 	assertElementNoErr(t, err)
 	if !f.sawQuery("UPDATE", "Element", `"Id" =`) || !elementArg(f, "hello") {
 		t.Errorf("query %q", f.lastQuery())
 	}
 
 	miss, _ := newFakeDB(t)
-	assertElementErrIs(t, elementNew(miss).UpdateElement(ctx, &models.Element{Id: "e1", Type: "Text"}), ErrElementNotFound)
+	assertElementErrIs(t, elementNew(miss).Update(ctx, &models.Element{Id: "e1", Type: "Text"}), ErrElementNotFound)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("UPDATE", errElementBoom)
-	assertElementErrIs(t, elementNew(bad).UpdateElement(ctx, &models.Element{Id: "e1", Type: "Text"}), errElementBoom)
+	assertElementErrIs(t, elementNew(bad).Update(ctx, &models.Element{Id: "e1", Type: "Text"}), errElementBoom)
 }
 
 func TestElementUpdateEventWorkflows(t *testing.T) {
@@ -327,53 +327,53 @@ func TestElementDeleteByID(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onExec("DELETE FROM", 1)
-	assertElementNoErr(t, elementNew(db).DeleteElementByID(ctx, "e1"))
+	assertElementNoErr(t, elementNew(db).Delete(ctx, "e1"))
 	if !f.sawQuery("DELETE FROM", `"Id" =`) {
 		t.Errorf("query %q", f.lastQuery())
 	}
 
 	empty, _ := newFakeDB(t)
-	assertElementErrIs(t, elementNew(empty).DeleteElementByID(ctx, "e1"), ErrElementNotFound)
+	assertElementErrIs(t, elementNew(empty).Delete(ctx, "e1"), ErrElementNotFound)
 
 	bad, fb := newFakeDB(t)
 	fb.onErr("DELETE FROM", errElementBoom)
-	assertElementErrIs(t, elementNew(bad).DeleteElementByID(ctx, "e1"), errElementBoom)
+	assertElementErrIs(t, elementNew(bad).Delete(ctx, "e1"), errElementBoom)
 }
 
 func TestElementDeletesByPageAndProject(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
-	assertElementNoErr(t, elementNew(db).DeleteElementsByPageID(ctx, "pg1"))
+	assertElementNoErr(t, elementNew(db).DeleteByPage(ctx, "pg1"))
 	if !f.sawQuery("DELETE FROM", `"PageId" =`) {
 		t.Errorf("query %q", f.lastQuery())
 	}
 	badPage, fbPage := newFakeDB(t)
 	fbPage.onErr("DELETE FROM", errElementBoom)
-	assertElementErrIs(t, elementNew(badPage).DeleteElementsByPageID(ctx, "pg1"), errElementBoom)
+	assertElementErrIs(t, elementNew(badPage).DeleteByPage(ctx, "pg1"), errElementBoom)
 
 	dbProj, fProj := newFakeDB(t)
 	fProj.onExec("DELETE FROM", 5)
-	assertElementNoErr(t, elementNew(dbProj).DeleteElementsByProjectID(ctx, "proj"))
+	assertElementNoErr(t, elementNew(dbProj).DeleteByProject(ctx, "proj"))
 	if !fProj.sawQuery("DELETE FROM", "Element") || !elementArg(fProj, "proj") {
 		t.Errorf("query %q", fProj.lastQuery())
 	}
 	badProj, fbProj := newFakeDB(t)
 	fbProj.onErr("DELETE", errElementBoom)
-	assertElementErrIs(t, elementNew(badProj).DeleteElementsByProjectID(ctx, "proj"), errElementBoom)
+	assertElementErrIs(t, elementNew(badProj).DeleteByProject(ctx, "proj"), errElementBoom)
 }
 
 func TestElementCountByProject(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("count(*)", []string{"count"}, []driver.Value{int64(12)})
-	n, err := elementNew(db).CountElementsByProjectID(ctx, "proj")
+	n, err := elementNew(db).CountByProject(ctx, "proj")
 	assertElementNoErr(t, err)
 	if n != 12 || !elementArg(f, "proj") {
 		t.Errorf("count=%d args=%v", n, f.args)
 	}
 	bad, fb := newFakeDB(t)
 	fb.onErr("count(*)", errElementBoom)
-	n, err = elementNew(bad).CountElementsByProjectID(ctx, "proj")
+	n, err = elementNew(bad).CountByProject(ctx, "proj")
 	if n != 0 {
 		t.Errorf("want 0 count, got %d", n)
 	}
@@ -390,7 +390,7 @@ func TestElementReplaceElementsTree(t *testing.T) {
 		&models.Element{Id: "a", Type: "Text", PageId: page},
 		&models.Element{Id: "b", Type: "Text", PageId: page},
 	}
-	assertElementNoErr(t, elementNew(db).ReplaceElements(ctx, "proj", roots))
+	assertElementNoErr(t, elementNew(db).Replace(ctx, "proj", roots))
 	if f.begins != 1 || f.commits != 1 || f.aborts != 0 {
 		t.Errorf("tx begins=%d commits=%d aborts=%d", f.begins, f.commits, f.aborts)
 	}
@@ -432,14 +432,14 @@ func TestElementReplaceElementsEmptyAndRollbacks(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.onExec("DELETE FROM", 3)
-	assertElementNoErr(t, elementNew(db).ReplaceElements(ctx, "proj", nil))
+	assertElementNoErr(t, elementNew(db).Replace(ctx, "proj", nil))
 	if f.sawQuery("INSERT INTO") || f.commits != 1 {
 		t.Errorf("queries=%v commits=%d", f.queries, f.commits)
 	}
 
 	dbDel, fDel := newFakeDB(t)
 	fDel.onErr("DELETE FROM", errElementBoom)
-	err := elementNew(dbDel).ReplaceElements(ctx, "proj", []models.EditorElement{&models.Element{Id: "a", Type: "Text"}})
+	err := elementNew(dbDel).Replace(ctx, "proj", []models.EditorElement{&models.Element{Id: "a", Type: "Text"}})
 	assertElementErrIs(t, err, errElementBoom)
 	if fDel.commits != 0 || fDel.aborts != 1 || fDel.sawQuery("INSERT INTO") {
 		t.Errorf("commits=%d aborts=%d queries=%v", fDel.commits, fDel.aborts, fDel.queries)
@@ -447,7 +447,7 @@ func TestElementReplaceElementsEmptyAndRollbacks(t *testing.T) {
 
 	dbIns, fIns := newFakeDB(t)
 	fIns.onErr("INSERT INTO", errElementBoom)
-	err = elementNew(dbIns).ReplaceElements(ctx, "proj", []models.EditorElement{&models.Element{Id: "a", Type: "Text"}})
+	err = elementNew(dbIns).Replace(ctx, "proj", []models.EditorElement{&models.Element{Id: "a", Type: "Text"}})
 	assertElementErrIs(t, err, errElementBoom)
 	if fIns.commits != 0 || fIns.aborts != 1 {
 		t.Errorf("commits=%d aborts=%d", fIns.commits, fIns.aborts)
@@ -457,7 +457,7 @@ func TestElementReplaceElementsEmptyAndRollbacks(t *testing.T) {
 func TestElementReplaceElementsUnconvertibleChild(t *testing.T) {
 	db, f := newFakeDB(t)
 	bad := &utils.ElementWithChildren{Element: &models.Element{Id: "root", Type: "Frame"}, Elements: []any{make(chan int)}}
-	err := elementNew(db).ReplaceElements(context.Background(), "proj", []models.EditorElement{bad})
+	err := elementNew(db).Replace(context.Background(), "proj", []models.EditorElement{bad})
 	if err == nil || !strings.Contains(err.Error(), "failed to convert child element") {
 		t.Errorf("err = %v", err)
 	}

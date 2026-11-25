@@ -20,31 +20,31 @@ func NewCustomElementTypeHandler(customElementTypeService services.CustomElement
 	}
 }
 
-func (h *CustomElementTypeHandler) GetCustomElementTypes(c fiber.Ctx) error {
-	customElementTypes, err := h.customElementTypeService.GetCustomElementTypes(c.RequestCtx())
+func (h *CustomElementTypeHandler) List(c fiber.Ctx) error {
+	customElementTypes, err := h.customElementTypeService.List(c.RequestCtx())
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve custom element types")
+		return utils.RespondError(c, err, "", "Failed to retrieve custom element types")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, customElementTypes)
 }
 
-func (h *CustomElementTypeHandler) GetCustomElementTypeByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+func (h *CustomElementTypeHandler) GetByID(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	customElementType, err := h.customElementTypeService.GetCustomElementTypeByID(c.RequestCtx(), id)
+	customElementType, err := h.customElementTypeService.GetByID(c.RequestCtx(), id)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Custom element type not found", "Failed to retrieve custom element type")
+		return utils.RespondError(c, err, "Custom element type not found", "Failed to retrieve custom element type")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, customElementType)
 }
 
-func (h *CustomElementTypeHandler) CreateCustomElementType(c fiber.Ctx) error {
+func (h *CustomElementTypeHandler) Create(c fiber.Ctx) error {
 	req := new(dto.CreateCustomElementTypeRequest)
 	if err := c.Bind().Body(req); err != nil {
 		return err
@@ -58,16 +58,16 @@ func (h *CustomElementTypeHandler) CreateCustomElementType(c fiber.Ctx) error {
 		Icon:        req.Icon,
 	}
 
-	created, err := h.customElementTypeService.CreateCustomElementType(c.RequestCtx(), customElementType)
+	created, err := h.customElementTypeService.Create(c.RequestCtx(), customElementType)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to create custom element type")
+		return utils.RespondError(c, err, "", "Failed to create custom element type")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *CustomElementTypeHandler) UpdateCustomElementType(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+func (h *CustomElementTypeHandler) Update(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "id")
 	if err != nil {
 		return err
 	}
@@ -96,23 +96,23 @@ func (h *CustomElementTypeHandler) UpdateCustomElementType(c fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.customElementTypeService.UpdateCustomElementType(c.RequestCtx(), id, updates)
+	updated, err := h.customElementTypeService.Update(c.RequestCtx(), id, updates)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Custom element type not found", "Failed to update custom element type")
+		return utils.RespondError(c, err, "Custom element type not found", "Failed to update custom element type")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-func (h *CustomElementTypeHandler) DeleteCustomElementType(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+func (h *CustomElementTypeHandler) Delete(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	if err := h.customElementTypeService.DeleteCustomElementType(c.RequestCtx(), id); err != nil {
-		return utils.HandleRepoError(c, err, "Custom element type not found", "Failed to delete custom element type")
+	if err := h.customElementTypeService.Delete(c.RequestCtx(), id); err != nil {
+		return utils.RespondError(c, err, "Custom element type not found", "Failed to delete custom element type")
 	}
 
 	return utils.SendSuccess(c, fiber.StatusOK, "Custom element type deleted successfully")

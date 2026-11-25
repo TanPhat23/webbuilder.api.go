@@ -23,31 +23,31 @@ type collaboratorSvcStub struct {
 	deletedID string
 }
 
-func (s *collaboratorSvcStub) GetCollaboratorsByProject(_ context.Context, projectID, userID string) ([]models.Collaborator, error) {
+func (s *collaboratorSvcStub) ListByProject(_ context.Context, projectID, userID string) ([]models.Collaborator, error) {
 	s.listProj, s.listUser = strings.Clone(projectID), strings.Clone(userID)
 	if s.err != nil {
 		return nil, s.err
 	}
 	return []models.Collaborator{{Id: "c1", ProjectId: projectID, UserId: "u2", Role: models.CollaboratorRole("editor")}}, nil
 }
-func (s *collaboratorSvcStub) GetCollaboratorByID(_ context.Context, id, _ string) (*models.Collaborator, error) {
+func (s *collaboratorSvcStub) GetByID(_ context.Context, id, _ string) (*models.Collaborator, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &models.Collaborator{Id: id, ProjectId: "p1"}, nil
 }
-func (s *collaboratorSvcStub) UpdateCollaboratorRole(_ context.Context, id, _ string, role models.CollaboratorRole) error {
+func (s *collaboratorSvcStub) UpdateRole(_ context.Context, id, _ string, role models.CollaboratorRole) error {
 	s.roleID, s.role = strings.Clone(id), models.CollaboratorRole(strings.Clone(string(role)))
 	return s.err
 }
-func (s *collaboratorSvcStub) DeleteCollaborator(_ context.Context, id, _ string) error {
+func (s *collaboratorSvcStub) Delete(_ context.Context, id, _ string) error {
 	s.deletedID = strings.Clone(id)
 	return s.err
 }
 func (s *collaboratorSvcStub) LeaveProject(_ context.Context, _, _ string) error {
 	return s.err
 }
-func (s *collaboratorSvcStub) CreateCollaborator(_ context.Context, _ string, c *models.Collaborator) (*models.Collaborator, error) {
+func (s *collaboratorSvcStub) Create(_ context.Context, _ string, c *models.Collaborator) (*models.Collaborator, error) {
 	s.created = c
 	if s.err != nil {
 		return nil, s.err
@@ -59,16 +59,16 @@ func (s *collaboratorSvcStub) CreateCollaborator(_ context.Context, _ string, c 
 func collaboratorKit(userID string, svc *collaboratorSvcStub) *fiber.App {
 	h := NewCollaboratorHandler(svc)
 	return newKitApp(userID, func(app *fiber.App) {
-		app.Get("/projects/:projectid/collaborators", h.GetCollaboratorsByProject)
-		app.Get("/collaborators/:collaboratorid", h.GetCollaboratorByID)
-		app.Patch("/collaborators/:collaboratorid", h.UpdateCollaboratorRole)
-		app.Delete("/collaborators/:collaboratorid", h.DeleteCollaborator)
-		app.Post("/collaborators", h.CreateCollaborator)
+		app.Get("/projects/:projectid/collaborators", h.ListByProject)
+		app.Get("/collaborators/:collaboratorid", h.GetByID)
+		app.Patch("/collaborators/:collaboratorid", h.UpdateRole)
+		app.Delete("/collaborators/:collaboratorid", h.Delete)
+		app.Post("/collaborators", h.Create)
 		// Routes without the parameter exercise the "missing param" branches.
-		app.Get("/noparam/projects", h.GetCollaboratorsByProject)
-		app.Get("/noparam", h.GetCollaboratorByID)
-		app.Patch("/noparam", h.UpdateCollaboratorRole)
-		app.Delete("/noparam", h.DeleteCollaborator)
+		app.Get("/noparam/projects", h.ListByProject)
+		app.Get("/noparam", h.GetByID)
+		app.Patch("/noparam", h.UpdateRole)
+		app.Delete("/noparam", h.Delete)
 	})
 }
 

@@ -44,12 +44,12 @@ func NewValidationError(errs validator.ValidationErrors) *ValidationError {
 	return &ValidationError{Fields: fields}
 }
 
-// HandleRepoError maps common repository sentinel errors to the appropriate HTTP
+// RespondError maps common repository sentinel errors to the appropriate HTTP
 // response. Pass a non-empty notFoundMsg to enable the not-found check; pass an
 // empty string to skip it and always return 500.
 //
-//	if err != nil { return utils.HandleRepoError(c, err, "User not found", "Failed to retrieve user") }
-func HandleRepoError(c fiber.Ctx, err error, notFoundMsg, internalMsg string) error {
+//	if err != nil { return utils.RespondError(c, err, "User not found", "Failed to retrieve user") }
+func RespondError(c fiber.Ctx, err error, notFoundMsg, internalMsg string) error {
 	if err == nil {
 		return nil
 	}

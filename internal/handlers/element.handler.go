@@ -22,8 +22,8 @@ const PublishedProjectVerifiedKey = "publishedProjectVerified"
 // ProjectAccess is the part of the project repository the element routes need to
 // decide who may read a project's elements.
 type ProjectAccess interface {
-	GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
-	GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error)
+	GetWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error)
+	GetPublicByID(ctx context.Context, projectID string) (*models.Project, error)
 }
 
 type ElementHandler struct {
@@ -38,9 +38,9 @@ func NewElementHandler(elementService services.ElementServiceInterface, projects
 	}
 }
 
-// GetElements returns a project's elements to its owner or a collaborator.
-func (h *ElementHandler) GetElements(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+// List returns a project's elements to its owner or a collaborator.
+func (h *ElementHandler) List(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -50,17 +50,17 @@ func (h *ElementHandler) GetElements(c fiber.Ctx) error {
 		return err
 	}
 
-	elements, err := h.elementService.GetElements(c.RequestCtx(), projectID)
+	elements, err := h.elementService.List(c.RequestCtx(), projectID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
+		return utils.RespondError(c, err, "", "Failed to retrieve elements")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, elements)
 }
 
-// GetPublicElements returns a published project's elements to anyone.
-func (h *ElementHandler) GetPublicElements(c fiber.Ctx) error {
-	projectID, err := utils.ValidateRequiredParam(c, "projectid")
+// ListPublic returns a published project's elements to anyone.
+func (h *ElementHandler) ListPublic(c fiber.Ctx) error {
+	projectID, err := utils.RequireParam(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -68,18 +68,18 @@ func (h *ElementHandler) GetPublicElements(c fiber.Ctx) error {
 		return err
 	}
 
-	elements, err := h.elementService.GetElements(c.RequestCtx(), projectID)
+	elements, err := h.elementService.List(c.RequestCtx(), projectID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
+		return utils.RespondError(c, err, "", "Failed to retrieve elements")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, elements)
 }
 
-// GetElementsByPageIds returns the elements of some pages of one project to its
+// ListByPageIDs returns the elements of some pages of one project to its
 // owner or a collaborator. Query: projectId, pageIds (comma separated).
-func (h *ElementHandler) GetElementsByPageIds(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+func (h *ElementHandler) ListByPageIDs(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -94,8 +94,8 @@ func (h *ElementHandler) GetElementsByPageIds(c fiber.Ctx) error {
 	return h.sendPageElements(c, projectID, pageIDs)
 }
 
-// GetPublicElementsByPageIds is GetElementsByPageIds for a published project, open to anyone.
-func (h *ElementHandler) GetPublicElementsByPageIds(c fiber.Ctx) error {
+// ListPublicByPageIDs is ListByPageIDs for a published project, open to anyone.
+func (h *ElementHandler) ListPublicByPageIDs(c fiber.Ctx) error {
 	projectID, pageIDs, err := pageIDsFromQuery(c)
 	if err != nil {
 		return err
@@ -108,9 +108,9 @@ func (h *ElementHandler) GetPublicElementsByPageIds(c fiber.Ctx) error {
 }
 
 func (h *ElementHandler) sendPageElements(c fiber.Ctx, projectID string, pageIDs []string) error {
-	elements, err := h.elementService.GetElementsByPageIds(c.RequestCtx(), projectID, pageIDs)
+	elements, err := h.elementService.ListByPageIDs(c.RequestCtx(), projectID, pageIDs)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
+		return utils.RespondError(c, err, "", "Failed to retrieve elements")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, elements)
@@ -120,7 +120,7 @@ func (h *ElementHandler) sendPageElements(c fiber.Ctx, projectID string, pageIDs
 // It returns the error instead of writing the response, so callers cannot mistake
 // "already answered" for success.
 func (h *ElementHandler) requireAccess(c fiber.Ctx, projectID, userID string) error {
-	_, err := h.projects.GetProjectWithAccess(c.RequestCtx(), projectID, userID)
+	_, err := h.projects.GetWithAccess(c.RequestCtx(), projectID, userID)
 	if err == nil {
 		return nil
 	}
@@ -132,7 +132,7 @@ func (h *ElementHandler) requirePublished(c fiber.Ctx, projectID string) error {
 	if verified, _ := c.Locals(PublishedProjectVerifiedKey).(bool); verified {
 		return nil
 	}
-	project, err := h.projects.GetPublicProjectByID(c.RequestCtx(), projectID)
+	project, err := h.projects.GetPublicByID(c.RequestCtx(), projectID)
 	switch {
 	case errors.Is(err, repositories.ErrProjectNotFound):
 		return fiber.NewError(fiber.StatusNotFound, "Project not found")

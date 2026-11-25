@@ -8,12 +8,12 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func UserRoutes(group fiber.Router, repos *repositories.RepositoriesInterface) {
+func RegisterUsers(group fiber.Router, repos *repositories.Repositories) {
 	userService := services.NewUserService(repos.UserRepository)
 	userHandler := handlers.NewUserHandler(userService)
 
-	group.Get("/users/search", userHandler.SearchUsers)
-	group.Get("/users/email/:email", userHandler.GetUserByEmail)
-	group.Get("/users/username/:username", userHandler.GetUserByUsername)
-	group.Get("/users/:userid", userHandler.SearchUsers)
+	group.Get("/users/search", userHandler.Search)
+	group.Get("/users/email/:email", userHandler.GetByEmail)
+	group.Get("/users/username/:username", userHandler.GetByUsername)
+	group.Get("/users/:userid", userHandler.Search)
 }

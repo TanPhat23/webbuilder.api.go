@@ -14,63 +14,63 @@ func NewMockProjectRepo() *MockProjectRepo {
 	return &MockProjectRepo{GenericMock: &GenericMock{funcs: make(map[string]any)}}
 }
 
-func (m *MockProjectRepo) SetGetPublicProjectByID(fn func(context.Context, string) (*models.Project, error)) *MockProjectRepo {
-	m.Set("GetPublicProjectByID", fn)
+func (m *MockProjectRepo) SetGetPublicByID(fn func(context.Context, string) (*models.Project, error)) *MockProjectRepo {
+	m.Set("GetPublicByID", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetGetPublicProjectBySubdomain(fn func(context.Context, string) (*models.Project, error)) *MockProjectRepo {
-	m.Set("GetPublicProjectBySubdomain", fn)
+func (m *MockProjectRepo) SetGetPublicBySubdomain(fn func(context.Context, string) (*models.Project, error)) *MockProjectRepo {
+	m.Set("GetPublicBySubdomain", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetGetProjectByID(fn func(context.Context, string, string) (*models.Project, error)) *MockProjectRepo {
-	m.Set("GetProjectByID", fn)
+func (m *MockProjectRepo) SetGetByID(fn func(context.Context, string, string) (*models.Project, error)) *MockProjectRepo {
+	m.Set("GetByID", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetGetProjectWithAccess(fn func(context.Context, string, string) (*models.Project, error)) *MockProjectRepo {
-	m.Set("GetProjectWithAccess", fn)
+func (m *MockProjectRepo) SetGetWithAccess(fn func(context.Context, string, string) (*models.Project, error)) *MockProjectRepo {
+	m.Set("GetWithAccess", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetGetProjectsByUserID(fn func(context.Context, string) ([]models.Project, error)) *MockProjectRepo {
-	m.Set("GetProjectsByUserID", fn)
+func (m *MockProjectRepo) SetListByUser(fn func(context.Context, string) ([]models.Project, error)) *MockProjectRepo {
+	m.Set("ListByUser", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetGetCollaboratorProjects(fn func(context.Context, string) ([]models.Project, error)) *MockProjectRepo {
-	m.Set("GetCollaboratorProjects", fn)
+func (m *MockProjectRepo) SetListByCollaborator(fn func(context.Context, string) ([]models.Project, error)) *MockProjectRepo {
+	m.Set("ListByCollaborator", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetGetProjectPages(fn func(context.Context, string, string) ([]models.Page, error)) *MockProjectRepo {
-	m.Set("GetProjectPages", fn)
+func (m *MockProjectRepo) SetListPages(fn func(context.Context, string, string) ([]models.Page, error)) *MockProjectRepo {
+	m.Set("ListPages", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetCreateProject(fn func(context.Context, *models.Project) error) *MockProjectRepo {
-	m.Set("CreateProject", fn)
+func (m *MockProjectRepo) SetCreate(fn func(context.Context, *models.Project) error) *MockProjectRepo {
+	m.Set("Create", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetUpdateProject(fn func(context.Context, string, string, map[string]any) (*models.Project, error)) *MockProjectRepo {
-	m.Set("UpdateProject", fn)
+func (m *MockProjectRepo) SetUpdate(fn func(context.Context, string, string, map[string]any) (*models.Project, error)) *MockProjectRepo {
+	m.Set("Update", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetDeleteProject(fn func(context.Context, string, string) error) *MockProjectRepo {
-	m.Set("DeleteProject", fn)
+func (m *MockProjectRepo) SetDelete(fn func(context.Context, string, string) error) *MockProjectRepo {
+	m.Set("Delete", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetHardDeleteProject(fn func(context.Context, string, string) error) *MockProjectRepo {
-	m.Set("HardDeleteProject", fn)
+func (m *MockProjectRepo) SetHardDelete(fn func(context.Context, string, string) error) *MockProjectRepo {
+	m.Set("HardDelete", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetRestoreProject(fn func(context.Context, string, string) error) *MockProjectRepo {
-	m.Set("RestoreProject", fn)
+func (m *MockProjectRepo) SetRestore(fn func(context.Context, string, string) error) *MockProjectRepo {
+	m.Set("Restore", fn)
 	return m
 }
 
@@ -79,90 +79,90 @@ func (m *MockProjectRepo) SetExistsForUser(fn func(context.Context, string, stri
 	return m
 }
 
-func (m *MockProjectRepo) SetGetProjectWithLock(fn func(context.Context, string, string) (*models.Project, error)) *MockProjectRepo {
-	m.Set("GetProjectWithLock", fn)
+func (m *MockProjectRepo) SetGetWithLock(fn func(context.Context, string, string) (*models.Project, error)) *MockProjectRepo {
+	m.Set("GetWithLock", fn)
 	return m
 }
 
-func (m *MockProjectRepo) GetPublicProjectByID(ctx context.Context, projectID string) (*models.Project, error) {
-	if fn := m.Get("GetPublicProjectByID"); fn != nil {
+func (m *MockProjectRepo) GetPublicByID(ctx context.Context, projectID string) (*models.Project, error) {
+	if fn := m.Get("GetPublicByID"); fn != nil {
 		return fn.(func(context.Context, string) (*models.Project, error))(ctx, projectID)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) GetPublicProjectBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
-	if fn := m.Get("GetPublicProjectBySubdomain"); fn != nil {
+func (m *MockProjectRepo) GetPublicBySubdomain(ctx context.Context, subdomain string) (*models.Project, error) {
+	if fn := m.Get("GetPublicBySubdomain"); fn != nil {
 		return fn.(func(context.Context, string) (*models.Project, error))(ctx, subdomain)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) GetProjectByID(ctx context.Context, projectID, userID string) (*models.Project, error) {
-	if fn := m.Get("GetProjectByID"); fn != nil {
+func (m *MockProjectRepo) GetByID(ctx context.Context, projectID, userID string) (*models.Project, error) {
+	if fn := m.Get("GetByID"); fn != nil {
 		return fn.(func(context.Context, string, string) (*models.Project, error))(ctx, projectID, userID)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) GetProjectWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
-	if fn := m.Get("GetProjectWithAccess"); fn != nil {
+func (m *MockProjectRepo) GetWithAccess(ctx context.Context, projectID, userID string) (*models.Project, error) {
+	if fn := m.Get("GetWithAccess"); fn != nil {
 		return fn.(func(context.Context, string, string) (*models.Project, error))(ctx, projectID, userID)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) GetProjectsByUserID(ctx context.Context, userID string) ([]models.Project, error) {
-	if fn := m.Get("GetProjectsByUserID"); fn != nil {
+func (m *MockProjectRepo) ListByUser(ctx context.Context, userID string) ([]models.Project, error) {
+	if fn := m.Get("ListByUser"); fn != nil {
 		return fn.(func(context.Context, string) ([]models.Project, error))(ctx, userID)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) GetCollaboratorProjects(ctx context.Context, userID string) ([]models.Project, error) {
-	if fn := m.Get("GetCollaboratorProjects"); fn != nil {
+func (m *MockProjectRepo) ListByCollaborator(ctx context.Context, userID string) ([]models.Project, error) {
+	if fn := m.Get("ListByCollaborator"); fn != nil {
 		return fn.(func(context.Context, string) ([]models.Project, error))(ctx, userID)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) GetProjectPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
-	if fn := m.Get("GetProjectPages"); fn != nil {
+func (m *MockProjectRepo) ListPages(ctx context.Context, projectID, userID string) ([]models.Page, error) {
+	if fn := m.Get("ListPages"); fn != nil {
 		return fn.(func(context.Context, string, string) ([]models.Page, error))(ctx, projectID, userID)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) CreateProject(ctx context.Context, project *models.Project) error {
-	if fn := m.Get("CreateProject"); fn != nil {
+func (m *MockProjectRepo) Create(ctx context.Context, project *models.Project) error {
+	if fn := m.Get("Create"); fn != nil {
 		return fn.(func(context.Context, *models.Project) error)(ctx, project)
 	}
 	return nil
 }
 
-func (m *MockProjectRepo) UpdateProject(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
-	if fn := m.Get("UpdateProject"); fn != nil {
+func (m *MockProjectRepo) Update(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+	if fn := m.Get("Update"); fn != nil {
 		return fn.(func(context.Context, string, string, map[string]any) (*models.Project, error))(ctx, projectID, userID, updates)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) DeleteProject(ctx context.Context, projectID, userID string) error {
-	if fn := m.Get("DeleteProject"); fn != nil {
+func (m *MockProjectRepo) Delete(ctx context.Context, projectID, userID string) error {
+	if fn := m.Get("Delete"); fn != nil {
 		return fn.(func(context.Context, string, string) error)(ctx, projectID, userID)
 	}
 	return nil
 }
 
-func (m *MockProjectRepo) HardDeleteProject(ctx context.Context, projectID, userID string) error {
-	if fn := m.Get("HardDeleteProject"); fn != nil {
+func (m *MockProjectRepo) HardDelete(ctx context.Context, projectID, userID string) error {
+	if fn := m.Get("HardDelete"); fn != nil {
 		return fn.(func(context.Context, string, string) error)(ctx, projectID, userID)
 	}
 	return nil
 }
 
-func (m *MockProjectRepo) RestoreProject(ctx context.Context, projectID, userID string) error {
-	if fn := m.Get("RestoreProject"); fn != nil {
+func (m *MockProjectRepo) Restore(ctx context.Context, projectID, userID string) error {
+	if fn := m.Get("Restore"); fn != nil {
 		return fn.(func(context.Context, string, string) error)(ctx, projectID, userID)
 	}
 	return nil
@@ -175,41 +175,41 @@ func (m *MockProjectRepo) ExistsForUser(ctx context.Context, projectID, userID s
 	return false, nil
 }
 
-func (m *MockProjectRepo) GetProjectWithLock(ctx context.Context, projectID, userID string) (*models.Project, error) {
-	if fn := m.Get("GetProjectWithLock"); fn != nil {
+func (m *MockProjectRepo) GetWithLock(ctx context.Context, projectID, userID string) (*models.Project, error) {
+	if fn := m.Get("GetWithLock"); fn != nil {
 		return fn.(func(context.Context, string, string) (*models.Project, error))(ctx, projectID, userID)
 	}
 	return nil, nil
 }
-func (m *MockProjectRepo) CreateProjectWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
-	if fn := m.Get("CreateProjectWithPage"); fn != nil {
+func (m *MockProjectRepo) CreateWithPage(ctx context.Context, project *models.Project, page *models.Page) error {
+	if fn := m.Get("CreateWithPage"); fn != nil {
 		return fn.(func(context.Context, *models.Project, *models.Page) error)(ctx, project, page)
 	}
 	return nil
 }
 
-func (m *MockProjectRepo) GetProjectAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
-	if fn := m.Get("GetProjectAccess"); fn != nil {
+func (m *MockProjectRepo) GetAccess(ctx context.Context, projectID, userID string) (*models.ProjectAccess, error) {
+	if fn := m.Get("GetAccess"); fn != nil {
 		return fn.(func(context.Context, string, string) (*models.ProjectAccess, error))(ctx, projectID, userID)
 	}
 	return nil, nil
 }
 
-func (m *MockProjectRepo) SetCreateProjectWithPage(fn func(context.Context, *models.Project, *models.Page) error) *MockProjectRepo {
-	m.Set("CreateProjectWithPage", fn)
+func (m *MockProjectRepo) SetCreateWithPage(fn func(context.Context, *models.Project, *models.Page) error) *MockProjectRepo {
+	m.Set("CreateWithPage", fn)
 	return m
 }
 
-func (m *MockProjectRepo) SetGetProjectAccess(fn func(context.Context, string, string) (*models.ProjectAccess, error)) *MockProjectRepo {
-	m.Set("GetProjectAccess", fn)
+func (m *MockProjectRepo) SetGetAccess(fn func(context.Context, string, string) (*models.ProjectAccess, error)) *MockProjectRepo {
+	m.Set("GetAccess", fn)
 	return m
 }
 
-func (m *MockProjectRepo) UpdateProjectFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
-	if fn := m.Get("UpdateProjectFields"); fn != nil {
+func (m *MockProjectRepo) UpdateFields(ctx context.Context, projectID, userID string, updates map[string]any) (*models.Project, error) {
+	if fn := m.Get("UpdateFields"); fn != nil {
 		return fn.(func(context.Context, string, string, map[string]any) (*models.Project, error))(ctx, projectID, userID, updates)
 	}
-	return m.UpdateProject(ctx, projectID, userID, updates)
+	return m.Update(ctx, projectID, userID, updates)
 }
 
 func (m *MockProjectRepo) TransferOwnership(ctx context.Context, projectID, currentOwnerID, newOwnerID string) error {

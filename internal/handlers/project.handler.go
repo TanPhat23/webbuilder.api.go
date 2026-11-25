@@ -31,110 +31,96 @@ func NewProjectHandler(projectService services.ProjectServiceInterface) *Project
 	}
 }
 
-func (h *ProjectHandler) GetProjectsByUser(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+func (h *ProjectHandler) ListByUser(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
 
-	projects, err := h.projectService.GetProjectsByUserID(c.RequestCtx(), userID)
+	projects, err := h.projectService.ListByUser(c.RequestCtx(), userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve projects")
+		return utils.RespondError(c, err, "", "Failed to retrieve projects")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, projects)
 }
 
-func (h *ProjectHandler) GetProjectByID(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *ProjectHandler) GetByID(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	project, err := h.projectService.GetProjectWithAccess(c.RequestCtx(), projectID, userID)
+	project, err := h.projectService.GetWithAccess(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return handleProjectError(c, err, "Failed to retrieve project")
+		return respondProjectError(c, err, "Failed to retrieve project")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, project)
 }
 
-func (h *ProjectHandler) GetPublicProjectByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "projectid")
+func (h *ProjectHandler) GetPublicByID(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	project, err := h.projectService.GetPublicProjectByID(c.RequestCtx(), projectID)
+	project, err := h.projectService.GetPublicByID(c.RequestCtx(), projectID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve project")
+		return utils.RespondError(c, err, "Project not found", "Failed to retrieve project")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, project)
 }
 
-func (h *ProjectHandler) GetPublicProjectBySubdomain(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "subdomain")
+func (h *ProjectHandler) GetPublicBySubdomain(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "subdomain")
 	if err != nil {
 		return err
 	}
 
-	project, err := h.projectService.GetPublicProjectBySubdomain(c.RequestCtx(), ids[0])
+	project, err := h.projectService.GetPublicBySubdomain(c.RequestCtx(), ids[0])
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve project")
+		return utils.RespondError(c, err, "Project not found", "Failed to retrieve project")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, project)
 }
 
-func (h *ProjectHandler) GetProjectPages(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *ProjectHandler) ListPages(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
 	// The service verifies access, so a separate check here would repeat the query.
-	pages, err := h.projectService.GetProjectPages(c.RequestCtx(), projectID, userID)
+	pages, err := h.projectService.ListPages(c.RequestCtx(), projectID, userID)
 	if err != nil {
-		return handleProjectError(c, err, "Failed to retrieve project pages")
+		return respondProjectError(c, err, "Failed to retrieve project pages")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, pages)
 }
 
-func (h *ProjectHandler) GetProjectByUserID(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
-	if err != nil {
-		return err
-	}
-
-	projects, err := h.projectService.GetProjectsByUserID(c.RequestCtx(), userID)
-	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve projects by user ID")
-	}
-
-	return utils.SendJSON(c, fiber.StatusOK, projects)
-}
-
-func (h *ProjectHandler) DeleteProject(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *ProjectHandler) Delete(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
 	projectID := ids[0]
 
-	if err := h.projectService.DeleteProject(c.RequestCtx(), projectID, userID); err != nil {
-		return handleProjectError(c, err, "Failed to delete project")
+	if err := h.projectService.Delete(c.RequestCtx(), projectID, userID); err != nil {
+		return respondProjectError(c, err, "Failed to delete project")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-func (h *ProjectHandler) UpdateProject(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *ProjectHandler) Update(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -150,16 +136,16 @@ func (h *ProjectHandler) UpdateProject(c fiber.Ctx) error {
 		return err
 	}
 
-	updatedProject, err := h.projectService.UpdateProjectColumnUpdates(c.RequestCtx(), projectID, userID, columnUpdates)
+	updatedProject, err := h.projectService.UpdateFieldsForUser(c.RequestCtx(), projectID, userID, columnUpdates)
 	if err != nil {
-		return handleProjectError(c, err, "Failed to update project")
+		return respondProjectError(c, err, "Failed to update project")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updatedProject)
 }
 
 func (h *ProjectHandler) TransferOwnership(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -171,7 +157,7 @@ func (h *ProjectHandler) TransferOwnership(c fiber.Ctx) error {
 	}
 
 	if err := h.projectService.TransferOwnership(c.RequestCtx(), projectID, userID, req.NewOwnerID); err != nil {
-		return handleProjectError(c, err, "Failed to transfer project ownership")
+		return respondProjectError(c, err, "Failed to transfer project ownership")
 	}
 
 	return utils.SendSuccess(c, fiber.StatusOK, "Project ownership transferred successfully")
@@ -257,9 +243,9 @@ func assignRawJSONUpdate(updates map[string]any, key string, dst **json.RawMessa
 	}
 }
 
-// CreateProject creates a project owned by the caller, with its first page.
-func (h *ProjectHandler) CreateProject(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+// Create creates a project owned by the caller, with its first page.
+func (h *ProjectHandler) Create(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -304,21 +290,21 @@ func (h *ProjectHandler) CreateProject(c fiber.Ctx) error {
 		project.Header = msg
 	}
 
-	created, err := h.projectService.CreateProjectWithPage(c.RequestCtx(), project)
+	created, err := h.projectService.CreateWithPage(c.RequestCtx(), project)
 	if err != nil {
-		return handleProjectError(c, err, "Failed to create project")
+		return respondProjectError(c, err, "Failed to create project")
 	}
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-// GetProjectAccess returns the caller's role on a project. 404 means no
+// GetAccess returns the caller's role on a project. 404 means no
 // access (deleted, missing, or not shared), so ids cannot be probed.
-func (h *ProjectHandler) GetProjectAccess(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *ProjectHandler) GetAccess(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
-	access, err := h.projectService.GetProjectAccess(c.RequestCtx(), ids[0], userID)
+	access, err := h.projectService.GetAccess(c.RequestCtx(), ids[0], userID)
 	if errors.Is(err, repositories.ErrProjectNotFound) {
 		return utils.SendError(c, fiber.StatusNotFound, "Project not found", err, userID)
 	}

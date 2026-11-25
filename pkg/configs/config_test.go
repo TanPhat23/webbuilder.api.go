@@ -15,13 +15,13 @@ import (
 func TestCorsConfigUsesEnvOverridesAndDefaults(t *testing.T) {
 	t.Setenv("ENV", "development")
 	t.Setenv("ALLOWED_ORIGINS", "")
-	def := CorsConfig()
+	def := CORS()
 	if !def.AllowCredentials || len(def.AllowOrigins) != 2 {
 		t.Fatalf("unexpected default cors config: %+v", def)
 	}
 
 	t.Setenv("ALLOWED_ORIGINS", " https://a.example.com , https://b.example.com ")
-	custom := CorsConfig()
+	custom := CORS()
 	if len(custom.AllowOrigins) != 2 || custom.AllowOrigins[0] != "https://a.example.com" || custom.AllowOrigins[1] != "https://b.example.com" {
 		t.Fatalf("unexpected trimmed cors origins: %+v", custom.AllowOrigins)
 	}
@@ -41,7 +41,7 @@ func TestCorsConfigUsesEnvOverridesAndDefaults(t *testing.T) {
 }
 
 func TestFiberConfigHardeningDefaults(t *testing.T) {
-	cfg := FiberConfig()
+	cfg := Fiber()
 	if cfg.ReadTimeout != 15*time.Second || cfg.WriteTimeout != 30*time.Second || cfg.IdleTimeout != 60*time.Second {
 		t.Fatalf("unexpected timeouts: read=%v write=%v idle=%v", cfg.ReadTimeout, cfg.WriteTimeout, cfg.IdleTimeout)
 	}
@@ -51,11 +51,11 @@ func TestFiberConfigHardeningDefaults(t *testing.T) {
 }
 
 func TestLoggerConfigAndErrorHandlerShapes(t *testing.T) {
-	if LoggerConfig().Format == "" {
+	if Logger().Format == "" {
 		t.Fatal("expected non-empty logger format")
 	}
 
-	app := fiber.New(FiberConfig())
+	app := fiber.New(Fiber())
 	app.Get("/val", func(c fiber.Ctx) error {
 		return &utils.ValidationError{
 			Fields: []utils.FieldError{{Field: "name", Tag: "required", Message: "name is required"}},

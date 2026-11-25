@@ -13,7 +13,7 @@ type createProjectRepo struct {
 	calls int
 }
 
-func (r *createProjectRepo) CreateProject(_ context.Context, _ *models.Project) error {
+func (r *createProjectRepo) Create(_ context.Context, _ *models.Project) error {
 	r.calls++
 	return nil
 }
@@ -23,7 +23,7 @@ type createFieldRepo struct {
 	calls int
 }
 
-func (r *createFieldRepo) CreateContentField(_ context.Context, f *models.ContentField) (*models.ContentField, error) {
+func (r *createFieldRepo) Create(_ context.Context, f *models.ContentField) (*models.ContentField, error) {
 	r.calls++
 	return f, nil
 }
@@ -33,7 +33,7 @@ type createCommentRepo struct {
 	calls int
 }
 
-func (r *createCommentRepo) CreateElementComment(_ context.Context, c *models.ElementComment) (*models.ElementComment, error) {
+func (r *createCommentRepo) Create(_ context.Context, c *models.ElementComment) (*models.ElementComment, error) {
 	r.calls++
 	return c, nil
 }
@@ -42,7 +42,7 @@ type existingElementRepo struct {
 	repositories.ElementRepositoryInterface
 }
 
-func (existingElementRepo) GetElementByID(_ context.Context, id string) (*models.Element, error) {
+func (existingElementRepo) GetByID(_ context.Context, id string) (*models.Element, error) {
 	return &models.Element{Id: id}, nil
 }
 
@@ -56,7 +56,7 @@ func TestCreateProjectValidationBeforeRepository(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &createProjectRepo{}
-			result, err := NewProjectService(repo, nil, nil).CreateProject(context.Background(), tc.value)
+			result, err := NewProjectService(repo, nil, nil).Create(context.Background(), tc.value)
 			if (err == nil) != tc.valid || (result != nil) != tc.valid || (repo.calls == 1) != tc.valid {
 				t.Fatalf("result=%v error=%v calls=%d", result, err, repo.calls)
 			}
@@ -74,7 +74,7 @@ func TestCreateContentFieldValidationBeforeRepository(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &createFieldRepo{}
-			result, err := NewContentFieldService(repo).CreateContentField(context.Background(), tc.value)
+			result, err := NewContentFieldService(repo).Create(context.Background(), tc.value)
 			if (err == nil) != tc.valid || (result != nil) != tc.valid || (repo.calls == 1) != tc.valid {
 				t.Fatalf("result=%v error=%v calls=%d", result, err, repo.calls)
 			}
@@ -92,7 +92,7 @@ func TestCreateElementCommentValidationBeforeRepository(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &createCommentRepo{}
-			result, err := NewElementCommentService(repo, existingElementRepo{}, nil).CreateElementComment(context.Background(), tc.value)
+			result, err := NewElementCommentService(repo, existingElementRepo{}, nil).Create(context.Background(), tc.value)
 			if (err == nil) != tc.valid || (result != nil) != tc.valid || (repo.calls == 1) != tc.valid {
 				t.Fatalf("result=%v error=%v calls=%d", result, err, repo.calls)
 			}

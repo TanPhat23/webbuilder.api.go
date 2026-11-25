@@ -6,28 +6,28 @@ import (
 	"my-go-app/internal/repositories"
 )
 
-type ElementWrapperService struct {
+type ElementQueryService struct {
 	elementRepo repositories.ElementRepositoryInterface
 }
 
-func NewElementWrapperService(elementRepo repositories.ElementRepositoryInterface) ElementServiceInterface {
-	return &ElementWrapperService{
+func NewElementQueryService(elementRepo repositories.ElementRepositoryInterface) ElementServiceInterface {
+	return &ElementQueryService{
 		elementRepo: elementRepo,
 	}
 }
 
-func (s *ElementWrapperService) GetElements(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error) {
-	return s.elementRepo.GetElements(ctx, projectID, pageID...)
+func (s *ElementQueryService) List(ctx context.Context, projectID string, pageID ...string) ([]models.EditorElement, error) {
+	return s.elementRepo.List(ctx, projectID, pageID...)
 }
 
-func (s *ElementWrapperService) GetElementsByPageID(ctx context.Context, pageID string) ([]models.Element, error) {
-	return s.elementRepo.GetElementsByPageID(ctx, pageID)
+func (s *ElementQueryService) ListByPage(ctx context.Context, pageID string) ([]models.Element, error) {
+	return s.elementRepo.ListByPage(ctx, pageID)
 }
 
-func (s *ElementWrapperService) GetElementsByPageIds(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
-	return s.elementRepo.GetElementsByPageIds(ctx, projectID, pageIDs)
+func (s *ElementQueryService) ListByPageIDs(ctx context.Context, projectID string, pageIDs []string) ([]models.EditorElement, error) {
+	return s.elementRepo.ListByPageIDs(ctx, projectID, pageIDs)
 }
 
-func (s *ElementWrapperService) GetElementsByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error) {
-	return s.elementRepo.GetElementsByIDs(ctx, elementIDs)
+func (s *ElementQueryService) ListByIDs(ctx context.Context, elementIDs []string) ([]models.Element, error) {
+	return s.elementRepo.ListByIDs(ctx, elementIDs)
 }

@@ -9,15 +9,15 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func SnapshotRoutes(group fiber.Router, repos *repositories.RepositoriesInterface) {
+func RegisterSnapshots(group fiber.Router, repos *repositories.Repositories) {
 	snapshotService := services.NewSnapshotService(repos.SnapshotRepository, repos.ElementRepository, repos.ProjectRepository)
 	snapshotHandler := handlers.NewSnapshotHandler(snapshotService, repos.ElementRepository)
 	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
-	group.Post("/snapshots/:projectid/save", authorizer.RequireProjectPermission("projectid", authz.PermSnapshotCreate), snapshotHandler.SaveSnapshot)
-	group.Get("/snapshots/:projectid", authorizer.RequireProjectPermission("projectid", authz.PermSnapshotView), snapshotHandler.GetSnapshots)
+	group.Post("/snapshots/:projectid/save", authorizer.RequireProjectPermission("projectid", authz.PermSnapshotCreate), snapshotHandler.Save)
+	group.Get("/snapshots/:projectid", authorizer.RequireProjectPermission("projectid", authz.PermSnapshotView), snapshotHandler.ListByProject)
 	// The project id is part of the path: it was shadowed by /snapshots/:projectid
-	// and DeleteSnapshot reads :projectid as well as :snapshotid.
-	group.Get("/snapshots/:projectid/:snapshotid", authorizer.RequireProjectPermission("projectid", authz.PermSnapshotView), snapshotHandler.GetSnapshotByID)
-	group.Delete("/snapshots/:projectid/:snapshotid", authorizer.RequireProjectPermission("projectid", authz.PermSnapshotDelete), snapshotHandler.DeleteSnapshot)
+	// and Delete reads :projectid as well as :snapshotid.
+	group.Get("/snapshots/:projectid/:snapshotid", authorizer.RequireProjectPermission("projectid", authz.PermSnapshotView), snapshotHandler.GetByID)
+	group.Delete("/snapshots/:projectid/:snapshotid", authorizer.RequireProjectPermission("projectid", authz.PermSnapshotDelete), snapshotHandler.Delete)
 }

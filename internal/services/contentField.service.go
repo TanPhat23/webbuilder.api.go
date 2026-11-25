@@ -40,7 +40,7 @@ func (s *ContentFieldService) authorizeContentType(ctx context.Context, contentT
 	if s.contentTypeRepo == nil || s.projectRepo == nil {
 		return nil
 	}
-	ct, err := s.contentTypeRepo.GetContentTypeByID(ctx, contentTypeID)
+	ct, err := s.contentTypeRepo.GetByID(ctx, contentTypeID)
 	if err != nil {
 		return err
 	}
@@ -54,30 +54,30 @@ func (s *ContentFieldService) authorizeContentType(ctx context.Context, contentT
 	return err
 }
 
-func (s *ContentFieldService) GetContentFieldsByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error) {
+func (s *ContentFieldService) ListByContentType(ctx context.Context, contentTypeID string) ([]models.ContentField, error) {
 	if strings.TrimSpace(contentTypeID) == "" {
 		return nil, errors.New("contentTypeId is required")
 	}
 
-	return s.contentFieldRepo.GetContentFieldsByContentType(ctx, contentTypeID)
+	return s.contentFieldRepo.ListByContentType(ctx, contentTypeID)
 }
 
-func (s *ContentFieldService) GetContentFieldsByContentTypeForUser(ctx context.Context, contentTypeID, userID string) ([]models.ContentField, error) {
+func (s *ContentFieldService) ListByContentTypeForUser(ctx context.Context, contentTypeID, userID string) ([]models.ContentField, error) {
 	if strings.TrimSpace(contentTypeID) == "" {
 		return nil, errors.New("contentTypeId is required")
 	}
 	if err := s.authorizeContentType(ctx, contentTypeID, userID, authz.PermCMSView); err != nil {
 		return nil, err
 	}
-	return s.contentFieldRepo.GetContentFieldsByContentType(ctx, contentTypeID)
+	return s.contentFieldRepo.ListByContentType(ctx, contentTypeID)
 }
 
-func (s *ContentFieldService) GetContentFieldByID(ctx context.Context, id string) (*models.ContentField, error) {
+func (s *ContentFieldService) GetByID(ctx context.Context, id string) (*models.ContentField, error) {
 	if strings.TrimSpace(id) == "" {
 		return nil, errors.New("content field id is required")
 	}
 
-	field, err := s.contentFieldRepo.GetContentFieldByID(ctx, id)
+	field, err := s.contentFieldRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -88,8 +88,8 @@ func (s *ContentFieldService) GetContentFieldByID(ctx context.Context, id string
 	return field, nil
 }
 
-func (s *ContentFieldService) GetContentFieldByIDForUser(ctx context.Context, id, userID string) (*models.ContentField, error) {
-	field, err := s.GetContentFieldByID(ctx, id)
+func (s *ContentFieldService) GetByIDForUser(ctx context.Context, id, userID string) (*models.ContentField, error) {
+	field, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (s *ContentFieldService) GetContentFieldByIDForUser(ctx context.Context, id
 	return field, nil
 }
 
-func (s *ContentFieldService) CreateContentField(ctx context.Context, field *models.ContentField) (*models.ContentField, error) {
+func (s *ContentFieldService) Create(ctx context.Context, field *models.ContentField) (*models.ContentField, error) {
 	if field == nil {
 		return nil, errors.New("content field cannot be nil")
 	}
@@ -113,7 +113,7 @@ func (s *ContentFieldService) CreateContentField(ctx context.Context, field *mod
 		return nil, errors.New("type is required")
 	}
 
-	created, err := s.contentFieldRepo.CreateContentField(ctx, field)
+	created, err := s.contentFieldRepo.Create(ctx, field)
 	if err != nil {
 		return nil, err
 	}
@@ -121,17 +121,17 @@ func (s *ContentFieldService) CreateContentField(ctx context.Context, field *mod
 	return created, nil
 }
 
-func (s *ContentFieldService) CreateContentFieldForUser(ctx context.Context, field *models.ContentField, userID string) (*models.ContentField, error) {
+func (s *ContentFieldService) CreateForUser(ctx context.Context, field *models.ContentField, userID string) (*models.ContentField, error) {
 	if field == nil {
 		return nil, errors.New("content field cannot be nil")
 	}
 	if err := s.authorizeContentType(ctx, field.ContentTypeId, userID, authz.PermCMSEdit); err != nil {
 		return nil, err
 	}
-	return s.CreateContentField(ctx, field)
+	return s.Create(ctx, field)
 }
 
-func (s *ContentFieldService) UpdateContentField(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error) {
+func (s *ContentFieldService) Update(ctx context.Context, id string, updates map[string]any) (*models.ContentField, error) {
 	if strings.TrimSpace(id) == "" {
 		return nil, errors.New("content field id is required")
 	}
@@ -139,7 +139,7 @@ func (s *ContentFieldService) UpdateContentField(ctx context.Context, id string,
 		return nil, errors.New("no updates provided")
 	}
 
-	current, err := s.GetContentFieldByID(ctx, id)
+	current, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (s *ContentFieldService) UpdateContentField(ctx context.Context, id string,
 		}
 	}
 
-	updated, err := s.contentFieldRepo.UpdateContentField(ctx, id, updates)
+	updated, err := s.contentFieldRepo.Update(ctx, id, updates)
 	if err != nil {
 		return nil, err
 	}
@@ -171,23 +171,23 @@ func (s *ContentFieldService) UpdateContentField(ctx context.Context, id string,
 	return updated, nil
 }
 
-func (s *ContentFieldService) UpdateContentFieldForUser(ctx context.Context, id, userID string, updates map[string]any) (*models.ContentField, error) {
-	current, err := s.GetContentFieldByID(ctx, id)
+func (s *ContentFieldService) UpdateForUser(ctx context.Context, id, userID string, updates map[string]any) (*models.ContentField, error) {
+	current, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.authorizeContentType(ctx, current.ContentTypeId, userID, authz.PermCMSEdit); err != nil {
 		return nil, err
 	}
-	return s.UpdateContentField(ctx, id, updates)
+	return s.Update(ctx, id, updates)
 }
 
-func (s *ContentFieldService) DeleteContentField(ctx context.Context, id string) error {
+func (s *ContentFieldService) Delete(ctx context.Context, id string) error {
 	if strings.TrimSpace(id) == "" {
 		return errors.New("content field id is required")
 	}
 
-	current, err := s.GetContentFieldByID(ctx, id)
+	current, err := s.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -195,16 +195,16 @@ func (s *ContentFieldService) DeleteContentField(ctx context.Context, id string)
 		return errors.New("content field does not exist")
 	}
 
-	return s.contentFieldRepo.DeleteContentField(ctx, id)
+	return s.contentFieldRepo.Delete(ctx, id)
 }
 
-func (s *ContentFieldService) DeleteContentFieldForUser(ctx context.Context, id, userID string) error {
-	current, err := s.GetContentFieldByID(ctx, id)
+func (s *ContentFieldService) DeleteForUser(ctx context.Context, id, userID string) error {
+	current, err := s.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if err := s.authorizeContentType(ctx, current.ContentTypeId, userID, authz.PermCMSEdit); err != nil {
 		return err
 	}
-	return s.contentFieldRepo.DeleteContentField(ctx, id)
+	return s.contentFieldRepo.Delete(ctx, id)
 }

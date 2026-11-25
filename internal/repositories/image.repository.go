@@ -21,14 +21,14 @@ func NewImageRepository(db *gorm.DB) ImageRepositoryInterface {
 	return &ImageRepository{db: db}
 }
 
-func (r *ImageRepository) CreateImage(ctx context.Context, image models.Image) (*models.Image, error) {
+func (r *ImageRepository) Create(ctx context.Context, image models.Image) (*models.Image, error) {
 	if err := gorm.G[models.Image](r.db).Create(ctx, &image); err != nil {
 		return nil, fmt.Errorf("failed to create image: %w", err)
 	}
 	return &image, nil
 }
 
-func (r *ImageRepository) GetImagesByUserID(ctx context.Context, userID string) ([]models.Image, error) {
+func (r *ImageRepository) ListByUser(ctx context.Context, userID string) ([]models.Image, error) {
 	if userID == "" {
 		return nil, errors.New("userID is required")
 	}
@@ -43,7 +43,7 @@ func (r *ImageRepository) GetImagesByUserID(ctx context.Context, userID string) 
 	return images, nil
 }
 
-func (r *ImageRepository) GetImageByID(ctx context.Context, imageID, userID string) (*models.Image, error) {
+func (r *ImageRepository) GetByID(ctx context.Context, imageID, userID string) (*models.Image, error) {
 	if imageID == "" {
 		return nil, errors.New("imageID is required")
 	}
@@ -63,7 +63,7 @@ func (r *ImageRepository) GetImageByID(ctx context.Context, imageID, userID stri
 	return &image, nil
 }
 
-func (r *ImageRepository) GetPublicImageByID(ctx context.Context, imageID string) (*models.Image, error) {
+func (r *ImageRepository) GetPublicByID(ctx context.Context, imageID string) (*models.Image, error) {
 	if imageID == "" {
 		return nil, errors.New("imageID is required")
 	}
@@ -80,7 +80,7 @@ func (r *ImageRepository) GetPublicImageByID(ctx context.Context, imageID string
 	return &image, nil
 }
 
-func (r *ImageRepository) DeleteImage(ctx context.Context, imageID, userID string) error {
+func (r *ImageRepository) Delete(ctx context.Context, imageID, userID string) error {
 	if imageID == "" {
 		return errors.New("imageID is required")
 	}
@@ -100,7 +100,7 @@ func (r *ImageRepository) DeleteImage(ctx context.Context, imageID, userID strin
 	return nil
 }
 
-func (r *ImageRepository) SoftDeleteImage(ctx context.Context, imageID, userID string) error {
+func (r *ImageRepository) SoftDelete(ctx context.Context, imageID, userID string) error {
 	if imageID == "" {
 		return errors.New("imageID is required")
 	}
@@ -121,7 +121,7 @@ func (r *ImageRepository) SoftDeleteImage(ctx context.Context, imageID, userID s
 	return nil
 }
 
-func (r *ImageRepository) GetAllImages(ctx context.Context, limit, offset int) ([]models.Image, error) {
+func (r *ImageRepository) ListAll(ctx context.Context, limit, offset int) ([]models.Image, error) {
 	query := gorm.G[models.Image](r.db).
 		Where(`"DeletedAt" IS NULL`).
 		Order(`"CreatedAt" DESC`)

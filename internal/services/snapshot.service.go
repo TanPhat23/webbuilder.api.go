@@ -28,20 +28,20 @@ func NewSnapshotService(
 	}
 }
 
-func (s *SnapshotService) SaveSnapshot(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
-	if err := s.ValidateSnapshot(ctx, snapshot); err != nil {
+func (s *SnapshotService) Save(ctx context.Context, projectID string, snapshot *models.Snapshot) error {
+	if err := s.Validate(ctx, snapshot); err != nil {
 		return err
 	}
 	if projectID == "" {
 		return errors.New("projectId is required")
 	}
 
-	return s.snapshotRepo.SaveSnapshot(ctx, projectID, snapshot)
+	return s.snapshotRepo.Save(ctx, projectID, snapshot)
 }
 
-// SaveSnapshotWithAccess authorizes snapshot:create (owner or editor) before
+// SaveForUser authorizes snapshot:create (owner or editor) before
 // saving the snapshot.
-func (s *SnapshotService) SaveSnapshotWithAccess(ctx context.Context, projectID, userID string, snapshot *models.Snapshot) error {
+func (s *SnapshotService) SaveForUser(ctx context.Context, projectID, userID string, snapshot *models.Snapshot) error {
 	if projectID == "" {
 		return errors.New("projectId is required")
 	}
@@ -51,10 +51,10 @@ func (s *SnapshotService) SaveSnapshotWithAccess(ctx context.Context, projectID,
 	if _, err := authorizeProjectPerm(ctx, s.projectRepo, projectID, userID, authz.PermSnapshotCreate); err != nil {
 		return err
 	}
-	return s.SaveSnapshot(ctx, projectID, snapshot)
+	return s.Save(ctx, projectID, snapshot)
 }
 
-func (s *SnapshotService) GetSnapshotsByProjectID(ctx context.Context, projectID, userID string) ([]models.Snapshot, error) {
+func (s *SnapshotService) ListByProject(ctx context.Context, projectID, userID string) ([]models.Snapshot, error) {
 	if projectID == "" {
 		return nil, errors.New("projectId is required")
 	}
@@ -62,20 +62,20 @@ func (s *SnapshotService) GetSnapshotsByProjectID(ctx context.Context, projectID
 		return nil, err
 	}
 
-	return s.snapshotRepo.GetSnapshotsByProjectID(ctx, projectID)
+	return s.snapshotRepo.ListByProject(ctx, projectID)
 }
 
-func (s *SnapshotService) GetSnapshotByID(ctx context.Context, id string) (*models.Snapshot, error) {
+func (s *SnapshotService) GetByID(ctx context.Context, id string) (*models.Snapshot, error) {
 	if id == "" {
 		return nil, errors.New("snapshot id is required")
 	}
 
-	return s.snapshotRepo.GetSnapshotByID(ctx, id)
+	return s.snapshotRepo.GetByID(ctx, id)
 }
 
-// GetSnapshotByIDWithAccess verifies snapshot:view permission on projectID and
+// GetByIDForUser verifies snapshot:view permission on projectID and
 // confirms the snapshot belongs to projectID.
-func (s *SnapshotService) GetSnapshotByIDWithAccess(ctx context.Context, projectID, snapshotID, userID string) (*models.Snapshot, error) {
+func (s *SnapshotService) GetByIDForUser(ctx context.Context, projectID, snapshotID, userID string) (*models.Snapshot, error) {
 	if snapshotID == "" {
 		return nil, errors.New("snapshot id is required")
 	}
@@ -89,7 +89,7 @@ func (s *SnapshotService) GetSnapshotByIDWithAccess(ctx context.Context, project
 		return nil, err
 	}
 
-	snapshot, err := s.snapshotRepo.GetSnapshotByID(ctx, snapshotID)
+	snapshot, err := s.snapshotRepo.GetByID(ctx, snapshotID)
 	if err != nil {
 		return nil, err
 	}
@@ -99,15 +99,15 @@ func (s *SnapshotService) GetSnapshotByIDWithAccess(ctx context.Context, project
 	return snapshot, nil
 }
 
-func (s *SnapshotService) DeleteSnapshot(ctx context.Context, id string) error {
+func (s *SnapshotService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("snapshot id is required")
 	}
 
-	return s.snapshotRepo.DeleteSnapshot(ctx, id)
+	return s.snapshotRepo.Delete(ctx, id)
 }
 
-func (s *SnapshotService) DeleteSnapshotWithAccess(ctx context.Context, snapshotID, projectID, userID string) error {
+func (s *SnapshotService) DeleteForUser(ctx context.Context, snapshotID, projectID, userID string) error {
 	if snapshotID == "" {
 		return errors.New("snapshot id is required")
 	}
@@ -118,7 +118,7 @@ func (s *SnapshotService) DeleteSnapshotWithAccess(ctx context.Context, snapshot
 		return errors.New("userId is required")
 	}
 
-	snapshot, err := s.snapshotRepo.GetSnapshotByID(ctx, snapshotID)
+	snapshot, err := s.snapshotRepo.GetByID(ctx, snapshotID)
 	if err != nil {
 		return err
 	}
@@ -134,10 +134,10 @@ func (s *SnapshotService) DeleteSnapshotWithAccess(ctx context.Context, snapshot
 		return err
 	}
 
-	return s.snapshotRepo.DeleteSnapshot(ctx, snapshotID)
+	return s.snapshotRepo.Delete(ctx, snapshotID)
 }
 
-func (s *SnapshotService) ValidateSnapshot(ctx context.Context, snapshot *models.Snapshot) error {
+func (s *SnapshotService) Validate(ctx context.Context, snapshot *models.Snapshot) error {
 	if snapshot == nil {
 		return errors.New("snapshot cannot be nil")
 	}

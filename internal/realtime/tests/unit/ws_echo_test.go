@@ -24,13 +24,13 @@ import (
 // Stubs for the use cases join/sync touch besides the element use case.
 type stubElementUC struct{ domainUsecase.ElementUseCase }
 
-func (stubElementUC) GetElementsByProjectID(_ context.Context, _ string) ([]entity.Element, error) {
+func (stubElementUC) ListElementsByProject(_ context.Context, _ string) ([]entity.Element, error) {
 	return nil, nil
 }
 
 type stubWorkflowUC struct{ domainUsecase.WorkflowUseCase }
 
-func (stubWorkflowUC) GetWorkflowsByProject(_ context.Context, _ string) ([]entity.EventWorkflow, error) {
+func (stubWorkflowUC) ListWorkflowsByProject(_ context.Context, _ string) ([]entity.EventWorkflow, error) {
 	return nil, nil
 }
 
@@ -38,10 +38,10 @@ type stubElementWorkflowsUC struct {
 	domainUsecase.ElementWorkflowsUseCase
 }
 
-func (stubElementWorkflowsUC) GetWorkflowsByPage(_ context.Context, _, _ string) ([]entity.ElementEventWorkflow, error) {
+func (stubElementWorkflowsUC) ListElementWorkflowsByPage(_ context.Context, _, _ string) ([]entity.ElementEventWorkflow, error) {
 	return nil, nil
 }
-func (stubElementWorkflowsUC) GetWorkflowsByProject(_ context.Context, _ string) ([]entity.ElementEventWorkflow, error) {
+func (stubElementWorkflowsUC) ListWorkflowsByProject(_ context.Context, _ string) ([]entity.ElementEventWorkflow, error) {
 	return nil, nil
 }
 
@@ -136,7 +136,7 @@ func startWSServerWithElementsAs(t *testing.T, elements domainRepo.ElementReposi
 		c.Locals("user", &entity.User{ID: id, Email: id + "@example.com"})
 		return c.Next()
 	})
-	h.SetupRoutes(app)
+	h.RegisterRoutes(app)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

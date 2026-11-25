@@ -16,9 +16,9 @@ type BusMessage struct {
 // Bus is the slice of Redis pub/sub the agent relay needs.
 type Bus interface {
 	Publish(ctx context.Context, channel string, payload []byte) error
-	// PSubscribe returns once the subscription is active, so a publish that
-	// follows is never missed. A trailing * in pattern matches any suffix.
-	PSubscribe(ctx context.Context, pattern string) (<-chan BusMessage, func(), error)
+	// SubscribePattern returns once the subscription is active, so a publish that
+	// follows is never missed. A trailing * in pattern matchesPattern any suffix.
+	SubscribePattern(ctx context.Context, pattern string) (<-chan BusMessage, func(), error)
 }
 
 type RedisBus struct{ rdb *redis.Client }
@@ -29,7 +29,7 @@ func (b *RedisBus) Publish(ctx context.Context, channel string, payload []byte) 
 	return b.rdb.Publish(ctx, channel, payload).Err()
 }
 
-func (b *RedisBus) PSubscribe(ctx context.Context, pattern string) (<-chan BusMessage, func(), error) {
+func (b *RedisBus) SubscribePattern(ctx context.Context, pattern string) (<-chan BusMessage, func(), error) {
 	ps := b.rdb.PSubscribe(ctx, pattern)
 	if _, err := ps.Receive(ctx); err != nil { // waits for the subscribe confirmation
 		_ = ps.Close()
@@ -71,7 +71,7 @@ type memSub struct {
 	closed  bool
 }
 
-func matches(pattern, channel string) bool {
+func matchesPattern(pattern, channel string) bool {
 	if strings.HasSuffix(pattern, "*") {
 		return strings.HasPrefix(channel, strings.TrimSuffix(pattern, "*"))
 	}
@@ -82,7 +82,7 @@ func (b *MemBus) Publish(_ context.Context, channel string, payload []byte) erro
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for s := range b.subs {
-		if s.closed || !matches(s.pattern, channel) {
+		if s.closed || !matchesPattern(s.pattern, channel) {
 			continue
 		}
 		select {
@@ -93,7 +93,7 @@ func (b *MemBus) Publish(_ context.Context, channel string, payload []byte) erro
 	return nil
 }
 
-func (b *MemBus) PSubscribe(_ context.Context, pattern string) (<-chan BusMessage, func(), error) {
+func (b *MemBus) SubscribePattern(_ context.Context, pattern string) (<-chan BusMessage, func(), error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.subs == nil {

@@ -82,8 +82,8 @@ func (r *workflowRepository) GetWorkflowByID(ctx context.Context, projectID stri
 	return &workflow, nil
 }
 
-// GetWorkflowsByProjectID retrieves all workflows for a specific project.
-func (r *workflowRepository) GetWorkflowsByProjectID(ctx context.Context, projectID string) ([]entity.EventWorkflow, error) {
+// ListWorkflowsByProject retrieves all workflows for a specific project.
+func (r *workflowRepository) ListWorkflowsByProject(ctx context.Context, projectID string) ([]entity.EventWorkflow, error) {
 	var workflows []entity.EventWorkflow
 	err := r.db.WithContext(ctx).
 		Where(`"ProjectId" = ?`, projectID).

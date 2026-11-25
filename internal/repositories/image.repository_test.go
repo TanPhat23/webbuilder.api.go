@@ -36,7 +36,7 @@ func TestImageRepositoryCreateImage(t *testing.T) {
 	ctx := context.Background()
 	name := "logo"
 	db, f := newFakeDB(t)
-	got, err := (&ImageRepository{db: db}).CreateImage(ctx, models.Image{ImageId: "i1", UserId: "u1", ImageLink: "l", ImageName: &name})
+	got, err := (&ImageRepository{db: db}).Create(ctx, models.Image{ImageId: "i1", UserId: "u1", ImageLink: "l", ImageName: &name})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestImageRepositoryCreateImage(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("INSERT", imageBoom)
-	gotErr, err := (&ImageRepository{db: dbErr}).CreateImage(ctx, models.Image{ImageId: "i1"})
+	gotErr, err := (&ImageRepository{db: dbErr}).Create(ctx, models.Image{ImageId: "i1"})
 	if gotErr != nil || !errors.Is(err, imageBoom) || !strings.HasPrefix(err.Error(), "failed to create image") {
 		t.Fatalf("got %+v, %v", gotErr, err)
 	}
@@ -62,7 +62,7 @@ func TestImageRepositoryGetImagesByUserID(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("SELECT", imageCols, imageRow("a", "u1"), imageRow("b", "u1"))
-	got, err := (&ImageRepository{db: db}).GetImagesByUserID(ctx, "u1")
+	got, err := (&ImageRepository{db: db}).ListByUser(ctx, "u1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestImageRepositoryGetImagesByUserID(t *testing.T) {
 
 	db2, f2 := newFakeDB(t)
 	f2.onErr("SELECT", imageBoom)
-	if got, err := (&ImageRepository{db: db2}).GetImagesByUserID(ctx, "u1"); got != nil || !errors.Is(err, imageBoom) {
+	if got, err := (&ImageRepository{db: db2}).ListByUser(ctx, "u1"); got != nil || !errors.Is(err, imageBoom) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
@@ -84,7 +84,7 @@ func TestImageRepositoryGetImageByID(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("SELECT", imageCols, imageRow("a", "u1"))
-	got, err := (&ImageRepository{db: db}).GetImageByID(ctx, "a", "u1")
+	got, err := (&ImageRepository{db: db}).GetByID(ctx, "a", "u1")
 	if err != nil || got.ImageId != "a" || got.UserId != "u1" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -96,13 +96,13 @@ func TestImageRepositoryGetImageByID(t *testing.T) {
 	if fMiss == nil {
 		t.Fatal("missing fake db")
 	}
-	if got, err := (&ImageRepository{db: dbMiss}).GetImageByID(ctx, "a", "u1"); got != nil || !errors.Is(err, ErrImageNotFound) {
+	if got, err := (&ImageRepository{db: dbMiss}).GetByID(ctx, "a", "u1"); got != nil || !errors.Is(err, ErrImageNotFound) {
 		t.Fatalf("missing row: got %+v, %v", got, err)
 	}
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("SELECT", imageBoom)
-	if _, err := (&ImageRepository{db: dbErr}).GetImageByID(ctx, "a", "u1"); !errors.Is(err, imageBoom) || errors.Is(err, ErrImageNotFound) {
+	if _, err := (&ImageRepository{db: dbErr}).GetByID(ctx, "a", "u1"); !errors.Is(err, imageBoom) || errors.Is(err, ErrImageNotFound) {
 		t.Fatalf("database error must not become not-found: %v", err)
 	}
 }
@@ -111,7 +111,7 @@ func TestImageRepositoryGetPublicImageByID(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("SELECT", imageCols, imageRow("a", "u1"))
-	got, err := (&ImageRepository{db: db}).GetPublicImageByID(ctx, "a")
+	got, err := (&ImageRepository{db: db}).GetPublicByID(ctx, "a")
 	if err != nil || got.ImageId != "a" || got.UserId != "u1" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -120,7 +120,7 @@ func TestImageRepositoryGetPublicImageByID(t *testing.T) {
 	}
 
 	dbMiss, _ := newFakeDB(t)
-	if got, err := (&ImageRepository{db: dbMiss}).GetPublicImageByID(ctx, "missing"); got != nil || !errors.Is(err, ErrImageNotFound) {
+	if got, err := (&ImageRepository{db: dbMiss}).GetPublicByID(ctx, "missing"); got != nil || !errors.Is(err, ErrImageNotFound) {
 		t.Fatalf("missing row: got %+v, %v", got, err)
 	}
 }
@@ -143,7 +143,7 @@ func TestImageRepositoryDeleteImage(t *testing.T) {
 		} else {
 			f.onExec("DELETE", tc.affected)
 		}
-		err := (&ImageRepository{db: db}).DeleteImage(ctx, "a", "u1")
+		err := (&ImageRepository{db: db}).Delete(ctx, "a", "u1")
 		if !errors.Is(err, tc.wantErr) {
 			t.Fatalf("%s: want %v, got %v", tc.name, tc.wantErr, err)
 		}
@@ -171,7 +171,7 @@ func TestImageRepositorySoftDeleteImage(t *testing.T) {
 		} else {
 			f.onExec("UPDATE", tc.affected)
 		}
-		err := (&ImageRepository{db: db}).SoftDeleteImage(ctx, "a", "u1")
+		err := (&ImageRepository{db: db}).SoftDelete(ctx, "a", "u1")
 		if !errors.Is(err, tc.wantErr) {
 			t.Fatalf("%s: want %v, got %v", tc.name, tc.wantErr, err)
 		}
@@ -185,7 +185,7 @@ func TestImageRepositoryGetAllImages(t *testing.T) {
 	ctx := context.Background()
 	db, f := newFakeDB(t)
 	f.on("SELECT", imageCols, imageRow("a", "u1"))
-	got, err := (&ImageRepository{db: db}).GetAllImages(ctx, 0, 0)
+	got, err := (&ImageRepository{db: db}).ListAll(ctx, 0, 0)
 	if err != nil || len(got) != 1 || got[0].ImageId != "a" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -194,7 +194,7 @@ func TestImageRepositoryGetAllImages(t *testing.T) {
 	}
 
 	dbPage, fPage := newFakeDB(t)
-	if _, err := (&ImageRepository{db: dbPage}).GetAllImages(ctx, 5, 10); err != nil {
+	if _, err := (&ImageRepository{db: dbPage}).ListAll(ctx, 5, 10); err != nil {
 		t.Fatal(err)
 	}
 	q := fPage.lastQuery()
@@ -207,7 +207,7 @@ func TestImageRepositoryGetAllImages(t *testing.T) {
 
 	dbErr, fErr := newFakeDB(t)
 	fErr.onErr("SELECT", imageBoom)
-	if got, err := (&ImageRepository{db: dbErr}).GetAllImages(ctx, 0, 0); got != nil || !errors.Is(err, imageBoom) {
+	if got, err := (&ImageRepository{db: dbErr}).ListAll(ctx, 0, 0); got != nil || !errors.Is(err, imageBoom) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }

@@ -25,7 +25,7 @@ func NewUserRepository(db *gorm.DB) UserRepositoryInterface {
 	return &UserRepository{db: db}
 }
 
-func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, userID string) (*models.User, error) {
 	if userID == "" {
 		return nil, errors.New("userID is required")
 	}
@@ -44,7 +44,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*model
 	return &user, nil
 }
 
-func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	if email == "" {
 		return nil, errors.New("email is required")
 	}
@@ -63,9 +63,9 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 	return &user, nil
 }
 
-// GetUserByUsername searches by FirstName or LastName, returning the user whose
+// GetByUsername searches by FirstName or LastName, returning the user whose
 // first name or last name matches the provided value.
-func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
 	if username == "" {
 		return nil, errors.New("username is required")
 	}
@@ -85,7 +85,7 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 	return &user, nil
 }
 
-func (r *UserRepository) SearchUsers(ctx context.Context, query string) ([]models.User, error) {
+func (r *UserRepository) Search(ctx context.Context, query string) ([]models.User, error) {
 	trimmed := strings.TrimSpace(query)
 	if len([]rune(trimmed)) < 2 {
 		return []models.User{}, nil

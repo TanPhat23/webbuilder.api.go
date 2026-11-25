@@ -45,7 +45,7 @@ func validateRuntimeConfig(cfg *config.Config) error {
 func Mount(ctx context.Context, app *fiber.App) (*goredis.Client, func(), error) {
 	lg := ulogger.Default()
 
-	cfg, err := config.LoadConfig()
+	cfg, err := config.Load()
 	if err != nil {
 		return nil, nil, fmt.Errorf("realtime config: %w", err)
 	}
@@ -78,8 +78,8 @@ func Mount(ctx context.Context, app *fiber.App) (*goredis.Client, func(), error)
 		return nil, nil, fmt.Errorf("realtime redis: %w", err)
 	}
 
-	repos := repository.NewRepository(db, rdb)
-	useCases := usecase.NewUseCase(repos, lg)
+	repos := repository.New(db, rdb)
+	useCases := usecase.New(repos, lg)
 
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	workerDone := make(chan struct{})
@@ -92,12 +92,12 @@ func Mount(ctx context.Context, app *fiber.App) (*goredis.Client, func(), error)
 	// Dev mode skips JWT checks (every client is DEV_USER_ID), so project access
 	// is skipped too, unless REALTIME_ENFORCE_ACCESS=true.
 	if !cfg.DevMode || os.Getenv("REALTIME_ENFORCE_ACCESS") == "true" {
-		wsHandler.RequireAccess(useCases.Logic)
+		wsHandler.SetAccessChecker(useCases.Logic)
 	}
-	wsHandler.RequirePageOwnership(repos.ElementRepo)
+	wsHandler.SetPageChecker(repos.ElementRepo)
 	wsHandler.SetAllowedOrigins(cfg.AllowedOrigins)
-	app.Use("/ws", middleware.AuthMiddlewareWithRedis(cfg, rdb))
-	wsHandler.SetupRoutes(app)
+	app.Use("/ws", middleware.AuthWithRedis(cfg, rdb))
+	wsHandler.RegisterRoutes(app)
 
 	return rdb, func() {
 		stopWorker()

@@ -70,12 +70,12 @@ func testRouteResponse(t *testing.T, app *fiber.App, req *http.Request, want int
 
 func TestCustomElementAccountLibraryCRUD(t *testing.T) {
 	db, users := openLibraryTestDB(t)
-	app := fiber.New(configs.FiberConfig())
+	app := fiber.New(configs.Fiber())
 	group := app.Group("/api/v1", func(c fiber.Ctx) error {
 		c.Locals("userId", c.Get("Test-User"))
 		return c.Next()
 	})
-	CustomElementRoutes(group, &repositories.RepositoriesInterface{
+	RegisterCustomElements(group, &repositories.Repositories{
 		CustomElementRepository: repositories.NewCustomElementRepository(db),
 	})
 
@@ -161,41 +161,41 @@ type stubCustomElementTypeRepo struct {
 	repositories.CustomElementTypeRepositoryInterface
 }
 
-func (s *stubCustomElementTypeRepo) GetCustomElementTypes(context.Context) ([]models.CustomElementType, error) {
+func (s *stubCustomElementTypeRepo) List(context.Context) ([]models.CustomElementType, error) {
 	return []models.CustomElementType{{Id: "t1", Name: "Card"}}, nil
 }
 
-func (s *stubCustomElementTypeRepo) GetCustomElementTypeByID(_ context.Context, id string) (*models.CustomElementType, error) {
+func (s *stubCustomElementTypeRepo) GetByID(_ context.Context, id string) (*models.CustomElementType, error) {
 	return &models.CustomElementType{Id: id, Name: "Card"}, nil
 }
 
-func (s *stubCustomElementTypeRepo) GetCustomElementTypeByName(context.Context, string) (*models.CustomElementType, error) {
+func (s *stubCustomElementTypeRepo) GetByName(context.Context, string) (*models.CustomElementType, error) {
 	return nil, repositories.ErrCustomElementTypeNotFound
 }
 
-func (s *stubCustomElementTypeRepo) CreateCustomElementType(_ context.Context, ceType *models.CustomElementType) (*models.CustomElementType, error) {
+func (s *stubCustomElementTypeRepo) Create(_ context.Context, ceType *models.CustomElementType) (*models.CustomElementType, error) {
 	return ceType, nil
 }
 
-func (s *stubCustomElementTypeRepo) UpdateCustomElementType(_ context.Context, id string, _ map[string]any) (*models.CustomElementType, error) {
+func (s *stubCustomElementTypeRepo) Update(_ context.Context, id string, _ map[string]any) (*models.CustomElementType, error) {
 	return &models.CustomElementType{Id: id, Name: "Updated"}, nil
 }
 
-func (s *stubCustomElementTypeRepo) DeleteCustomElementType(context.Context, string) error {
+func (s *stubCustomElementTypeRepo) Delete(context.Context, string) error {
 	return nil
 }
 
 func TestCustomElementTypeRoutesRequireAdminForWrites(t *testing.T) {
 	t.Setenv("ADMIN_USER_IDS", "admin-1")
 
-	app := fiber.New(configs.FiberConfig())
+	app := fiber.New(configs.Fiber())
 	group := app.Group("/api/v1", func(c fiber.Ctx) error {
 		if uid := c.Get("Test-User"); uid != "" {
 			auth.SetFiber(c, auth.Identity{UserID: uid, AuthMethod: "clerk"})
 		}
 		return c.Next()
 	})
-	CustomElementRoutes(group, &repositories.RepositoriesInterface{
+	RegisterCustomElements(group, &repositories.Repositories{
 		CustomElementTypeRepository: &stubCustomElementTypeRepo{},
 	})
 

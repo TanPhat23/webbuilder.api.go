@@ -27,54 +27,54 @@ func NewElementEventWorkflowService(
 	}
 }
 
-func (s *ElementEventWorkflowService) CreateElementEventWorkflow(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.CreateElementEventWorkflow(ctx, eew)
+func (s *ElementEventWorkflowService) Create(ctx context.Context, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.Create(ctx, eew)
 }
 
-func (s *ElementEventWorkflowService) GetElementEventWorkflowByID(ctx context.Context, id string) (*models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.GetElementEventWorkflowByID(ctx, id)
+func (s *ElementEventWorkflowService) GetByID(ctx context.Context, id string) (*models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.GetByID(ctx, id)
 }
 
-func (s *ElementEventWorkflowService) GetAllElementEventWorkflows(ctx context.Context) ([]models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.GetAllElementEventWorkflows(ctx)
+func (s *ElementEventWorkflowService) ListAll(ctx context.Context) ([]models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.ListAll(ctx)
 }
 
-func (s *ElementEventWorkflowService) GetElementEventWorkflowsByElementID(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.GetElementEventWorkflowsByElementID(ctx, elementID)
+func (s *ElementEventWorkflowService) ListByElement(ctx context.Context, elementID string) ([]models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.ListByElement(ctx, elementID)
 }
 
-func (s *ElementEventWorkflowService) GetElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.GetElementEventWorkflowsByWorkflowID(ctx, workflowID)
+func (s *ElementEventWorkflowService) ListByWorkflow(ctx context.Context, workflowID string) ([]models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.ListByWorkflow(ctx, workflowID)
 }
 
-func (s *ElementEventWorkflowService) GetElementEventWorkflowsByEventName(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.GetElementEventWorkflowsByEventName(ctx, eventName)
+func (s *ElementEventWorkflowService) ListByEvent(ctx context.Context, eventName string) ([]models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.ListByEvent(ctx, eventName)
 }
 
-func (s *ElementEventWorkflowService) GetElementEventWorkflowsByFilters(ctx context.Context, elementID, workflowID, eventName string) ([]models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.GetElementEventWorkflowsByFilters(ctx, elementID, workflowID, eventName)
+func (s *ElementEventWorkflowService) ListByFilters(ctx context.Context, elementID, workflowID, eventName string) ([]models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.ListByFilters(ctx, elementID, workflowID, eventName)
 }
 
-func (s *ElementEventWorkflowService) UpdateElementEventWorkflow(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.UpdateElementEventWorkflow(ctx, id, eew)
+func (s *ElementEventWorkflowService) Update(ctx context.Context, id string, eew *models.ElementEventWorkflow) (*models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.Update(ctx, id, eew)
 }
 
-func (s *ElementEventWorkflowService) DeleteElementEventWorkflow(ctx context.Context, id string) error {
-	return s.elementEventWorkflowRepo.DeleteElementEventWorkflow(ctx, id)
+func (s *ElementEventWorkflowService) Delete(ctx context.Context, id string) error {
+	return s.elementEventWorkflowRepo.Delete(ctx, id)
 }
 
-func (s *ElementEventWorkflowService) DeleteElementEventWorkflowsByElementID(ctx context.Context, elementID string) error {
-	return s.elementEventWorkflowRepo.DeleteElementEventWorkflowsByElementID(ctx, elementID)
+func (s *ElementEventWorkflowService) DeleteByElement(ctx context.Context, elementID string) error {
+	return s.elementEventWorkflowRepo.DeleteByElement(ctx, elementID)
 }
 
-func (s *ElementEventWorkflowService) DeleteElementEventWorkflowsByWorkflowID(ctx context.Context, workflowID string) error {
-	return s.elementEventWorkflowRepo.DeleteElementEventWorkflowsByWorkflowID(ctx, workflowID)
+func (s *ElementEventWorkflowService) DeleteByWorkflow(ctx context.Context, workflowID string) error {
+	return s.elementEventWorkflowRepo.DeleteByWorkflow(ctx, workflowID)
 }
 
-func (s *ElementEventWorkflowService) GetElementEventWorkflowsByPageID(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error) {
-	return s.elementEventWorkflowRepo.GetElementEventWorkflowsByPageID(ctx, pageID)
+func (s *ElementEventWorkflowService) ListByPage(ctx context.Context, pageID string) ([]models.ElementEventWorkflow, error) {
+	return s.elementEventWorkflowRepo.ListByPage(ctx, pageID)
 }
 
-func (s *ElementEventWorkflowService) CheckIfWorkflowLinkedToElement(ctx context.Context, elementID, workflowID, eventName string) (bool, error) {
-	return s.elementEventWorkflowRepo.CheckIfWorkflowLinkedToElement(ctx, elementID, workflowID, eventName)
+func (s *ElementEventWorkflowService) IsLinked(ctx context.Context, elementID, workflowID, eventName string) (bool, error) {
+	return s.elementEventWorkflowRepo.IsLinked(ctx, elementID, workflowID, eventName)
 }

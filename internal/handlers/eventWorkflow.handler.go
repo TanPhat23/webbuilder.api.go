@@ -33,8 +33,8 @@ func (h *EventWorkflowHandler) WithAuthorizer(a *authz.Authorizer) *EventWorkflo
 	return h
 }
 
-func (h *EventWorkflowHandler) CreateEventWorkflow(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+func (h *EventWorkflowHandler) Create(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func (h *EventWorkflowHandler) CreateEventWorkflow(c fiber.Ctx) error {
 		return err
 	}
 
-	workflow, err := h.eventWorkflowService.CreateEventWorkflow(c.RequestCtx(), &models.EventWorkflow{
+	workflow, err := h.eventWorkflowService.Create(c.RequestCtx(), &models.EventWorkflow{
 		ProjectId:   req.ProjectID,
 		Name:        req.Name,
 		Description: req.Description,
@@ -52,7 +52,7 @@ func (h *EventWorkflowHandler) CreateEventWorkflow(c fiber.Ctx) error {
 		Enabled:     req.Enabled != nil && *req.Enabled,
 	}, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to create event workflow")
+		return utils.RespondError(c, err, "Project not found", "Failed to create event workflow")
 	}
 
 	if workflow.CanvasData == nil {
@@ -65,35 +65,35 @@ func (h *EventWorkflowHandler) CreateEventWorkflow(c fiber.Ctx) error {
 	return utils.SendJSON(c, fiber.StatusCreated, workflow)
 }
 
-func (h *EventWorkflowHandler) GetEventWorkflowByID(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+func (h *EventWorkflowHandler) GetByID(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "id")
 	if err != nil {
 		return err
 	}
 	workflowID := ids[0]
 
-	workflow, err := h.eventWorkflowService.GetEventWorkflowByID(c.RequestCtx(), workflowID)
+	workflow, err := h.eventWorkflowService.GetByID(c.RequestCtx(), workflowID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to retrieve event workflow")
+		return utils.RespondError(c, err, "Event workflow not found", "Failed to retrieve event workflow")
 	}
 	if workflow == nil {
 		return fiber.NewError(fiber.StatusNotFound, "Event workflow not found")
 	}
 	if h.authorizer != nil {
-		userID, err := utils.ValidateUserID(c)
+		userID, err := utils.RequireUserID(c)
 		if err != nil {
 			return err
 		}
 		if _, err := h.authorizer.Authorize(c.RequestCtx(), workflow.ProjectId, userID, authz.PermProjectView); err != nil {
-			return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to verify workflow access")
+			return utils.RespondError(c, err, "Event workflow not found", "Failed to verify workflow access")
 		}
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, workflow)
 }
 
-func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "projectid")
+func (h *EventWorkflowHandler) ListByProject(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "projectid")
 	if err != nil {
 		return err
 	}
@@ -108,9 +108,9 @@ func (h *EventWorkflowHandler) GetEventWorkflowsByProject(c fiber.Ctx) error {
 		enabledPtr = &v
 	}
 
-	workflows, err := h.eventWorkflowService.GetEventWorkflowsWithFilters(c.RequestCtx(), projectID, userID, enabledPtr, c.Query("search"))
+	workflows, err := h.eventWorkflowService.ListWithFilters(c.RequestCtx(), projectID, userID, enabledPtr, c.Query("search"))
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve event workflows")
+		return utils.RespondError(c, err, "Project not found", "Failed to retrieve event workflows")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"data": workflows, "count": len(workflows)})
@@ -138,16 +138,16 @@ func buildUpdatedWorkflow(existing *models.EventWorkflow, req *dto.UpdateEventWo
 	}
 }
 
-func (h *EventWorkflowHandler) UpdateEventWorkflow(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+func (h *EventWorkflowHandler) Update(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "id")
 	if err != nil {
 		return err
 	}
 	workflowID := ids[0]
 
-	existing, err := h.eventWorkflowService.GetEventWorkflowByID(c.RequestCtx(), workflowID)
+	existing, err := h.eventWorkflowService.GetByID(c.RequestCtx(), workflowID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to retrieve event workflow")
+		return utils.RespondError(c, err, "Event workflow not found", "Failed to retrieve event workflow")
 	}
 	if existing == nil {
 		return fiber.NewError(fiber.StatusNotFound, "Event workflow not found")
@@ -158,16 +158,16 @@ func (h *EventWorkflowHandler) UpdateEventWorkflow(c fiber.Ctx) error {
 		return err
 	}
 
-	updated, err := h.eventWorkflowService.UpdateEventWorkflow(c.RequestCtx(), workflowID, buildUpdatedWorkflow(existing, req))
+	updated, err := h.eventWorkflowService.Update(c.RequestCtx(), workflowID, buildUpdatedWorkflow(existing, req))
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to update event workflow")
+		return utils.RespondError(c, err, "Event workflow not found", "Failed to update event workflow")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-func (h *EventWorkflowHandler) UpdateEventWorkflowEnabled(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+func (h *EventWorkflowHandler) SetEnabled(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "id")
 	if err != nil {
 		return err
 	}
@@ -182,54 +182,54 @@ func (h *EventWorkflowHandler) UpdateEventWorkflowEnabled(c fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, "enabled is required", nil)
 	}
 
-	if err := h.eventWorkflowService.UpdateEventWorkflowEnabled(c.RequestCtx(), workflowID, *req.Enabled); err != nil {
-		return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to update event workflow status")
+	if err := h.eventWorkflowService.SetEnabled(c.RequestCtx(), workflowID, *req.Enabled); err != nil {
+		return utils.RespondError(c, err, "Event workflow not found", "Failed to update event workflow status")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"enabled": *req.Enabled})
 }
 
-func (h *EventWorkflowHandler) DeleteEventWorkflow(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+func (h *EventWorkflowHandler) Delete(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "id")
 	if err != nil {
 		return err
 	}
 	workflowID := ids[0]
 
-	if err := h.eventWorkflowService.DeleteEventWorkflow(c.RequestCtx(), workflowID); err != nil {
-		return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to delete event workflow")
+	if err := h.eventWorkflowService.Delete(c.RequestCtx(), workflowID); err != nil {
+		return utils.RespondError(c, err, "Event workflow not found", "Failed to delete event workflow")
 	}
 
 	return utils.SendNoContent(c)
 }
 
-func (h *EventWorkflowHandler) GetEventWorkflowElements(c fiber.Ctx) error {
-	ids, err := utils.MustParams(c, "id")
+func (h *EventWorkflowHandler) ListElements(c fiber.Ctx) error {
+	ids, err := utils.RequireParams(c, "id")
 	if err != nil {
 		return err
 	}
 	workflowID := ids[0]
 
 	if h.authorizer != nil {
-		userID, err := utils.ValidateUserID(c)
+		userID, err := utils.RequireUserID(c)
 		if err != nil {
 			return err
 		}
-		workflow, err := h.eventWorkflowService.GetEventWorkflowByID(c.RequestCtx(), workflowID)
+		workflow, err := h.eventWorkflowService.GetByID(c.RequestCtx(), workflowID)
 		if err != nil {
-			return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to verify event workflow")
+			return utils.RespondError(c, err, "Event workflow not found", "Failed to verify event workflow")
 		}
 		if workflow == nil {
 			return fiber.NewError(fiber.StatusNotFound, "Event workflow not found")
 		}
 		if _, err := h.authorizer.Authorize(c.RequestCtx(), workflow.ProjectId, userID, authz.PermProjectView); err != nil {
-			return utils.HandleRepoError(c, err, "Event workflow not found", "Failed to verify workflow access")
+			return utils.RespondError(c, err, "Event workflow not found", "Failed to verify workflow access")
 		}
 	}
 
-	elements, err := h.elementEventWorkflowService.GetElementEventWorkflowsByWorkflowID(c.RequestCtx(), workflowID)
+	elements, err := h.elementEventWorkflowService.ListByWorkflow(c.RequestCtx(), workflowID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "", "Failed to retrieve elements")
+		return utils.RespondError(c, err, "", "Failed to retrieve elements")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, fiber.Map{"data": elements, "count": len(elements)})

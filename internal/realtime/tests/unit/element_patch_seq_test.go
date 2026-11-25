@@ -180,7 +180,7 @@ func TestSeq_IncrementsPerSuccessfulOpOnly(t *testing.T) {
 	if _, err := uc.PatchElement(ctx, testProject, testPage, "22222222-2222-2222-2222-222222222222", nil, map[string]any{"a": 1}, nil); !domainErrors.IsCode(err, domainErrors.CodeNotFound) {
 		t.Fatalf("expected NOT_FOUND, got %v", err)
 	}
-	if _, err := uc.RemoveElement(ctx, testProject, testPage, "does-not-exist"); !domainErrors.IsCode(err, domainErrors.CodeNotFound) {
+	if _, err := uc.DeleteElement(ctx, testProject, testPage, "does-not-exist"); !domainErrors.IsCode(err, domainErrors.CodeNotFound) {
 		t.Fatalf("expected NOT_FOUND from remove, got %v", err)
 	}
 	if _, _, err := uc.MoveElement(ctx, testProject, testPage, "does-not-exist", "", 0); err == nil {
@@ -199,7 +199,7 @@ func TestSeq_IncrementsPerSuccessfulOpOnly(t *testing.T) {
 	if err != nil || seq != 3 {
 		t.Fatalf("move: seq=%d err=%v", seq, err)
 	}
-	seq, err = uc.RemoveElement(ctx, testProject, testPage, newEl.ID)
+	seq, err = uc.DeleteElement(ctx, testProject, testPage, newEl.ID)
 	if err != nil || seq != 4 {
 		t.Fatalf("remove: seq=%d err=%v", seq, err)
 	}

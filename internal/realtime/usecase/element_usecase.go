@@ -35,7 +35,7 @@ func NewElementUseCase(
 
 // SyncPage ensures the cache is up to date for a specific page.
 func (uc *elementUseCase) SyncPage(ctx context.Context, projectID string, pageID string) ([]domainEntity.Element, error) {
-	if err := uc.docUseCase.RefreshCache(ctx, projectID, pageID); err != nil {
+	if err := uc.docUseCase.EnsureDocumentCached(ctx, projectID, pageID); err != nil {
 		return nil, fmt.Errorf("failed to refresh cache: %w", err)
 
 	}
@@ -44,7 +44,7 @@ func (uc *elementUseCase) SyncPage(ctx context.Context, projectID string, pageID
 
 // SyncPageWithSeq is SyncPage plus the page sequence number belonging to the returned elements.
 func (uc *elementUseCase) SyncPageWithSeq(ctx context.Context, projectID string, pageID string) ([]domainEntity.Element, int64, error) {
-	if err := uc.docUseCase.RefreshCache(ctx, projectID, pageID); err != nil {
+	if err := uc.docUseCase.EnsureDocumentCached(ctx, projectID, pageID); err != nil {
 		return nil, 0, fmt.Errorf("failed to refresh cache: %w", err)
 	}
 	elements, seq, err := uc.docUseCase.GetDocumentWithSeq(ctx, projectID, pageID)
@@ -57,16 +57,16 @@ func (uc *elementUseCase) SyncPageWithSeq(ctx context.Context, projectID string,
 	return elements, seq, nil
 }
 
-func (uc *elementUseCase) GetElementsByPageID(ctx context.Context, projectID string, pageID string) ([]domainEntity.Element, error) {
+func (uc *elementUseCase) ListElementsByPage(ctx context.Context, projectID string, pageID string) ([]domainEntity.Element, error) {
 	return uc.docUseCase.GetDocument(ctx, projectID, pageID)
 }
 
-func (uc *elementUseCase) GetElementsByProjectID(ctx context.Context, projectID string) ([]domainEntity.Element, error) {
-	flattenElements, err := uc.repo.ElementRepo.GetElementsByProjectID(ctx, projectID)
+func (uc *elementUseCase) ListElementsByProject(ctx context.Context, projectID string) ([]domainEntity.Element, error) {
+	flattenElements, err := uc.repo.ElementRepo.ListElementsByProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	return elementutils.BuildElementTree(flattenElements), nil
+	return elementutils.BuildTree(flattenElements), nil
 }
 
 func (uc *elementUseCase) CreateElement(ctx context.Context, projectID string, element *domainEntity.Element) (int64, error) {
@@ -74,7 +74,7 @@ func (uc *elementUseCase) CreateElement(ctx context.Context, projectID string, e
 }
 
 func (uc *elementUseCase) CreateElementAt(ctx context.Context, projectID string, element *domainEntity.Element, position *int) (int64, error) {
-	if err := validation.ValidateElementForAdd(element); err != nil {
+	if err := validation.ElementForCreate(element); err != nil {
 		return 0, domainErrors.Wrap(domainErrors.CodeValidation, err)
 	}
 	if element.ID == "" {
@@ -82,7 +82,7 @@ func (uc *elementUseCase) CreateElementAt(ctx context.Context, projectID string,
 	}
 	// The closure may be retried by Redis; never use output of a previous attempt as input.
 	input := *element
-	return uc.docUseCase.MutateDocument(ctx, projectID, input.PageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
+	return uc.docUseCase.UpdateDocument(ctx, projectID, input.PageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
 		updatedTree, created, err := insertElementIntoTree(elements, input, position)
 		if err != nil {
 			return nil, err
@@ -127,7 +127,7 @@ func insertElementIntoTree(elements []domainEntity.Element, input domainEntity.E
 }
 
 func ensureTargetChildren(elements *[]domainEntity.Element, parentID string) ([]domainEntity.Element, *[]domainEntity.Element, error) {
-	children := elementutils.Children(elements, parentID)
+	children := elementutils.FindChildren(elements, parentID)
 	if children == nil && parentID == "root" {
 		extended, err := elementutils.InsertAt(*elements, domainEntity.Element{ID: "root"}, len(*elements))
 		if err != nil {
@@ -158,9 +158,9 @@ func (uc *elementUseCase) UpdateElement(ctx context.Context, projectID string, p
 		return 0, domainErrors.New(domainErrors.CodeValidation, "element id is required", nil)
 	}
 
-	return uc.docUseCase.MutateDocument(ctx, projectID, pageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
+	return uc.docUseCase.UpdateDocument(ctx, projectID, pageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
 		for i := range elements {
-			if elementutils.UpdateElement(&elements[i], *element) {
+			if elementutils.Update(&elements[i], *element) {
 				return elements, nil
 			}
 		}
@@ -194,7 +194,7 @@ func (uc *elementUseCase) MoveElement(ctx context.Context, projectID string, pag
 		return nil, 0, domainErrors.New(domainErrors.CodeValidation, "position out of range", nil)
 	}
 	var result *domainEntity.Element
-	seq, err := uc.docUseCase.MutateDocument(ctx, projectID, pageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
+	seq, err := uc.docUseCase.UpdateDocument(ctx, projectID, pageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
 		updated, committed, err := moveElementInTree(elements, elementID, parentID, index)
 		if err != nil {
 			return nil, err
@@ -216,7 +216,7 @@ func moveElementInTree(elements []domainEntity.Element, elementID, parentID stri
 		return nil, nil, err
 	}
 	moved := elementutils.Detach(&elements, elementID)
-	children := elementutils.Children(&elements, parentID)
+	children := elementutils.FindChildren(&elements, parentID)
 	if children == nil {
 		return nil, nil, domainErrors.New(domainErrors.CodeNotFound, "parent not found", nil)
 	}
@@ -255,8 +255,8 @@ func validateMoveParent(elements []domainEntity.Element, elementID, parentID str
 	return nil
 }
 
-func (uc *elementUseCase) RemoveElement(ctx context.Context, projectID string, pageID string, elementID string) (int64, error) {
-	return uc.docUseCase.MutateDocument(ctx, projectID, pageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
+func (uc *elementUseCase) DeleteElement(ctx context.Context, projectID string, pageID string, elementID string) (int64, error) {
+	return uc.docUseCase.UpdateDocument(ctx, projectID, pageID, func(elements []domainEntity.Element) ([]domainEntity.Element, error) {
 		newRoots := make([]domainEntity.Element, 0, len(elements))
 		removed := false
 		for _, r := range elements {
@@ -270,7 +270,7 @@ func (uc *elementUseCase) RemoveElement(ctx context.Context, projectID string, p
 			return newRoots, nil
 		}
 		for i := range elements {
-			if elementutils.DeleteElement(&elements[i], elementID) {
+			if elementutils.Delete(&elements[i], elementID) {
 				return elements, nil
 			}
 		}

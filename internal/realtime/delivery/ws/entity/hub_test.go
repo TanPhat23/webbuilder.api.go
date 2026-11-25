@@ -118,7 +118,7 @@ func TestHubConcurrentRoomChurn(t *testing.T) {
 				}
 				hub.Broadcast(c.RoomID(), domainEntity.Message{Type: domainEntity.TypePresence, ProjectID: project}, c)
 				hub.BroadcastProject(project, domainEntity.Message{Type: domainEntity.TypePresence}, nil)
-				_ = hub.GetRoomParticipants(c.RoomID())
+				_ = hub.RoomParticipants(c.RoomID())
 				_ = hub.MostRecentClient(project, c.User.ID)
 				if err := hub.Unregister(ctx, c); err != nil {
 					t.Errorf("unregister: %v", err)

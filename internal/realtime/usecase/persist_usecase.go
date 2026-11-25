@@ -20,7 +20,7 @@ type PersistenceUseCase struct {
 	logger logger.Logger
 }
 
-func NewPersistenceUsecase(repo *domainRepo.Repository, logger logger.Logger) domainUseCase.PersistUseCase {
+func NewPersistUseCase(repo *domainRepo.Repository, logger logger.Logger) domainUseCase.PersistUseCase {
 	return &PersistenceUseCase{
 		repo:   repo,
 		logger: logger,
@@ -47,7 +47,7 @@ func (uc *PersistenceUseCase) worker(ctx context.Context, tasks <-chan domainEnt
 			}
 			continue
 		}
-		flattenedEl := elementUtils.FlattenElements(elementTree)
+		flattenedEl := elementUtils.Flatten(elementTree)
 		if err := uc.repo.ElementRepo.UpdateElements(ctx, dirty.ProjectID, dirty.PageID, flattenedEl); err != nil {
 			results <- Result{
 				ProjectID: dirty.ProjectID,
@@ -56,7 +56,7 @@ func (uc *PersistenceUseCase) worker(ctx context.Context, tasks <-chan domainEnt
 			}
 			continue
 		}
-		if err := uc.repo.SnapshotRepo.SaveSnapshot(ctx, dirty.ProjectID, dirty.PageID, "autosave", domainEntity.SnapshotTypes.Working, elementTree); err != nil {
+		if err := uc.repo.SnapshotRepo.CreateSnapshot(ctx, dirty.ProjectID, dirty.PageID, "autosave", domainEntity.SnapshotTypes.Working, elementTree); err != nil {
 			results <- Result{
 				ProjectID: dirty.ProjectID,
 				PageID:    dirty.PageID,

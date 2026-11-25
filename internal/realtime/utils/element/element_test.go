@@ -21,11 +21,11 @@ func TestParentsEqual(t *testing.T) {
 }
 
 func TestCompareParent(t *testing.T) {
-	if !CompareParent(nil, "") || CompareParent(nil, "a") {
-		t.Fatal("unexpected CompareParent nil result")
+	if !HasParent(nil, "") || HasParent(nil, "a") {
+		t.Fatal("unexpected HasParent nil result")
 	}
-	if !CompareParent(strPtr("a"), "a") || CompareParent(strPtr("a"), "b") {
-		t.Fatal("unexpected CompareParent value result")
+	if !HasParent(strPtr("a"), "a") || HasParent(strPtr("a"), "b") {
+		t.Fatal("unexpected HasParent value result")
 	}
 }
 
@@ -92,7 +92,7 @@ func TestBuildElementTreeAndFlatten(t *testing.T) {
 		{ID: "r1", Type: "Frame", PageID: "p1", Order: 0, OrderKey: "a0"},
 		{ID: "orphan", Type: "Text", PageID: "p1", ParentID: strPtr("missing"), Order: 2, OrderKey: "a2"},
 	}
-	tree := BuildElementTree(flat)
+	tree := BuildTree(flat)
 	if len(tree) != 3 || tree[0].ID != "r1" {
 		t.Fatalf("unexpected roots: %+v", tree)
 	}
@@ -105,33 +105,33 @@ func TestBuildElementTreeAndFlatten(t *testing.T) {
 	if tree[0].Elements[0].ID != "c1" || tree[0].Elements[1].ID != "c2" {
 		t.Fatalf("unexpected children order: %+v", tree[0].Elements)
 	}
-	if got := FlattenElements(tree); len(got) != 5 {
+	if got := Flatten(tree); len(got) != 5 {
 		t.Fatalf("expected 5 flattened elements, got %d", len(got))
 	}
 }
 
 func TestTreeCreateFindSwapUpdateDelete(t *testing.T) {
 	root := entity.Element{ID: "r1", Type: "Frame", PageID: "p1", Elements: []entity.Element{{ID: "c1"}, {ID: "c2"}}}
-	if !CreateElement(&root, entity.Element{ID: "c3", ParentID: strPtr("r1")}) || len(root.Elements) != 3 {
-		t.Fatal("CreateElement failed")
+	if !InsertChild(&root, entity.Element{ID: "c3", ParentID: strPtr("r1")}) || len(root.Elements) != 3 {
+		t.Fatal("InsertChild failed")
 	}
 	if FindByID([]entity.Element{root}, "c3") == nil || FindByID([]entity.Element{root}, "none") != nil {
 		t.Fatal("FindByID mismatch")
 	}
-	if !SwapElements(&root, "c1", "c3") || root.Elements[0].ID != "c3" {
-		t.Fatal("SwapElements failed")
+	if !Swap(&root, "c1", "c3") || root.Elements[0].ID != "c3" {
+		t.Fatal("Swap failed")
 	}
-	if !UpdateElement(&root, entity.Element{ID: "c3", Type: "Button"}) || root.Elements[0].Type != "Button" {
-		t.Fatal("UpdateElement failed")
+	if !Update(&root, entity.Element{ID: "c3", Type: "Button"}) || root.Elements[0].Type != "Button" {
+		t.Fatal("Update failed")
 	}
-	if !DeleteElement(&root, "c2") || len(root.Elements) != 2 {
-		t.Fatal("DeleteElement failed")
+	if !Delete(&root, "c2") || len(root.Elements) != 2 {
+		t.Fatal("Delete failed")
 	}
 }
 
 func TestTreeChildrenAndDetach(t *testing.T) {
 	root := entity.Element{ID: "r1", Type: "Frame", PageID: "p1", Elements: []entity.Element{{ID: "c3"}, {ID: "c1"}}}
-	children := Children(&root.Elements, "")
+	children := FindChildren(&root.Elements, "")
 	if len(*children) != 2 {
 		t.Fatalf("expected 2 root children, got %d", len(*children))
 	}
@@ -238,16 +238,16 @@ func TestFlattenElements_CapsDepthAndNodeCount(t *testing.T) {
 	for i := 0; i < MaxElementDepth+5; i++ {
 		deep = entity.Element{ID: "n", Elements: []entity.Element{deep}}
 	}
-	flat := FlattenElements([]entity.Element{deep})
+	flat := Flatten([]entity.Element{deep})
 	if len(flat) != MaxElementDepth {
-		t.Fatalf("expected FlattenElements to cap at %d depth, got %d", MaxElementDepth, len(flat))
+		t.Fatalf("expected Flatten to cap at %d depth, got %d", MaxElementDepth, len(flat))
 	}
 
 	wide := make([]entity.Element, MaxElementNodes+50)
 	for i := range wide {
 		wide[i] = entity.Element{ID: "x"}
 	}
-	if got := len(FlattenElements(wide)); got != MaxElementNodes {
-		t.Fatalf("expected FlattenElements to cap at %d nodes, got %d", MaxElementNodes, got)
+	if got := len(Flatten(wide)); got != MaxElementNodes {
+		t.Fatalf("expected Flatten to cap at %d nodes, got %d", MaxElementNodes, got)
 	}
 }

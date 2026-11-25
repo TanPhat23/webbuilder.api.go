@@ -19,7 +19,7 @@ type fakeTokenLookup struct {
 	touched []string
 }
 
-func (f *fakeTokenLookup) FindActiveByHash(_ context.Context, hash string) (*models.AgentToken, error) {
+func (f *fakeTokenLookup) GetActiveByHash(_ context.Context, hash string) (*models.AgentToken, error) {
 	return f.tokens[hash], nil
 }
 
@@ -37,7 +37,7 @@ func TestAuthenticateMiddleware_AgentTokenValidAndRevoked(t *testing.T) {
 	}
 
 	app := fiber.New()
-	app.Use(NewAuthenticateMiddleware(lookup))
+	app.Use(NewAuthenticate(lookup))
 	app.Get("/api/v1/private", func(c fiber.Ctx) error {
 		id, ok := auth.FromFiber(c)
 		if !ok {
@@ -85,7 +85,7 @@ func TestAuthenticateMiddleware_TestBypassAndProdGuard(t *testing.T) {
 	}
 
 	app := fiber.New()
-	app.Use(NewAuthenticateMiddleware(nil))
+	app.Use(NewAuthenticate(nil))
 	app.Get("/api/v1/private", func(c fiber.Ctx) error {
 		id, ok := auth.FromFiber(c)
 		if !ok {
@@ -131,7 +131,7 @@ func TestAuthenticateMiddleware_TestBypassAndProdGuard(t *testing.T) {
 
 func TestAuthenticateMiddleware_PublicRouteTighteningAndGenericJWTError(t *testing.T) {
 	app := fiber.New()
-	app.Use(NewAuthenticateMiddleware(nil))
+	app.Use(NewAuthenticate(nil))
 	app.All("/*", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
 	cases := []struct {

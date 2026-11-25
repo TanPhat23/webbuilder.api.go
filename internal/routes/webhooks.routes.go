@@ -9,7 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func WebhookRoutes(privateGroup fiber.Router, repos *repositories.RepositoriesInterface, webhookService *services.WebhookService) {
+func RegisterWebhooks(privateGroup fiber.Router, repos *repositories.Repositories, webhookService *services.WebhookService) {
 	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 	handler := handlers.NewWebhookHandler(webhookService)
 

@@ -21,7 +21,7 @@ func (l *projectAccessLookup) LookupProjectAccess(ctx context.Context, projectID
 	if l.projects == nil {
 		return nil, errors.New("project repository is not configured")
 	}
-	access, err := l.projects.GetProjectAccess(ctx, projectID, userID)
+	access, err := l.projects.GetAccess(ctx, projectID, userID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrProjectNotFound) {
 			return nil, authz.ErrNotFound

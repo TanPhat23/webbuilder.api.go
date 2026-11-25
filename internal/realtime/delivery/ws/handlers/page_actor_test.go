@@ -20,7 +20,7 @@ func TestPageActors_SerializePerKeyAndKeepFIFO(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = p.Do(context.Background(), "proj:page", func() {
+			_ = p.Run(context.Background(), "proj:page", func() {
 				n := atomic.AddInt32(&inFlight, 1)
 				for {
 					m := atomic.LoadInt32(&maxInFlight)
@@ -52,13 +52,13 @@ func TestPageActors_DifferentKeysRunIndependently(t *testing.T) {
 	started := make(chan struct{})
 
 	go func() {
-		_ = p.Do(context.Background(), "a", func() { close(started); <-release })
+		_ = p.Run(context.Background(), "a", func() { close(started); <-release })
 	}()
 	<-started
 
 	done := make(chan struct{})
 	go func() {
-		_ = p.Do(context.Background(), "b", func() {})
+		_ = p.Run(context.Background(), "b", func() {})
 		close(done)
 	}()
 	select {
@@ -73,7 +73,7 @@ func TestPageActors_IdleActorStopsAndIsRecreated(t *testing.T) {
 	p := newPageActors(context.Background(), 20*time.Millisecond)
 
 	ran := 0
-	if err := p.Do(context.Background(), "k", func() { ran++ }); err != nil {
+	if err := p.Run(context.Background(), "k", func() { ran++ }); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(2 * time.Second)
@@ -83,18 +83,18 @@ func TestPageActors_IdleActorStopsAndIsRecreated(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if err := p.Do(context.Background(), "k", func() { ran++ }); err != nil || ran != 2 {
+	if err := p.Run(context.Background(), "k", func() { ran++ }); err != nil || ran != 2 {
 		t.Fatalf("actor not recreated after idle stop: ran=%d err=%v", ran, err)
 	}
 }
 
 func TestPageActors_PanicDoesNotKillActor(t *testing.T) {
 	p := newPageActors(context.Background(), time.Minute)
-	if err := p.Do(context.Background(), "k", func() { panic("boom") }); err == nil {
+	if err := p.Run(context.Background(), "k", func() { panic("boom") }); err == nil {
 		t.Fatal("expected error from panicking op")
 	}
 	ok := false
-	if err := p.Do(context.Background(), "k", func() { ok = true }); err != nil || !ok {
+	if err := p.Run(context.Background(), "k", func() { ok = true }); err != nil || !ok {
 		t.Fatalf("actor unusable after panic: err=%v", err)
 	}
 }
@@ -107,7 +107,7 @@ func TestPageActors_ShutdownUnblocksCallers(t *testing.T) {
 	started := make(chan struct{})
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- p.Do(context.Background(), "k", func() { close(started); <-block })
+		errCh <- p.Run(context.Background(), "k", func() { close(started); <-block })
 	}()
 	<-started
 	cancel()

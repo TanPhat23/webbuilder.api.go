@@ -19,8 +19,8 @@ func NewContentTypeHandler(contentTypeService services.ContentTypeServiceInterfa
 	}
 }
 
-func (h *ContentTypeHandler) GetContentTypes(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+func (h *ContentTypeHandler) List(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -29,31 +29,31 @@ func (h *ContentTypeHandler) GetContentTypes(c fiber.Ctx) error {
 		projectID = c.Query("projectId")
 	}
 
-	contentTypes, err := h.contentTypeService.GetContentTypesForUser(c.RequestCtx(), userID, projectID)
+	contentTypes, err := h.contentTypeService.ListForUser(c.RequestCtx(), userID, projectID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to retrieve content types")
+		return utils.RespondError(c, err, "Project not found", "Failed to retrieve content types")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, contentTypes)
 }
 
-func (h *ContentTypeHandler) GetContentTypeByID(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+func (h *ContentTypeHandler) GetByID(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	contentType, err := h.contentTypeService.GetContentTypeByIDForUser(c.RequestCtx(), id, userID)
+	contentType, err := h.contentTypeService.GetByIDForUser(c.RequestCtx(), id, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Content type not found", "Failed to retrieve content type")
+		return utils.RespondError(c, err, "Content type not found", "Failed to retrieve content type")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, contentType)
 }
 
-func (h *ContentTypeHandler) CreateContentType(c fiber.Ctx) error {
-	userID, err := utils.ValidateUserID(c)
+func (h *ContentTypeHandler) Create(c fiber.Ctx) error {
+	userID, err := utils.RequireUserID(c)
 	if err != nil {
 		return err
 	}
@@ -101,16 +101,16 @@ func (h *ContentTypeHandler) CreateContentType(c fiber.Ctx) error {
 		RateLimitPerMin:  rateLimit,
 	}
 
-	created, err := h.contentTypeService.CreateContentTypeForUser(c.RequestCtx(), contentType, userID)
+	created, err := h.contentTypeService.CreateForUser(c.RequestCtx(), contentType, userID)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Project not found", "Failed to create content type")
+		return utils.RespondError(c, err, "Project not found", "Failed to create content type")
 	}
 
 	return utils.SendJSON(c, fiber.StatusCreated, created)
 }
 
-func (h *ContentTypeHandler) UpdateContentType(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+func (h *ContentTypeHandler) Update(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
@@ -148,23 +148,23 @@ func (h *ContentTypeHandler) UpdateContentType(c fiber.Ctx) error {
 		updates["rateLimitPerMin"] = *req.RateLimitPerMin
 	}
 
-	updated, err := h.contentTypeService.UpdateContentTypeFieldsForUser(c.RequestCtx(), id, userID, updates)
+	updated, err := h.contentTypeService.PatchForUser(c.RequestCtx(), id, userID, updates)
 	if err != nil {
-		return utils.HandleRepoError(c, err, "Content type not found", "Failed to update content type")
+		return utils.RespondError(c, err, "Content type not found", "Failed to update content type")
 	}
 
 	return utils.SendJSON(c, fiber.StatusOK, updated)
 }
 
-func (h *ContentTypeHandler) DeleteContentType(c fiber.Ctx) error {
-	userID, ids, err := utils.MustUserAndParams(c, "id")
+func (h *ContentTypeHandler) Delete(c fiber.Ctx) error {
+	userID, ids, err := utils.RequireUserAndParams(c, "id")
 	if err != nil {
 		return err
 	}
 	id := ids[0]
 
-	if err := h.contentTypeService.DeleteContentTypeForUser(c.RequestCtx(), id, userID); err != nil {
-		return utils.HandleRepoError(c, err, "Content type not found", "Failed to delete content type")
+	if err := h.contentTypeService.DeleteForUser(c.RequestCtx(), id, userID); err != nil {
+		return utils.RespondError(c, err, "Content type not found", "Failed to delete content type")
 	}
 
 	return utils.SendNoContent(c)

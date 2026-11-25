@@ -185,11 +185,11 @@ func TestElementUpdate_Errors(t *testing.T) {
 }
 
 func TestUpdateProperties(t *testing.T) {
-	if got := updateProperties(domainEntity.PayloadElementUpdate{}); len(got) != 0 {
+	if got := extractElementProperties(domainEntity.PayloadElementUpdate{}); len(got) != 0 {
 		t.Fatalf("empty payload gave %v", got)
 	}
 	empty := elementHandlersStr("")
-	got := updateProperties(domainEntity.PayloadElementUpdate{
+	got := extractElementProperties(domainEntity.PayloadElementUpdate{
 		Name:       empty,
 		Content:    elementHandlersStr("c"),
 		Properties: map[string]any{"name": "from-props", "extra": 1},
@@ -199,7 +199,7 @@ func TestUpdateProperties(t *testing.T) {
 		t.Fatalf("got %v want %v", got, want)
 	}
 	// An explicitly empty string is a value, not "absent".
-	got = updateProperties(domainEntity.PayloadElementUpdate{Href: empty})
+	got = extractElementProperties(domainEntity.PayloadElementUpdate{Href: empty})
 	if v, ok := got["href"]; !ok || v != "" {
 		t.Fatalf("empty href must be kept: %v", got)
 	}
