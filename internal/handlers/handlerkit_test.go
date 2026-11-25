@@ -105,5 +105,4 @@ func kitExpect(t *testing.T, r kitReply, status int, fragments ...string) {
 	}
 }
 
-func strPtr(s string) *string { return &s }
 func boolPtr(b bool) *bool    { return &b }

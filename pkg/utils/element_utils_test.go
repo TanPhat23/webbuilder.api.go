@@ -189,8 +189,6 @@ func TestGetChildrenFromEditorElement(t *testing.T) {
 	}
 }
 
-type fakeEditorElement struct{ models.Element }
-
 func TestConvertToEditorElementPassthroughAndLeafMap(t *testing.T) {
 	in := el("a", "Text", nil)
 	got, err := ConvertToEditorElement(in)

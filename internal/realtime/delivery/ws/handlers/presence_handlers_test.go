@@ -3,9 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
-	"net"
 	"testing"
-	"time"
 
 	wsentity "my-go-app/internal/realtime/delivery/ws/entity"
 	domainEntity "my-go-app/internal/realtime/domain/entity"
@@ -114,20 +112,6 @@ func TestJoin_SecondUserSeesBothParticipants(t *testing.T) {
 	}
 	if len(page.Users) != 2 || !ids["alice"] || !ids["bob"] {
 		t.Fatalf("users = %+v", page.Users)
-	}
-}
-
-// presenceHandlersWaitClosed reads until the server closes the socket.
-func presenceHandlersWaitClosed(t *testing.T, c *handlerConn) {
-	t.Helper()
-	_ = c.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	for {
-		if _, _, err := c.conn.ReadMessage(); err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				t.Fatal("connection was not closed")
-			}
-			return
-		}
 	}
 }
 

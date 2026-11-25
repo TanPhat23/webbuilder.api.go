@@ -9,11 +9,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-var contentTypeAllowedCols = map[string]string{
-	"name":        "Name",
-	"description": "Description",
-}
-
 type ContentTypeHandler struct {
 	contentTypeService services.ContentTypeServiceInterface
 }
