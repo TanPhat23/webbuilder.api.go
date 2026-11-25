@@ -388,24 +388,8 @@ func (h *Handler) readWSLoop(ctx context.Context, c *websocket.Conn, client *wse
 		return c.SetReadDeadline(time.Now().Add(wsPongWait))
 	})
 
-	stopPing := make(chan struct{})
-	defer close(stopPing)
-	go func() {
-		ticker := time.NewTicker(wsPingPeriod)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-stopPing:
-				return
-			case <-h.ctx.Done():
-				return
-			case <-ticker.C:
-				if err := client.WritePing(); err != nil {
-					return
-				}
-			}
-		}
-	}()
+	stopPing := h.startPinger(client)
+	defer stopPing()
 
 	limiter := newWSRateLimiter()
 	for {
@@ -431,6 +415,28 @@ func (h *Handler) readWSLoop(ctx context.Context, c *websocket.Conn, client *wse
 			h.sendProcessError(client, msg, err)
 		}
 	}
+}
+
+// startPinger sends periodic pings until the returned stop function is called.
+func (h *Handler) startPinger(client *wsentity.Client) (stop func()) {
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(wsPingPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-h.ctx.Done():
+				return
+			case <-ticker.C:
+				if err := client.WritePing(); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return func() { close(done) }
 }
 
 func (h *Handler) sendProcessError(client *wsentity.Client, msg domainEntity.Message, err error) {

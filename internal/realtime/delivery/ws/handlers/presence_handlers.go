@@ -11,62 +11,72 @@ import (
 )
 
 func (h *Handler) handleJoin(ctx context.Context, client *wsentity.Client, msg domainEntity.Message) error {
-	if msg.PageID == "" {
-		return domainErrors.New(domainErrors.CodeValidation, "pageId is required to join", nil)
-	}
-	if !validation.IsValidSafeID(msg.PageID) {
-		return domainErrors.New(domainErrors.CodeValidation, "invalid pageId", nil)
-	}
-	if h.pageChecker != nil {
-		owns, err := h.pageChecker.PageBelongsToProject(ctx, client.ProjectID, msg.PageID)
-		if err != nil {
-			return domainErrors.New(domainErrors.CodeInternal, "could not verify page access", err)
-		}
-		if !owns {
-			return domainErrors.New(domainErrors.CodeAccessDenied, "page does not belong to this project", nil)
-		}
+	if err := h.validateJoin(ctx, client, msg.PageID); err != nil {
+		return err
 	}
 
 	oldPage := client.GetPageID()
 	if oldPage != "" && oldPage != msg.PageID {
 		_ = h.hub.Detach(ctx, client)
 	}
-
 	client.SetPageID(msg.PageID)
 	if err := h.hub.Register(ctx, client); err != nil {
 		return err
 	}
 
-	pageID := client.GetPageID()
-	elements, seq, err := h.uc.Element.SyncPageWithSeq(ctx, client.ProjectID, pageID)
+	if err := h.sendPageSync(ctx, client, msg.RequestID); err != nil {
+		return err
+	}
+	if err := h.sendLogicSync(ctx, client, msg.RequestID); err != nil {
+		h.logger.Errorf("logic sync on join failed (project=%s page=%s): %v", client.ProjectID, client.GetPageID(), err)
+	}
+	return h.sendProjectSync(ctx, client, msg.RequestID)
+}
+
+func (h *Handler) validateJoin(ctx context.Context, client *wsentity.Client, pageID string) error {
+	if pageID == "" {
+		return domainErrors.New(domainErrors.CodeValidation, "pageId is required to join", nil)
+	}
+	if !validation.IsValidSafeID(pageID) {
+		return domainErrors.New(domainErrors.CodeValidation, "invalid pageId", nil)
+	}
+	if h.pageChecker == nil {
+		return nil
+	}
+	owns, err := h.pageChecker.PageBelongsToProject(ctx, client.ProjectID, pageID)
+	if err != nil {
+		return domainErrors.New(domainErrors.CodeInternal, "could not verify page access", err)
+	}
+	if !owns {
+		return domainErrors.New(domainErrors.CodeAccessDenied, "page does not belong to this project", nil)
+	}
+	return nil
+}
+
+func (h *Handler) sendPageSync(ctx context.Context, client *wsentity.Client, requestID string) error {
+	elements, seq, err := h.uc.Element.SyncPageWithSeq(ctx, client.ProjectID, client.GetPageID())
 	if err != nil {
 		return err
 	}
-
 	users := h.hub.GetRoomParticipants(client.RoomID())
 	syncMsg, _ := client.Factory().SyncPageAt(elements, nil, users, seq)
-	syncMsg.RequestID = msg.RequestID
+	syncMsg.RequestID = requestID
 	_ = client.Send(syncMsg)
+	return nil
+}
 
-	if err := h.sendLogicSync(ctx, client, msg.RequestID); err != nil {
-		h.logger.Errorf("logic sync on join failed (project=%s page=%s): %v", client.ProjectID, pageID, err)
-	}
-
-	projElements, err := h.uc.Element.GetElementsByProjectID(ctx, client.ProjectID)
+// sendProjectSync sends project state only to the joining client, not to every room.
+// Broadcasting sync:project on every join creates a message storm during rapid
+// reconnects; other clients already have the project state and receive granular
+// updates via element/workflow operation broadcasts.
+func (h *Handler) sendProjectSync(ctx context.Context, client *wsentity.Client, requestID string) error {
+	elements, err := h.uc.Element.GetElementsByProjectID(ctx, client.ProjectID)
 	if err != nil {
 		return err
 	}
-
-	// Send project sync only to the joining client — NOT broadcast to all rooms.
-	// Broadcasting sync:project to every room on every join creates a message storm
-	// during rapid reconnects (each reconnect triggers a full project sync to ALL
-	// other clients across ALL pages). The joining client needs the project state;
-	// other clients already have it and will receive granular updates via element/workflow
-	// operation broadcasts.
-	syncProjMsg, _ := client.Factory().SyncProject(projElements, nil, nil, nil)
-	syncProjMsg.RequestID = msg.RequestID
-	_ = client.Send(syncProjMsg)
-
+	syncMsg, _ := client.Factory().SyncProject(elements, nil, nil, nil)
+	syncMsg.RequestID = requestID
+	_ = client.Send(syncMsg)
 	return nil
 }
 
