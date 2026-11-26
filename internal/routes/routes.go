@@ -48,6 +48,7 @@ func Register(app *fiber.App, repos *repositories.Repositories, storage services
 	RegisterPages(publicGroup, privateGroup, repos, redisClient)
 	RegisterProjects(publicGroup, privateGroup, repos, onAccessChanged)
 	RegisterProjectWSTickets(privateGroup, repos, redisClient)
+	RegisterPreviewTickets(publicGroup, privateGroup, repos, redisClient)
 	RegisterContent(publicGroup, privateGroup, repos, itemEmitter)
 	if webhookService != nil {
 		RegisterWebhooks(privateGroup, repos, webhookService)
