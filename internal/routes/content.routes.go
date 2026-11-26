@@ -26,7 +26,7 @@ func RegisterContent(publicGroup, privateGroup fiber.Router, repos *repositories
 	authorizer := services.NewProjectAuthorizer(repos.ProjectRepository)
 
 	publicGroup.Get("/public/content", contentItemHandler.ListPublic)
-	publicGroup.Get("/public/content/:contentTypeId/:slug", contentItemHandler.GetPublicBySlug)
+	publicGroup.Get("/public/content/:contentTypeId/*", contentItemHandler.GetPublicBySlug)
 	publicGroup.Get("/public/projects/:projectId/collections/:collection/items", publicCollectionHandler.ListPublicItems)
 	publicGroup.Post("/public/projects/:projectId/collections/:collection/items", publicCollectionHandler.SubmitPublicItem)
 

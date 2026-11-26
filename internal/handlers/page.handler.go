@@ -202,6 +202,9 @@ func (h *PageHandler) Update(c fiber.Ctx) error {
 	}
 
 	if err := h.pageService.UpdateFieldsForUser(c.RequestCtx(), projectID, pageID, userID, updates); err != nil {
+		if errors.Is(err, services.ErrInvalidPageSlug) {
+			return utils.SendError(c, fiber.StatusBadRequest, err.Error(), err, userID)
+		}
 		if errors.Is(err, repositories.ErrPageNameTaken) {
 			return utils.SendError(c, fiber.StatusConflict, "A page with this name already exists in the project", err, userID)
 		}

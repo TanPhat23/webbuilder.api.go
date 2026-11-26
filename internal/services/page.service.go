@@ -213,6 +213,9 @@ func (s *PageService) UpdateFieldsForUser(ctx context.Context, projectID, pageID
 	if err := s.checkRouteCollision(ctx, projectID, pageID, effectiveType, effectiveSlug); err != nil {
 		return err
 	}
+	if effectiveType != models.PageTypeDynamic && existing.ContentTypeId != nil {
+		updates["ContentTypeId"] = nil
+	}
 	return s.pageRepo.UpdateFields(ctx, pageID, updates)
 }
 

@@ -5,6 +5,8 @@ import (
 	"my-go-app/internal/models"
 	"my-go-app/internal/services"
 	"my-go-app/pkg/utils"
+	"net/url"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -164,11 +166,22 @@ func resolveContentItemSortBy(raw string) string {
 }
 
 func (h *ContentItemHandler) GetPublicBySlug(c fiber.Ctx) error {
-	ids, err := utils.RequireParams(c, "contentTypeId", "slug")
+	ids, err := utils.RequireParams(c, "contentTypeId")
 	if err != nil {
 		return err
 	}
-	contentTypeID, slug := ids[0], ids[1]
+	contentTypeID := ids[0]
+	rawSlug := c.Params("slug")
+	if rawSlug == "" {
+		rawSlug = c.Params("*")
+	}
+	if decoded, err := url.PathUnescape(rawSlug); err == nil {
+		rawSlug = decoded
+	}
+	slug := strings.Trim(strings.TrimSpace(rawSlug), "/")
+	if slug == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "slug is required")
+	}
 
 	contentItem, err := h.contentItemService.GetBySlug(c.RequestCtx(), contentTypeID, slug)
 	if err != nil {

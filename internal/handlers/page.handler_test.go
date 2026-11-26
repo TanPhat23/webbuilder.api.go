@@ -279,6 +279,10 @@ func TestUpdatePage(t *testing.T) {
 		svc := &pageHandlerUpdateFails{updateErr: gorm.ErrRecordNotFound}
 		kitExpect(t, kitSend(t, pageHandlerApp("u1", svc), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 404, "Page not found")
 	})
+	t.Run("invalid dynamic slug on static page returns 400", func(t *testing.T) {
+		svc := &pageHandlerUpdateFails{updateErr: services.ErrInvalidPageSlug}
+		kitExpect(t, kitSend(t, pageHandlerApp("u1", svc), "PATCH", "/projects/p1/pages/pg1", `{"slug":"blog/:slug"}`), 400, "dynamic")
+	})
 	t.Run("update failure", func(t *testing.T) {
 		svc := &pageHandlerUpdateFails{updateErr: errInternal}
 		kitExpect(t, kitSend(t, pageHandlerApp("u1", svc), "PATCH", "/projects/p1/pages/pg1", `{"name":"a"}`), 500, "Failed to update page")

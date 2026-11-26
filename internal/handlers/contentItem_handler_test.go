@@ -238,6 +238,18 @@ func TestPublicContentItemBySlug(t *testing.T) {
 			t.Fatalf("service args %v", svc.slugArgs)
 		}
 	})
+	t.Run("multi-segment catch-all slug via wildcard route", func(t *testing.T) {
+		svc := &contentItemSvcStub{bySlug: published}
+		h := NewContentItemHandler(svc)
+		app := newKitApp("u1", func(a *fiber.App) {
+			a.Get("/public/content/:contentTypeId/*", h.GetPublicBySlug)
+		})
+		r := kitSend(t, app, "GET", "/public/content/docs/guides/getting-started", "")
+		kitExpect(t, r, 200, `"extra":"v"`)
+		if len(svc.slugArgs) != 2 || svc.slugArgs[0] != "docs" || svc.slugArgs[1] != "guides/getting-started" {
+			t.Fatalf("service args %v", svc.slugArgs)
+		}
+	})
 	t.Run("draft is hidden", func(t *testing.T) {
 		kitExpect(t, kitSend(t, contentItemKit(&contentItemSvcStub{bySlug: draft}), "GET", "/public/blog/s", ""), 404, "Content item not found")
 	})
