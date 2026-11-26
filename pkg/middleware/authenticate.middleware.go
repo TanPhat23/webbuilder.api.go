@@ -58,9 +58,13 @@ func isPublicRoute(c fiber.Ctx) bool {
 		if strings.HasPrefix(path, "/api/v1/pages/public/") ||
 			strings.HasPrefix(path, "/api/v1/projects/public/") ||
 			strings.HasPrefix(path, "/api/v1/elements/public/") ||
-			strings.HasPrefix(path, "/api/v1/public/") {
+			strings.HasPrefix(path, "/api/v1/public/") ||
+			strings.HasPrefix(path, "/api/v1/preview/") {
 			return true
 		}
+	}
+	if method == fiber.MethodPost && path == "/api/v1/preview/exchange" {
+		return true
 	}
 	if method == fiber.MethodPost && strings.HasPrefix(path, "/api/v1/public/projects/") {
 		rest := strings.TrimPrefix(path, "/api/v1/public/projects/")
