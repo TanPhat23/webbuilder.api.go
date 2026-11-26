@@ -20,6 +20,7 @@ var pageAllowedCols = map[string]string{
 	"type":          "Type",
 	"styles":        "Styles",
 	"contentTypeId": "ContentTypeId",
+	"requireAuth":   "RequireAuth",
 }
 
 type PageHandler struct {
@@ -121,6 +122,7 @@ func (h *PageHandler) Create(c fiber.Ctx) error {
 		v := *req.ContentTypeId
 		contentTypeID = &v
 	}
+	requireAuth := req.RequireAuth != nil && *req.RequireAuth && req.Type != models.PageTypeComponent
 
 	page := &models.Page{
 		Id:            pageID,
@@ -128,6 +130,7 @@ func (h *PageHandler) Create(c fiber.Ctx) error {
 		Slug:          pageSlug,
 		Type:          req.Type,
 		ContentTypeId: contentTypeID,
+		RequireAuth:   requireAuth,
 		Styles:        req.Styles,
 		ProjectId:     projectID,
 		AuditFields: models.AuditFields{
@@ -192,6 +195,7 @@ func (h *PageHandler) Update(c fiber.Ctx) error {
 	if req.Styles != nil {
 		rawBody["styles"] = req.Styles
 	}
+	utils.SetIfNotNil(rawBody, "requireAuth", req.RequireAuth)
 
 	updates, err := utils.BuildColumnUpdates(rawBody, pageAllowedCols)
 	if err != nil {

@@ -10,6 +10,7 @@ type CreatePageRequest struct {
 	Slug          *string         `json:"slug"          validate:"omitempty,max=255"`
 	Type          string          `json:"type"          validate:"required,min=1,max=100"`
 	ContentTypeId *string         `json:"contentTypeId" validate:"omitempty,max=255"`
+	RequireAuth   *bool           `json:"requireAuth"`
 }
 
 type UpdatePageRequest struct {
@@ -18,4 +19,5 @@ type UpdatePageRequest struct {
 	Slug          *string         `json:"slug"          validate:"omitempty,max=255"`
 	Type          *string         `json:"type"          validate:"omitempty,min=1,max=100"`
 	ContentTypeId *string         `json:"contentTypeId" validate:"omitempty,max=255"`
+	RequireAuth   *bool           `json:"requireAuth"`
 }

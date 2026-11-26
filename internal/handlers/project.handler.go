@@ -19,6 +19,7 @@ var projectAllowedCols = map[string]string{
 	"subdomain":   "Subdomain",
 	"styles":      "Styles",
 	"header":      "Header",
+	"authConfig":  "AuthConfig",
 }
 
 type ProjectHandler struct {
@@ -199,6 +200,19 @@ func buildProjectColumnUpdates(req *dto.UpdateProjectRequest, body []byte) (map[
 	if req.Header != nil {
 		rawBody["header"] = req.Header
 	}
+	if len(req.AuthConfig) > 0 {
+		validated, err := models.ValidateProjectAuthConfig(req.AuthConfig)
+		if err != nil {
+			return nil, fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+		if validated == nil {
+			rawBody["authConfig"] = nil
+		} else {
+			rawBody["authConfig"] = *validated
+		}
+	} else if hasExplicitNullField(body, "authConfig") {
+		rawBody["authConfig"] = nil
+	}
 
 	columnUpdates, err := utils.BuildColumnUpdates(rawBody, projectAllowedCols)
 	if err != nil {
@@ -220,6 +234,7 @@ func projectFromColumnUpdates(columnUpdates map[string]any) *models.Project {
 	}
 	assignRawJSONUpdate(columnUpdates, "Styles", &project.Styles)
 	assignRawJSONUpdate(columnUpdates, "Header", &project.Header)
+	assignRawJSONUpdate(columnUpdates, "AuthConfig", &project.AuthConfig)
 	return project
 }
 

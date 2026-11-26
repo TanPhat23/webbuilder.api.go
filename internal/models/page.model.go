@@ -28,6 +28,7 @@ type Page struct {
 	Slug          string          `gorm:"column:Slug;type:varchar(255);not null;default:''" json:"slug"`
 	Type          string          `gorm:"column:Type;type:varchar(255);not null" json:"type"`
 	ContentTypeId *string         `gorm:"column:ContentTypeId;type:text" json:"contentTypeId,omitempty"`
+	RequireAuth   bool            `gorm:"column:RequireAuth;not null;default:false" json:"requireAuth"`
 	Logic         json.RawMessage `gorm:"column:Logic;type:jsonb" json:"logic,omitempty"`
 	Styles        json.RawMessage `gorm:"column:Styles;type:jsonb" json:"styles,omitempty"`
 	AuditFields
