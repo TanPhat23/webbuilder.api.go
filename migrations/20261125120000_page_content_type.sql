@@ -1,6 +1,7 @@
 -- +goose Up
 ALTER TABLE "Page" ADD COLUMN IF NOT EXISTS "ContentTypeId" TEXT;
 
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -12,6 +13,7 @@ BEGIN
             ON DELETE SET NULL ON UPDATE CASCADE;
     END IF;
 END $$;
+-- +goose StatementEnd
 
 CREATE INDEX IF NOT EXISTS "Page_ContentTypeId_idx"
     ON "Page" ("ContentTypeId")
